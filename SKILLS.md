@@ -1,150 +1,493 @@
 # Dragon Realms — Complete Skills Reference
 
 Clean-room skill taxonomy modeled on the source game's full list: six skillsets
-plus guild skills, with sub-skills and governing stats. The interactive
-reference lives at `/SKILLS.html` and is **generated from the live game data**
-(`node scripts/build-skills-doc.mjs`), so it can never drift from the code.
+plus guild skills, with sub-skills and governing stats.
 
----
-
-## Skillsets at a glance
-
-| Skillset | Count | Roster |
-|---|---|---|
-| Weapon | 17 | Small Edged, Medium Edged, Large Edged, Two-Handed Edged, Small Blunt, Two-Handed Blunt, Polearms, Staves, Brawling, Offhand Weapon, Melee Mastery, Missile Mastery, Bows, Crossbows, Slings, Light Thrown, Heavy Thrown, Parry Ability |
-| Armor | 6 | Shield Usage, Light Armor, Chain Armor, Brigandine, Plate Armor, Defending |
-| Magic | 15 | Attunement, Primary Magic, Arcana, Augmentation, Debilitation, Targeted Magic, Offensive Magic, Defensive Magic, Warding Magic, Utility Magic, Healing Magic, Holy Magic, Moon Magic, War Magic, Illusion, Necromancy, Sorcery, Summoning |
-| Survival | 12 | Evasion, Athletics, Climbing, Swimming, Perception, Hunting, Tracking, Outdoorsmanship, Hiding, Stealth, Locksmithing, Thievery, First Aid, Skinning |
-| Lore | 11 | Appraisal, Alchemy, Engineering, Forging, Enchanting, Outfitting, Scholarship, Performance, Tactics, Herbal Lore, Elemental Lore, Necromancy Lore, Astrology, Theurgy |
-| Guild | 8 | Empathy, Expertise, Scouting, Backstab, Bardic Lore, Conviction, Thanatology, Trading |
-
-> **Note on guild skills:** Astrology (Moon Mage), Theurgy (Cleric), and
-> Summoning (Warrior Mage) live in the Magic skillset but are also guild-only
-> skills in the source. In Dragon Realms they are flagged `guildSkill` and can
-> only be trained by the owning guild.
-
----
+> **Generated from the live game data** by `node scripts/build-skills-doc.mjs`
+> (also emits the interactive `/SKILLS.html`) — edit `data/skills.js` /
+> `data/guilds.js`, never this file.
 
 ## Weapon Skillset
 
-| Skill | Range | Sub-skills | In-game training |
-|---|---|---|---|
-| **Small Edged** | Melee | Knives, Daggers, Hatchets, Hand Axes, Short Swords, Rapiers, Scimitars | Fight with daggers/short swords |
-| **Medium Edged** | Melee | Hand-and-a-half Swords, Long Swords | Fight with long swords |
-| **Large Edged** | Melee | Broadswords, Longswords, Battle Axes | Fight with broadswords |
-| **Two-Handed Edged** | Melee | Greatswords, Greataxes, Flamberges, Claymores | Fight with greatswords |
-| **Small Blunt** | Melee | Clubs, Gavels, Mallets, Maces, War Hammers | Fight with maces/clubs |
-| **Two-Handed Blunt** | Melee | War Mattocks, Mauls | Fight with mauls |
-| **Polearms** | Melee/Pole | Spears, Pikes, Halberds, Scythes, Glaives, Voulges | Fight with polearms |
-| **Staves** | Melee/Pole | Nightsticks, Quarterstaves | Fight with staves |
-| **Brawling** | Melee | Brass Knuckles, Spike Knuckles, Elbow Spikes, Knee Spikes, Footwraps | Fight unarmed |
-| **Offhand Weapon** | Melee/Ranged | — | Fight with a left-hand weapon |
-| **Melee Mastery** | Meta | — | General melee skill; boosts lower melee weapon skills |
-| **Missile Mastery** | Meta | — | General ranged skill; boosts lower ranged weapon skills |
-| **Bows** | Ranged | Shortbows, Longbows, Composite Bows | Fight with bows (consumes arrows) |
-| **Crossbows** | Ranged | Light Crossbows, Heavy Crossbows, Arbalests, Stonebows | Fight with crossbows (consumes bolts) |
-| **Slings** | Ranged | Slings, Slingshots, Staff Slings | Fight with slings |
-| **Light Thrown** | Ranged | Throwing Knives, Throwing Blades, Bolas, Boomerangs, Light Throwing Axes | Fight with thrown knives |
-| **Heavy Thrown** | Ranged | Throwing Hammers, Hurling Axes, Throwing Spears | Fight with hurling axes |
-| **Parry Ability** | Melee/Pole | — | Fend off incoming melee attacks |
+### Small Edged — Melee
+
+Fight with daggers, short swords, and rapiers.
+
+Sub-skills: Knives, Daggers, Hatchets, Hand Axes, Short Swords, Rapiers, Scimitars
+> _primary for Bard, Empath, Moon Mage, Necromancer, Thief, Trader_
+
+### Medium Edged — Melee
+
+Fight with long swords and hand-and-a-half blades.
+
+Sub-skills: Hand-and-a-half Swords, Long Swords
+> _primary for Bard, Cleric, Moon Mage, Paladin, Thief, Warrior Mage · secondary for Ranger_
+
+### Large Edged — Melee
+
+Fight with broadswords and battle axes.
+
+Sub-skills: Broadswords, Longswords, Battle Axes
+> _primary for Barbarian, Paladin, Ranger_
+
+### Two-Handed Edged — Melee
+
+Fight with greatswords and greataxes.
+
+Sub-skills: Greatswords, Greataxes, Flamberges, Claymores
+> _primary for Barbarian_
+
+### Small Blunt — Melee
+
+Fight with clubs, maces, and war hammers.
+
+Sub-skills: Clubs, Gavels, Mallets, Maces, War Hammers
+> _primary for Cleric, Empath, Necromancer, Trader, Warrior Mage · secondary for Barbarian_
+
+### Two-Handed Blunt — Melee
+
+Fight with mauls and war mattocks.
+
+Sub-skills: War Mattocks, Mauls
+> _primary for Barbarian_
+
+### Polearms — Melee/Pole
+
+Fight with spears, halberds, and glaives.
+
+Sub-skills: Spears, Pikes, Halberds, Scythes, Glaives, Voulges
+
+### Staves — Melee/Pole
+
+Fight with quarterstaves.
+
+Sub-skills: Nightsticks, Quarterstaves
+
+### Brawling — Melee
+
+Fight unarmed.
+
+Sub-skills: Brass Knuckles, Spike Knuckles, Elbow Spikes, Knee Spikes, Footwraps
+> _primary for Trader · secondary for Thief_
+
+### Offhand Weapon — Melee/Ranged
+
+Fight with a weapon held in the left hand.
+
+### Melee Mastery — Meta
+
+A general skill with melee weapons; boosts any melee weapon skill below it.
+
+### Missile Mastery — Meta
+
+A general skill with ranged weapons; boosts any ranged weapon skill below it.
+
+### Bows — Ranged
+
+Fight with bows (consumes arrows).
+
+Sub-skills: Shortbows, Longbows, Composite Bows
+> _primary for Ranger_
+
+### Crossbows — Ranged
+
+Fight with crossbows (consumes bolts).
+
+Sub-skills: Light Crossbows, Heavy Crossbows, Arbalests, Stonebows
+
+### Slings — Ranged
+
+Fight with slings.
+
+Sub-skills: Slings, Slingshots, Staff Slings
+
+### Light Thrown — Ranged
+
+Fight with thrown blades and knives.
+
+Sub-skills: Throwing Knives, Throwing Blades, Bolas, Boomerangs, Light Throwing Axes
+> _secondary for Barbarian_
+
+### Heavy Thrown — Ranged
+
+Fight with hurling axes and throwing spears.
+
+Sub-skills: Throwing Hammers, Hurling Axes, Throwing Spears
+
+### Parry Ability — Melee/Pole
+
+Fend off incoming melee and pole attacks.
+> _secondary for Paladin_
+
+---
 
 ## Armor Skillset
 
-| Skill | Sub-skills | In-game training |
-|---|---|---|
-| **Shield Usage** | Small, Medium, Large Shields | Take hits with a shield equipped |
-| **Light Armor** | Cloth, Leather, Bone | Take hits in light armor |
-| **Chain Armor** | Mail, Chain, Ring | Take hits in chain armor |
-| **Brigandine** | Lamellar, Brigandine, Scale | Take hits in brigandine |
-| **Plate Armor** | Heavy Plate, Plate, Light Plate | Take hits in plate armor |
-| **Defending** | — | General armor proficiency; grows with any armor training |
+### Shield Usage
 
-## Magic Skillset
+Take hits while a shield is equipped.
 
-| Skill | In-game training |
-|---|---|
-| **Attunement** | Cast any spell |
-| **Primary Magic** | General facility; raised alongside any casting |
-| **Arcana** | Magical devices (future) |
-| **Augmentation** | Buff spells (e.g. Hunter's Aspect, Righteous Aegis) |
-| **Debilitation** | Crippling spells (e.g. Grave Mist, Rot) |
-| **Targeted Magic** | Offensive spells |
-| **Offensive Magic** | Direct damage spells |
-| **Defensive Magic** | Wards and protection (e.g. Guardian Ward, Holy Bulwark) |
-| **Warding Magic** | Damage-mitigation spells |
-| **Utility Magic** | Non-combat spells (e.g. Camouflage) |
-| **Healing Magic** | Mending spells (e.g. Soothe, Rekindle) |
-| **Holy Magic** | Cleric/Paladin faith magic |
-| **Moon Magic** | Lunar magic |
-| **War Magic** | Elemental battle magic |
-| **Illusion** | Phantasmal magic |
-| **Necromancy** | Death magic |
-| **Sorcery** | Casting outside your guild's domain |
-| **Summoning** | Guild skill (Warrior Mage) |
+Sub-skills: Small Shields, Medium Shields, Large Shields
+> _primary for Paladin · secondary for Cleric_
+
+### Light Armor
+
+Take hits while wearing light armor.
+
+Sub-skills: Cloth, Leather, Bone
+> _primary for Barbarian, Bard, Empath, Moon Mage, Ranger, Thief, Trader_
+
+### Chain Armor
+
+Take hits while wearing chain armor.
+
+Sub-skills: Mail, Chain, Ring
+> _primary for Cleric, Necromancer, Warrior Mage_
+
+### Brigandine
+
+Take hits while wearing brigandine.
+
+Sub-skills: Lamellar, Brigandine, Scale
+
+### Plate Armor
+
+Take hits while wearing plate armor.
+
+Sub-skills: Heavy Plate, Plate, Light Plate
+> _primary for Paladin_
+
+### Defending
+
+General armor proficiency; grows with any armor training.
+
+---
+
+## Combat Manipulation
+
+### Martial Arts
+
+Mastered unarmed forms.
+
+### Warding
+
+Turn aside blows with disciplined parries.
+
+---
 
 ## Survival Skillset
 
-| Skill | Governing stats | In-game training |
-|---|---|---|
-| **Evasion** | Reflex | Dodge attacks in combat |
-| **Athletics** | Str, Sta | Climb and swim |
-| **Climbing** | — | Scale obstacles |
-| **Swimming** | — | Move through water |
-| **Perception** | Wisdom | `hunt`, `track` |
-| **Hunting** | — | Stalk prey |
-| **Tracking** | — | `track` command |
-| **Outdoorsmanship** | Int, Wis | `forage` command |
-| **Hiding** | — | Melt out of sight (Thief) |
-| **Stealth** | Dis, Agi, Ref | Move unseen; backstab |
-| **Locksmithing** | Agi, Ref | Disarm and pick locks |
-| **Thievery** | Agi, Dis | Pilfer coins and goods |
-| **First Aid** | — | Use salves, herbs, potions |
-| **Skinning** | Agi, Int, Dis | `skin` your kills |
+### Evasion
+
+Dodge attacks in combat.
+
+Governing stats: Reflex
+> _primary for Barbarian, Empath, Ranger, Thief · secondary for Bard, Moon Mage, Trader, Warrior Mage_
+
+### Athletics
+
+Climb and swim more surely.
+
+Governing stats: Str, Sta
+
+### Climbing
+
+Scale obstacles.
+> _secondary for Ranger_
+
+### Swimming
+
+Move through water.
+> _secondary for Ranger_
+
+### Perception
+
+Hunt, track, and spot hidden things.
+
+Governing stats: Wisdom
+> _primary for Bard, Trader · secondary for Barbarian, Moon Mage, Necromancer, Ranger, Thief_
+
+### Hunting
+
+Stalk prey; grows alongside combat kills.
+
+### Tracking
+
+Use the "track" command to read the wilds.
+> _primary for Ranger_
+
+### Outdoorsmanship
+
+Use the "forage" command in the wilds.
+
+Governing stats: Int, Wis
+
+Sub-skills: Foraging, Mining, Fishing, Animal Lore
+> _primary for Ranger · secondary for Barbarian, Trader_
+
+### Hiding
+
+Melt out of sight.
+> _primary for Thief_
+
+### Stealth
+
+Move unseen; backstabs strike from stealth.
+
+Governing stats: Dis, Agi, Ref
+> _primary for Thief_
+
+### Locksmithing
+
+Disarm and pick locks.
+
+Governing stats: Agi, Ref
+> _secondary for Thief_
+
+### Thievery
+
+Pilfer coins and goods.
+
+Governing stats: Agi, Dis
+
+### First Aid
+
+Use salves, herbs, and potions.
+> _secondary for Empath_
+
+### Skinning
+
+Skin the creatures you fell.
+
+Governing stats: Agi, Int, Dis
+
+---
+
+## Defense
+
+### Physical Fitness
+
+Grow through combat and survival.
+> _primary for Barbarian · secondary for Bard, Cleric, Empath, Necromancer, Paladin, Ranger, Trader, Warrior Mage_
+
+### Endurance
+
+Grow through long fights and hard work.
+
+---
+
+## Magic Skillset
+
+### Attunement
+
+Harness mana — gained by casting any spell.
+> _primary for Empath, Moon Mage, Necromancer, Warrior Mage · secondary for Bard, Cleric, Paladin_
+
+### Primary Magic
+
+General facility with magic; raised alongside any casting.
+
+### Arcana
+
+Facility with magical devices.
+
+### Augmentation
+
+Spells that enhance abilities and stats.
+
+### Debilitation
+
+Combat spells that cripple or curse.
+
+### Targeted Magic
+
+Offensive spells that damage enemies.
+
+### Offensive Magic
+
+Direct damage spells.
+> _primary for Warrior Mage · secondary for Necromancer_
+
+### Defensive Magic
+
+Wards and protective spells.
+> _primary for Paladin · secondary for Cleric, Moon Mage, Warrior Mage_
+
+### Warding Magic
+
+Spells that prevent or mitigate damage.
+
+### Utility Magic
+
+Useful non-combat spells.
+> _primary for Bard · secondary for Empath, Moon Mage, Necromancer, Trader_
+
+### Healing Magic
+
+Mending and restoring spells.
+> _primary for Cleric, Empath_
+
+### Holy Magic
+
+Faith-wrought cleric and paladin magic.
+> _primary for Cleric, Paladin_
+
+### Moon Magic
+
+Lunar and stellar magic.
+> _primary for Moon Mage_
+
+### War Magic
+
+Elemental battle magic.
+> _primary for Warrior Mage_
+
+### Illusion
+
+Deceptive and phantasmal magic.
+> _primary for Bard_
+
+### Necromancy
+
+Magic of death and decay.
+> _primary for Necromancer_
+
+### Sorcery
+
+Casting outside your guild's domain; risks backlash.
+
+### Summoning
+
+Controlling familiars and summoned weapons.
+> _guild skill (Warrior Mage)_
+
+### Inner Fire
+
+The fury that fuels barbarian powers; grows in battle.
+
+### Astrology
+
+Read the celestial spheres.
+> _primary for Moon Mage · guild skill (Moon Mage)_
+
+### Theurgy
+
+Ritual devotion and faith magic.
+> _primary for Cleric · secondary for Paladin · guild skill (Cleric)_
+
+---
 
 ## Lore Skillset
 
-| Skill | Sub-skills | In-game training |
-|---|---|---|
-| **Appraisal** | — | Judge items |
-| **Alchemy** | Reactants, Remedies | `craft` at the Tilted Retort |
-| **Engineering** | Carving, Shaping, Tinkering | Future crafting |
-| **Forging** | Blacksmithing, Armorsmithing, Weaponsmithing | Future crafting |
-| **Enchanting** | — | Future crafting |
-| **Outfitting** | Artistry, Jewelry Making, Tailoring | Future crafting |
-| **Scholarship** | — | Study books |
-| **Performance** | Instruments, Voice | `perform`/`sing` |
-| **Tactics** | — | Combat maneuvers |
-| **Herbal Lore** | — | Identify plants |
-| **Elemental Lore** | — | Elemental knowledge |
-| **Necromancy Lore** | — | Grave knowledge |
-| **Astrology** | — | Guild skill (Moon Mage) |
-| **Theurgy** | — | Guild skill (Cleric) |
+### Herbal Lore
+
+Identify and gather useful plants.
+> _secondary for Empath_
+
+### Appraisal
+
+Judge the quality and value of items.
+> _primary for Trader · secondary for Bard, Thief_
+
+### Alchemy
+
+Craft potions at the Tilted Retort.
+
+Sub-skills: Reactants, Remedies
+
+### Engineering
+
+Carve, shape, and tinker mechanical items.
+
+Sub-skills: Carving, Shaping, Tinkering
+
+### Forging
+
+Smith metal into weapons and armor.
+
+Sub-skills: Blacksmithing, Armorsmithing, Weaponsmithing
+
+### Enchanting
+
+Craft enchanted magical items.
+
+### Outfitting
+
+Tailor cloth, leather, and jewelry.
+
+Sub-skills: Artistry, Jewelry Making, Tailoring
+
+### Scholarship
+
+Study books, tomes, and teachers.
+
+### Performance
+
+Play music and perform.
+
+Sub-skills: Instruments, Voice
+
+### Tactics
+
+Gain advantage through combat maneuvers.
+
+### Elemental Lore
+
+Knowledge of the elements.
+> _secondary for Warrior Mage_
+
+### Necromancy Lore
+
+Knowledge of death and the grave.
+> _primary for Necromancer_
+
+---
 
 ## Guild Skills
 
-Guild skills are exclusive to their guild and train through guild activity.
+### Empathy
 
-| Skill | Guild | Trains via |
-|---|---|---|
-| **Empathy** | Empath | Casting (Soothe, Mending Touch, Rekindle) |
-| **Expertise** | Barbarian | Berserk, maneuvers |
-| **Scouting** | Ranger | `hunt` |
-| **Backstab** | Thief | `backstab` |
-| **Bardic Lore** | Bard | Casting (Chime, Lullaby, Finale) |
-| **Conviction** | Paladin | Casting (Smite, Wrath, Bulwark) |
-| **Thanatology** | Necromancer | Casting (Bone Spear, Blood Harvest) |
-| **Trading** | Trader | `sell` at shops |
-| **Astrology** | Moon Mage | Casting (Moon Bolt, Stellar Cascade) |
-| **Theurgy** | Cleric | Casting (Sacred Flame, Judgement) |
-| **Summoning** | Warrior Mage | Casting (Fire Shard, Cataclysm) |
+Feel and mend the life force of others.
+> _guild skill (Empath)_
 
-All guild skills are trainable at your guild hall (`train <skill>`) and never
-count toward circle requirements.
+### Expertise
+
+Barbarian analyze and combat mastery.
+> _guild skill (Barbarian)_
+
+### Scouting
+
+Ranger trails and scouting reports.
+> _guild skill (Ranger)_
+
+### Backstab
+
+Strike hidden foes from the shadows.
+> _guild skill (Thief)_
+
+### Bardic Lore
+
+Bardic songs, whistling, and recall.
+> _guild skill (Bard)_
+
+### Conviction
+
+Paladin faith and smite.
+> _guild skill (Paladin)_
+
+### Thanatology
+
+Necromancer rituals of the grave.
+> _guild skill (Necromancer)_
+
+### Trading
+
+Deal, bargain, and move silver.
+> _guild skill (Trader)_
 
 ---
 
 ## Circle requirements
 
-Circling uses the primary/secondary skill lists per guild (see the
-**Circle-10 Requirement Matrix** in `ROADMAP.md`). Guild skills are optional
-flavor progression, not required to circle.
+Circling uses the authentic DR band tables per guild (see `ROADMAP.md`).
+Guild skills are optional flavor progression, not required to circle.

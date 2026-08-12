@@ -3,7 +3,7 @@
 Date: 2026-08-12 · **Revision 2** (re-audit after the P0/P1/P2 follow-up batch) ·
 Scope: everything the game claims through **circle 10** parity.
 
-Method: 58/58 tests ×4 consecutive runs · headless sims for all 11 guilds ·
+Method: 82/82 tests ×4 consecutive runs · headless sims for all 11 guilds ·
 programmatic data-integrity audit (`scripts/audit-data.mjs`, persistent) ·
 feature-existence greps · local mirror of the official wiki corpus
 (`docs/elanthipedia/`, search with `node scripts/elathip-search.mjs <query>`).
@@ -36,7 +36,7 @@ found stale this pass and fixed (barbarian forgetting status; rank-cap row).
 
 | Check | Result |
 |---|---|
-| `npm test` (58 tests, ×4) | ✅ 58/58, 0 fail |
+| `npm test` (82 tests, ×4) | ✅ 82/82, 0 fail |
 | Sim: all 11 guilds → circle 10 | ✅ 4–12 sim-min each; TDPs ≈910–1040 |
 | Data-integrity audit (`scripts/audit-data.mjs`) | ✅ ALL CROSS-REFERENCES VALID |
 | Feature greps (perceive/harness/prepare/cambrinth/inner fire/learn/analyze/whirlwind/stomp/choke/duel/steal/pick/quest/claim/ambush/ladder/stance-points) | ✅ all present |
@@ -221,7 +221,7 @@ alongside the circle engine.**
 - Fixed (R1): `east_gate` one-way exit (added `east_road`); flaky API death test
   → deterministic `/debug die` fixture
 - Fixed (R2): ROADMAP rows for barbarian forgetting + rank-cap
-- Verified stable: 58/58 tests ×4, all-guild circle-10 sims
+- Verified stable: 82/82 tests ×4, all-guild circle-10 sims
 
 ## 8. Resolution status (Revision 2)
 

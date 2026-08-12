@@ -1,6 +1,6 @@
-// Builds public/SKILLS.html — the full skills reference — from data/skills.js
-// and data/guilds.js, so the documentation can never drift from the game.
-// Run: node scripts/build-skills-doc.mjs
+// Builds public/SKILLS.html AND SKILLS.md — the full skills reference — from
+// data/skills.js and data/guilds.js, so the documentation can never drift
+// from the game. Run: node scripts/build-skills-doc.mjs
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,8 @@ import { SKILLS, CATEGORIES } from '../data/skills.js';
 import { GUILDS } from '../data/guilds.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT = join(__dirname, '..', 'public', 'SKILLS.html');
+const OUT_HTML = join(__dirname, '..', 'public', 'SKILLS.html');
+const OUT_MD = join(__dirname, '..', 'SKILLS.md');
 
 // Which guilds train each skill (primary / secondary / guild skill).
 const guildMap = {};
@@ -136,5 +137,43 @@ render();
 </html>
 `;
 
-writeFileSync(OUT, html);
-console.log(`Wrote ${OUT} (${skillsData.length} skills)`);
+writeFileSync(OUT_HTML, html);
+
+// ---------------- SKILLS.md (markdown twin, same data) ----------------
+const byCat = {};
+for (const s of skillsData) (byCat[s.cat] ||= []).push(s);
+const catOrder = Object.values(CATEGORIES);
+
+const guildTags = (s) => {
+  const tags = [];
+  if (s.guilds.primary.length) tags.push(`primary for ${s.guilds.primary.join(', ')}`);
+  if (s.guilds.secondary.length) tags.push(`secondary for ${s.guilds.secondary.join(', ')}`);
+  if (s.guilds.guildSkill.length) tags.push(`guild skill (${s.guilds.guildSkill.join(', ')})`);
+  return tags.length ? `\n> _${tags.join(' · ')}_` : '';
+};
+
+const md = `# Dragon Realms — Complete Skills Reference
+
+Clean-room skill taxonomy modeled on the source game's full list: six skillsets
+plus guild skills, with sub-skills and governing stats.
+
+> **Generated from the live game data** by \`node scripts/build-skills-doc.mjs\`
+> (also emits the interactive \`/SKILLS.html\`) — edit \`data/skills.js\` /
+> \`data/guilds.js\`, never this file.
+
+${Object.entries(byCat).map(([cat, list]) => `## ${cat}
+
+${list.map((s) => `### ${s.name}${s.range ? ` — ${s.range}` : ''}
+
+${s.training}${s.governing ? `\n\nGoverning stats: ${s.governing}` : ''}${s.subskills.length ? `\n\nSub-skills: ${s.subskills.join(', ')}` : ''}${guildTags(s)}`).join('\n\n')}`).join('\n\n---\n\n')}
+
+---
+
+## Circle requirements
+
+Circling uses the authentic DR band tables per guild (see \`ROADMAP.md\`).
+Guild skills are optional flavor progression, not required to circle.
+`;
+
+writeFileSync(OUT_MD, md);
+console.log(`Wrote ${OUT_HTML} and ${OUT_MD} (${skillsData.length} skills)`);

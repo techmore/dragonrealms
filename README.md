@@ -145,8 +145,9 @@ testing and analysis — see `docs/api.md`.
   at `/ROADMAP.html`.
 - **Balance tooling** — `node scripts/simulate-progression.mjs [guild]` grinds
   a fresh character to circle 10 with the real systems; all 11 guilds are
-  verified (9–24 simulated minutes each). `node scripts/build-skills-doc.mjs`
-  regenerates `/SKILLS.html`. A test-only HTTP API (`server/api.js`,
+  verified (4–12 simulated minutes each). `node scripts/build-skills-doc.mjs`
+  regenerates `/SKILLS.html` and `SKILLS.md`; `node scripts/build-roadmap.mjs`
+  regenerates the tracker from `data/roadmap.js`. A test-only HTTP API (`server/api.js`,
   `DR_ENABLE_API=1`) drives the game headlessly for analysis.
 - **Skill taxonomy** — the full clean-room reference (six skillsets + guild
   skills, sub-skills, governing stats, training sources) lives in
