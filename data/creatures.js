@@ -19,6 +19,25 @@ export const CREATURES = {
     armor: 8, defense: 10,
     loot: ['kobold_skin', 'strongbox'], lootTags: ['skins', 'box'], exp: 80, aggressive: false,
   },
+  // Deep sewers (circle 3-5): the lower drains.
+  great_rat: {
+    id: 'great_rat', name: 'a great rat', plural: 'great rats', circle: 3,
+    desc: 'A rat grown to the size of a hound, its fur crusted with filth and its eyes burning with hunger.',
+    teaches: [4, 13],
+    stats: { str: 10, con: 10, ref: 12, agi: 13 },
+    weapon: { skill: 'brawling', dmg: [5, 10], speed: 3 },
+    armor: 6, defense: 13,
+    loot: ['rat_pelt', 'strongbox'], lootTags: ['skins', 'box'], gems: ['garnet'], exp: 170, aggressive: true,
+  },
+  sewer_viper: {
+    id: 'sewer_viper', name: 'a sewer viper', plural: 'sewer vipers', circle: 4,
+    desc: 'A mottled viper as thick as a man\'s arm, gliding through the blackwater with a soft hiss.',
+    teaches: [8, 19],
+    stats: { str: 9, con: 9, ref: 16, agi: 17 },
+    weapon: { skill: 'brawling', dmg: [7, 13], speed: 3 },
+    armor: 4, defense: 21,
+    loot: ['viper_fang'], lootTags: ['skins', 'gems'], gems: ['sapphire'], exp: 270, aggressive: true,
+  },
   goblin: {
     id: 'goblin', name: 'a goblin', plural: 'goblins', circle: 3,
     desc: 'A squat, green-skinned goblin with yellow eyes, hefting a crude club.',

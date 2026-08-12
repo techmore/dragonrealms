@@ -23,9 +23,9 @@ const HELP = `
   Shops:     list  |  buy <item> [qty]  |  sell <item> [qty]  |  deposit/withdraw <silvers>  |  pit  |  heal
   Training:  train <skill>  (pay silvers to advance guild skills)  |  train <stat> twice (Fane of Training, east of Temple Row)  |  circle
   TDPs:      tdp  |  raise <stat>  |  tdptrain <skill>
-  Quests:    quest  |  claim  |  ask <leader> task
+  Quests:    quest  |  claim  |  deliver  |  ask <leader> task
   Stances:   stance aggressive | defensive | guarded | balanced  (costs stance points)
-  PvP:       duel <player> [blood|blow|pain] | accept/decline <player> | surrender | pvp stance open|guarded|closed  (wilds only)
+  PvP:       duel <player> [blood|blow|pain] | accept/decline <player> | surrender | assault <player> (OPEN targets only) | recall warrant | pvp stance open|guarded|closed  (duels wilds only)
   Wilds:     forage  |  hunt  |  track  |  ladder  |  hide  |  ambush <creature>  |  rest  (recover)
   Skills:    perform  |  appraise <item>  |  study  (temple library)
    Crafting:  craft <recipe>  (Tilted Retort)  |  forge <recipe>  (Ember Forge)  |  shape <recipe>  (Ember Forge, Engineering)  |  tailor <recipe>  (Needle & Thread, south of West Road)
@@ -43,6 +43,7 @@ export const commands = {
 
   quest(ctx) { quest(ctx); },
   claim(ctx) { claim(ctx); },
+  deliver(ctx) { deliver(ctx); },
 
   plead(ctx) {
     const { game, p, emit } = ctx;
@@ -53,10 +54,11 @@ export const commands = {
       return emit(`The jailer looks up. "Guilty or innocent, thief?${remaining ? ` (${remaining}s left if you wait)` : ''}"`);
     }
     if (plea === 'guilty') {
-      const fine = 5 + p.circle * 5;
+      const fine = 5 + p.circle * 5 + (p.warrant ? p.circle * 10 : 0);
       const paid = Math.min(p.silver, fine);
       p.silver -= paid;
       p.jailUntil = 0;
+      p.warrant = null;
       p.room = 'square';
       emit(`You plead guilty. The fine is ${fine} silvers — you pay ${paid}${paid < fine ? ' (the rest from your debts)' : ''}. Jailer Grum unlocks the door: "Mind your hands."`);
       game.look(p);
@@ -154,8 +156,8 @@ export const commands = {
   },
 
   time(ctx) {
-    const { say } = ctx;
-    say(gameTime());
+    const { game, say } = ctx;
+    say(`${gameTime()}\nOverhead, ${game.weatherLabel ? game.weatherLabel() : 'the weather is fair.'}`);
   },
 
   who(ctx) {
@@ -265,8 +267,16 @@ function quest(ctx) {
   }
   if (!p.quest) {
     const q = game.assignQuest(p);
-    const def = creatureById(q.creatureId);
-    say(`\nThe crier nods. "The town's overrun with ${def.plural}. Slay ${q.count} ${def.plural} and I'll see you paid."`);
+    if (q.kind === 'kill') {
+      const def = creatureById(q.creatureId);
+      say(`\nThe crier nods. "The town's overrun with ${def.plural}. Slay ${q.count} ${def.plural} and I'll see you paid."`);
+    } else if (q.kind === 'deliver') {
+      say(`\nThe crier hands you a parcel. "Take ${q.target.parcel} to ${q.target.name} — ${q.target.topic} has need of it. Quick as you can."`);
+    } else if (q.kind === 'recover') {
+      say(`\nThe crier lowers his voice. "${q.trinket.name} was lost to the ${creatureById(q.creatureId).plural} down below. Find it, and it's yours to return."`);
+    } else {
+      say(`\nThe crier points to the tanner's. "Hides are worth coin today. Skin ${q.count} creatures and bring me the work."`);
+    }
     return;
   }
   if (p.quest.done) {
@@ -274,8 +284,13 @@ function quest(ctx) {
     emit(res.msg);
     return;
   }
-  const def = creatureById(p.quest.creatureId);
-  say(`\nQuest: slay ${p.quest.count} more ${def.plural}. Return to the crier when done.`);
+  say(`\nQuest: ${game.questDescription(p)}`);
+}
+
+function deliver(ctx) {
+  const { game, p, emit } = ctx;
+  const res = game.questDeliver(p);
+  emit(res.msg);
 }
 
 function claim(ctx) {

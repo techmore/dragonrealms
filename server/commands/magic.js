@@ -123,29 +123,34 @@ export const commands = {
   },
 
   perceive(ctx) {
-    const { p, emit } = ctx;
+    const { game, p, emit } = ctx;
     const { type, def } = manaTypeFor(p.guild);
     if (type === 'none') {
       return emit('You close your eyes and feel nothing — no mana stirs for your kind. The wild power of your own blood is all you need.');
     }
     const room = roomById(p.room);
     const zone = room ? room.zone : 'town';
-    const level = roomManaLevel(p.guild, zone);
+    let level = roomManaLevel(p.guild, zone);
+    const weather = game.weatherManaMod ? game.weatherManaMod() : 0;
+    if (weather !== 0) level = Math.max(0, Math.min(1, level + weather));
     const bonus = Math.min(0.3, skillRank(p, 'attunement') * 0.002);
     const tide = manaCycle(type) > 0.62 ? ' waxing' : manaCycle(type) < 0.38 ? ' waning' : '';
+    const sky = weather > 0 ? ' The storm-charged aether surges!' : weather < 0 ? ' The fog dims the flow.' : '';
     const leveled = gainSkillExp(p, 'attunement', 3);
-    emit(`You reach out with your senses... ${def.desc} The ${def.name.toLowerCase()} mana here flows ${manaDescriptor(level + bonus)}${tide} (${Math.floor(level * 100)}% base).${leveled ? ' Your Attunement improved!' : ''}`);
+    emit(`You reach out with your senses... ${def.desc} The ${def.name.toLowerCase()} mana here flows ${manaDescriptor(level + bonus)}${tide} (${Math.floor(level * 100)}% base).${sky}${leveled ? ' Your Attunement improved!' : ''}`);
   },
 
   harness(ctx) {
-    const { p, emit } = ctx;
+    const { game, p, emit } = ctx;
     const { type, def } = manaTypeFor(p.guild);
     if (type === 'none') {
       return emit('Harness what? Your guild commands no mana.');
     }
     const room = roomById(p.room);
     const zone = room ? room.zone : 'town';
-    const level = roomManaLevel(p.guild, zone);
+    let level = roomManaLevel(p.guild, zone);
+    const weather = game.weatherManaMod ? game.weatherManaMod() : 0;
+    if (weather !== 0) level = Math.max(0, Math.min(1, level + weather));
     if (level < 0.12) return emit('The mana here is too thin to harness.');
     const cap = 10 + skillRank(p, 'attunement') * 2;
     const before = p.heldMana || 0;

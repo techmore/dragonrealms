@@ -18,5 +18,6 @@ export function skinCreature(game, p, name, say, emit) {
   p.corpses.splice(idx, 1);
   const sk = skillRank(p, 'skinning');
   const leveled = gainSkillExp(p, 'skinning', corpse.def.circle * 4 + 5);
+  if (game && game.questSkin) game.questSkin(p);
   emit(`You carefully skin ${corpse.def.name} and add ${gained || 'nothing'} to your pack.${leveled ? ' Your Skinning improved!' : ''}`);
 }

@@ -114,6 +114,47 @@ export class CombatManager {
     this.game.persistPlayer(defender);
   }
 
+  // ---------------- Assaults (open PvP, warrants) ----------------
+  // Anyone may strike a pvpStance-OPEN adventurer. A killing in town is
+  // murder: the attacker earns a warrant and guards hunt them.
+  startAssault(player, target) {
+    if (this.combats.has(player.charId) || this.combats.has(target.charId)) {
+      return { ok: false, error: 'One of you is already in combat.' };
+    }
+    const def = derivePlayerDef(target);
+    const enemies = [{
+      uid: `assault_${target.charId}`,
+      def,
+      name: target.name,
+      hp: target.hp,
+      maxHp: target.maxHp,
+      timer: def.weapon.speed,
+      dead: false,
+    }];
+    const combat = new Combat(`assault_${player.charId}_${Date.now()}`, player, enemies, {
+      onEnd: (c, result) => this.endAssault(player, target, c, result),
+      game: this.game,
+      defender: target,
+      duelEnd: 'blood',
+    });
+    // Assault metadata rides on the combat object (no duel machinery changes).
+    combat.assault = true;
+    combat.townKill = this.game.isTownRoom ? this.game.isTownRoom(target.room) : true;
+    this.combats.set(player.charId, combat);
+    this.combats.set(target.charId, combat);
+    player.combatId = combat.id;
+    target.combatId = combat.id;
+    return { ok: true, combat };
+  }
+
+  endAssault(player, target, combat, result) {
+    this.endDuel(player, target, combat, result);
+    // A town killing draws the noose: murder warrant on the attacker.
+    if (result.win && combat.assault && combat.townKill && this.game.chargeMurder) {
+      this.game.chargeMurder(player);
+    }
+  }
+
   disconnect(player) {
     const combat = this.combats.get(player.charId);
     if (!combat) return;

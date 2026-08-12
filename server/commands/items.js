@@ -282,6 +282,8 @@ function unlock(ctx) {
   }
 }
 
+const CHUG_TIMER_MS = 30 * 1000;
+
 function consume(ctx) {
   const { game, p, arg1, emit } = ctx;
   const entry = findInventoryItem(p, arg1 || '');
@@ -292,6 +294,14 @@ function consume(ctx) {
     return;
   }
   if (entry.item.type !== 'consumable') return emit('You cannot use that.');
+  // Battlefield healing: no drinking in the middle of a fight (DR).
+  if (p.combatId) return emit('You cannot drink or eat in the middle of a fight!');
+  // Chug timer: gulping down draughts back-to-back upsets the stomach (DR).
+  if (p.potionAt && Date.now() - p.potionAt < CHUG_TIMER_MS) {
+    const secs = Math.ceil((CHUG_TIMER_MS - (Date.now() - p.potionAt)) / 1000);
+    return emit(`Your stomach is still settling from the last draught (${secs}s).`);
+  }
+  p.potionAt = Date.now();
   removeItem(p, entry.item.id, 1);
   if (entry.item.buff) {
     for (const [k, v] of Object.entries(entry.item.buff)) p.buffs[k] = v;

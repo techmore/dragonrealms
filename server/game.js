@@ -20,6 +20,23 @@ import { status as statusView } from './status.js';
 
 const RESPAWN_MS = 25 * 1000;
 const MANA_PULSE_MS = 6 * 1000;
+const WEATHER_MS = 10 * 60 * 1000;
+
+// Weather kinds and their weightings by season.
+const WEATHER_POOL = {
+  spring: ['clear', 'fair', 'rain', 'fog', 'storm'],
+  summer: ['clear', 'fair', 'fair', 'storm', 'fog'],
+  autumn: ['clear', 'rain', 'rain', 'fog', 'fair'],
+  winter: ['clear', 'snow', 'snow', 'fog', 'storm'],
+};
+
+function seasonFor(date) {
+  const m = date.getMonth() + 1;
+  if (m >= 3 && m <= 5) return 'spring';
+  if (m >= 6 && m <= 8) return 'summer';
+  if (m >= 9 && m <= 11) return 'autumn';
+  return 'winter';
+}
 const DIRS = {
   n: 'north', s: 'south', e: 'east', w: 'west',
   ne: 'northeast', nw: 'northwest', se: 'southeast', sw: 'southwest',
@@ -46,6 +63,51 @@ export class Game {
     this.pendingDuels = new Map();  // `${initiator}|${target}` -> {initiator, target, createdAt}
     this.combat = new CombatManager(this);
     this.respawnTicker = null;
+    // Weather drifts every few game-hours; seasons follow the real calendar.
+    this.weather = { kind: 'fair', until: Date.now() + 5 * 60 * 1000 };
+    this.weatherTicker = null;
+  }
+
+  // Roll a fresh weather state when the current one lapses.
+  rollWeather() {
+    if (Date.now() < this.weather.until) return this.weather;
+    const season = seasonFor(new Date());
+    const pool = WEATHER_POOL[season];
+    this.weather = {
+      kind: pool[Math.floor(Math.random() * pool.length)],
+      until: Date.now() + WEATHER_MS * (0.6 + Math.random() * 0.8),
+      season,
+    };
+    return this.weather;
+  }
+
+  weatherNow() {
+    return { ...this.weather, season: this.weather.season || seasonFor(new Date()) };
+  }
+
+  // Wilds fortune shifts with the sky: clear skies help, storms hinder.
+  weatherLuckMod() {
+    this.rollWeather();
+    return { clear: 0.08, fair: 0.03, rain: -0.05, fog: -0.1, storm: -0.15, snow: -0.08 }[this.weather.kind] || 0;
+  }
+
+  // Mana flows with the weather: storms charge the aether, fog dulls it.
+  weatherManaMod() {
+    this.rollWeather();
+    return { clear: 0.06, fair: 0, rain: 0.04, fog: -0.1, storm: 0.15, snow: -0.04 }[this.weather.kind] || 0;
+  }
+
+  weatherLabel() {
+    this.rollWeather();
+    const desc = {
+      clear: 'the sky is clear and the air bright',
+      fair: 'the weather is fair',
+      rain: 'a steady rain is falling',
+      fog: 'a thick fog has rolled in',
+      storm: 'a thunderstorm rages overhead',
+      snow: 'snow is falling softly',
+    };
+    return `${desc[this.weather.kind]}. ${cap(this.weather.season)}.`;
   }
 
   init() {
@@ -65,6 +127,8 @@ export class Game {
     this.respawnTicker = setInterval(() => this.respawnTick(), RESPAWN_MS);
     this.manaTicker = setInterval(() => this.manaPulse(), MANA_PULSE_MS);
     this.manaTicker.unref();
+    this.weatherTicker = setInterval(() => this.rollWeather(), 60 * 1000);
+    this.weatherTicker.unref();
     this.autosaveTicker = setInterval(() => {
       for (const p of this.players.values()) {
         try { savePlayer(p); } catch (e) { console.error('autosave error', e); }
@@ -247,9 +311,11 @@ export class Game {
       const fine = 5 + heat * 5;
       const paid = Math.min(p.silver, fine);
       p.silver -= paid;
+      const hadWarrant = Boolean(p.warrant);
       p.jailUntil = 0;
       p.crimeHeat = 0;
-      p.ws.send(JSON.stringify({ t: 'msg', msg: `The judge's verdict is read: ${fine} silvers in town costs. You pay ${paid}${paid < fine ? ' (the rest from your debts)' : ''} and the cell door opens.` }));
+      p.warrant = null;
+      p.ws.send(JSON.stringify({ t: 'msg', msg: `The judge's verdict is read: ${fine} silvers in town costs. You pay ${paid}${paid < fine ? ' (the rest from your debts)' : ''} and the cell door opens.${hadWarrant ? ' Your warrant is cleared.' : ''}` }));
     }
     this.stopRest(p);
     p.hidden = false;
@@ -257,6 +323,8 @@ export class Game {
     if (this.isWild(target)) gainSkillExp(p, 'athletics', 1);
     this.persistPlayer(p);
     this.enterRoom(p);
+    // A wanted criminal walking past the guard is seized.
+    this.pursueWarrant(p);
     return { ok: true };
   }
 
@@ -352,6 +420,68 @@ export class Game {
     if (!this.pendingDuels.delete(key)) return { ok: false, msg: 'You have no pending duel with them.' };
     initiator.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} declines your duel.` }));
     return { ok: true, msg: `You decline the duel.` };
+  }
+
+  // ---------- Assaults & warrants ----------
+  isTownRoom(roomId) {
+    const room = roomById(roomId);
+    return Boolean(room && (room.zone === 'town' || room.zone === 'riverhaven'));
+  }
+
+  startAssault(p, targetName) {
+    if (p.combatId) return { ok: false, msg: 'You are already in combat.' };
+    const target = [...this.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === (targetName || '').toLowerCase());
+    if (!target) return { ok: false, msg: 'There is no such adventurer here.' };
+    if (target.combatId) return { ok: false, msg: `${target.name} is already in combat.` };
+    if (target.pvpStance !== 'open') {
+      return { ok: false, msg: `${target.name} is not OPEN to attack. Challenge them to a duel instead.` };
+    }
+    const res = this.combat.startAssault(p, target);
+    if (!res.ok) return { ok: false, msg: res.error };
+    res.combat.say(`\n\x1b[1m${p.name} strikes at ${target.name} without warning!\x1b[0m`);
+    res.combat.startAttack();
+    this.status(p);
+    this.status(target);
+    return { ok: true, msg: `You attack ${target.name}!` };
+  }
+
+  // A killing in town sets the law against you.
+  chargeMurder(p) {
+    p.warrant = { charge: 'murder', issuedAt: Date.now() };
+    p.pvpStance = 'open';
+    p.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1mMURDER!\x1b[0m The Crossing has issued a WARRANT for your arrest. Guards will seize you on sight. "recall warrant" to read it, or "surrender" to turn yourself in.` }));
+    this.persistPlayer(p);
+  }
+
+  // A wanted player who walks past a guard is taken.
+  pursueWarrant(p) {
+    if (!p.warrant || !this.guardInRoom(p)) return;
+    p.silver = Math.max(0, p.silver - Math.floor(p.silver * 0.3));
+    p.jailUntil = Date.now() + 120 * 1000;
+    p.room = 'jail';
+    p.hidden = false;
+    p.combatId = null;
+    const combat = this.combat.getFor(p);
+    if (combat) this.combat.disconnect(p);
+    p.ws.send(JSON.stringify({ t: 'msg', msg: `\nA guard claps a hand on your shoulder. "${p.warrant.charge.toUpperCase()} — the warrant is read, the cell is ready."\nYou are dragged to the Town Cells, lighter by a third of your purse.` }));
+    this.look(p);
+    this.status(p);
+    this.persistPlayer(p);
+  }
+
+  surrenderToGuards(p) {
+    if (!p.warrant) return { ok: false, msg: 'You have no warrant outstanding.' };
+    const guards = this.guardInRoom(p);
+    p.room = 'jail';
+    p.jailUntil = Date.now() + 120 * 1000;
+    p.hidden = false;
+    const combat = this.combat.getFor(p);
+    if (combat) this.combat.disconnect(p);
+    p.ws.send(JSON.stringify({ t: 'msg', msg: `\nYou raise your hands. A guard steps forward and reads the warrant — ${p.warrant.charge.toUpperCase()}. "Turned yourself in, eh? The judge will hear you soon enough."\nYou are taken to the Town Cells.` }));
+    this.look(p);
+    this.status(p);
+    this.persistPlayer(p);
+    return { ok: true, msg: 'You surrender to the law.' };
   }
 
   defenderDefeated(defender, winner) {
@@ -451,7 +581,7 @@ export class Game {
 
   isWild(roomId) { return wilds.isWild(roomId); }
   zoneName(roomId) { return wilds.zoneName(roomId); }
-  forage(p) { return wilds.forage(p); }
+  forage(p) { return wilds.forage(this, p); }
   track(p) { return wilds.track(this, p); }
   hunt(p) { return wilds.hunt(this, p); }
   ladder() { return wilds.ladder(); }
@@ -464,7 +594,10 @@ export class Game {
   questCreatureFor(p) { return quests.questCreatureFor(p); }
   assignQuest(p, source) { return quests.assignQuest(this, p, source); }
   questKill(p, creatureId) { return quests.questKill(this, p, creatureId); }
+  questSkin(p) { return quests.questSkin(this, p); }
+  questDeliver(p) { return quests.questDeliver(this, p); }
   questClaim(p) { return quests.questClaim(this, p); }
+  questDescription(p) { return quests.questDescription(p); }
 
   guildTrainer(p) { return statusView.guildTrainer(p); }
   status(p) { statusView.status(this, p); }

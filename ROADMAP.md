@@ -461,7 +461,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 |---|---|
 | CHALLENGE dueling: end conditions (blood / blow / pain), refuse + surrender options | 🚧 `duel <name> [blood|blow|pain]`, `surrender`, `decline` live; duel reasons pending |
 | PvP stance flagging (OPEN / GUARDED / CLOSED) + forced-open triggers (stealing) | 🚧 `pvp stance` live; steal forces OPEN; further forced-open triggers pending |
-| Justice zones: Standard / Clan / Dirge / Hara'jaal / None, each with distinct crime consequences | ⬜ |
+| Justice zones: Standard / Clan / Dirge / Hara'jaal / None, each with distinct crime consequences | 🚧 |
 | Crime list: thievery; arrest → jail → PLEAD (guilty fine / innocent time + judge's costs on release, heat-scaled) | 🚧 theft justice live; murder/sorcery crimes + provincial debts pending |
 | Warrants (RECALL WARRANT), SURRENDER to clear charges, stocks for petty theft, DEPART ITEM vs graverobbing | ⬜ |
 | Policy guardrails: no ganking / spawn-camping / preying on weaker players; REPORT for abuse | ⬜ |

@@ -109,6 +109,8 @@ test('consumables: essence tonic restores mana, frenzy draught grants buff', asy
   handleCommand(game, p, 'use tonic');
   assert.ok(p.mana > 5, 'essence tonic restores mana');
 
+  // The chug timer (30s between draughts) has elapsed for this test.
+  p.potionAt = 0;
   addItem(p, 'potion_frenzy', 1);
   handleCommand(game, p, 'use frenzy');
   assert.equal(p.buffs.frenzy, 30, 'frenzy buff active');

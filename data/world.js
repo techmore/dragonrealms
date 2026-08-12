@@ -132,7 +132,17 @@ export const ROOMS = {
   sewers_3: {
     id: 'sewers_3', zone: 'sewers', name: 'Kobold Warrens', spawns: ['kobold', 'kobold', 'rat'],
     desc: 'The smell of unwashed scales and stolen food is thick. Crude bone charms rattle overhead.',
-    exits: { s: 'sewers_2' },
+    exits: { s: 'sewers_2', d: 'sewers_4' },
+  },
+  sewers_4: {
+    id: 'sewers_4', zone: 'sewers', name: 'Lower Drains', spawns: ['great_rat', 'great_rat'],
+    desc: 'The tunnels slope deeper here, where the runoff grows slow and black. Things drag in the dark beyond the lantern\'s reach.',
+    exits: { up: 'sewers_3', d: 'sewers_5' },
+  },
+  sewers_5: {
+    id: 'sewers_5', zone: 'sewers', name: 'The Blackwater', spawns: ['sewer_viper', 'great_rat'],
+    desc: 'A sump of stagnant black water where the brickwork has crumbled away. Ripples cross the surface without any wind.',
+    exits: { up: 'sewers_4' },
   },
   woods_path: {
     id: 'woods_path', zone: 'woods', name: 'Forest Trail', spawns: ['goblin'],

@@ -412,9 +412,29 @@ function pvp(ctx) {
 
 function surrender(ctx) {
   const { game, p, emit } = ctx;
+  if (p.warrant) {
+    const res = game.surrenderToGuards(p);
+    if (!res.ok) emit(res.msg);
+    return;
+  }
   const combat = game.combat.getFor(p);
   if (!combat || !combat.duel) return emit('You are not in a duel.');
   combat.surrender(p === combat.defender ? 'defender' : 'player');
+}
+
+function assault(ctx) {
+  const { game, p, arg1, emit } = ctx;
+  if (!arg1) return emit('Assault whom? Only adventurers standing OPEN to attack can be struck.');
+  const res = game.startAssault(p, arg1);
+  emit(res.msg);
+}
+
+function recall(ctx) {
+  const { game, p, arg1, emit } = ctx;
+  if ((arg1 || '').toLowerCase() !== 'warrant') return emit('Usage: recall warrant — read the law\'s charge against you.');
+  if (!p.warrant) return emit('You have no warrant outstanding. Your name is clean.');
+  const mins = Math.max(1, Math.ceil((Date.now() - p.warrant.issuedAt) / 60000));
+  emit(`\n\x1b[1mWarrant of the Crossing\x1b[0m\n  Charge: ${p.warrant.charge.toUpperCase()}\n  Issued: ${mins} minute(s) ago\n\nGuards will seize you on sight. Say "surrender" to give yourself up and clear it.`);
 }
 
 function accept(ctx) {
@@ -467,6 +487,8 @@ export const commands = {
   backstab,
   smite,
   duel,
+  assault,
+  recall,
   pvp,
   surrender,
   accept,

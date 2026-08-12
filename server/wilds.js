@@ -33,10 +33,10 @@ export const wilds = {
     return room && ZONES[room.zone] ? ZONES[room.zone].name : 'wilds';
   },
 
-  forage(p) {
+  forage(game, p) {
     if (!this.isWild(p.room)) return { ok: false, msg: 'You find nothing worth foraging here. Try the wilds.' };
     const skill = skillRank(p, 'foraging');
-    const chance = 0.35 + skill * 0.03 + p.stats.wis * 0.004;
+    const chance = 0.35 + skill * 0.03 + p.stats.wis * 0.004 + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
     if (Math.random() >= chance) {
       const leveled = gainSkillExp(p, 'foraging', 3);
       return { ok: true, msg: `You comb the ground but find nothing useful.${leveled ? ' Your Foraging improved!' : ''}` };
@@ -55,7 +55,7 @@ export const wilds = {
     if (p.guild.id === 'ranger') gainSkillExp(p, 'scouting', 4);
     const skill = skillRank(p, 'tracking');
     const room = roomById(p.room);
-    const chance = 0.4 + skill * 0.04;
+    const chance = 0.4 + skill * 0.04 + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
     if (Math.random() >= chance) {
       gainSkillExp(p, 'tracking', 3);
       return { ok: true, msg: 'You study the ground but the signs are too faint to follow.' };
@@ -78,7 +78,7 @@ export const wilds = {
     if (p.guild.id === 'ranger') gainSkillExp(p, 'scouting', 4);
     const skill = skillRank(p, 'perception');
     const room = roomById(p.room);
-    const chance = 0.4 + skill * 0.04;
+    const chance = 0.4 + skill * 0.04 + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
     if (Math.random() >= chance) {
       const leveled = gainSkillExp(p, 'perception', 3);
       return { ok: true, msg: `You scan the wilds but catch no sign of prey.${leveled ? ' Your Perception improved!' : ''}` };

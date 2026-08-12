@@ -347,3 +347,151 @@ test('burden: wearing plate slows combat stamina recovery', async () => {
   assert.ok(p.stamina <= 2, `burden 6 caps combat recovery at 1/tick (got ${p.stamina})`);
   game.removePlayer(p);
 });
+
+// ------------------- Depth-tiered grounds -------------------
+test('depth: lower drains and the blackwater extend the sewers ladder', async () => {
+  const { ROOMS } = await import('../data/world.js');
+  const { creatureById } = await import('../data/creatures.js');
+  assert.ok(ROOMS.sewers_4, 'Lower Drains exists');
+  assert.ok(ROOMS.sewers_5, 'The Blackwater exists');
+  assert.equal(ROOMS.sewers_3.exits.d, 'sewers_4', 'warrens descend into the drains');
+  assert.ok(ROOMS.sewers_4.spawns.includes('great_rat'), 'great rats haunt the drains');
+  assert.ok(ROOMS.sewers_5.spawns.includes('sewer_viper'), 'vipers haunt the blackwater');
+  const gr = creatureById('great_rat');
+  const sv = creatureById('sewer_viper');
+  assert.ok(gr.teaches[0] > 3 && gr.teaches[0] <= 6, `great rat sits between sewers and woods (teaches ${gr.teaches})`);
+  assert.ok(sv.teaches[1] >= 18, `viper teaches into the marsh band (${sv.teaches})`);
+  const ladder = game.ladder();
+  assert.match(ladder, /great rat/, 'ladder lists great rats');
+  assert.match(ladder, /sewer viper/, 'ladder lists sewer vipers');
+});
+
+// ------------------- Quest variety -------------------
+test('quests: delivery runs complete at the target room and pay on claim', async () => {
+  const p = await mkChar('DeliverQ', 'trader');
+  const parcel = { room: 'temple', npc: 'healer', name: 'Sister Cora', parcel: 'a bundle of clean bandages', topic: 'the wounded' };
+  p.quest = { kind: 'deliver', target: parcel, source: 'crier', done: false };
+  p.room = 'market_end';
+  const res = game.questDeliver(p);
+  assert.equal(res.ok, false, 'not delivered from the wrong room');
+  p.room = 'temple';
+  const res2 = game.questDeliver(p);
+  assert.equal(res2.ok, true, 'delivered at the target room');
+  assert.equal(p.quest.done, true, 'quest flagged complete');
+  const silverBefore = p.silver;
+  const claim = game.questClaim(p);
+  assert.equal(claim.ok, true, 'claimable');
+  assert.equal(p.quest, null, 'cleared');
+  assert.ok(p.silver > silverBefore, 'paid');
+  game.removePlayer(p);
+});
+
+test('quests: recover quests surface the trinket on the right kills', async () => {
+  const p = await mkChar('RecoverQ', 'trader');
+  p.quest = { kind: 'recover', creatureId: 'great_rat', trinket: { name: 'a silver locket', item: 'locket', desc: 'a silver locket' }, found: false, source: 'crier', done: false };
+  Math.random = () => 0.05;
+  game.questKill(p, 'rat');
+  assert.equal(p.quest.found, false, 'wrong creature finds nothing');
+  game.questKill(p, 'great_rat');
+  assert.equal(p.quest.found, true, 'marked creature yields the trinket');
+  const claim = game.questClaim(p);
+  assert.equal(claim.ok, true, 'claimable once found');
+  game.removePlayer(p);
+});
+
+test('quests: skinning quests advance per harvest', async () => {
+  const p = await mkChar('SkinQ', 'trader');
+  p.quest = { kind: 'skin', count: 2, skinned: 0, source: 'crier', done: false };
+  game.questSkin(p);
+  assert.equal(p.quest.done, false, 'first hide is not enough');
+  game.questSkin(p);
+  assert.equal(p.quest.done, true, 'second hide completes the work');
+  const claim = game.questClaim(p);
+  assert.equal(claim.ok, true, 'claimable');
+  game.removePlayer(p);
+});
+
+// ------------------- Battlefield healing & chug timers -------------------
+test('healing: no drinking in combat; chug timer gates draughts', async () => {
+  const { addItem } = await import('../server/player.js');
+  const p = await mkChar('ChugTim', 'trader');
+  addItem(p, 'salve', 3);
+  handleCommand(game, p, 'use salve');
+  assert.ok(p.hp > p.maxHp - 1 || p.hp >= p.maxHp, 'first draught takes effect');
+  const hpAfterFirst = p.hp;
+  handleCommand(game, p, 'use salve');
+  assert.match(lastMsg(p), /settling/i, 'chug timer refuses a second draught');
+  assert.equal(p.hp, hpAfterFirst, 'no second heal');
+  p.potionAt = 0;
+  p.combatId = 'combat_x';
+  handleCommand(game, p, 'use salve');
+  assert.match(lastMsg(p), /middle of a fight/i, 'no drinking in combat');
+  game.removePlayer(p);
+});
+
+// ------------------- Weather & seasons -------------------
+test('weather: storm charges mana and hinders the wilds; label reads naturally', async () => {
+  game.weather = { kind: 'storm', until: Date.now() + 600 * 1000, season: 'summer' };
+  assert.equal(game.weatherManaMod(), 0.15, 'storm surges the aether');
+  assert.equal(game.weatherLuckMod(), -0.15, 'storm scatters the game');
+  assert.match(game.weatherLabel(), /storm/i, 'label describes the sky');
+
+  const p = await mkChar('WeatherP', 'ranger');
+  p.room = 'west_road';
+  handleCommand(game, p, 'time');
+  assert.match(lastMsg(p), /storm|season|weather/i, 'time reports the weather');
+  game.removePlayer(p);
+
+  game.weather = { kind: 'fair', until: Date.now() + 600 * 1000, season: 'summer' };
+});
+
+// ------------------- Assaults & warrants -------------------
+test('warrants: killing an OPEN target in town draws a warrant and guards take you', async () => {
+  const attacker = await mkChar('MurderA', 'barbarian');
+  const victim = await mkChar('MurderV', 'trader');
+  attacker.room = 'market_way';
+  victim.room = 'market_way';
+
+  const refused = game.startAssault(attacker, victim.name);
+  assert.equal(refused.ok, false, 'guarded stance cannot be assaulted');
+  victim.pvpStance = 'open';
+  const res = game.startAssault(attacker, victim.name);
+  assert.equal(res.ok, true, 'OPEN target can be struck');
+  const combat = game.combat.getFor(attacker);
+  assert.equal(combat.assault, true, 'assault flagged');
+  assert.equal(combat.townKill, true, 'town killing recorded');
+
+  Math.random = () => 0.05;
+  combat.enemies[0].hp = 1;
+  combat.playerAttack();
+  assert.ok(attacker.warrant, 'murder warrant issued');
+  assert.equal(attacker.warrant.charge, 'murder', 'charge is murder');
+  assert.equal(attacker.pvpStance, 'open', 'stance forced open');
+
+  handleCommand(game, attacker, 'recall warrant');
+  assert.match(lastMsg(attacker), /MURDER/, 'recall reads the charge');
+
+  // Walk past the gate guard: seized.
+  attacker.room = 'west_road';
+  const mv = game.move(attacker, 'w');
+  assert.equal(mv.ok, true, 'moved toward the gate');
+  assert.equal(attacker.room, 'jail', 'guard took the murderer');
+
+  // Plead guilty clears the warrant.
+  handleCommand(game, attacker, 'plead guilty');
+  assert.equal(attacker.warrant, null, 'warrant cleared');
+  assert.equal(attacker.room, 'square', 'released to the square');
+  game.removePlayer(attacker);
+  game.removePlayer(victim);
+});
+
+test('warrants: surrender to the law clears the noose at once', async () => {
+  const p = await mkChar('SurrenderW', 'ranger');
+  p.warrant = { charge: 'murder', issuedAt: Date.now() };
+  p.room = 'west_road';
+  handleCommand(game, p, 'surrender');
+  assert.equal(p.room, 'jail', 'surrendered into custody');
+  handleCommand(game, p, 'plead guilty');
+  assert.equal(p.warrant, null, 'cleared after plea');
+  game.removePlayer(p);
+});

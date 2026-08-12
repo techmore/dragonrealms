@@ -87,6 +87,7 @@ export function loadPlayer(charId) {
     pvpStance: row.pvp_stance || 'guarded',
     rexp: row.rexp || 0,
     stamina: row.stamina || 0,
+    warrant: (() => { try { return row.warrant ? JSON.parse(row.warrant) : null; } catch { return null; } })(),
     soul: row.soul ?? 50,    empathicStain: row.empathic_stain || 0,
     devotion: row.devotion ?? 30,
     homeCity: row.home_city || 'crossing',
@@ -170,7 +171,7 @@ export function savePlayer(p) {
     UPDATE characters SET
       circle=?, str=?, con=?, ref=?, agi=?, cha=?, dis=?, wis=?, int=?,
       unspent_stat=?, mana=?, tdp=?, tdp_pool=?, stance=?, pvp_stance=?, rexp=?,
-      soul=?, empathic_stain=?, devotion=?, exp_pools=?, home_city=?, silver=?, bank=?, room=?, hp=?, max_hp=?
+      soul=?, empathic_stain=?, devotion=?, exp_pools=?, home_city=?, silver=?, bank=?, room=?, hp=?, max_hp=?, warrant=?
     WHERE id=?
   `).run(
     p.circle, p.stats.str, p.stats.con, p.stats.ref, p.stats.agi, p.stats.cha,
@@ -178,7 +179,7 @@ export function savePlayer(p) {
     p.tdpPool || 0, p.stance || 'balanced', p.pvpStance || 'guarded', p.rexp || 0,
     p.soul ?? 50, p.empathicStain || 0, p.devotion ?? 30,
     JSON.stringify(p.expPools || {}), p.homeCity || 'crossing',
-    p.silver, p.bank, p.room, p.hp, p.maxHp, p.charId
+    p.silver, p.bank, p.room, p.hp, p.maxHp, p.warrant ? JSON.stringify(p.warrant) : null, p.charId
   );
   const ins = db.prepare(`
     INSERT INTO skills (character_id, skill_id, rank, exp) VALUES (?,?,?,?)
@@ -190,7 +191,7 @@ export function savePlayer(p) {
     db.prepare(`
       INSERT INTO character_quest (character_id, creature_id, count, done) VALUES (?,?,?,?)
       ON CONFLICT(character_id) DO UPDATE SET creature_id=excluded.creature_id, count=excluded.count, done=excluded.done
-    `).run(p.charId, p.quest.creatureId, p.quest.count, p.quest.done ? 1 : 0);
+    `).run(p.charId, p.quest.creatureId || '', p.quest.count || 0, p.quest.done ? 1 : 0);
   }
 }
 
