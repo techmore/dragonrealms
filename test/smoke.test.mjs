@@ -1128,7 +1128,7 @@ test('crime loop: steal, strongboxes, and magical consumables train skills', asy
   // Empath casting trains the empathy guild skill.
   game.removePlayer(p);
   const eAcc = await auth.registerAccount('Mender', 's3cretword');
-  const eChar = createCharacter(eAcc.accountId, { name: 'Mender', race: 'elothean', guild: 'empath' });
+  const eChar = createCharacter(eAcc.accountId, { name: 'MendrX', race: 'elothean', guild: 'empath' });
   const e = loadPlayer(eChar);
   const ews = fakeWs();
   e.ws = ews;
@@ -1932,6 +1932,136 @@ test('justice: theft near a guard risks arrest, plead releases', async () => {
 
   handleCommand(game, p, 'plead guilty');
   assert.equal(p.room, 'square', 'released to the square');
+
+  game.removePlayer(p);
+});
+
+test('empath mend takes wounds; living kills leave a stain', async () => {
+  const accE = await auth.registerAccount('Empmend', 's3cretword');
+  const accH = await auth.registerAccount('EmpmendH', 's3cretword');
+  const eId = createCharacter(accE.accountId, { name: 'Mender', race: 'elothean', guild: 'empath' });
+  const hId = createCharacter(accH.accountId, { name: 'HurtX', race: 'human', guild: 'paladin' });
+  const e = loadPlayer(eId);
+  const h = loadPlayer(hId);
+  const wse = fakeWs();
+  const wsh = fakeWs();
+  e.ws = wse;
+  h.ws = wsh;
+  game.addPlayer(e);
+  game.addPlayer(h);
+
+  h.hp = Math.floor(h.maxHp * 0.5);
+  const healBefore = e.hp;
+  handleCommand(game, e, 'mend HurtX');
+  assert.ok(h.hp > Math.floor(h.maxHp * 0.5), 'target healed');
+  assert.ok(e.hp < healBefore, 'empath took the wound');
+
+  // Killing a living creature stains the empath.
+  e.room = 'sewers_1';
+  const { CREATURES } = await import('../data/creatures.js');
+  game.roomCreatures.get(e.room).push(game.makeCreature(CREATURES.rat));
+  handleCommand(game, e, 'attack rat');
+  let combat = game.combat.getFor(e);
+  let guard = 0;
+  while (game.combat.getFor(e) && guard++ < 400) combat.tick();
+  assert.ok(e.empathicStain >= 1, 'living kill stains the empath');
+
+  game.removePlayer(e);
+  game.removePlayer(h);
+});
+
+test('paladin soul: smite burns it, undead and prayer restore, low soul blocks circling', async () => {
+  const acc = await auth.registerAccount('PaladinSoul', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'VowX', race: 'human', guild: 'paladin' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  assert.equal(p.soul, 50, 'starts with a steady soul');
+  p.room = 'sewers_1';
+  const { CREATURES } = await import('../data/creatures.js');
+  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.rat));
+  handleCommand(game, p, 'attack rat');
+  let combat = game.combat.getFor(p);
+  handleCommand(game, p, 'smite rat');
+  const smiteMsgs = ws.msgs.filter((m) => m.t === 'msg' || m.t === 'combat').map((m) => m.msg).join(' ');
+  assert.match(smiteMsgs, /smite/i, 'smite lands');
+  assert.equal(p.soul, 35, 'smite burns 15 soul');
+  while (game.combat.getFor(p)) game.combat.getFor(p).tick();
+  p.hp = p.maxHp;
+
+  // Undead kill restores soul (gear up: a wraith outmatches a fresh paladin).
+  const { addItem } = await import('../server/player.js');
+  p.circle = 8;
+  p.skills.medium_edged = { rank: 20, exp: 0 };
+  p.skills.evasion = { rank: 15, exp: 0 };
+  p.skills.chain_armor = { rank: 15, exp: 0 };
+  addItem(p, 'steel_sword', 1);
+  addItem(p, 'ring_mail', 1);
+  handleCommand(game, p, 'wield steel_sword');
+  handleCommand(game, p, 'wear ring_mail');
+  const soulBefore = p.soul;
+  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.wraith));
+  handleCommand(game, p, 'attack wraith');
+  combat = game.combat.getFor(p);
+  let guard = 0;
+  while (game.combat.getFor(p) && guard++ < 400) combat.tick();
+  assert.ok(p.soul > soulBefore, 'slaying undead restores the soul');
+
+  // Low soul blocks circling.
+  p.circle = 1;
+  p.soul = 5;
+  game.move(p, 'e'); game.move(p, 's'); game.move(p, 's'); game.move(p, 's'); game.move(p, 's'); game.move(p, 's');
+  p.room = 'hall_paladin';
+  p.skills = Object.fromEntries(Object.entries(p.skills).map(([k, v]) => [k, { rank: 10, exp: 0 }]));
+  handleCommand(game, p, 'circle');
+  assert.equal(p.circle, 1, 'dim soul blocks circling');
+
+  // Prayer restores.
+  p.room = 'temple';
+  handleCommand(game, p, 'pray');
+  assert.equal(p.soul, 7, 'prayer restores soul');
+
+  game.removePlayer(p);
+});
+
+test('ranger: wolf companion bonds and fights; beseech buffs', async () => {
+  const acc = await auth.registerAccount('RangerPack', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'PackX', race: 'human', guild: 'ranger' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  // Bond a wolf by killing one (deterministic: force the bond roll; gear up).
+  p.room = 'sewers_1';
+  const { CREATURES } = await import('../data/creatures.js');
+  const { addItem } = await import('../server/player.js');
+  p.circle = 4;
+  p.skills.medium_edged = { rank: 15, exp: 0 };
+  p.skills.evasion = { rank: 12, exp: 0 };
+  addItem(p, 'short_sword', 1);
+  addItem(p, 'padded_cloth', 1);
+  handleCommand(game, p, 'wield short_sword');
+  handleCommand(game, p, 'wear padded_cloth');
+  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.wolf));
+  p.skills.perception.rank = 100; // guaranteed bond chance
+  handleCommand(game, p, 'attack wolf');
+  let combat = game.combat.getFor(p);
+  let guard = 0;
+  while (game.combat.getFor(p) && guard++ < 400) combat.tick();
+  assert.ok(p.companion && p.companion.alive, 'wolf bonded');
+
+  // Beseech wind grants a buff.
+  handleCommand(game, p, 'beseech wind');
+  assert.ok((p.buffs.wind || 0) > 0, 'wind buff active');
+  handleCommand(game, p, 'beseech wind'); // immediate repeat -> spurned
+  const spurned = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).at(-1) || '';
+  assert.match(spurned, /wary/, 'wilds grow wary of overuse');
+  p.beseechAt = 0; // bypass the cooldown for the second test
+  handleCommand(game, p, 'beseech sun');
+  assert.ok((p.buffs.sun || 0) > 0, 'sun buff active');
 
   game.removePlayer(p);
 });

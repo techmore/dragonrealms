@@ -270,3 +270,13 @@ alongside the circle engine.**
 | Warrior Mage familiars v1 (Pillar 22) | ✅ combat ally, Summoning exp, hall-bound |
 | Justice loop (Pillar 27) | ✅ theft → arrest → Town Cells → PLEAD guilty/innocent |
 | Exp pool/pulse timing, Riverhaven/world depth, full crimes+judge, remaining guild passes | ⬜ roadmap |
+
+**Revision 6:**
+
+| Item | Status |
+|---|---|
+| Empath wound-taking v1 (Pillar 15) | ✅ `mend` (wounds pass to you), empathic stain on living kills |
+| Paladin soul v1 (Pillar 18) | ✅ smite, code of honor (theft/striking first), undead + pray restore, dim soul blocks circling |
+| Ranger companions + beseeches v1 (Pillar 19) | ✅ wolf bonding, wind/sun buffs, overuse spurning |
+| Command refactor (parallel session) | ✅ commands.js split into server/commands/ modules; `plead` restored after the split dropped it; sim import path fixed |
+| Exp pool/pulse timing, Riverhaven, full crimes+judge, remaining guild passes | ⬜ roadmap |

@@ -99,7 +99,8 @@ export class Combat {
     const base = w ? w.speed : 4;
     const agiBonus = Math.floor(this.player.stats.agi / 20);
     const nimble = this.player.khri && this.player.khri.nimbleness > 0 ? 1 : 0;
-    return Math.max(2, base - agiBonus - nimble);
+    const wind = this.player.buffs && this.player.buffs.wind > 0 ? 1 : 0;
+    return Math.max(2, base - agiBonus - nimble - wind);
   }
 
   playerAttack() {
@@ -217,6 +218,31 @@ export class Combat {
     target.dead = true;
     if (!this.player.corpses) this.player.corpses = [];
     this.player.corpses.push({ uid: target.uid, def: target.def });
+    // Empath: taking a living life leaves an empathic stain (DR-authentic).
+    if (this.player.guild.id === 'empath') {
+      const cap = Math.max(5, Math.floor(this.player.maxHp * 0.1));
+      if (this.player.empathicStain < cap) {
+        this.player.empathicStain += 1;
+        this.say('A cold wash of empathic shock runs through you — taking that life has left a stain. (Healing capacity reduced.)');
+      }
+    }
+    // Paladin: slaying the undead restores the soul.
+    if (this.player.guild.id === 'paladin') {
+      const undead = ['wraith', 'revenant', 'dread_knight', 'shadowpaw'];
+      if (undead.includes(target.def.id)) {
+        const gained = Math.min(5, 100 - (this.player.soul ?? 50));
+        this.player.soul = (this.player.soul ?? 50) + gained;
+        this.say(`Smiting the undead strengthens your soul (+${gained}).`);
+      }
+    }
+    // Ranger: a wolf may bond with you.
+    if (this.player.guild.id === 'ranger' && target.def.id === 'wolf' && !this.player.companion) {
+      if (Math.random() < 0.25 + skillRank(this.player, 'perception') * 0.01) {
+        const hp = 30 + this.player.circle * 4;
+        this.player.companion = { kind: 'wolf', name: 'a bonded wolf', hp, maxHp: hp, alive: true };
+        this.say('The wolf\'s spirit lingers — it bonds with you as a companion!');
+      }
+    }
     this.say(`You fell ${target.def.name}! Its corpse slumps to the ground. Type "skin ${target.def.name.replace(/^a /, '').split(' ')[0]}" to harvest it.`);
     const coins = target.def.circle * (2 + Math.floor(Math.random() * 4));
     this.player.silver += coins;
@@ -832,22 +858,28 @@ export class Combat {
     if (this.player.buffs && this.player.buffs.ironhide > 0) this.player.buffs.ironhide -= 1;
     if (this.player.buffs && this.player.buffs.shadow > 0) this.player.buffs.shadow -= 1;
     if (this.player.buffs && this.player.buffs.omen > 0) this.player.buffs.omen -= 1;
+    if (this.player.buffs && this.player.buffs.wind > 0) this.player.buffs.wind -= 1;
+    if (this.player.buffs && this.player.buffs.sun > 0) {
+      this.player.buffs.sun -= 1;
+      if (this.player.hp < this.player.maxHp) this.player.hp = Math.min(this.player.maxHp, this.player.hp + 2);
+    }
     if (this.player.khri) {
       for (const k of Object.keys(this.player.khri)) {
         if (this.player.khri[k] > 0) this.player.khri[k] -= 1;
       }
     }
-    // The warmage's familiar fights alongside every few beats.
-    const fam = this.player.familiar;
-    if (fam && fam.alive && this.aliveEnemies.length) {
+    // A bound familiar or companion fights alongside every few beats.
+    const ally = this.player.familiar || this.player.companion;
+    if (ally && ally.alive && this.aliveEnemies.length) {
       this._famTick = (this._famTick || 0) + 1;
       if (this._famTick % 3 === 0) {
         const target = this.aliveEnemies[0];
-        const dmg = Math.max(1, 3 + this.player.circle * 2 + Math.floor(skillRank(this.player, 'summoning') / 10));
+        const allySkill = this.player.familiar ? skillRank(this.player, 'summoning') : skillRank(this.player, 'tracking');
+        const dmg = Math.max(1, 3 + this.player.circle * 2 + Math.floor(allySkill / 10));
         target.hp -= dmg;
         if (target.def.controller) target.def.controller.hp = Math.max(0, target.hp);
-        this.say(`Your familiar ${fam.name} strikes ${target.def.name} for ${dmg} damage!`);
-        gainSkillExp(this.player, 'summoning', 2);
+        this.say(`Your ${this.player.familiar ? `familiar ${ally.name}` : `${ally.name}`} strikes ${target.def.name} for ${dmg} damage!`);
+        gainSkillExp(this.player, this.player.familiar ? 'summoning' : 'tracking', 2);
         if (target.hp <= 0) {
           if (target.def.controller) this.defenderDefeated();
           else this.killCreature(target);

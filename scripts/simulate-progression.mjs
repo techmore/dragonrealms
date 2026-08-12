@@ -11,7 +11,7 @@ const { migrate, closeDb } = await import('../server/db.js');
 const auth = await import('../server/auth.js');
 const { createCharacter, loadPlayer, gainSkillExp, tdpTrainCost, skillRank } = await import('../server/player.js');
 const { Game } = await import('../server/game.js');
-const { handleCommand } = await import('../server/commands.js');
+const { handleCommand } = await import('../server/commands/index.js');
 const { circleRequirements, circleRequirementNeeds } = await import('../data/guilds.js');
 const { CREATURES } = await import('../data/creatures.js');
 

@@ -98,6 +98,15 @@ testing and analysis — see `docs/api.md`.
 - **Warrior Mage familiars** — `summon familiar` at the guildhall binds a
   spirit that fights alongside you and trains Summoning (`familiar`,
   `dismiss familiar`).
+- **Empath wound-taking** — `mend <player>` takes another’s wounds into
+  yourself (half the healing hits you); killing living creatures leaves a
+  permanent empathic stain on your healing.
+- **Paladin soul** — `smite` burns soul for radiant damage; slaying the
+  undead restores it, `pray` steadies it, and thieving or striking first
+  dims it — a dim soul blocks circling.
+- **Ranger companions & beseeches** — slay a wolf and its spirit may bond as
+  a combat companion; `beseech wind` quickens you, `beseech sun` mends you
+  (the wilds grow wary of overuse).
 - **Justice** — theft near a guard can land you in the Town Cells:
   `plead guilty` (fine) or `plead innocent` (serve the sentence).
 - **Dungeons & rares** — the Cinder Cavern (circle 5–7) lies under the bandit

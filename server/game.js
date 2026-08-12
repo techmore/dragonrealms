@@ -264,6 +264,11 @@ export class Game {
   challengeDuel(p, targetName, end = 'blood') {
     if (!this.canDuelHere(p)) return { ok: false, msg: 'The town guards do not permit duels here. Take it to the wilds.' };
     if (p.combatId) return { ok: false, msg: 'You are already in combat.' };
+    // Paladins may not strike first (code of honor).
+    if (p.guild.id === 'paladin') {
+      p.soul = Math.max(0, (p.soul ?? 50) - 5);
+      p.ws.send(JSON.stringify({ t: 'msg', msg: 'Your oath forbids striking first. Your soul dims slightly. (-5 soul)' }));
+    }
     const n = targetName.toLowerCase();
     const target = [...this.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === n);
     if (!target) return { ok: false, msg: 'There is no such adventurer here.' };

@@ -81,6 +81,8 @@ export function loadPlayer(charId) {
     stance: row.stance || 'balanced',
     pvpStance: row.pvp_stance || 'guarded',
     rexp: row.rexp || 0,
+    soul: row.soul ?? 50,
+    empathicStain: row.empathic_stain || 0,
     maxMana: guildById(row.guild).magic ? 20 + row.wis * 2 + row.int + row.dis : 0,
     silver: row.silver,
     bank: row.bank,
@@ -135,13 +137,14 @@ export function savePlayer(p) {
   db.prepare(`
     UPDATE characters SET
       circle=?, str=?, con=?, ref=?, agi=?, cha=?, dis=?, wis=?, int=?,
-      unspent_stat=?, mana=?, tdp=?, tdp_pool=?, stance=?, pvp_stance=?, rexp=?, silver=?, bank=?, room=?, hp=?, max_hp=?
+      unspent_stat=?, mana=?, tdp=?, tdp_pool=?, stance=?, pvp_stance=?, rexp=?,
+      soul=?, empathic_stain=?, silver=?, bank=?, room=?, hp=?, max_hp=?
     WHERE id=?
   `).run(
     p.circle, p.stats.str, p.stats.con, p.stats.ref, p.stats.agi, p.stats.cha,
     p.stats.dis, p.stats.wis, p.stats.int, p.unspentStat, p.mana, p.tdp || 0,
     p.tdpPool || 0, p.stance || 'balanced', p.pvpStance || 'guarded', p.rexp || 0,
-    p.silver, p.bank, p.room, p.hp, p.maxHp, p.charId
+    p.soul ?? 50, p.empathicStain || 0, p.silver, p.bank, p.room, p.hp, p.maxHp, p.charId
   );
   const ins = db.prepare(`
     INSERT INTO skills (character_id, skill_id, rank, exp) VALUES (?,?,?,?)

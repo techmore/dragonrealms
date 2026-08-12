@@ -271,7 +271,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| Touch / Transfer / Take wounds (external c1, internal c6, scars c7/8, poison c40, disease c80); empathic shock — killing living creatures can cost healing permanently | ⬜ |
+| Take wounds (`mend <player>` — the wound passes into the empath); empathic shock — living kills permanently stain max healing | 🚧 v1 live; links/shift/scars pending |
 | Link, Persistent Link, Unity Link, Manipulate, Shift; Hand of Hodierna at 80 | ⬜ |
 | 5 spellbooks (Healing, Protection, Purification, Mental Prep, Life Force); 63 slots to master (76 @150); free feat Injured Casting | ⬜ |
 | Faithful circle table (1–10): Empathy 4 hard, Scholarship 3, First Aid 2 hard, Outdoorsmanship 1, 1st–3rd lore 3/2/2, 1st–5th magic 3/2/2/0/0, 1st–3rd survival 1/1/1 | ⬜ |
@@ -310,8 +310,8 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| Code of Honor: stealing/cowardice/striking first destroys guild standing (soul penalty + quest to reinstate) | ⬜ |
-| Soul system + soulstone; Smite (soul-powered strike); Holy Weapon vs. undead; Sacred Insight | ⬜ |
+| Code of Honor: stealing (−10 soul), striking first (−5); dim soul blocks circling | 🚧 v1 live; quest-to-reinstate pending |
+| Soul system: Smite (soul-powered), undead kills + soul, `pray` restores | 🚧 v1 live; soulstone/holy weapon/insight pending |
 | Armor Proficiency: negate mixing penalties — all four armor types by circle 30 | ⬜ |
 | Lead (circle 2), Protect (self/money/party interception), Glyphs (soul/charisma-gated, holy quests) | ⬜ |
 | Spellbooks Justice/Inspiration/Sacrifice; 61 slots @150; free feat at circle 2 | ⬜ |
@@ -325,7 +325,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Feature | Status |
 |---|---|
 | Beseeches: soul-pool rituals that coax nature (wind, sun) — spurned on overuse | ⬜ |
-| Animal companions (wolves, raccoons), horse wrangling (60+), Snipe (40+), Dual Load, Slip, Sign | ⬜ |
+| Animal companions (wolf bonding on kill), Beseeches (wind/sun buffs, spurned on overuse) | 🚧 v1 live; raccoons/horses/snipe/slip pending |
 | Spellbooks Animal Abilities / Nature Manipulation / Wilderness Survival; 60 slots to master (68 @150) | ⬜ |
 | Scouting + TRACK, trailmarkers, bonus stance points (+1/60 ranks defense) | ⬜ |
 | Faithful circle table (1–10): Instinct 2 soft, 1st–8th survival 4/4/3/3/3/2/2/2, 1st/2nd weapon 3/1, Parry Ability 2, Defending 1, 1st armor 2, 1st–3rd magic 1/1/1, 1st/2nd lore 1/0 | ⬜ |
