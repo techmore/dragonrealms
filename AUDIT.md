@@ -251,3 +251,12 @@ alongside the circle engine.**
 | PvP/justice v1 | ✅ duel end conditions (blood/blow/pain), `surrender`, `pvp stance` flags, steal forces OPEN |
 | Exp pools/pulses as a timing mechanic | ⬜ large lift (mindstate readout remains) |
 | Crafting disciplines, world fidelity (districts/tasks/Riverhaven), full justice loop, per-guild passes (Pillars 13–22) | ⬜ roadmap |
+
+**Revision 4 — more pillars closed:**
+
+| Item | Status |
+|---|---|
+| Thief khri v1 (Pillar 20) | ✅ concentration pool + 5 khri buffs, break on hit |
+| Forging crafting v1 (Pillar 26) | ✅ ore drops, Ember Forge, quality ladder (worthless → masterfully-crafted), crafted steel scales damage |
+| Guild-leader tasks | ✅ `ask <leader> task`, guild-skill rewards |
+| Exp pools/pulses, world fidelity, full justice, remaining per-guild passes | ⬜ roadmap |

@@ -6,6 +6,8 @@ import { manaTypeFor, manaCycle, roomManaLevel, manaDescriptor, safeOverchannelP
 import { barbarianAbilityById, barbarianAbilitiesFor, barbarianSlots, ABILITY_PATHS, VOICE_POOL, FORGET_COOLDOWN_MS } from '../data/abilities.js';
 import { ITEMS, itemById } from '../data/items.js';
 import { RECIPES, recipeById } from '../data/recipes.js';
+import { FORGE_RECIPES, forgeRecipeById, qualityRoll } from '../data/forging.js';
+import { KHRI, khriById, concentrationPool, khriConcentrationUsed, KHRI_TICKS } from '../data/khri.js';
 import { npcById } from '../data/npcs.js';
 import { creatureById } from '../data/creatures.js';
 import { db } from './db.js';
@@ -34,7 +36,7 @@ const HELP = `
   Movement:  n, s, e, w, ne, nw, se, sw, u, d  |  go north  |  look (l)
   Combat:    attack <creature>  |  cast [spell] [target]  |  retreat  |  skin <creature>
   Magic:     spells  (lists what your guild teaches)  |  perceive  (sense room mana)  |  harness  (gather mana)  |  prepare <spell> [pct]  (then "cast"; overchanneling risks backlash)  |  charge/invoke <cambrinth>  (store and release energy)
-  Powers:    berserk (Barbarian)  |  form/roar/meditate <ability>  (barbarian)  |  whirlwind/stomp/choke/analyze (barbarian)  |  backstab (Thief)
+  Powers:    berserk (Barbarian)  |  form/roar/meditate <ability>  (barbarian)  |  whirlwind/stomp/choke/analyze (barbarian)  |  backstab (Thief)  |  khri <name> (Thief concentration buffs)
   Abilities: abilities  (list barbarian arts)  |  learn <ability>  (at the barbarian hall)  |  ask <leader> about forgetting <ability>
   Items:     get <item>  |  drop <item>  |  inventory (i)  |  wear/wield <item>  |  remove <item>  |  use <item>
   Death:     die in battle and you awaken at the temple — your gear lies with your corpse; search <corpse>, get <item> from corpse
@@ -336,6 +338,31 @@ function handleOther(game, p, cmd, arg1, arg2, rest, args, say, emit) {
       if (/potion|draught|tonic/i.test(entry.item.name)) gainSkillExp(p, 'arcana', 3);
       break;
     }
+    case 'forge': {
+      if (p.room !== 'forge') return emit('The hammer rings only at the Ember Forge, east of the brewery.');
+      if (!arg1) {
+        const rows = Object.values(FORGE_RECIPES).map((r) => `  ${pad(r.name, 24)} ${r.desc}`);
+        return emit(`\nBram can teach you to forge:\n${rows.join('\n')}\n\nSay "forge <recipe>" — ore and materials are consumed on the attempt. Better Forging skill forges better steel.`);
+      }
+      const recipe = forgeRecipeById(arg1.toLowerCase()) || Object.values(FORGE_RECIPES).find((r) => r.name.toLowerCase().includes(arg1.toLowerCase()));
+      if (!recipe) return emit('He does not know that recipe. Try "forge" for the list.');
+      const forgeSkill = skillRank(p, 'forging');
+      if (forgeSkill < recipe.minSkill) return emit(`That work needs ${recipe.minSkill} Forging skill; you have ${forgeSkill}. Practice on simpler pieces first.`);
+      const missing = Object.entries(recipe.ingredients).filter(([ing, qty]) => countItems(p, ing) < qty);
+      if (missing.length) {
+        return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Ore drops from trolls, bandits, and the blackwood dead.`);
+      }
+      for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
+      const q = qualityRoll(forgeSkill);
+      const leveled = gainSkillExp(p, 'forging', 12);
+      const base = itemById(recipe.item);
+      addItem(p, recipe.item, 1);
+      // Quality improves the forged item's stats in hand.
+      p.forgedQuality = p.forgedQuality || {};
+      p.forgedQuality[recipe.item] = q.mult;
+      emit(`You work the metal at the anvil and produce ${q.name} ${base.name}.${leveled ? ' Your Forging improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
+      break;
+    }
     case 'craft': {
       const room = roomById(p.room);
       const alchemist = (room.npcs || []).map(npcById).find((n) => n && n.role === 'craft');
@@ -364,6 +391,26 @@ function handleOther(game, p, cmd, arg1, arg2, rest, args, say, emit) {
     }
 
     // ---- Combat ----
+    case 'khri': {
+      if (p.guild.id !== 'thief') return emit('Only thieves weave khri.');
+      if (!arg1) {
+        const active = Object.entries(p.khri || {}).filter(([, t]) => t > 0).map(([id]) => KHRI[id]?.name || id);
+        const lines = Object.values(KHRI).map((k) => `  ${pad(k.name, 12)} ${k.cost} concentration — ${k.desc}`);
+        return emit(`\nKhri: ${active.length ? active.join(', ') : 'none active'} (${khriConcentrationUsed(p)}/${concentrationPool(p)} concentration)\n${lines.join('\n')}\nSay "khri <name>" to focus it.`);
+      }
+      const name = arg1.toLowerCase();
+      const def = khriById(name) || Object.values(KHRI).find((k) => k.name.toLowerCase() === name);
+      if (!def) return emit('Unknown khri. Try "khri" for the list.');
+      if (khriConcentrationUsed(p) + def.cost > concentrationPool(p)) {
+        return emit(`That khri needs ${def.cost} concentration; you have ${concentrationPool(p) - khriConcentrationUsed(p)} free. (Pool: ${concentrationPool(p)} — raise Stealth or circle for more.)`);
+      }
+      p.khri = p.khri || {};
+      if ((p.khri[def.id] || 0) > 0) return emit(`Khri ${def.name} is already active.`);
+      p.khri[def.id] = KHRI_TICKS;
+      gainSkillExp(p, 'stealth', 4);
+      emit(`You focus Khri ${def.name}. (${khriConcentrationUsed(p)}/${concentrationPool(p)} concentration)`);
+      break;
+    }
     case 'target': {
       if (!arg1 || arg1 === 'none' || arg1 === 'off') {
         p.targetId = null;
@@ -1162,6 +1209,9 @@ function askResponse(game, p, npc, topic) {
     case 'healer':
       return `\n${npc.greeting}\nIf you are hurt, say "heal" and I will tend you for a small offering.`;
     case 'craft':
+      if (npc.id === 'forge_master') {
+        return `\n${npc.greeting}\nSay "forge" to see my recipes. Iron ore drops from trolls, bandits, and the blackwood dead; cinder scales come from the cavern drakes.`;
+      }
       return `\n${npc.greeting}\nSay "craft" to see my recipes. Herbs can be foraged in the wilds, and wisp motes drop from marsh wisps.`;
     case 'bank':
       return `\n${npc.greeting}\nUse "deposit <amount>" and "withdraw <amount>" to keep your silvers safe.`;
@@ -1177,7 +1227,21 @@ function askResponse(game, p, npc, topic) {
       if (topic === 'train') {
         return `\n${npc.name} trains you in ${guildTrainedSkills(g).join(', ')}. Say "train <skill>" and pay in silvers.`;
       }
-      return `\n"${npc.name}? I am ${npc.desc}" ${npc.greeting}\nAsk me about "circle" or "train" to learn how I can help you advance.`;
+      if (topic === 'task') {
+        if (p.quest && p.quest.source === 'leader' && !p.quest.done) {
+          const def = creatureById(p.quest.creatureId);
+          return `\nFinish what you started: slay ${p.quest.count} more ${def.plural} and claim your reward.`;
+        }
+        if (p.quest && p.quest.done) return `\nYour task is done! Say "claim" for your reward.`;
+        const q = game.assignQuest(p, 'leader');
+        const def = creatureById(q.creatureId);
+        return `\n"${p.name}. The guild needs ${def.plural} thinned. Slay ${q.count} and I'll see you paid — and taught."`;
+      }
+      if (topic === 'claim') {
+        const res = game.questClaim(p);
+        return `\n${res.msg}`;
+      }
+      return `\n"${npc.name}? I am ${npc.desc}" ${npc.greeting}\nAsk me about "circle", "train", or "task" to learn how I can help you advance.`;
     }
     case 'info': {
       if (topic === 'quest') {

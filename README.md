@@ -82,8 +82,15 @@ testing and analysis — see `docs/api.md`.
   fourteen creature types across seven hunting grounds to hunt and skin for
   loot.
 - **Crafting** — visit Fennel at the Tilted Retort (east of Market Way) and
-  `craft` alchemical recipes: forage herbs, gather wisp motes, and brew healing
-  draughts, essence tonics (mana), and frenzy draughts (+30% damage).
+  `craft` alchemical recipes, or cross to **Bram's Ember Forge** and `forge`
+  steel: iron ore drops from trolls, bandits, and the blackwood dead, and
+  quality scales with your Forging skill (practically worthless →
+  masterfully-crafted, and masterful steel hits harder).
+- **Thief khri** — concentration-based buffs (`khri`): Elusion, Focus,
+  Nimbleness, Dampen, and Strike. The pool grows with circle and Stealth;
+  taking a hit shatters your focus.
+- **Guild tasks** — `ask <leader> task` gives guild-scaled kill quests with
+  silver and guild-skill rewards (crier pest-control for everyone else).
 - **Dungeons & rares** — the Cinder Cavern (circle 5–7) lies under the bandit
   camp; the two-level Blackwood Ruins (circle 7–10) waits east of the Deep
   Wilds, crowned by the Dread Knight. Rare named creatures (Shadowpaw, the

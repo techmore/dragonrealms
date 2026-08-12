@@ -53,7 +53,7 @@ export const CREATURES = {
     stats: { str: 20, con: 18, ref: 10, agi: 8 },
     weapon: { skill: 'blunt', dmg: [14, 26], speed: 7 },
     armor: 30, defense: 20, regen: 4,
-    loot: ['troll_hide'], exp: 520, aggressive: true,
+    loot: ['troll_hide', 'iron_ore'], exp: 520, aggressive: true,
   },
   bandit: {
     id: 'bandit', name: 'a bandit', plural: 'bandits', circle: 5,
@@ -71,7 +71,7 @@ export const CREATURES = {
     stats: { str: 18, con: 16, ref: 12, agi: 10 },
     weapon: { skill: 'twohanded_edged', dmg: [16, 30], speed: 7 },
     armor: 34, defense: 22,
-    loot: ['iron_ring', 'silver_ring'], exp: 700, aggressive: true,
+    loot: ['iron_ring', 'silver_ring', 'iron_ore'], exp: 700, aggressive: true,
   },
 
   // ---- Cinder Cavern (circle 5-7) ----
@@ -111,7 +111,7 @@ export const CREATURES = {
     stats: { str: 18, con: 16, ref: 13, agi: 10 },
     weapon: { skill: 'large_edged', dmg: [18, 34], speed: 6 },
     armor: 42, defense: 28,
-    loot: ['wraith_essence', 'silver_ring'], exp: 800, aggressive: true,
+    loot: ['wraith_essence', 'silver_ring', 'iron_ore'], exp: 800, aggressive: true,
   },
   dread_knight: {
     id: 'dread_knight', name: 'a dread knight', plural: 'dread knights', circle: 10,
@@ -120,7 +120,7 @@ export const CREATURES = {
     stats: { str: 24, con: 20, ref: 14, agi: 12 },
     weapon: { skill: 'twohanded_edged', dmg: [24, 44], speed: 7 },
     armor: 52, defense: 32,
-    loot: ['dread_sigil'], exp: 1200, aggressive: true,
+    loot: ['dread_sigil', 'iron_ore'], exp: 1200, aggressive: true,
   },
 };
 

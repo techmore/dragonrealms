@@ -98,7 +98,8 @@ export class Combat {
     const w = weaponOf(this.player);
     const base = w ? w.speed : 4;
     const agiBonus = Math.floor(this.player.stats.agi / 20);
-    return Math.max(2, base - agiBonus - (this.wildfire ? 1 : 0));
+    const nimble = this.player.khri && this.player.khri.nimbleness > 0 ? 1 : 0;
+    return Math.max(2, base - agiBonus - nimble);
   }
 
   playerAttack() {
@@ -123,7 +124,8 @@ export class Combat {
     }
 
     const skill = effectiveRank(this.player, skillId);
-    const atk = skill + this.player.stats.str * 0.06 + this.player.stats.agi * 0.04;
+    const focus = this.player.khri && this.player.khri.focus > 0 ? 4 : 0;
+    const atk = skill + focus + this.player.stats.str * 0.06 + this.player.stats.agi * 0.04;
     const def = target.def.defense + target.def.stats.ref * 0.03;
     const hit = Math.random() < clamp(0.5 + (atk - def) * 0.012, 0.15, 0.95);
 
@@ -142,8 +144,13 @@ export class Combat {
     }
 
     let dmg;
-    if (w) dmg = rand(w.dmg[0], w.dmg[1]) + Math.floor(this.player.stats.str * 0.12);
-    else dmg = rand(2, 5) + Math.floor(this.player.stats.str * 0.1);
+    if (w) {
+      dmg = rand(w.dmg[0], w.dmg[1]) + Math.floor(this.player.stats.str * 0.12);
+      const forged = this.player.forgedQuality && this.player.forgedQuality[w.id];
+      if (forged) dmg = Math.floor(dmg * forged);
+    } else {
+      dmg = rand(2, 5) + Math.floor(this.player.stats.str * 0.1);
+    }
     if (dualLoad) dmg = Math.floor(dmg * 1.5);
 
     if (this.berserk) dmg = Math.floor(dmg * 1.5);
@@ -159,6 +166,7 @@ export class Combat {
     if (stance === 'aggressive') dmg = Math.floor(dmg * 1.25);
     else if (stance === 'defensive' || stance === 'guarded') dmg = Math.floor(dmg * 0.85);
     if (this.player.buffs && this.player.buffs.frenzy > 0) dmg = Math.floor(dmg * 1.3);
+    if (this.player.khri && this.player.khri.strike > 0) dmg = Math.floor(dmg * 1.25);
     if (capstoneActive(this.player, 'necromancer')) {
       const steal = Math.max(1, Math.floor(dmg * 0.1));
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + steal);
@@ -244,6 +252,7 @@ export class Combat {
     else if (stance === 'aggressive') def = Math.floor(def * 0.8);
     if (capstoneActive(this.player, 'moonmage')) def = Math.floor(def * 1.2);
     if (this.player.buffs && this.player.buffs.shadow > 0) def = Math.floor(def * 1.15);
+    if (this.player.khri && this.player.khri.elusion > 0) def = Math.floor(def * 1.2);
     if (capstoneActive(this.player, 'ranger') && this.game && this.game.isWild(this.player.room)) def = Math.floor(def * 1.2);
     const hit = Math.random() < clamp(0.45 + (atk - def) * 0.012, 0.15, 0.95);
 
@@ -309,6 +318,10 @@ export class Combat {
       this.player.hidden = false;
       this.say('The blow tears you out of hiding — you are revealed!');
     }
+    if (this.player.khri && Object.values(this.player.khri).some((t) => t > 0)) {
+      this.player.khri = {};
+      this.say('The blow shatters your concentration — your khri drop away!');
+    }
     gainSkillExp(this.player, 'evasion', 12);
     gainSkillExp(this.player, 'fitness', 6);
     gainSkillExp(this.player, 'defending', Math.floor(e.def.circle * 3));
@@ -351,9 +364,15 @@ export class Combat {
       return;
     }
     let dmg;
-    if (w) dmg = rand(w.dmg[0], w.dmg[1]) + Math.floor(p.stats.str * 0.12);
-    else dmg = rand(3, 7) + Math.floor(p.stats.str * 0.1);
+    if (w) {
+      dmg = rand(w.dmg[0], w.dmg[1]) + Math.floor(p.stats.str * 0.12);
+      const forged = p.forgedQuality && p.forgedQuality[w.id];
+      if (forged) dmg = Math.floor(dmg * forged);
+    } else {
+      dmg = rand(3, 7) + Math.floor(p.stats.str * 0.1);
+    }
     dmg = Math.floor(dmg * (1.5 + stealth * 0.02));
+    if (p.khri && p.khri.dampen > 0) dmg = Math.floor(dmg * 1.3);
     this.announce(
       `You burst from hiding and strike ${target.def.name} for ${dmg} damage!`,
       `${p.name} bursts from hiding and strikes you for ${dmg} damage!`
@@ -811,6 +830,11 @@ export class Combat {
     if (this.player.buffs && this.player.buffs.frenzy > 0) this.player.buffs.frenzy -= 1;
     if (this.player.buffs && this.player.buffs.ironhide > 0) this.player.buffs.ironhide -= 1;
     if (this.player.buffs && this.player.buffs.shadow > 0) this.player.buffs.shadow -= 1;
+    if (this.player.khri) {
+      for (const k of Object.keys(this.player.khri)) {
+        if (this.player.khri[k] > 0) this.player.khri[k] -= 1;
+      }
+    }
     if (capstoneActive(this.player, 'empath') && this.player.hp < this.player.maxHp) {
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + 3);
     }

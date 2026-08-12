@@ -5,6 +5,7 @@ import { npcById } from '../data/npcs.js';
 import { creatureById, RARES } from '../data/creatures.js';
 import { guildById } from '../data/guilds.js';
 import { ITEMS, itemById } from '../data/items.js';
+import { SKILLS } from '../data/skills.js';
 import { manaRegenRate } from '../data/mana.js';
 import { VOICE_POOL } from '../data/abilities.js';
 import {
@@ -642,9 +643,9 @@ export class Game {
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
-  assignQuest(p) {
+  assignQuest(p, source = 'crier') {
     const id = this.questCreatureFor(p);
-    p.quest = { creatureId: id, count: Math.min(3 + p.circle, 8), done: false };
+    p.quest = { creatureId: id, count: Math.min(3 + p.circle, 8), done: false, source };
     this.persistPlayer(p);
     return p.quest;
   }
@@ -665,16 +666,20 @@ export class Game {
   }
 
   questClaim(p) {
-    if (!p.quest) return { ok: false, msg: 'You have no quest. Ask the crier for one.' };
+    if (!p.quest) return { ok: false, msg: 'You have no quest. Ask the crier or your guild leader for work.' };
     if (!p.quest.done) {
       return { ok: false, msg: `Your quest is not finished. Slay ${p.quest.count} more to complete it.` };
     }
     const def = creatureById(p.quest.creatureId);
     const silver = 40 + (def ? def.circle * 35 : 40);
     p.silver += silver;
+    const fromLeader = p.quest.source === 'leader';
+    if (fromLeader && p.guild.guildSkill && SKILLS[p.guild.guildSkill]) gainSkillExp(p, p.guild.guildSkill, 20);
     p.quest = null;
     this.persistPlayer(p);
-    return { ok: true, msg: `The crier hands you ${silver} silvers. "Good hunting," he says with a grin.` };
+    return fromLeader
+      ? { ok: true, msg: `Your guild leader nods. "Work well done." You pocket ${silver} silvers and your ${SKILLS[p.guild.guildSkill].name} sharpens.` }
+      : { ok: true, msg: `The crier hands you ${silver} silvers. "Good hunting," he says with a grin.` };
   }
 
   // ---------- Status / prompt ----------

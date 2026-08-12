@@ -70,6 +70,11 @@ export const NPCS = {
     desc: 'A sinewy old master with eyes like flint, arms folded across a scarred chest.',
     greeting: 'TDPs are spent here, in the Fane of Training. Type "train <stat>" twice to steel yourself and commit.',
   },
+  forge_master: {
+    id: 'forge_master', name: 'Bram the Ironhand, the forge master', role: 'craft',
+    desc: 'A barrel-chested smith with soot-etched arms, hammer resting on one shoulder.',
+    greeting: 'Bring me ore and cinder scale, and I\'ll teach your hands the hammer. Say "forge" to see the recipes.',
+  },
 
   // Guild leaders (trainers)
   leader_barbarian: { id: 'leader_barbarian', name: 'Warchief Ulfgar', role: 'guild', guild: 'barbarian', desc: 'A mountain of a man with a beard braided with trophies.', greeting: 'The wild calls to those with fury in their blood. Say "circle" when you are ready to advance.' },

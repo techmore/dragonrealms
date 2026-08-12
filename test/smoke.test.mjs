@@ -1725,6 +1725,105 @@ test('target verb marks creatures; slots lists guild progression', async () => {
   game.removePlayer(p);
 });
 
+test('khri: concentration-gated thief buffs, break on hit', async () => {
+  const { concentrationPool } = await import('../data/khri.js');
+  const acc = await auth.registerAccount('Khritest', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Khriley', race: 'human', guild: 'thief' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  assert.ok(concentrationPool(p) >= 8, 'base concentration pool');
+  handleCommand(game, p, 'khri focus');
+  assert.equal(p.khri.focus > 0, true, 'khri focus active');
+  handleCommand(game, p, 'khri elusion');
+  assert.equal(p.khri.elusion > 0, true, 'two khri stack within pool');
+
+  // Over-concentration refused.
+  p.khri = { elusion: 60, focus: 60, nimbleness: 60, dampen: 60, strike: 60 };
+  handleCommand(game, p, 'khri strike');
+  const deny = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).at(-1) || '';
+  assert.match(deny, /concentration/, 'over pool refused');
+  p.khri = {};
+
+  // Combat: hit shatters khri.
+  p.room = 'sewers_1';
+  const { CREATURES } = await import('../data/creatures.js');
+  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.rat));
+  p.khri = { focus: 60 };
+  handleCommand(game, p, 'attack rat');
+  let combat = game.combat.getFor(p);
+  let guard = 0;
+  while (game.combat.getFor(p) && guard++ < 300) {
+    combat.tick();
+    if (!Object.values(p.khri || {}).some((t) => t > 0)) break;
+  }
+  assert.ok(!Object.values(p.khri || {}).some((t) => t > 0), 'hit shatters khri');
+  while (game.combat.getFor(p)) game.combat.getFor(p).tick();
+  game.removePlayer(p);
+});
+
+test('forging: ore, quality ladder, and crafted steel', async () => {
+  const { countItems, skillRank } = await import('../server/player.js');
+  const { qualityRoll } = await import('../data/forging.js');
+  const acc = await auth.registerAccount('Forging', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Hamm', race: 'human', guild: 'paladin' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  // Quality ladder sanity.
+  const qLow = qualityRoll(0);
+  const qHigh = qualityRoll(50);
+  assert.ok(qHigh.mult >= qLow.mult, 'better skill -> better quality');
+  assert.ok(['practically worthless', 'mediocre', 'about average', 'well-crafted', 'masterfully-crafted'].includes(qLow.name));
+
+  // Forge requires the Ember Forge room.
+  handleCommand(game, p, 'forge forged_short_sword');
+  assert.match(ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' '), /Ember Forge/, 'gated to the forge');
+
+  game.move(p, 'n'); game.move(p, 'e'); game.move(p, 'e'); // square -> market -> brewery -> forge
+  assert.equal(p.room, 'forge');
+  handleCommand(game, p, 'forge forged_short_sword');
+  assert.match(ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' '), /You lack materials/, 'materials required');
+
+  const { addItem } = await import('../server/player.js');
+  addItem(p, 'iron_ore', 3);
+  p.skills.forging = { rank: 10, exp: 0 };
+  handleCommand(game, p, 'forge forged_short_sword');
+  assert.equal(countItems(p, 'forged_short_sword'), 1, 'crafted weapon produced');
+  assert.equal(countItems(p, 'iron_ore'), 1, 'materials consumed');
+  assert.ok(skillRank(p, 'forging') + p.skills.forging.exp > 0, 'forging trains');
+  assert.ok(p.forgedQuality.forged_short_sword > 0, 'quality recorded');
+
+  game.removePlayer(p);
+});
+
+test('guild leader tasks assign, complete, and reward guild skill exp', async () => {
+  const acc = await auth.registerAccount('Leadertask', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Hired', race: 'human', guild: 'thief' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  // At the thief hall.
+  game.move(p, 'e'); game.move(p, 's'); game.move(p, 's'); game.move(p, 's'); game.move(p, 's');
+  assert.equal(p.room, 'hall_thief');
+  handleCommand(game, p, 'ask Mist task');
+  assert.ok(p.quest && p.quest.source === 'leader', 'leader task assigned');
+  const before = p.skills.backstab.exp;
+  let guard = 0;
+  while (!p.quest.done && guard++ < 20) game.questKill(p, p.quest.creatureId);
+  handleCommand(game, p, 'ask Mist claim');
+  assert.equal(p.quest, null, 'claimed');
+  assert.ok(p.skills.backstab.exp > before, 'guild skill exp granted');
+
+  game.removePlayer(p);
+});
+
 test('combat death respawns at temple', async () => {  const acc = await auth.registerAccount('Glasstest', 's3cretword');
   const charId = createCharacter(acc.accountId, { name: 'Glassjaw', race: 'halfling', guild: 'thief' });
   const p = loadPlayer(charId);

@@ -78,6 +78,15 @@ export const ITEMS = {
   fang_of_shadowpaw: { id: 'fang_of_shadowpaw', name: 'the Fang of Shadowpaw', type: 'weapon', slot: 'hand', skill: 'small_edged', dmg: [10, 16], speed: 3, value: 900, req: 6, desc: 'A fang-dagger carved from the dire wolf Shadowpaw. It hums with the forest.' },
   chieftains_cleaver: { id: 'chieftains_cleaver', name: "the Chieftain's Cleaver", type: 'weapon', slot: 'hand', skill: 'twohanded_edged', dmg: [22, 38], speed: 7, value: 1800, req: 8, desc: 'A great cleaver taken from the Bandit Chieftain. It is still warm.' },
   drakeheart_amulet: { id: 'drakeheart_amulet', name: 'the Drakeheart Amulet', type: 'armor', slot: 'accessory', skill: 'light_armor', armor: 15, value: 2500, req: 10, desc: 'An amulet cut from the heart-stone of the Cinder Drake King. Heat radiates from it.' },
+
+  // ---- Forging materials ----
+  iron_ore:      { id: 'iron_ore', name: 'a lump of iron ore', type: 'misc', slot: null, value: 15, desc: 'A heavy lump of raw iron ore.' },
+  // ---- Crafted gear (forged at the Ember Forge, quality-scaled) ----
+  forged_short_sword: { id: 'forged_short_sword', name: 'a finely forged short sword', type: 'weapon', slot: 'hand', skill: 'medium_edged', dmg: [7, 15], speed: 4, value: 150, req: 1, desc: 'A short sword hammered out by a smith\u2019s own hand.' },
+  forged_steel_sword: { id: 'forged_steel_sword', name: 'a finely forged steel longsword', type: 'weapon', slot: 'hand', skill: 'medium_edged', dmg: [13, 24], speed: 5, value: 520, req: 3, desc: 'A steel longsword forged with real craft.' },
+  forged_steel_greatsword: { id: 'forged_steel_greatsword', name: 'a finely forged steel greatsword', type: 'weapon', slot: 'hand', skill: 'twohanded_edged', dmg: [22, 36], speed: 8, value: 880, req: 5, desc: 'A greatsword of the smith\u2019s own making.' },
+  forged_mithril_blade: { id: 'forged_mithril_blade', name: 'a finely forged mithril longsword', type: 'weapon', slot: 'hand', skill: 'medium_edged', dmg: [17, 29], speed: 4, value: 1450, req: 7, desc: 'Mithril, folded by hand into a blade of rare quality.' },
+  forged_dragonsteel: { id: 'forged_dragonsteel', name: 'a finely forged dragonsteel greatsword', type: 'weapon', slot: 'hand', skill: 'twohanded_edged', dmg: [28, 47], speed: 7, value: 3000, req: 10, desc: 'A legend smelted from dragonsteel and fire.' },
 };
 
 export function itemById(id) {

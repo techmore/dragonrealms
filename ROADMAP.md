@@ -234,7 +234,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Mana-type system: Elemental (Bard, Warrior Mage), Holy (Cleric, Paladin), Life (Empath, Ranger), Lunar (Moon Mage, Trader), Necromantic (Necromancer), none (Barbarian, Thief) | 🚧 types + ambient cycles live (`perceive`, `harness`, held mana empowers casts); attunement-pulse regen and cambrinth pending |
 | Spell-slot progressions per guild: primary magic 89–91 slots @150 (Cleric, Moon Mage, Warrior Mage), secondary magic 55–76 (Bard, Empath, Necromancer), tertiary magic 60–61 (Paladin, Ranger, Trader); free magical feats at circle 2 | 🚧 `slots` display live; slot-constrained learning + free feats pending |
 | Nth-skill + hard/soft requirement engine: real DR circle tables (hard skills can't count toward Nth skills; mastery skills excluded; Sorcery/Thievery exclusions per guild) | 🚧 engine live with all 11 guild tables (1–10 band, scaled per circle); organic exp sources live for tactics, scholarship, performance, appraisal, outdoorsmanship (foraging), athletics, hunting, scouting, backstab, defending, parry, thievery (steal), locksmithing (strongboxes), empathy, arcana; no outstanding requirement-skill gaps |
-| Crafting skills + disciplines: Forging (Weaponsmithing/Armorsmithing/Blacksmithing), Enchanting (Artificing/Binding/Invoking), Alchemy (Remedies/Poison/Cooking), Outfitting (Tailoring/Artistry), Engineering (Tinkering/Shaping/Carving) | ⬜ |
+| Crafting skills + disciplines: Forging (Weaponsmithing/Armorsmithing/Blacksmithing), Enchanting (Artificing/Binding/Invoking), Alchemy (Remedies/Poison/Cooking), Outfitting (Tailoring/Artistry), Engineering (Tinkering/Shaping/Carving) | 🚧 Alchemy + Forging v1 live (ore → quality steel); full disciplines pending |
 | Guild crafting affiliations: free technique slots per guild (e.g. 3× Armorsmithing Paladin, 2× Remedies+1× Cooking Empath) | ⬜ |
 | Stamina + burden pools (prerequisite for War Stomp, berserks, heavy gear) | ⬜ |
 | Magic techniques / analogous patterns / metaspells | ⬜ |
@@ -337,7 +337,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| Khri: concentration-based buffs (~30 khri), no cost reduction possible, limited by concentration + supernatural skill | ⬜ |
+| Khri: concentration-based buffs (Elusion, Focus, Strike, Nimbleness, Dampen), limited by concentration + Stealth skill | 🚧 v1 live; full khri family + pulse upkeep pending |
 | Blindside (surprise attack from hiding), Ambush Moves (Stun, Choke, Ignite, Clout, Screen), Poison Resistance, Mark/Glance | ⬜ |
 | Passages (city shortcuts), Contacts (+1/20 circles), Lockpick carving (12+), Slip, Voice throw | ⬜ |
 | Urban bonus / Reputation (heat → guild punishment) / Confidence mechanics | ⬜ |
@@ -380,7 +380,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Creature levels + rank-band hunting ladder: creatures teach within documented min/max ranks; ladders by province, city, creature type and skill | ⬜ |
 | Depth-tiered hunting grounds: difficulty bands gated by room depth inside one area (e.g. Crossing Sewers with 3 tiers of silverfish/thugs) | ⬜ |
 | Crossing fidelity: districts and landmarks (High Temple of the Thirteen, Asemath Academy, The Middens, docks, Amusement Pier), inns/taverns (Half Pint, Sand Spit, Tenderfoot…), hangouts | ⬜ |
-| Task givers: old blind beggar, street urchin, firewood peddler, wandering minstrel + per-guild leader tasks (kill, delivery, item recovery, skins) | ⬜ |
+| Task givers: per-guild leader kill tasks (ask <leader> task) + crier pest-control | 🚧 kill tasks live; delivery/recovery/skins + street task givers pending |
 | Second starting city: Riverhaven; province travel (Zoluren, Therengia, Ilithi, Qi'Reshalia, Forfedhdar) | ⬜ |
 | Loot flags per creature (gems, coin, boxes, skins) driving ladder choice | ⬜ |
 | Specialized ladders: undead, constructs, skinning, locksmith | ⬜ |
@@ -423,7 +423,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | 5 crafting skills × 3 disciplines (~25 techniques each): Forging (Blacksmithing/Armorsmithing/Weaponsmithing), Engineering (Carving/Shaping/Tinkering), Outfitting (Tailoring/Artistry/Jewelry), Alchemy (Remedies/Reactants/Cooking), Enchanting (Artificing/Binding/Invoking) | ⬜ |
 | Technique slots: 13 general per skill (rank-gated 25–1200), careers (12) + hobbies (6), 3 guild bonus slots | ⬜ |
 | Guild bonus disciplines (e.g. Empath Remedies×2+Cooking, Paladin Armorsmithing×3, Thief Carving×2+Reactants) | ⬜ |
-| Workflow: gather materials → study instructions → tools (quality/speed, damage/durability) → craft → ANALYZE → quality roll | ⬜ |
+| Workflow: gather materials → craft → quality roll (practically worthless → masterfully-crafted, quality scales damage) | 🚧 v1 live; tools/instructions/ANALYZE pending |
 | Quality ladder: practically worthless → mediocre → about average → well-crafted → masterfully-crafted (99); durability bonus at masterful | ⬜ |
 | Work orders + prestige → maker's mark; unmarked items recognized only by their maker | ⬜ |
 | Crafted gear strictly superior to store-bought at high skill; magic buffs apply at half strength to crafting checks | ⬜ |

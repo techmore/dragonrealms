@@ -32,8 +32,13 @@ export const ROOMS = {
   },
   brewery: {
     id: 'brewery', zone: 'town', name: 'The Tilted Retort', npcs: ['alchemist'],
-    desc: 'A warm little workshop thick with steam and the smell of crushed roots. Mortars, alembics, and jars of floating light crowd every shelf.',
-    exits: { w: 'market_way' },
+    desc: 'A warm little workshop thick with steam and the smell of crushed roots. Mortars, alembics, and jars of floating light crowd every shelf. A hammer rings from the workshop beyond.',
+    exits: { w: 'market_way', e: 'forge' },
+  },
+  forge: {
+    id: 'forge', zone: 'town', name: 'The Ember Forge', npcs: ['forge_master'],
+    desc: 'The air shimmers over a great anvil. Bellow-fires roar in a hearth of black stone, and racks of finished steel line the walls. Ore waits in bins, patient for the hammer.',
+    exits: { w: 'brewery' },
   },
   market_end: {
     id: 'market_end', zone: 'town', name: 'Market Way North', npcs: ['banker', 'quartermaster'],
