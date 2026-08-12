@@ -4,7 +4,7 @@ import { ITEMS, itemById } from '../../data/items.js';
 import { RECIPES, recipeById } from '../../data/recipes.js';
 import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll } from '../../data/forging.js';
 import { npcById } from '../../data/npcs.js';
-import { skillRank, gainSkillExp, addItem, removeItem, equipItem, unequipItem, countItems } from '../player.js';
+import { skillRank, gainSkillExp, addItem, removeItem, equipItem, unequipItem, countItems, unlockAchievement } from '../player.js';
 import { pad, findInventoryItem, findSlotByItem, findNpcByName } from './util.js';
 
 // Guild crafting affiliations (DR: free technique slots per discipline).
@@ -150,6 +150,7 @@ export const commands = {
     // Quality improves the forged item's stats in hand.
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
+    if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
     emit(`You work the metal at the anvil and produce ${q.name} ${base.name}.${leveled ? ' Your Forging improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
   },
 
@@ -175,6 +176,7 @@ export const commands = {
     addItem(p, recipe.item, 1);
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
+    if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
     emit(`You shape the materials into ${q.name} ${base.name}.${leveled ? ' Your Engineering improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
   },
 
@@ -200,6 +202,7 @@ export const commands = {
     addItem(p, recipe.item, 1);
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
+    if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
     emit(`You cut and stitch ${q.name} ${base.name}.${leveled ? ' Your Outfitting improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
   },
 

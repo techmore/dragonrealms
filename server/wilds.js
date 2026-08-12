@@ -3,7 +3,7 @@
 import { ROOMS, ZONES, roomById } from '../data/world.js';
 import { creatureById } from '../data/creatures.js';
 import { itemById } from '../data/items.js';
-import { skillRank, gainSkillExp, addItem } from './player.js';
+import { skillRank, gainSkillExp, addItem, unlockAchievement } from './player.js';
 
 const DIRS = {
   n: 'north', s: 'south', e: 'east', w: 'west',
@@ -211,6 +211,7 @@ export const wilds = {
     else if (roll < 0.5) found = { item: 'herb_root', qty: 1, text: 'a bitter root growing through the refuse.' };
     else found = { item: 'iron_ring', qty: 1, text: 'a bent iron ring, still worth a coin or two.' };
     addItem(p, found.item, found.qty);
+    unlockAchievement(p, 'scavenger');
     return { ok: true, msg: `You sort through the heaps — ${found.text}${leveled ? ' Your Appraisal improved!' : ''}` };
   },
 

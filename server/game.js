@@ -6,7 +6,7 @@ import { ROOMS, ZONES, roomById } from '../data/world.js';
 import { npcById } from '../data/npcs.js';
 import { creatureById, RARES } from '../data/creatures.js';
 import { itemById } from '../data/items.js';
-import { bankRexp, pulseExp } from './player.js';
+import { bankRexp, pulseExp, unlockAchievement } from './player.js';
 import { manaRegenRate } from '../data/mana.js';
 import { VOICE_POOL } from '../data/abilities.js';
 import {
@@ -628,6 +628,9 @@ export class Game {
   bankerIn(p) { return economy.bankerIn(p); }
   deposit(p, amt) { return economy.deposit(p, amt); }
   withdraw(p, amt) { return economy.withdraw(p, amt); }
+  vaultList(p) { return economy.vaultList(p); }
+  vaultStore(p, itemName, qty) { return economy.vaultStore(p, itemName, qty); }
+  vaultRetrieve(p, itemName, qty) { return economy.vaultRetrieve(p, itemName, qty); }
   healerIn(p) { return economy.healerIn(p); }
   heal(p) { return economy.heal(p); }
   commodityBoard(p) { return economy.commodityBoard(p); }
@@ -648,11 +651,86 @@ export class Game {
   hasCrier(p) { return quests.hasCrier(p); }
   questCreatureFor(p) { return quests.questCreatureFor(p); }
   assignQuest(p, source) { return quests.assignQuest(this, p, source); }
-  questKill(p, creatureId) { return quests.questKill(this, p, creatureId); }
+  questKill(p, creatureId) {
+    const res = quests.questKill(this, p, creatureId);
+    // Hunt credit is shared: party-mates in the room share kills and quest
+    // progress, and fell a dread knight anywhere and it is legend.
+    if (creatureId === 'dread_knight' && p.online) unlockAchievement(p, 'slayer');
+    if (p.party) {
+      for (const mid of p.party.members) {
+        if (mid === p.charId) continue;
+        const m = this.players.get(mid);
+        if (m && m.party && m.party.id === p.party.id && m.room === p.room) {
+          quests.questKill(this, m, creatureId);
+          gainSkillExp(m, 'hunting', 2);
+        }
+      }
+    }
+    return res;
+  }
   questSkin(p) { return quests.questSkin(this, p); }
   questDeliver(p) { return quests.questDeliver(this, p); }
   questClaim(p) { return quests.questClaim(this, p); }
   questDescription(p) { return quests.questDescription(p); }
+
+  // ---------- Parties (DR hunt credit) ----------
+  partyInvite(p, targetName) {
+    if (p.combatId) return { ok: false, msg: 'Not in the middle of a fight.' };
+    const target = [...this.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === (targetName || '').toLowerCase());
+    if (!target) return { ok: false, msg: 'There is no such adventurer here.' };
+    if (target.party) return { ok: false, msg: `${target.name} is already in a party.` };
+    target.pendingParty = p.charId;
+    target.ws.send(JSON.stringify({ t: 'msg', msg: `\n${p.name} asks you to join their party. Type "party join" to accept.` }));
+    return { ok: true, msg: `${target.name} has been asked. They can "party join" to accept.` };
+  }
+
+  partyJoin(p) {
+    const leaderId = p.pendingParty;
+    if (!leaderId) return { ok: false, msg: 'You have no pending party invitation.' };
+    const leader = this.players.get(leaderId);
+    if (!leader || leader.party && leader.party.members.length >= 5) {
+      return { ok: false, msg: 'The invitation has lapsed or the party is full.' };
+    }
+    const id = leader.party ? leader.party.id : `party_${leaderId}_${Date.now()}`;
+    const members = leader.party ? [...leader.party.members] : [leaderId];
+    if (members.length >= 5) return { ok: false, msg: 'The party is full (5).' };
+    members.push(p.charId);
+    const party = { id, leader: leaderId, members };
+    leader.party = party;
+    p.party = party;
+    p.pendingParty = null;
+    for (const mid of members) {
+      const m = this.players.get(mid);
+      if (m) m.party = party;
+    }
+    return { ok: true, msg: `You join ${leader.name}'s party. Hunt credit is shared in the same room.` };
+  }
+
+  partyLeave(p) {
+    if (!p.party) return { ok: false, msg: 'You are not in a party.' };
+    const id = p.party.id;
+    const leader = this.players.get(p.party.leader);
+    const members = (leader && leader.party && leader.party.id === id ? leader.party.members : []).filter((m) => m !== p.charId);
+    if (leader && leader.party && leader.party.id === id) {
+      if (members.length <= 1) leader.party = null;
+      else leader.party = { id, leader: leader.charId, members };
+    }
+    p.party = null;
+    for (const mid of members) {
+      const m = this.players.get(mid);
+      if (m) m.party = leader && leader.party ? leader.party : null;
+    }
+    return { ok: true, msg: 'You leave the party.' };
+  }
+
+  partyStatus(p) {
+    if (!p.party) return { ok: false, msg: 'You are not in a party. "party <playername>" to invite, "party join" to accept.' };
+    const names = p.party.members.map((mid) => {
+      const m = this.players.get(mid);
+      return m ? m.name : '?';
+    });
+    return { ok: true, msg: `\nParty (${names.length}/5): ${names.join(', ')}. Kill credit and quest progress are shared in the same room.` };
+  }
 
   guildTrainer(p) { return statusView.guildTrainer(p); }
   status(p) { statusView.status(this, p); }

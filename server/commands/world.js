@@ -20,7 +20,7 @@ const HELP = `
   Abilities: abilities  (list barbarian arts)  |  learn <ability>  (at the barbarian hall)  |  ask <leader> about forgetting <ability>
   Items:     get <item>  |  drop <item>  |  inventory (i)  |  wear/wield <item>  |  remove <item>  |  use <item>
   Death:     die in battle and you awaken at the temple — your gear lies with your corpse; search <corpse>, get <item> from corpse
-  Shops:     list  |  buy <item> [qty]  |  sell <item> [qty]  |  deposit/withdraw <silvers>  |  pit  |  heal
+  Shops:     list  |  buy <item> [qty]  |  sell <item> [qty]  |  deposit/withdraw <silvers>  |  vault/store/retrieve  |  pit  |  heal
   Training:  train <skill>  (pay silvers to advance guild skills)  |  train <stat> twice (Fane of Training, east of Temple Row)  |  circle
   TDPs:      tdp  |  raise <stat>  |  tdptrain <skill>
   Quests:    quest  |  claim  |  deliver  |  ask <leader> task
@@ -32,7 +32,8 @@ const HELP = `
   Crime:     steal <npc>  (lift coin, town)  |  pick <strongbox>  |  plead guilty|innocent  (if jailed)
   Scripting: alias <name> <command>  |  use ";" to chain commands  (client: macro / timer)
   NPCs:      ask <npc> <topic>  (try "ask crier help")
-  Character: score  |  skills  |  exp  |  alloc <stat> <amount>  |  rexp
+  Character: score  |  skills  |  exp  |  alloc <stat> <amount>  |  rexp  |  achievements  |  respec (Fane)
+  Party:     party <player>  (invite)  |  party join  |  party leave  |  party  (status)
   Social:    say <text>  |  emote <text>  |  shout <text>  |  who  |  time
   Misc:      help  |  save  |  report <what happened>  |  quit
 `.trim();
@@ -178,6 +179,28 @@ export const commands = {
     // eslint-disable-next-line no-console
     console.log(line);
     emit('Your report has been filed with the scribes. The town takes these matters seriously.');
+  },
+
+  party(ctx) {
+    const { game, p, arg1, emit } = ctx;
+    if (!arg1) {
+      const res = game.partyStatus(p);
+      emit(res.msg);
+      return;
+    }
+    const what = arg1.toLowerCase();
+    if (what === 'join') {
+      const res = game.partyJoin(p);
+      emit(res.msg);
+      return;
+    }
+    if (what === 'leave') {
+      const res = game.partyLeave(p);
+      emit(res.msg);
+      return;
+    }
+    const res = game.partyInvite(p, arg1);
+    emit(res.msg);
   },
 
   quit(ctx) {

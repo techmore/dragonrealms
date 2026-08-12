@@ -976,3 +976,120 @@ test('ladder province: grounds group under their provinces', async () => {
   assert.match(byProv, /Crossing lands/, 'Crossing province group');
   assert.ok(byProv.split('\x1b[1m').length < byZone.split('\x1b[1m').length, 'province view groups zones');
 });
+
+// ------------------- Bank vault -------------------
+test('vault: belongings sit safe at the bank', async () => {
+  const { addItem } = await import('../server/player.js');
+  const p = await mkChar('VaultT', 'trader');
+  p.room = 'market_end';
+  addItem(p, 'wolf_pelt', 2);
+
+  const res = game.vaultStore(p, 'wolf_pelt', 1);
+  assert.equal(res.ok, true, 'stored');
+  assert.equal(p.inventory.find((i) => i.item.id === 'wolf_pelt')?.qty || 0, 1, 'one remains on you');
+  const list = game.vaultList(p);
+  assert.match(list.msg, /wolf pelt/, 'vault lists the pelt');
+  const back = game.vaultRetrieve(p, 'wolf_pelt', 1);
+  assert.equal(back.ok, true, 'retrieved');
+  assert.equal(p.inventory.find((i) => i.item.id === 'wolf_pelt')?.qty || 0, 2, 'both pelts back');
+
+  const inTown = await mkChar('VaultNo', 'trader');
+  inTown.room = 'square';
+  const no = game.vaultList(inTown);
+  assert.equal(no.ok, false, 'no banker, no vault');
+  game.removePlayer(p);
+  game.removePlayer(inTown);
+});
+
+// ------------------- Respec -------------------
+test('respec: the fane returns spent points to the pool', async () => {
+  const p = await mkChar('RespecT', 'ranger');
+  p.room = 'fane';
+  const base = (await import('../server/player.js')).baseStatsFor(p.race.id);
+  p.stats.str += 5;
+  p.unspentStat -= 5;
+  p.silver = 1000;
+  const strBefore = p.stats.str;
+  handleCommand(game, p, 'respec');
+  assert.equal(p.stats.str, base.str, 'strength returned to base');
+  assert.ok(p.unspentStat >= 5, 'points back in the pool');
+  assert.ok(p.silver < 1000, 'the fane charges for the rite');
+  game.removePlayer(p);
+});
+
+// ------------------- Exp lockout -------------------
+test('lockout: rapid rank-ups dim a skill for a while', async () => {
+  const { gainSkillExp } = await import('../server/player.js');
+  const { expToNextRank } = await import('../data/skills.js');
+  const p = await mkChar('LockT', 'ranger');
+  p.circle = 6; // rank cap 24 — room to level
+  // Give brawling 3 ranks' worth of progress rapidly.
+  p.skills.brawling = { rank: 5, exp: expToNextRank(5) - 1 };
+  const now = Date.now();
+  gainSkillExp(p, 'brawling', expToNextRank(6) * 2); // rank 6 (1st)
+  gainSkillExp(p, 'brawling', expToNextRank(6) * 2); // rank 7 (2nd)
+  gainSkillExp(p, 'brawling', expToNextRank(6) * 2); // rank 8 (3rd) -> lock window opens
+  assert.ok(p.expLocks.brawling.count >= 3, 'three rapid rank-ups logged');
+  // The lock cuts learning roughly in half: set the window, then measure.
+  p.expLocks.brawling.until = Date.now() + 60 * 1000;
+  const level0 = p.skills.brawling.rank;
+  const before = p.skills.brawling.exp;
+  gainSkillExp(p, 'brawling', expToNextRank(level0) * 2);
+  const gained = p.skills.brawling.exp - before;
+  assert.ok(gained < expToNextRank(level0) * 2 * 0.75, `locked learning is dimmed (${gained})`);
+  game.removePlayer(p);
+});
+
+// ------------------- Achievements -------------------
+test('achievements: milestones unlock and list', async () => {
+  const p = await mkChar('AchT', 'ranger');
+  const { unlockAchievement } = await import('../server/player.js');
+  unlockAchievement(p, 'first_quest');
+  unlockAchievement(p, 'first_quest'); // no double
+  assert.equal(p.achievements.length, 1, 'unlocked once');
+  handleCommand(game, p, 'achievements');
+  assert.match(lastMsg(p), /Errand Runner/, 'listed');
+  game.removePlayer(p);
+});
+
+test('achievements: wiring fires from play', async () => {
+  const { addItem, unlockAchievement } = await import('../server/player.js');
+  const p = await mkChar('AchWire', 'warmage');
+  // Master craft: force a 1.3x roll.
+  Math.random = () => 0;
+  p.room = 'forge';
+  p.skills.engineering = { rank: 90, exp: 0 };
+  addItem(p, 'iron_ore', 1);
+  addItem(p, 'herb_root', 1);
+  handleCommand(game, p, 'shape carved_staff');
+  assert.ok(p.achievements.includes('master_crafter'), 'master craft unlocks');
+  game.removePlayer(p);
+});
+
+// ------------------- Parties -------------------
+test('party: invites, shared hunt credit, and leaving', async () => {
+  const a = await mkChar('PartyA', 'barbarian');
+  const b = await mkChar('PartyB', 'ranger');
+  a.room = 'marsh_1';
+  b.room = 'marsh_1';
+  b.quest = { kind: 'kill', creatureId: 'rat', count: 1, source: 'crier', done: false };
+
+  const inv = game.partyInvite(a, b.name);
+  assert.equal(inv.ok, true, 'invite sent');
+  const join = game.partyJoin(b);
+  assert.equal(join.ok, true, 'joined');
+  assert.equal(a.party.id, b.party.id, 'shared party id');
+
+  // A kill by A credits B's quest and shares a little hunting exp.
+  game.questKill(a, 'rat');
+  assert.equal(b.quest.done, true, 'shared quest credit');
+
+  const status = game.partyStatus(a);
+  assert.match(status.msg, /2\/5/, 'status shows both');
+
+  const leave = game.partyLeave(b);
+  assert.equal(leave.ok, true, 'left');
+  assert.equal(a.party, null, 'party dissolves when one remains');
+  game.removePlayer(a);
+  game.removePlayer(b);
+});

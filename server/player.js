@@ -91,6 +91,7 @@ export function loadPlayer(charId) {
     patron: row.patron || null,
     element: row.element || null,
     caravan: (() => { try { return row.caravan ? JSON.parse(row.caravan) : null; } catch { return null; } })(),
+    achievements: (() => { try { return JSON.parse(row.achievements || '[]'); } catch { return []; } })(),
     soul: row.soul ?? 50,    empathicStain: row.empathic_stain || 0,
     devotion: row.devotion ?? 30,
     homeCity: row.home_city || 'crossing',
@@ -174,7 +175,7 @@ export function savePlayer(p) {
     UPDATE characters SET
       circle=?, str=?, con=?, ref=?, agi=?, cha=?, dis=?, wis=?, int=?,
       unspent_stat=?, mana=?, tdp=?, tdp_pool=?, stance=?, pvp_stance=?, rexp=?,
-      soul=?, empathic_stain=?, devotion=?, exp_pools=?, home_city=?, silver=?, bank=?, room=?, hp=?, max_hp=?, warrant=?, patron=?, element=?, caravan=?
+      soul=?, empathic_stain=?, devotion=?, exp_pools=?, home_city=?, silver=?, bank=?, room=?, hp=?, max_hp=?, warrant=?, patron=?, element=?, caravan=?, achievements=?
     WHERE id=?
   `).run(
     p.circle, p.stats.str, p.stats.con, p.stats.ref, p.stats.agi, p.stats.cha,
@@ -183,7 +184,8 @@ export function savePlayer(p) {
     p.soul ?? 50, p.empathicStain || 0, p.devotion ?? 30,
     JSON.stringify(p.expPools || {}), p.homeCity || 'crossing',
     p.silver, p.bank, p.room, p.hp, p.maxHp, p.warrant ? JSON.stringify(p.warrant) : null,
-    p.patron || null, p.element || null, p.caravan ? JSON.stringify(p.caravan) : null, p.charId
+    p.patron || null, p.element || null, p.caravan ? JSON.stringify(p.caravan) : null,
+    JSON.stringify(p.achievements || []), p.charId
   );
   const ins = db.prepare(`
     INSERT INTO skills (character_id, skill_id, rank, exp) VALUES (?,?,?,?)
@@ -245,6 +247,30 @@ export function tdpGainFor(rank) {
 
 export const TDP_POOL_CONVERSION = 200;
 
+// ---------------- Achievements (milestone ledger) ----------------
+export const ACHIEVEMENTS = {
+  first_quest: { id: 'first_quest', name: 'Errand Runner', desc: 'Complete your first quest.' },
+  circle_5: { id: 'circle_5', name: 'Established', desc: 'Reach circle 5.' },
+  circle_10: { id: 'circle_10', name: 'Master of the Realm', desc: 'Reach circle 10.' },
+  first_cast: { id: 'first_cast', name: 'First Words', desc: 'Cast your first spell.' },
+  master_arcana: { id: 'master_arcana', name: 'Deep Weaver', desc: 'Cast a circle-7+ signature spell.' },
+  master_crafter: { id: 'master_crafter', name: "The Master's Touch", desc: 'Craft a masterfully-crafted piece of gear.' },
+  scavenger: { id: 'scavenger', name: 'Bone Picker', desc: 'Find salvage in the Middens.' },
+  nest_egg: { id: 'nest_egg', name: 'A Nest Egg', desc: 'Hold 2,000 silvers in the bank.' },
+  slayer: { id: 'slayer', name: 'Hunter of the Deep', desc: 'Fell a dread knight.' },
+};
+
+export function unlockAchievement(p, id) {
+  if (!ACHIEVEMENTS[id]) return false;
+  p.achievements = p.achievements || [];
+  if (p.achievements.includes(id)) return false;
+  p.achievements.push(id);
+  if (p.ws && typeof p.ws.send === 'function') {
+    p.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1mAchievement unlocked: ${ACHIEVEMENTS[id].name}!\x1b[0m (${ACHIEVEMENTS[id].desc})` }));
+  }
+  return true;
+}
+
 // Rested Experience (REXP): banks while logged out (2 offline minutes -> 1
 // REXP) and while resting; while active it doubles exp drain (DR-authentic).
 export const REXP_CAP = 120;
@@ -266,10 +292,19 @@ export function bankRexp(p, offlineMs) {
 // Gain experience in a skill; auto-rank-up when enough accumulates.
 // DR-authentic field model: ~70% converts at once, ~30% banks in a field
 // pool that pulses into ranks on the server ticker (retention feel).
+// Rapid rank-ups trigger a learning lockout: the skill dims for a while
+// (DR debt/lock feel — no one masters a skill by staring at one foe).
 export function gainSkillExp(p, skillId, amount) {
   if (!SKILLS[skillId]) return 0;
   const s = p.skills[skillId] || (p.skills[skillId] = { rank: 0, exp: 0 });
   let gained = Math.max(0, Math.floor(amount * learningMultiplier(p)));
+  // Learning lock: 3+ rank-ups in one skill inside 5 minutes halves further
+  // learning for 2 minutes (fresh rank-ups may extend it).
+  const now = Date.now();
+  if (p.expLocks) {
+    const lock = p.expLocks[skillId];
+    if (lock && lock.until > now) gained = Math.floor(gained * 0.5);
+  }
   if (p.rexp > 0) {
     gained *= 2;
     p.rexp -= 1;
@@ -277,6 +312,18 @@ export function gainSkillExp(p, skillId, amount) {
   const immediate = Math.max(gained > 0 ? 1 : 0, Math.floor(gained * 0.7));
   const banked = gained - immediate;
   let leveled = applyExpToSkill(p, s, immediate);
+  if (leveled > 0) {
+    p.expLocks = p.expLocks || {};
+    const lock = p.expLocks[skillId] || { count: 0, until: 0 };
+    if (lock.until > now) {
+      lock.count += 1;
+      if (lock.count >= 3) lock.until = now + 2 * 60 * 1000;
+    } else {
+      lock.count = 1;
+      lock.until = now + 5 * 60 * 1000;
+    }
+    p.expLocks[skillId] = lock;
+  }
   if (banked > 0) {
     p.expPools = p.expPools || {};
     const cap = expToNextRank(s.rank) * 2;

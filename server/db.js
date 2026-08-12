@@ -58,6 +58,7 @@ export function migrate() {
       patron TEXT,
       element TEXT,
       caravan TEXT,
+      achievements TEXT NOT NULL DEFAULT '[]',
       soul INTEGER NOT NULL DEFAULT 50,
       empathic_stain INTEGER NOT NULL DEFAULT 0,
       devotion INTEGER NOT NULL DEFAULT 30,
@@ -105,6 +106,13 @@ export function migrate() {
       command TEXT NOT NULL,
       PRIMARY KEY (character_id, name)
     );
+
+    CREATE TABLE IF NOT EXISTS vault (
+      character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL,
+      qty INTEGER NOT NULL DEFAULT 1,
+      PRIMARY KEY (character_id, item_id)
+    );
   `);
 
   // Migrations for pre-existing databases.
@@ -119,6 +127,7 @@ export function migrate() {
     ['patron', 'TEXT'],
     ['element', 'TEXT'],
     ['caravan', 'TEXT'],
+    ['achievements', "TEXT NOT NULL DEFAULT '[]'"],
     ['soul', 'INTEGER NOT NULL DEFAULT 50'],
     ['empathic_stain', 'INTEGER NOT NULL DEFAULT 0'],
     ['devotion', 'INTEGER NOT NULL DEFAULT 30'],

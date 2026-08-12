@@ -55,6 +55,28 @@ export const commands = {
     emit(res.msg);
   },
 
+  vault(ctx) {
+    const { game, p, emit } = ctx;
+    const res = game.vaultList(p);
+    emit(res.msg);
+  },
+
+  store(ctx) {
+    const { game, p, arg1, arg2, emit } = ctx;
+    if (!arg1) return emit('Store what?');
+    const qty = parseInt(arg2, 10) || 1;
+    const res = game.vaultStore(p, arg1, qty);
+    emit(res.msg);
+  },
+
+  retrieve(ctx) {
+    const { game, p, arg1, arg2, emit } = ctx;
+    if (!arg1) return emit('Retrieve what?');
+    const qty = parseInt(arg2, 10) || 1;
+    const res = game.vaultRetrieve(p, arg1, qty);
+    emit(res.msg);
+  },
+
   heal(ctx) {
     const { game, p, emit } = ctx;
     const res = game.heal(p);

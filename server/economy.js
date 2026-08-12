@@ -3,7 +3,8 @@ import { roomById } from '../data/world.js';
 import { npcById } from '../data/npcs.js';
 import { ITEMS, itemById } from '../data/items.js';
 import { commodityPrice, commodityById, commodityHoldings } from '../data/commodities.js';
-import { addItem, removeItem, countItems, gainSkillExp } from './player.js';
+import { addItem, removeItem, countItems, gainSkillExp, unlockAchievement } from './player.js';
+import { db } from './db.js';
 
 function pad(s, n) {
   s = String(s);
@@ -93,6 +94,7 @@ export const economy = {
     if (p.silver < amt) return { ok: false, msg: 'You do not have that many silvers.' };
     p.silver -= amt;
     p.bank += amt;
+    if (p.bank >= 2000) unlockAchievement(p, 'nest_egg');
     return { ok: true, msg: `You deposit ${amt} silvers. Your bank holds ${p.bank}.` };
   },
 
@@ -103,6 +105,46 @@ export const economy = {
     p.bank -= amt;
     p.silver += amt;
     return { ok: true, msg: `You withdraw ${amt} silvers.` };
+  },
+
+  // ---------- Bank vault (item storage) ----------
+  vaultList(p) {
+    if (!this.bankerIn(p)) return { ok: false, msg: 'There is no banker here.' };
+    const rows = db.prepare('SELECT item_id, qty FROM vault WHERE character_id=? ORDER BY item_id').all(p.charId);
+    if (!rows.length) return { ok: true, msg: 'Your vault is empty. Store belongings with "store <item> [qty]" and take them back with "retrieve <item> [qty]".' };
+    const lines = rows.map((r) => {
+      const it = itemById(r.item_id);
+      return `  ${it ? it.name : r.item_id}${r.qty > 1 ? ` (${r.qty})` : ''}`;
+    });
+    return { ok: true, msg: `\nYour bank vault holds:\n${lines.join('\n')}` };
+  },
+
+  vaultStore(p, itemName, qty = 1) {
+    if (!this.bankerIn(p)) return { ok: false, msg: 'There is no banker here.' };
+    const entry = p.inventory.find((e) => e.item.id === itemName || e.item.name.includes(itemName));
+    if (!entry) return { ok: false, msg: 'You do not have that.' };
+    qty = Math.max(1, Math.min(entry.qty, Math.floor(qty) || 1));
+    removeItem(p, entry.item.id, qty);
+    db.prepare(`
+      INSERT INTO vault (character_id, item_id, qty) VALUES (?,?,?)
+      ON CONFLICT(character_id, item_id) DO UPDATE SET qty=qty+excluded.qty
+    `).run(p.charId, entry.item.id, qty);
+    return { ok: true, msg: `You store ${qty > 1 ? `${qty}x ` : ''}${entry.item.name} in your vault.` };
+  },
+
+  vaultRetrieve(p, itemName, qty = 1) {
+    if (!this.bankerIn(p)) return { ok: false, msg: 'There is no banker here.' };
+    const row = db.prepare('SELECT item_id, qty FROM vault WHERE character_id=? AND item_id=?').get(p.charId, itemName);
+    const found = row || db.prepare('SELECT item_id, qty FROM vault WHERE character_id=?').all(p.charId)
+      .find((r) => { const it = itemById(r.item_id); return it && it.name.includes(itemName); });
+    if (!found) return { ok: false, msg: 'Your vault holds nothing like that.' };
+    qty = Math.max(1, Math.min(found.qty, Math.floor(qty) || 1));
+    addItem(p, found.item_id, qty);
+    const left = found.qty - qty;
+    if (left <= 0) db.prepare('DELETE FROM vault WHERE character_id=? AND item_id=?').run(p.charId, found.item_id);
+    else db.prepare('UPDATE vault SET qty=? WHERE character_id=? AND item_id=?').run(left, p.charId, found.item_id);
+    const it = itemById(found.item_id);
+    return { ok: true, msg: `You retrieve ${qty > 1 ? `${qty}x ` : ''}${it ? it.name : found.item_id} from your vault.` };
   },
 
   healerIn(p) {

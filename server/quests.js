@@ -5,7 +5,7 @@
 import { roomById } from '../data/world.js';
 import { creatureById } from '../data/creatures.js';
 import { SKILLS } from '../data/skills.js';
-import { gainSkillExp } from './player.js';
+import { gainSkillExp, unlockAchievement } from './player.js';
 
 const TRINKETS = {
   locket: { name: 'a silver locket', item: 'locket', desc: 'a silver locket' },
@@ -162,6 +162,7 @@ export const quests = {
     if (fromLeader && p.guild.guildSkill && SKILLS[p.guild.guildSkill]) gainSkillExp(p, p.guild.guildSkill, 20);
     p.quest = null;
     game.persistPlayer(p);
+    unlockAchievement(p, 'first_quest');
     if (fromLeader) {
       return { ok: true, msg: `Your guild leader nods. "Work well done." You pocket ${silver} silvers and your ${SKILLS[p.guild.guildSkill].name} sharpens.${skillExp}` };
     }

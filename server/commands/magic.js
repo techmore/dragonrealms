@@ -3,7 +3,7 @@ import { roomById } from '../../data/world.js';
 import { spellsFor, spellById, spellTierFor, SPELL_TIER_RANKS } from '../../data/guilds.js';
 import { SKILLS } from '../../data/skills.js';
 import { manaTypeFor, manaCycle, roomManaLevel, manaDescriptor, safeOverchannelPct, backfireChance } from '../../data/mana.js';
-import { gainSkillExp, skillRank, removeItem, addItem } from '../player.js';
+import { gainSkillExp, skillRank, removeItem, addItem, unlockAchievement } from '../player.js';
 import { db } from '../db.js';
 import { findInventoryItem } from './util.js';
 
@@ -83,6 +83,8 @@ export const commands = {
         return;
       }
     }
+    unlockAchievement(p, 'first_cast');
+    if (spell.minCircle >= 7) unlockAchievement(p, 'master_arcana');
     const safe = safeOverchannelPct(skillRank(p, 'primary_magic'));
     if (backfireChance(pct, safe) > 0 && Math.random() < backfireChance(pct, safe)) {
       p.mana -= Math.floor(cost * 0.6);

@@ -6,7 +6,7 @@ import { roomById } from '../../data/world.js';
 import { db } from '../db.js';
 import {
   skillRank, gainSkillExp, applyExpToSkill, weaponOf, totalArmor, STAT_NAMES, MAX_STAT,
-  statRaiseCost, tdpTrainCost, tdpAwardFor,
+  statRaiseCost, tdpTrainCost, tdpAwardFor, baseStatsFor, ACHIEVEMENTS, unlockAchievement,
 } from '../player.js';
 import { pad, matchSkill, recalcDerived, rankExp, SLOT_RATES, STAT_FULL } from './util.js';
 
@@ -130,6 +130,31 @@ export const commands = {
     say(`\nRested experience: ${p.rexp || 0} minute(s) banked (cap 120).\nBank it by logging out (2 minutes away = 1 minute of rest) or by resting deeply. While active it doubles your learning.`);
   },
 
+  achievements(ctx) {
+    const { p, emit } = ctx;
+    const earned = (p.achievements || []).map((id) => ACHIEVEMENTS[id]).filter(Boolean);
+    const total = Object.keys(ACHIEVEMENTS).length;
+    if (!earned.length) return emit(`No achievements yet (0/${total}). Keep an eye out — the realm remembers great deeds.`);
+    const lines = earned.map((a) => `  \x1b[1m${a.name}\x1b[0m — ${a.desc}`);
+    emit(`\nAchievements (${earned.length}/${total}):\n${lines.join('\n')}`);
+  },
+
+  respec(ctx) {
+    const { p, emit } = ctx;
+    if (p.room !== 'fane') return emit('Respecs are granted at the Fane of Training, east of Temple Row.');
+    const base = baseStatsFor(p.race.id);
+    const spent = STAT_NAMES.reduce((s, n) => s + (p.stats[n] - base[n]), 0);
+    if (spent <= 0) return emit('You have not spent any stat points yet — nothing to reroll.');
+    const cost = 150 + p.circle * 50;
+    if (p.silver < cost) return emit(`Rerolling your attributes costs ${cost} silvers; you have ${p.silver}.`);
+    p.silver -= cost;
+    for (const n of STAT_NAMES) p.stats[n] = base[n];
+    p.unspentStat = (p.unspentStat || 0) + spent;
+    recalcDerived(p);
+    p.hp = p.maxHp;
+    emit(`The fane keeper burns a candle of return and your body unspools to its first shape. ${spent} spent point(s) return to your pool. (${p.unspentStat} unspent)`);
+  },
+
   deletechar(ctx) {
     const { game, p, arg1, emit } = ctx;
     if (!arg1) return emit('Usage: deletechar <name> — deletes one of your OTHER characters. This cannot be undone.');
@@ -222,6 +247,7 @@ function circleUp(ctx) {
   recalcDerived(p);
   p.hp = Math.min(p.hp + (p.maxHp - oldMax), p.maxHp);
   p.mana = p.maxMana;
+  unlockAchievement(p, target === 5 ? 'circle_5' : target === 10 ? 'circle_10' : null);
   const gained = tdpAwardFor(target);
   p.tdp += gained;
   let msg = `\nThe guild leader nods slowly. "Rise, ${p.name}. You are now a ${guildTitle(p.guild, target)}."\nYour vitality grows with your station. You gain ${gained} \x1b[1mTDPs\x1b[0m (${target >= 10 ? '100 base' : '50 base'} + circle bonus).`;
