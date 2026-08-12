@@ -62,12 +62,24 @@ export const economy = {
     if (!willing) return { ok: false, msg: 'No one here is interested in buying that.' };
     const have = countItems(p, item.id);
     if (have < qty) return { ok: false, msg: 'You do not have that many.' };
-    const mult = p.circle >= 10 && p.guild.id === 'trader' ? 1.25 : 1;
+    // Golden Touch (circle-10 trader), caravan porter, and a chaffered bargain
+    // stack on the shop's half-price rate.
+    let mult = p.circle >= 10 && p.guild.id === 'trader' ? 1.25 : 1;
+    if (p.caravan && p.caravan.rented && p.caravan.porter > 0) mult += 0.05;
+    let chaffered = false;
+    if (p.chafferNext) {
+      mult += 0.1;
+      chaffered = true;
+      p.chafferNext = false;
+    }
     const price = Math.floor(item.value * 0.5 * mult) * qty;
     removeItem(p, item.id, qty);
     p.silver += price;
     gainSkillExp(p, 'trading', 4);
-    return { ok: true, msg: `You sell ${qty > 1 ? `${qty}x ` : ''}${item.name} to ${willing.name} for ${price} silvers.${mult > 1 ? ' (Golden Touch!)' : ''}` };
+    const notes = [];
+    if (mult > 1.25) notes.push('your caravan earns its keep');
+    if (chaffered) notes.push('the chaffer carried the day');
+    return { ok: true, msg: `You sell ${qty > 1 ? `${qty}x ` : ''}${item.name} to ${willing.name} for ${price} silvers.${mult > 1 ? ' (Golden Touch!)' : ''}${notes.length ? ` (${notes.join('; ')})` : ''}` };
   },
 
   bankerIn(p) {
@@ -142,13 +154,15 @@ export const economy = {
 
     const cur = holdings[def.id];
     if (!cur || cur.qty < qty) return { ok: false, msg: `You hold ${cur ? cur.qty : 0} unit(s) of ${def.name}.` };
-    const trader = p.guild.id === 'trader' ? 1.1 : 1;
+    let trader = p.guild.id === 'trader' ? 1.1 : 1;
+    // A caravan scribe keeps better books at the board.
+    if (p.caravan && p.caravan.rented && p.caravan.scribe > 0) trader += 0.1;
     const proceeds = Math.floor(price * qty * trader);
     const profit = proceeds - Math.floor(cur.avgCost * qty);
     cur.qty -= qty;
     if (cur.qty <= 0) delete holdings[def.id];
     p.silver += proceeds;
     gainSkillExp(p, 'trading', 8);
-    return { ok: true, msg: `You sell ${qty} unit(s) of ${def.name} for ${proceeds} silvers${trader > 1 ? ' (Golden Touch!)' : ''} — ${profit >= 0 ? 'a profit' : 'a loss'} of ${Math.abs(profit)}.` };
+    return { ok: true, msg: `You sell ${qty} unit(s) of ${def.name} for ${proceeds} silvers${trader > 1.1 ? ' (caravan books!)' : trader > 1 ? ' (Golden Touch!)' : ''} — ${profit >= 0 ? 'a profit' : 'a loss'} of ${Math.abs(profit)}.` };
   },
 };

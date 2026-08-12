@@ -112,8 +112,9 @@ export const commands = {
   },
 
   ladder(ctx) {
-    const { game, p, emit } = ctx;
-    emit(game.ladder());
+    const { game, p, arg1, emit } = ctx;
+    if (arg1 && arg1.toLowerCase() !== 'province') return emit('Usage: ladder — or "ladder province" to group by province.');
+    emit(game.ladder(arg1 ? 'province' : null));
   },
 
   rest(ctx) {

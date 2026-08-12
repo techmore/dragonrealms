@@ -98,29 +98,46 @@ export const wilds = {
 
   // Hunting ladder: every creature teaches within a rank band; the zones are
   // ordered by that band so you can see where to move next. Loot flags show
-  // what each kind of prey yields (gems, coin, boxes, skins).
-  ladder() {
+  // what each kind of prey yields (gems, coin, boxes, skins). With 'province'
+  // the zones group under their province (the Crossing lands vs Riverhaven).
+  ladder(province = null) {
     const TAG_NAMES = { skins: 'skins', gems: 'gems', coin: 'coin', box: 'boxes', named: 'rare loot' };
-    const rows = [];
+    const PROVINCES = {
+      crossing: ['sewers', 'woods', 'marsh', 'deepwoods', 'camp', 'cinder', 'blackwood'],
+      riverhaven: ['riverhaven'],
+    };
+    const groups = {};
     for (const [zoneId, zone] of Object.entries(ZONES)) {
+      if (province === 'province') {
+        const prov = Object.entries(PROVINCES).find(([, zones]) => zones.includes(zoneId))?.[0] || 'crossing';
+        (groups[prov] ||= []).push([zoneId, zone]);
+      } else {
+        (groups[zoneId] ||= []).push([zoneId, zone]);
+      }
+    }
+    const rows = [];
+    for (const [gid, zones] of Object.entries(groups)) {
       const creatures = {};
-      for (const room of Object.values(ROOMS)) {
-        if (room.zone !== zoneId) continue;
-        for (const defId of room.spawns || []) {
-          const def = creatureById(defId);
-          if (def && !creatures[def.id]) {
-            const tags = (def.lootTags || []).map((t) => TAG_NAMES[t] || t).join(', ');
-            creatures[def.id] = `${def.teaches ? `teaches ${def.teaches[0]}–${def.teaches[1]}` : `circle ${def.circle}`}${tags ? ` · drops: ${tags}` : ''}`;
+      for (const [zoneId, zone] of zones) {
+        for (const room of Object.values(ROOMS)) {
+          if (room.zone !== zoneId) continue;
+          for (const defId of room.spawns || []) {
+            const def = creatureById(defId);
+            if (def && !creatures[def.id]) {
+              const tags = (def.lootTags || []).map((t) => TAG_NAMES[t] || t).join(', ');
+              creatures[def.id] = `${def.teaches ? `teaches ${def.teaches[0]}–${def.teaches[1]}` : `circle ${def.circle}`}${tags ? ` · drops: ${tags}` : ''}`;
+            }
           }
         }
       }
       const entries = Object.entries(creatures);
       if (entries.length) {
-        rows.push(`\x1b[1m${zone.name}\x1b[0m`);
+        const label = province === 'province' && gid === 'crossing' ? 'Crossing lands' : gid === 'riverhaven' ? 'Riverhaven' : ZONES[gid]?.name || gid;
+        rows.push(`\x1b[1m${label}\x1b[0m`);
         for (const [id, t] of entries) rows.push(`  ${pad(creatureById(id).name.replace(/^a /, ''), 26)} ${t}`);
       }
     }
-    return rows.length ? `\nHunting ladder (skill ranks a creature teaches best):\n${rows.join('\n')}` : 'The hunting grounds are empty.';
+    return rows.length ? `\nHunting ladder (skill ranks a creature teaches best):\n${rows.join('\n')}${province === 'province' ? '\n\n("ladder" alone lists every zone)' : ''}` : 'The hunting grounds are empty.';
   },
 
   // Blowing a warhorn calls beasts to the room (15-minute timer).

@@ -639,7 +639,7 @@ export class Game {
   scavenge(p) { return wilds.scavenge(this, p); }
   track(p) { return wilds.track(this, p); }
   hunt(p) { return wilds.hunt(this, p); }
-  ladder() { return wilds.ladder(); }
+  ladder(province) { return wilds.ladder(province); }
   warhorn(p) { return wilds.warhorn(this, p); }
   startRest(p) { return wilds.startRest(this, p); }
   stopRest(p) { wilds.stopRest(p); }

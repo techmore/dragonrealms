@@ -880,3 +880,99 @@ test('summon weapon: aether blade holds ten minutes and fades', async () => {
   game.removePlayer(p);
   game.removePlayer(notHall);
 });
+
+// ------------------- Guild spellbooks -------------------
+test('spellbooks: each magic guild gains a signature spell at circle 7', async () => {
+  const { GUILDS, spellsFor } = await import('../data/guilds.js');
+  for (const g of Object.values(GUILDS)) {
+    if (!g.magic) continue;
+    const at10 = spellsFor(g, 10);
+    assert.equal(at10.length, 5, `${g.name} spells at circle 10`);
+    const sig = at10.find((s) => s.minCircle === 7);
+    assert.ok(sig, `${g.name} has a circle-7 signature spell`);
+    const kinds = at10.map((s) => s.kind);
+    assert.ok(new Set(kinds).size >= 2, `${g.name} spellbook spans kinds (${kinds.join(',')})`);
+  }
+  // The signature spells resolve through combat.
+  const { spellById } = await import('../data/guilds.js');
+  const p = await mkChar('SigWarm', 'warmage');
+  p.circle = 8;
+  p.room = 'marsh_1';
+  p.mana = 100;
+  p.skills.war_magic = { rank: 40, exp: 0 };
+  const cataclysm = spellById(p.guild, 'cataclysm');
+  const rat = game.makeCreature(CREATURES.rat);
+  game.roomCreatures.get('marsh_1').push(rat);
+  game.startCombat(p, [rat.def]);
+  const combat = game.combat.getFor(p);
+  const before = combat.enemies[0].hp;
+  combat.cast(cataclysm, combat.playerTarget);
+  assert.ok(combat.enemies[0].hp < before, 'cataclysm lands');
+  game.removePlayer(p);
+});
+
+// ------------------- Trader caravan & chaffer -------------------
+test('caravan: rent, hire, and the cut lands on sales', async () => {
+  const { addItem } = await import('../server/player.js');
+  const p = await mkChar('CaravanT', 'trader');
+  p.room = 'hall_trader';
+  p.silver = 500;
+
+  handleCommand(game, p, 'caravan rent');
+  assert.ok(p.caravan?.rented, 'caravan rented');
+  handleCommand(game, p, 'caravan hire porter');
+  assert.equal(p.caravan.porter, 1, 'porter hired');
+  handleCommand(game, p, 'caravan hire scribe');
+  assert.equal(p.caravan.scribe, 1, 'scribe hired');
+  handleCommand(game, p, 'caravan hire porter');
+  assert.match(lastMsg(p), /no more berths|already keep/i, 'berths capped');
+
+  // Porter cut lands on shop sales.
+  p.room = 'market_way';
+  addItem(p, 'rat_pelt', 1);
+  const silverBefore = p.silver;
+  handleCommand(game, p, 'sell rat_pelt');
+  const gained = p.silver - silverBefore;
+  assert.ok(gained >= Math.floor(8 * 0.5 * 1.1), `porter lifted the price (${gained} >= ${Math.floor(8 * 0.5 * 1.1)})`);
+  game.removePlayer(p);
+});
+
+test('chaffer: the next sale runs 10% better', async () => {
+  const { addItem } = await import('../server/player.js');
+  const p = await mkChar('ChaffT', 'trader');
+  p.room = 'market_way';
+  p.silver = 100;
+  addItem(p, 'wolf_pelt', 1);
+  handleCommand(game, p, 'chaffer');
+  assert.equal(p.chafferNext, true, 'chaffer armed');
+  const before = p.silver;
+  handleCommand(game, p, 'sell wolf_pelt');
+  const gained = p.silver - before;
+  assert.equal(gained, Math.floor(55 * 0.5 * 1.1), 'chaffered sale price');
+  assert.equal(p.chafferNext, false, 'chaffer consumed');
+  game.removePlayer(p);
+});
+
+test('speculate: the pit swings with your skills', async () => {
+  const p = await mkChar('SpecT', 'trader');
+  p.room = 'commodity_pit';
+  p.skills.trading = { rank: 40, exp: 0 };
+  p.skills.appraisal = { rank: 40, exp: 0 };
+  p.silver = 200;
+  Math.random = () => 0.01; // win the bet
+  handleCommand(game, p, 'speculate');
+  assert.ok(p.silver > 150, 'winning speculation pays');
+  Math.random = () => 0.99; // lose the next
+  const before = p.silver;
+  handleCommand(game, p, 'speculate');
+  assert.equal(p.silver, before - 50, 'losing speculation costs the stake');
+  game.removePlayer(p);
+});
+
+// ------------------- Province ladder -------------------
+test('ladder province: grounds group under their provinces', async () => {
+  const byZone = game.ladder(null);
+  const byProv = game.ladder('province');
+  assert.match(byProv, /Crossing lands/, 'Crossing province group');
+  assert.ok(byProv.split('\x1b[1m').length < byZone.split('\x1b[1m').length, 'province view groups zones');
+});
