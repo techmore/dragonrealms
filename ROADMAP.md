@@ -44,7 +44,7 @@ bottom.
 | 5 character slots per account | ✅ |
 | Character creation (name, race, guild) | ✅ |
 | Stat allocation (8 stats, 30-point pool) | ✅ |
-| 11 races with stat modifiers & descriptions | ✅ |
+| 12 races with stat modifiers & descriptions (incl. Giantman) | ✅ |
 | Character deletion (`deletechar`) | ✅ |
 | Character select with slot display + "new" flow | ✅ |
 | Rerolling / respec of spent stats | ⬜ |
@@ -101,7 +101,7 @@ Nth-of-skillset pools, 1–10 bands scaled per circle). See the matrix below.
 | Guild trainers in each hall | ✅ |
 | `train <skill>` pays silvers for skill exp | ✅ |
 | Guild-only skill lists enforced | ✅ |
-| Cost curve that stays meaningful to circle 10 | 🚧 needs tuning |
+| Cost curve that stays meaningful to circle 10 | ✅ sim-validated (costs scale 40 + rank×20 through circle 10) |
 | Trainers as NPCs with `ask` dialogue | ✅ |
 | Advanced: train other races'/guilds' secrets for TDPs | ⬜ |
 
@@ -140,7 +140,7 @@ armor skill, defense skill, and either spells or powers that reward mastery.
 
 | Feature | Status |
 |---|---|
-| Per-guild spell lists with circle gates (3 spells/guild: c1 / c3 / c5) | ✅ |
+| Per-guild spell lists with circle gates (4 spells/guild: c1 / c3 / c5 / c8) | ✅ |
 | Spell kinds: damage, heal, sleep, flee, teleport, mark, ward, drain, buff | ✅ |
 | Mana economy: 6 mana types + cycles, perceive/harness, held mana, cambrinth | ✅ (see Pillar 25) |
 | `spells` command + `prepare <spell> [pct]` overchanneling | ✅ |
@@ -244,7 +244,7 @@ Magic tertiary).
 | Barbarian items: chakrel, warhorns (15-min spawn boost), warpaint, roar helms | 🚧 warhorn live (spawns beasts, 15-min timer), chakrel live (neck slot, −5 meditation cost); warpaint and roar helms pending |
 | Faithful circle requirements: the authentic DR band table (Weapon primary; Survival+Armor secondary; Lore+Magic tertiary) | ✅ (live in the band-table engine) |
 | Weaponsmithing affinity: 3 free technique slots in Forging | ⬜ |
-| Flavor verbs (BELCH, SHAKE HAND) + guild registers/titles | 🚧 belch + barbarian handshake live; registers/titles in `score` pending |
+| Flavor verbs (BELCH, SHAKE HAND) + guild registers/titles | 🚧 belch + barbarian handshake live; guild titles in `score` live; barbarian registers pending |
 
 ---
 
@@ -402,7 +402,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| Creature levels + rank-band hunting ladder: creatures teach within documented min/max ranks; ladders by province, city, creature type and skill | ⬜ |
+| Creature levels + rank-band hunting ladder: creatures teach within documented min/max ranks | 🚧 teaching bands live (`ladder`); province/city/type/skill ladders pending |
 | Depth-tiered hunting grounds: difficulty bands gated by room depth inside one area (e.g. Crossing Sewers with 3 tiers of silverfish/thugs) | ⬜ |
 | Crossing fidelity: districts and landmarks (High Temple of the Thirteen, Asemath Academy, The Middens, docks, Amusement Pier), inns/taverns (Half Pint, Sand Spit, Tenderfoot…), hangouts | ⬜ |
 | Task givers: per-guild leader kill tasks (ask <leader> task) + crier pest-control | 🚧 kill tasks live; delivery/recovery/skins + street task givers pending |
@@ -430,7 +430,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| Mana spectrum: Divinity / Holy / Life / Elemental / Lunar / Gravity with per-type cycles (holy days, seasons, weather, moon phases) | 🚧 six types + deterministic cycles live (lunar 12h, holy 72h, life monthly, elemental diurnal, necromantic amalgam); weather-based bonuses pending |
+| Mana spectrum: Elemental / Holy / Life / Lunar / Necromantic / none with per-type cycles (holy days, seasons, weather, moon phases) | 🚧 six types + deterministic cycles live (lunar 12h, holy 72h, life monthly, elemental diurnal, necromantic amalgam); weather-based bonuses pending |
 | HARNESS + PERCEIVE verbs; attunement pool regenerates in pulses (2.5% per 6s), regen speed by guild rate (primary > secondary > tertiary) | 🚧 `perceive`/`harness` + held-mana cast bonus live; 6s pulse regen live (guild-rate + attunement-scaled) |
 | Cambrinth storage: CHARGE / INVOKE / RELEASE / FOCUS; type-locked (wrong type explodes), 1/8 leakage per 500s, Arcana-gated efficiency (~200 ranks), capacity by item shape | 🚧 cambrinth items + charge/invoke/focus live (type-lock explosion, 500s leakage, Arcana efficiency, capacity by device); multi-device tracking and partial-invoke pending |
 | Casting model: PREPARE <spell> # → CAST <target>; TARGET verb; spell slots (primary ~89–92, secondary ~55–77, tertiary ~60–68 @150) | 🚧 `prepare` + `target` + `slots` live; slot-constrained prep pending |
@@ -496,6 +496,10 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 - **Stage 8 — Native Controls 🚧** — D-pad + gamepad live; haptics pending.
 - **Stage 9 — Circle-10 Parity 🚧** — all guilds verified by simulator; capstones live; playtest pending.
 
+- **Stage 10 — Barbarian Fidelity 🚧** — inner fire, four ability classes, paths, masteries, Expertise combos live; the full berserk/form/roar families, warpaint, roar helms, and registers pending (Pillar 11).
+- **Stage 11 — Cross-Guild Systems 🚧** — full DR skill set, mana types + cambrinth, spell-slot display, Nth-skill engine, alchemy + forging live; crafting disciplines and slot-constrained learning pending (Pillar 12).
+- **Stage 12 — Guild Fidelity 🚧** — every guild has a live fidelity v1 (enchantes, devotion, wound-taking, prediction, risen, soul, companions/beseeches, khri, commodity pits, familiars); deeper per-guild trees pending (Pillars 13–22).
+- **Stage 13 — World & Systems Fidelity 🚧** — Riverhaven, hunting ladder, task quests, justice loop live; provinces, depth-tiered grounds, the full crime set, and crafting disciplines pending (Pillars 23–27).
 
 ## Next Up (prioritized backlog)
 
@@ -537,18 +541,14 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 
 | Guild | Minutes | | Guild | Minutes |
 |---|---|---|---|---|
-| Moon Mage | 5 | | Ranger | 5 |
+| Moon Mage | 4 | | Ranger | 6 |
 | Bard | 4 | | Thief | 9 |
-| Cleric | 4 | | Trader | 10 |
+| Cleric | 5 | | Trader | 12 |
 | Necromancer | 4 | | Warmage | 4 |
-| Barbarian | 9 | | Paladin | 4 |
-| | | | Empath | 12 |
+| Barbarian | 9 | | Paladin | 5 |
+| | | | Empath | 10 |
 
 All eleven guilds verified to circle 10 through the authentic band-based
 requirement tables (named skills + Nth-of-skillset pools). TDP totals at
 circle 10 land in the DR-authentic hundreds-to-thousands range (≈910–1040
 with the 600-start + circle awards + pool conversions).
-- **Stage 10 — Barbarian Fidelity 🚧** — inner fire, four ability classes, paths, masteries, Expertise combos live; the full berserk/form/roar families, warpaint, roar helms, and registers pending (Pillar 11).
-- **Stage 11 — Cross-Guild Systems 🚧** — full DR skill set, mana types + cambrinth, spell-slot display, Nth-skill engine, alchemy + forging live; crafting disciplines and slot-constrained learning pending (Pillar 12).
-- **Stage 12 — Guild Fidelity 🚧** — every guild has a live fidelity v1 (enchantes, devotion, wound-taking, prediction, risen, soul, companions/beseeches, khri, commodity pits, familiars); deeper per-guild trees pending (Pillars 13–22).
-- **Stage 13 — World & Systems Fidelity 🚧** — Riverhaven, hunting ladder, task quests, justice loop live; provinces, depth-tiered grounds, the full crime set, and crafting disciplines pending (Pillars 23–27).

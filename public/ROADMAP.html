@@ -104,13 +104,13 @@ const STAGES = [
     desc:"On-screen D-pad + gamepad live; touch feedback pending." },
   { id:9, title:"Stage 9 — Circle-10 Parity", badge:"partial",
     desc:"Sim-verified for all guilds; capstones live; playtest pending." },
-  { id:10, title:"Stage 10 — Barbarian Fidelity", badge:"todo",
+  { id:10, title:"Stage 10 — Barbarian Fidelity", badge:"partial",
     desc:"Inner fire, four ability classes, paths, masteries, Expertise combos, faithful circle table." },
-  { id:11, title:"Stage 11 — Cross-Guild Systems", badge:"todo",
+  { id:11, title:"Stage 11 — Cross-Guild Systems", badge:"partial",
     desc:"Full DR skill set, mana types, spell-slot progressions, Nth-skill requirement engine, crafting disciplines." },
-  { id:12, title:"Stage 12 — Guild Fidelity", badge:"todo",
+  { id:12, title:"Stage 12 — Guild Fidelity", badge:"partial",
     desc:"Faithful passes for Bard, Cleric, Empath, Moon Mage, Necromancer, Paladin, Ranger, Thief, Trader, Warrior Mage." },
-  { id:13, title:"Stage 13 — World & Systems Fidelity", badge:"todo",
+  { id:13, title:"Stage 13 — World & Systems Fidelity", badge:"partial",
     desc:"Hunting ladders, Crossing/Riverhaven depth, skill-system structure, magic mechanics, crafting, PvP & justice." },
 ];
 
@@ -121,7 +121,7 @@ const FEATURES = [
   { s:1, id:"f2", label:"5 character slots per account", detail:"cap enforced in creation, slot display in char select, 'new' flow", status:"done" },
   { s:1, id:"f3", label:"Character creation", detail:"name, race, guild with full descriptions", status:"done" },
   { s:1, id:"f4", label:"Stat allocation", detail:"8 stats, 30-point pool, in-game 'alloc'", status:"done" },
-  { s:1, id:"f5", label:"11 races with modifiers", detail:"humans, dwarves, elves, gortogs, skra, and more", status:"done" },
+  { s:1, id:"f5", label:"12 races with modifiers", detail:"humans, dwarves, elves, gortogs, giantmen, skra, and more", status:"done" },
   { s:1, id:"f6", label:"Web terminal client", detail:"WebSocket UI, ANSI colors, chargen form, session resume", status:"done" },
   { s:1, id:"f7", label:"Persistence + autosave", detail:"SQLite (node:sqlite), autosave every 60s", status:"done" },
   { s:1, id:"f8", label:"Character deletion", detail:"'deletechar <name>' frees a slot; cannot delete active char", status:"done" },
@@ -228,7 +228,7 @@ const FEATURES = [
 
   // --- Stage 9
   { s:9, id:"f66", label:"All guilds reach circle 10", detail:"verified per-guild requirement matrix + simulator", status:"done" },
-  { s:9, id:"f67", label:"Creature economy tuned 1→10", detail:"sim: all 11 guilds reach circle 10 in 9–24 sim-minutes", status:"done" },
+  { s:9, id:"f67", label:"Creature economy tuned 1→10", detail:"sim: all 11 guilds reach circle 10 in 4–12 sim-minutes", status:"done" },
   { s:9, id:"f68", label:"Endgame gear", detail:"circle-10 equipment for every build", status:"done" },
   { s:9, id:"f69", label:"Guild capstone rewards", detail:"circle-10 signature passive per guild (all 11)", status:"done" },
   { s:9, id:"f70", label:"Playtest balance pass", detail:"exp curves, training costs, quest rewards", status:"todo" },
