@@ -83,7 +83,8 @@ status strip / exits widget from `prompt` and `room` messages.
 ## Verification
 
 ```bash
-npm test            # smoke + api + static suites (all green expected)
+npm run verify      # syntax + tests + corpus replay (needs server on :3000)
+npm test            # domain + api + static suites (all green expected)
 node scripts/client-corpus.mjs capture /tmp/corpus.json   # baseline
 node scripts/client-corpus.mjs replay  /tmp/corpus.json   # behavior diff
 node scripts/client-regression.mjs    # CDP suite (server + chromium running)

@@ -9,6 +9,7 @@
     "dev": "node --watch server/index.js",
     "test": "node --test test/*.test.mjs",
     "corpus": "node scripts/client-corpus.mjs",
+    "verify": "node scripts/verify.mjs",
     "regression": "node scripts/client-regression.mjs",
     "skills-doc": "node scripts/build-skills-doc.mjs",
     "roadmap-doc": "node scripts/build-roadmap.mjs",

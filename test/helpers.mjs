@@ -1,6 +1,4 @@
 // Shared test scaffolding for the domain test files.
-import { test, before, after } from 'node:test';
-import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
