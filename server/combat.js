@@ -42,6 +42,7 @@ export class Combat {
     this.game = opts.game || null;
     this.defender = opts.defender || null; // the other live player in a duel
     this.duel = Boolean(this.defender);
+    this.duelEnd = opts.duelEnd || 'blood'; // blood | blow | pain
     this.mark = null;       // {uid, rounds, bonus}
     this.ward = null;       // {rounds, amount}
     this.maneuverCd = { disarm: 0, trip: 0, bash: 0 };
@@ -186,6 +187,7 @@ export class Combat {
 
     target.hp -= dmg;
     if (target.def.controller) target.def.controller.hp = Math.max(0, target.hp);
+    if (!this._ended) this.checkDuelEnd('player');
     if (target.hp <= 0) {
       if (target.def.controller) this.defenderDefeated();
       else this.killCreature(target);
@@ -317,6 +319,7 @@ export class Combat {
       }
     }
     this.player.hp -= dmg;
+    if (!this._ended) this.checkDuelEnd('defender');
     if (this.player.hp <= 0) { this.player.hp = 0; this.killPlayer(); }
   }
 
@@ -756,6 +759,32 @@ export class Combat {
     this.end(false, false, false, null, { conceded: true });
   }
 
+  surrender(side) {
+    const loser = side === 'defender' ? this.defender : this.player;
+    const winner = side === 'defender' ? this.player : this.defender;
+    this.say({
+      initiator: side === 'defender' ? `${loser.name} surrenders!` : `You raise your hand — you surrender to ${winner.name}.`,
+      defender: side === 'defender' ? 'You raise your hand — you surrender.' : `${loser.name} surrenders!`,
+    });
+    this.end(false, false, false, null, { duelResolved: side === 'defender' ? 'player' : 'defender', duelEnd: 'surrender' });
+  }
+
+  // Resolve non-blood duel end conditions (blow / pain).
+  checkDuelEnd(hitSide) {
+    if (!this.duel || this._ended) return;
+    if (this.duelEnd === 'blow' && hitSide) {
+      this.end(false, false, false, null, { duelResolved: hitSide === 'player' ? 'player' : 'defender', duelEnd: 'blow' });
+      return;
+    }
+    if (this.duelEnd === 'pain') {
+      if (this.player.hp < this.player.maxHp * 0.25) {
+        this.end(false, false, false, null, { duelResolved: 'defender', duelEnd: 'pain' });
+      } else if (this.defender.hp < this.defender.maxHp * 0.25) {
+        this.end(false, false, false, null, { duelResolved: 'player', duelEnd: 'pain' });
+      }
+    }
+  }
+
   end(win, dead = false, fled = false, fleeTo = 'west_gate', extra = {}) {
     if (this._ended) return;
     this._ended = true;
@@ -917,7 +946,7 @@ export class CombatManager {
   }
 
   // ---------------- PvP duels ----------------
-  startDuel(player, defender) {
+  startDuel(player, defender, end = 'blood') {
     if (this.combats.has(player.charId) || this.combats.has(defender.charId)) {
       return { ok: false, error: 'One of you is already in combat.' };
     }
@@ -935,6 +964,7 @@ export class CombatManager {
       onEnd: (c, result) => this.endDuel(player, defender, c, result),
       game: this.game,
       defender,
+      duelEnd: end,
     });
     this.combats.set(player.charId, combat);
     this.combats.set(defender.charId, combat);
@@ -954,6 +984,15 @@ export class CombatManager {
     if (result.conceded) {
       sayTo(player, `\n${defender.name} yields — the duel ends. You win by forfeit.`);
       sayTo(defender, '\nYou yield, stepping back. The duel is over.');
+    } else if (result.duelResolved) {
+      // Non-blood duels (blow / pain / surrender): the loser is beaten, not dead.
+      const winner = result.duelResolved === 'player' ? player : defender;
+      const loser = result.duelResolved === 'player' ? defender : player;
+      sayTo(winner, `\nVictory! The duel ends — ${loser.name} is beaten.`);
+      sayTo(loser, `\nThe duel ends. ${winner.name} has beaten you.`);
+      if (result.duelEnd !== 'surrender') {
+        loser.hp = Math.max(1, loser.hp - Math.floor(loser.hp * 0.1));
+      }
     } else if (result.win) {
       sayTo(player, '\nVictory! The duel is yours.');
     } else if (result.dead) {

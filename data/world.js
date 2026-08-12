@@ -42,8 +42,13 @@ export const ROOMS = {
   },
   temple_row: {
     id: 'temple_row', zone: 'town', name: 'Temple Row', npcs: ['healer'],
-    desc: 'A quiet street of shrines and prayer houses. The soft murmur of chanting drifts from open doors. The healer\'s sanctuary is here, and an iron grate in the cobbles leads down into the old sewers.',
-    exits: { n: 'square', s: 'temple', d: 'sewers_1' },
+    desc: 'A quiet street of shrines and prayer houses. The soft murmur of chanting drifts from open doors. The healer\'s sanctuary is here, and an iron grate in the cobbles leads down into the old sewers. An austere hall stands to the east.',
+    exits: { n: 'square', s: 'temple', d: 'sewers_1', e: 'fane' },
+  },
+  fane: {
+    id: 'fane', zone: 'town', name: 'Fane of Training', npcs: ['fane_keeper'],
+    desc: 'A vaulted training hall hung with the banners of a hundred pilgrims. Eight alcoves ring the walls, each devoted to a single attribute. Novices squat in meditation, steeling body and mind.',
+    exits: { w: 'temple_row' },
   },
   temple: {
     id: 'temple', zone: 'town', name: 'Temple of the Pantheon', npcs: ['healer'],

@@ -240,3 +240,14 @@ alongside the circle engine.**
 | Sim re-validation | ✅ all 11 guilds → circle 10 in 4–12 sim-min; TDPs ≈910–1040 |
 | Git commit | ⚠️ **still zero commits** — run `git add -A && git commit` |
 | Exp pools/pulses, spell slots + TARGET, messaging tiers, world/justice/crafting, per-guild passes | ⬜ next batches |
+
+**Revision 3 — gaps targeted this pass:**
+
+| Item | Status |
+|---|---|
+| 16-tier skill messaging (Novice → Avatar) | ✅ `skills` output with degree modifiers |
+| Stat-training rooms for TDPs | ✅ Fane of Training; `raise` gated; `train <stat>` twice to confirm |
+| TARGET verb + spell-slot display | ✅ `target <creature>`, `slots` (per-guild slot rates) |
+| PvP/justice v1 | ✅ duel end conditions (blood/blow/pain), `surrender`, `pvp stance` flags, steal forces OPEN |
+| Exp pools/pulses as a timing mechanic | ⬜ large lift (mindstate readout remains) |
+| Crafting disciplines, world fidelity (districts/tasks/Riverhaven), full justice loop, per-guild passes (Pillars 13–22) | ⬜ roadmap |

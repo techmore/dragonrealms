@@ -40,7 +40,7 @@ without it, a misallocated build is painful at circle 10.
 | Skill-gated world actions: `forage`, `track`, `skin`, `hunt`, `hide`, `study`, `steal`, `pick` | ✅ |
 | Balanced exp curve so each guild can reach rank 10 primaries | ✅ sim-validated (all 11 guilds, 10–23 sim-min) |
 | **TDPs** — authentic model: 600 starting, 50+circle base on circling, hidden pool (every 200 rank-points → 1 TDP), death can cost pool | ✅ |
-| Spend TDPs to permanently raise stats (`raise <stat>`) | ✅ |
+| Spend TDPs to permanently raise stats — at the **Fane of Training** (DR: TRAIN twice to confirm) | ✅ |
 | Spend TDPs to train any skill (`tdptrain <skill>`) | ✅ |
 | Skill caps tied to circle (max rank = circle × 4, anti-grind) | ✅ |
 | Mastery skills (Melee/Missile Mastery, Primary Magic) boost lower same-class skills | ✅ |
@@ -232,7 +232,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 |---|---|
 | Full DR skill set (~83 skills): Empathy, Thanatology, Summoning, Tactics, Scholarship, Performance, Defending, Parry Ability, Offhand Weapon, Melee/Missile Mastery, Inner Fire, Augmentation, Debilitation, Warding, Targeted Magic, Arcana, Sorcery, Outdoorsmanship, Thievery, Athletics, forging/enchanting/alchemy/outfitting/engineering | ✅ list live (83 skills); mastery mechanics live; guild-skill training gates live |
 | Mana-type system: Elemental (Bard, Warrior Mage), Holy (Cleric, Paladin), Life (Empath, Ranger), Lunar (Moon Mage, Trader), Necromantic (Necromancer), none (Barbarian, Thief) | 🚧 types + ambient cycles live (`perceive`, `harness`, held mana empowers casts); attunement-pulse regen and cambrinth pending |
-| Spell-slot progressions per guild: primary magic 89–91 slots @150 (Cleric, Moon Mage, Warrior Mage), secondary magic 55–76 (Bard, Empath, Necromancer), tertiary magic 60–61 (Paladin, Ranger, Trader); free magical feats at circle 2 | ⬜ |
+| Spell-slot progressions per guild: primary magic 89–91 slots @150 (Cleric, Moon Mage, Warrior Mage), secondary magic 55–76 (Bard, Empath, Necromancer), tertiary magic 60–61 (Paladin, Ranger, Trader); free magical feats at circle 2 | 🚧 `slots` display live; slot-constrained learning + free feats pending |
 | Nth-skill + hard/soft requirement engine: real DR circle tables (hard skills can't count toward Nth skills; mastery skills excluded; Sorcery/Thievery exclusions per guild) | 🚧 engine live with all 11 guild tables (1–10 band, scaled per circle); organic exp sources live for tactics, scholarship, performance, appraisal, outdoorsmanship (foraging), athletics, hunting, scouting, backstab, defending, parry, thievery (steal), locksmithing (strongboxes), empathy, arcana; no outstanding requirement-skill gaps |
 | Crafting skills + disciplines: Forging (Weaponsmithing/Armorsmithing/Blacksmithing), Enchanting (Artificing/Binding/Invoking), Alchemy (Remedies/Poison/Cooking), Outfitting (Tailoring/Artistry), Engineering (Tinkering/Shaping/Carving) | ⬜ |
 | Guild crafting affiliations: free technique slots per guild (e.g. 3× Armorsmithing Paladin, 2× Remedies+1× Cooking Empath) | ⬜ |
@@ -395,7 +395,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Mastery skills (Melee Mastery, Missile Mastery, Primary Magic): boost any same-class skill ranked below them | ⬜ |
 | 11 guild skills: Empathy, Astrology, Expertise, Scouting, Backstab, Summoning, Bardic Lore, Conviction, Theurgy, Thanatology, Trading (guild-only training) | 🚧 in skill list; guild-only training gates pending |
 | Hard/soft/restricted requirement semantics in the circle engine | ⬜ |
-| Skill-level messaging tiers (Novice → Practitioner → … → Avatar, 16 tiers) in `skills` output | ⬜ |
+| Skill-level messaging tiers (Novice → Practitioner → … → Avatar, 16 tiers with degree modifiers) in `skills` output | ✅ |
 | Learning model: field exp → pools → pulses (10 groups, 200s); mindstate ladder (clear → … → mind lock); retention by skillset rate (primary 40–60 min, tertiary 70–100) | ⬜ |
 | Rank cap 1750 (DR) vs our anti-grind cap (circle × 4, 40 @ circle 10) | ✅ curve 200 + n exact; cap is an intentional divergence |
 
@@ -408,7 +408,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Mana spectrum: Divinity / Holy / Life / Elemental / Lunar / Gravity with per-type cycles (holy days, seasons, weather, moon phases) | 🚧 six types + deterministic cycles live (lunar 12h, holy 72h, life monthly, elemental diurnal, necromantic amalgam); weather-based bonuses pending |
 | HARNESS + PERCEIVE verbs; attunement pool regenerates in pulses (2.5% per 6s), regen speed by guild rate (primary > secondary > tertiary) | 🚧 `perceive`/`harness` + held-mana cast bonus live; 6s pulse regen live (guild-rate + attunement-scaled) |
 | Cambrinth storage: CHARGE / INVOKE / RELEASE / FOCUS; type-locked (wrong type explodes), 1/8 leakage per 500s, Arcana-gated efficiency (~200 ranks), capacity by item shape | 🚧 cambrinth items + charge/invoke/focus live (type-lock explosion, 500s leakage, Arcana efficiency, capacity by device); multi-device tracking and partial-invoke pending |
-| Casting model: PREPARE <spell> # → CAST <target>; TARGET verb; spell slots (primary ~89–92, secondary ~55–77, tertiary ~60–68 @150) | 🚧 `prepare <spell> [pct]` + cast-with-preparation live (variable mana, power scaling); TARGET verb and spell-slot budgets pending |
+| Casting model: PREPARE <spell> # → CAST <target>; TARGET verb; spell slots (primary ~89–92, secondary ~55–77, tertiary ~60–68 @150) | 🚧 `prepare` + `target` + `slots` live; slot-constrained prep pending |
 | Spell types: standard, battle, ritual (foci cut mana), cyclic (one at a time, pulsing upkeep), metaspell | ⬜ |
 | Analogous patterns: universal spells free circles 1–10, removed at 11 | ⬜ |
 | Spell difficulty tiers: intro / basic (~10 ranks) / intermediate (~80) / advanced (~250) / esoteric (~400+) | ⬜ |
@@ -434,8 +434,8 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| CHALLENGE dueling: end conditions (blood / blow / pain / death), reasons (honor, vengeance, justice, restitution, theft, contest), refuse + surrender options | ⬜ |
-| PvP stance flagging (OPEN / GUARDED / CLOSED) + forced-open triggers (stealing, gwethsmashing, necromancy accusation) | ⬜ |
+| CHALLENGE dueling: end conditions (blood / blow / pain), refuse + surrender options | 🚧 `duel <name> [blood|blow|pain]`, `surrender`, `decline` live; duel reasons pending |
+| PvP stance flagging (OPEN / GUARDED / CLOSED) + forced-open triggers (stealing) | 🚧 `pvp stance` live; steal forces OPEN; further forced-open triggers pending |
 | Justice zones: Standard / Clan / Dirge / Hara'jaal / None, each with distinct crime consequences | ⬜ |
 | Crime list: murder, thievery, disturbing the peace, forbidden practices (sorcery/necromancy), aiding and abetting; arrest → jail → judge → PLEAD → provincial debts | ⬜ |
 | Warrants (RECALL WARRANT), SURRENDER to clear charges, stocks for petty theft, DEPART ITEM vs graverobbing | ⬜ |

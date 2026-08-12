@@ -1,7 +1,7 @@
 // Command parsing and handlers.
 import { roomById } from '../data/world.js';
 import { guildById, circleRequirements, circleRequirementSummary, guildTrainedSkills, trainableSkills, spellsFor, spellById, guildTitle, capstoneFor } from '../data/guilds.js';
-import { SKILLS, CATEGORIES, totalRanks, expToNextRank, mindstate } from '../data/skills.js';
+import { SKILLS, CATEGORIES, totalRanks, expToNextRank, mindstate, skillTier } from '../data/skills.js';
 import { manaTypeFor, manaCycle, roomManaLevel, manaDescriptor, safeOverchannelPct, backfireChance } from '../data/mana.js';
 import { barbarianAbilityById, barbarianAbilitiesFor, barbarianSlots, ABILITY_PATHS, VOICE_POOL, FORGET_COOLDOWN_MS } from '../data/abilities.js';
 import { ITEMS, itemById } from '../data/items.js';
@@ -21,6 +21,14 @@ const DIR_ALIASES = {
   sw: 'sw', southwest: 'sw', u: 'u', up: 'u', d: 'd', down: 'd',
 };
 
+// DR spell-slot rates by guild magic tier (@150 circles): primary ~90,
+// secondary ~66, tertiary ~60.
+const SLOT_RATES = {
+  cleric: 90, moonmage: 90, warmage: 90,
+  bard: 66, empath: 66, necromancer: 66,
+  paladin: 60, ranger: 60, trader: 60,
+};
+
 const HELP = `
 \x1b[1mDragon Realms — quick help\x1b[0m
   Movement:  n, s, e, w, ne, nw, se, sw, u, d  |  go north  |  look (l)
@@ -32,11 +40,12 @@ const HELP = `
   Death:     die in battle and you awaken at the temple — your gear lies with your corpse; search <corpse>, get <item> from corpse
   Shops:     list  |  buy <item> [qty]  |  sell <item> [qty]  |  deposit/withdraw <silvers>
   Training:  train <skill>  (pay silvers to advance guild skills)  |  circle  (at your guild hall)
-  TDPs:      tdp  |  raise <stat>  |  tdptrain <skill>  (training points from rank-ups)
-  Combat:    attack <creature> | ambush <creature> (from hiding) | cast [spell] [target] | retreat | skin <creature>
+  TDPs:      tdp  |  train <stat> twice  (at the Fane of Training, east of Temple Row)  |  tdptrain <skill>
+  Combat:    attack [target] | target <creature> | ambush <creature> (from hiding) | cast [spell] [target] | retreat | skin <creature>
+  PvP:       duel <player> [blood|blow|pain] | accept/decline <player> | surrender | pvp stance open|guarded|closed  (wilds only)
+  Magic:     spells  |  slots  (spell-slot budget) |  prepare <spell> [pct]
   Stances:   stance aggressive | defensive | guarded | balanced  (costs stance points)
   Quests:    quest  |  claim  (work for the town crier)
-  PvP:       duel <player>  |  accept/decline <player>  (wilds only)
   Scripting: alias <name> <command>  |  use ";" to chain commands  (client: macro / timer)
   Wilds:     forage  (gather herbs)  |  hunt  (scan for prey)  |  ladder  (rank bands)  |  track  (read the signs)  |  hide  |  rest  (recover)
   Skills:    perform  (practice performance)  |  appraise  (study an item or creature)
@@ -355,8 +364,48 @@ function handleOther(game, p, cmd, arg1, arg2, rest, args, say, emit) {
     }
 
     // ---- Combat ----
+    case 'target': {
+      if (!arg1 || arg1 === 'none' || arg1 === 'off') {
+        p.targetId = null;
+        return emit('You are no longer targeting anything.');
+      }
+      const n = arg1.toLowerCase();
+      const creature = game.findCreature(p.room, n);
+      if (creature) {
+        p.targetId = `creature:${creature.uid}`;
+        return emit(`You set your gaze on ${creature.def.name}. Use "attack" or "cast" with no target to strike it.`);
+      }
+      const player = [...game.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === n);
+      if (player) {
+        p.targetId = `player:${player.charId}`;
+        return emit(`You set your gaze on ${player.name}.`);
+      }
+      return emit('There is no such creature or adventurer here.');
+    }
+    case 'slots': {
+      const guild = p.guild;
+      if (!guild.magic) return emit('Your guild forswears magic.');
+      const rate = SLOT_RATES[guild.id] || 60;
+      const used = spellsFor(guild, p.circle).length;
+      const total = Math.max(3, Math.floor(rate * p.circle / 12));
+      const later = (guild.spells || []).filter((s) => s.minCircle > p.circle).length;
+      say(`\nSpell slots: ${used} of ${total} filled (${rate} slot rate @150 circles, ${guild.name} tier).\n${later ? `You will learn ${later} more by circle 10.` : 'All your spells are known.'}`);
+      break;
+    }
     case 'attack': case 'kill': {
-      if (!arg1) return emit('Attack what?');
+      if (!arg1) {
+        // Use the TARGET verb's mark when no target is named.
+        if (p.targetId) {
+          const [, uid] = p.targetId.split(':');
+          const combat = game.combat.getFor(p);
+          if (combat && combat.setTarget(uid)) {
+            if (p.hidden) combat.ambushAttack(uid);
+            return emit(`You focus your attack on your marked target.`);
+          }
+          return emit('Your mark is not in reach here.');
+        }
+        return emit('Attack what?');
+      }
       const combat = game.combat.getFor(p);
       if (combat && combat.defender === p) {
         return emit('You are locked in an automatic duel. Type "retreat" to yield.');
@@ -600,9 +649,25 @@ function handleOther(game, p, cmd, arg1, arg2, rest, args, say, emit) {
       break;
     }
     case 'duel': {
-      if (!arg1) return emit('Usage: duel <playername> — challenges them to a duel (wilds only).');
-      const res = game.challengeDuel(p, arg1);
+      if (!arg1) return emit('Usage: duel <playername> [blood|blow|pain] — challenges them to a duel (wilds only).');
+      const res = game.challengeDuel(p, arg1, (arg2 || 'blood').toLowerCase());
       emit(res.msg);
+      break;
+    }
+    case 'pvp': {
+      const stance = (arg2 || arg1 || '').toLowerCase();
+      if (!stance || !['open', 'guarded', 'closed'].includes(stance)) {
+        return emit(`Your PvP stance is ${(p.pvpStance || 'guarded').toUpperCase()}. Usage: pvp stance open | guarded | closed\n  OPEN — anyone may attack you without challenge\n  GUARDED — attacks require your accept\n  CLOSED — you decline all challenges\nStealing or committing a crime forces your stance OPEN.`);
+      }
+      p.pvpStance = stance;
+      game.persistPlayer(p);
+      emit(`Your PvP stance is now ${stance.toUpperCase()}. ${stance === 'open' ? 'Others may attack you freely.' : stance === 'closed' ? 'All challenges are declined.' : 'Challenges require your consent.'}`);
+      break;
+    }
+    case 'surrender': {
+      const combat = game.combat.getFor(p);
+      if (!combat || !combat.duel) return emit('You are not in a duel.');
+      combat.surrender(p === combat.defender ? 'defender' : 'player');
       break;
     }
     case 'accept': {
@@ -794,7 +859,25 @@ function handleOther(game, p, cmd, arg1, arg2, rest, args, say, emit) {
     // ---- Training / circles ----
     case 'circle': case 'train': {
       if (cmd === 'circle') return circleUp(game, p, say, emit);
-      if (!arg1) return emit('Train what? Usage: train <skill>. See "skills" for your list.');
+      if (!arg1) return emit('Train what? Usage: train <skill> or, in the Fane of Training, train <stat> (twice).');
+      // Stat training at the Fane of Training (DR: TRAIN twice to confirm).
+      const statArg = STAT_NAMES.includes(arg1.toLowerCase()) ? arg1.toLowerCase() : null;
+      if (statArg) {
+        if (p.room !== 'fane') return emit('Stat training happens at the Fane of Training, east of Temple Row.');
+        if (p.stats[statArg] >= MAX_STAT) return emit('That stat is already at maximum.');
+        if (p.trainPending !== statArg) {
+          p.trainPending = statArg;
+          return emit(`You steel yourself in the ${STAT_FULL[statArg]} alcove. Type "train ${arg1}" again to commit ${statRaiseCost(p.stats[statArg])} TDPs.`);
+        }
+        p.trainPending = null;
+        const cost = statRaiseCost(p.stats[statArg]);
+        if (p.tdp < cost) return emit(`Raising ${STAT_FULL[statArg]} costs ${cost} TDPs; you have ${p.tdp}.`);
+        p.tdp -= cost;
+        p.stats[statArg] += 1;
+        recalcDerived(p);
+        return emit(`You commit and raise ${STAT_FULL[statArg]} to ${p.stats[statArg]}. ${p.tdp} TDPs remain.`);
+      }
+      p.trainPending = null;
       const skillId = matchSkill(arg1);
       if (!skillId) return emit('I do not know that skill. See "skills" for the list.');
       const trainer = game.guildTrainer(p);
@@ -816,7 +899,10 @@ function handleOther(game, p, cmd, arg1, arg2, rest, args, say, emit) {
       break;
     }
     case 'raise': {
-      if (!arg1) return emit('Usage: raise <stat> — spends TDPs to permanently raise a stat.');
+      if (p.room !== 'fane') {
+        return emit('TDPs are spent at the Fane of Training, east of Temple Row. Type "train <stat>" twice there to commit.');
+      }
+      if (!arg1) return emit('Usage: train <stat> (twice) — spends TDPs to permanently raise a stat.');
       const stat = STAT_NAMES.includes(arg1.toLowerCase()) ? arg1.toLowerCase() : null;
       if (!stat) return emit('Unknown stat. Choose: ' + STAT_NAMES.join(', '));
       if (p.stats[stat] >= MAX_STAT) return emit('That stat is already at maximum.');
@@ -891,7 +977,13 @@ function handleOther(game, p, cmd, arg1, arg2, rest, args, say, emit) {
         const coins = 5 + Math.floor(Math.random() * (5 + p.circle * 3));
         p.silver += coins;
         const leveled = gainSkillExp(p, 'thievery', 8);
-        emit(`Your hand darts out and you lift ${coins} silvers from ${npc.name} unnoticed.${leveled ? ' Your Thievery improved!' : ''}`);
+        // Crime flags you: your PvP stance is forced OPEN (DR justice).
+        if (p.pvpStance !== 'open') {
+          p.pvpStance = 'open';
+          emit(`Your hand darts out and you lift ${coins} silvers from ${npc.name} unnoticed.${leveled ? ' Your Thievery improved!' : ''}\nWitnesses saw you! Your PvP stance is forced OPEN.`);
+        } else {
+          emit(`Your hand darts out and you lift ${coins} silvers from ${npc.name} unnoticed.${leveled ? ' Your Thievery improved!' : ''}`);
+        }
       } else {
         const fine = Math.min(25, Math.floor(p.silver * (risky ? 0.15 : 0.05)));
         p.silver -= fine;
@@ -1192,7 +1284,8 @@ function showSkills(p, say) {
     if (!byCat[cat]) continue;
     out.push(`\n\x1b[1m${cat}\x1b[0m`);
     for (const [def, rank] of byCat[cat]) {
-      out.push(`  ${pad(def.name, 24)} ${rank}`);
+      const t = skillTier(rank);
+      out.push(`  ${pad(def.name, 24)} ${pad(String(rank), 4)} ${t.label}`);
     }
   }
   say(out.join('\n'));

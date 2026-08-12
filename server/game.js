@@ -252,17 +252,34 @@ export class Game {
     return Boolean(room && room.zone !== 'town');
   }
 
-  challengeDuel(p, targetName) {
+  challengeDuel(p, targetName, end = 'blood') {
     if (!this.canDuelHere(p)) return { ok: false, msg: 'The town guards do not permit duels here. Take it to the wilds.' };
     if (p.combatId) return { ok: false, msg: 'You are already in combat.' };
     const n = targetName.toLowerCase();
     const target = [...this.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === n);
     if (!target) return { ok: false, msg: 'There is no such adventurer here.' };
     if (target.combatId) return { ok: false, msg: `${target.name} is already in combat.` };
+    if (!['blood', 'blow', 'pain'].includes(end)) end = 'blood';
+    const endLabel = { blood: 'first blood runs', blow: 'the first solid blow lands', pain: 'one side is badly hurt' }[end];
+
+    if (target.pvpStance === 'closed') {
+      return { ok: false, msg: `${target.name} stands CLOSED to all challenges.` };
+    }
+    if (target.pvpStance === 'open') {
+      // OPEN: no consent needed — the duel begins at once.
+      const res = this.combat.startDuel(p, target, end);
+      if (!res.ok) return { ok: false, msg: res.error };
+      res.combat.say(`\n\x1b[1mThe duel begins! ${p.name} faces ${target.name} (ends when ${endLabel}).\x1b[0m`);
+      res.combat.startAttack();
+      this.status(p);
+      this.status(target);
+      return { ok: true, msg: `${target.name} stands OPEN — the duel begins! (Ends when ${endLabel}.)` };
+    }
+
     const key = `${p.charId}|${target.charId}`;
-    this.pendingDuels.set(key, { initiator: p.charId, target: target.charId, createdAt: Date.now() });
-    target.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1m${p.name} challenges you to a duel!\x1b[0m Type "accept ${p.name}" or "decline ${p.name}".` }));
-    return { ok: true, msg: `You challenge ${target.name} to a duel. They must "accept" it to begin.` };
+    this.pendingDuels.set(key, { initiator: p.charId, target: target.charId, createdAt: Date.now(), end });
+    target.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1m${p.name} challenges you to a duel!\x1b[0m (ends when ${endLabel}) Type "accept ${p.name}" or "decline ${p.name}".` }));
+    return { ok: true, msg: `You challenge ${target.name} to a duel (ends when ${endLabel}). They must "accept" it to begin.` };
   }
 
   acceptDuel(p, initiatorName) {
@@ -278,10 +295,11 @@ export class Game {
     if (initiator.combatId || p.combatId) return { ok: false, msg: 'Someone has already entered combat.' };
     if (!this.canDuelHere(p)) return { ok: false, msg: 'The town guards do not permit duels here.' };
 
-    const res = this.combat.startDuel(initiator, p);
+    const res = this.combat.startDuel(initiator, p, pending.end || 'blood');
     if (!res.ok) return { ok: false, msg: res.error };
     const combat = res.combat;
-    combat.say(`\n\x1b[1mThe duel begins! ${initiator.name} faces ${p.name}.\x1b[0m`);
+    const endLabel = { blood: 'first blood runs', blow: 'the first solid blow lands', pain: 'one side is badly hurt' }[combat.duelEnd] || 'first blood runs';
+    combat.say(`\n\x1b[1mThe duel begins! ${initiator.name} faces ${p.name} (ends when ${endLabel}).\x1b[0m`);
     combat.startAttack();
     this.status(initiator);
     this.status(p);

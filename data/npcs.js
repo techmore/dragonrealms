@@ -65,6 +65,11 @@ export const NPCS = {
     desc: 'A small, soot-smudged man surrounded by bubbling glassware and hanging herbs.',
     greeting: 'Herbs, motes, and patience — that is all alchemy asks. Say "craft" to see my recipes.',
   },
+  fane_keeper: {
+    id: 'fane_keeper', name: 'Grandmaster Odal, the fane keeper', role: 'info',
+    desc: 'A sinewy old master with eyes like flint, arms folded across a scarred chest.',
+    greeting: 'TDPs are spent here, in the Fane of Training. Type "train <stat>" twice to steel yourself and commit.',
+  },
 
   // Guild leaders (trainers)
   leader_barbarian: { id: 'leader_barbarian', name: 'Warchief Ulfgar', role: 'guild', guild: 'barbarian', desc: 'A mountain of a man with a beard braided with trophies.', greeting: 'The wild calls to those with fury in their blood. Say "circle" when you are ready to advance.' },

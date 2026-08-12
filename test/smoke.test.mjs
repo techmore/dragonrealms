@@ -537,13 +537,26 @@ test('TDPs: earned from rank-ups, spent on stats and any skill', async () => {
   assert.ok(p.tdp > 600, 'pool conversions grant TDPs');
   assert.ok(p.tdpPool < 200, 'pool remainder kept after conversion');
 
-  // Spend on a stat.
+  // Spend on a stat — TDPs are spent at the Fane of Training.
   const cost = (await import('../server/player.js')).statRaiseCost(p.stats.int);
   p.tdp += cost;
   const tdpBefore = p.tdp;
+  handleCommand(game, p, 'raise int'); // refused outside the fane
+  assert.equal(p.tdp, tdpBefore, 'raise is gated to the fane');
+  game.move(p, 's'); // temple row
+  game.move(p, 'e'); // fane
+  assert.equal(p.room, 'fane');
   handleCommand(game, p, 'raise int');
-  assert.equal(p.tdp, tdpBefore - cost);
+  assert.equal(p.tdp, tdpBefore - cost, 'raise works at the fane');
   assert.equal(p.stats.int, 43 + 1, 'raise permanently boosts a stat'); // elothean int base 43
+
+  // Train-twice flow (DR: TRAIN twice to confirm).
+  handleCommand(game, p, 'train wis');
+  const wisBefore = p.stats.wis;
+  assert.equal(p.stats.wis, wisBefore, 'first train only steels the resolve');
+  p.tdp += (await import('../server/player.js')).statRaiseCost(p.stats.wis);
+  handleCommand(game, p, 'train wis');
+  assert.equal(p.stats.wis, wisBefore + 1, 'second train commits the raise');
 
   // Train a non-guild skill with TDPs.
   const tdpTrainCost = (await import('../server/player.js')).tdpTrainCost(0);
@@ -1623,6 +1636,92 @@ test('ambush from hiding: preemptive strike, concealment consumed', async () => 
     assert.equal(p.hidden, true, 'thief hides mid-fight');
   }
   while (game.combat.getFor(p)) game.combat.getFor(p).tick();
+  game.removePlayer(p);
+});
+
+test('skill messaging tiers match the DR ladder', async () => {
+  const { skillTier } = await import('../data/skills.js');
+  assert.equal(skillTier(1).label, 'Novice Lowly');
+  assert.equal(skillTier(12).label, 'Novice Promising');
+  assert.equal(skillTier(45).label, 'Novice Full');
+  assert.equal(skillTier(60).label, 'Practitioner Competent');
+  assert.equal(skillTier(420).label, 'Professional Exceptional');
+  assert.equal(skillTier(900).label, 'Grand Master');
+  assert.equal(skillTier(1750).label, 'Avatar');
+});
+
+test('pvp stance: closed blocks, open starts immediately, surrender ends non-lethally', async () => {
+  const accA = await auth.registerAccount('PvpA', 's3cretword');
+  const accB = await auth.registerAccount('PvpB', 's3cretword');
+  const aId = createCharacter(accA.accountId, { name: 'Aidan', race: 'human', guild: 'barbarian' });
+  const bId = createCharacter(accB.accountId, { name: 'Bev', race: 'human', guild: 'warmage' });
+  const a = loadPlayer(aId);
+  const b = loadPlayer(bId);
+  const wsa = fakeWs();
+  const wsb = fakeWs();
+  a.ws = wsa;
+  b.ws = wsb;
+  game.addPlayer(a);
+  game.addPlayer(b);
+  a.room = 'woods_path';
+  b.room = 'woods_path';
+
+  // CLOSED target: challenge auto-declined.
+  b.pvpStance = 'closed';
+  handleCommand(game, a, 'duel Bev');
+  assert.match(wsa.msgs.filter((m) => m.t === 'msg').at(-1)?.msg || '', /CLOSED/, 'closed stance refuses challenges');
+
+  // GUARDED (default): challenge + accept.
+  b.pvpStance = 'guarded';
+  handleCommand(game, a, 'duel Bev pain');
+  handleCommand(game, b, 'accept Aidan');
+  let combat = game.combat.getFor(a);
+  assert.ok(combat, 'duel started');
+  assert.equal(combat.duelEnd, 'pain', 'end condition carried through');
+
+  // Surrender resolves non-lethally.
+  const hpBefore = b.hp;
+  handleCommand(game, b, 'surrender');
+  assert.equal(game.combat.getFor(a), null, 'surrender ends the duel');
+  assert.equal(b.hp, hpBefore, 'surrender costs no hp');
+  assert.equal(a.room, 'woods_path', 'no temple respawn');
+
+  // OPEN target: duel starts without accept.
+  b.pvpStance = 'open';
+  handleCommand(game, a, 'duel Bev blow');
+  combat = game.combat.getFor(a);
+  assert.ok(combat, 'open stance allows instant duel');
+  assert.equal(combat.duelEnd, 'blow');
+
+  // resolve via ticks (blow ends on first landed hit)
+  let guard = 0;
+  while (game.combat.getFor(a) && guard++ < 40) combat.tick();
+  assert.equal(game.combat.getFor(a), null, 'blow duel resolves');
+  assert.equal(a.room, 'woods_path', 'blow duel is non-lethal');
+  assert.equal(b.room, 'woods_path', 'defender not teleported');
+
+  game.removePlayer(a);
+  game.removePlayer(b);
+});
+
+test('target verb marks creatures; slots lists guild progression', async () => {
+  const acc = await auth.registerAccount('Targeter', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Marksman', race: 'human', guild: 'warmage' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  const { CREATURES } = await import('../data/creatures.js');
+  p.room = 'sewers_1';
+  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.rat));
+  handleCommand(game, p, 'target rat');
+  assert.ok(p.targetId, 'target stored');
+  handleCommand(game, p, 'slots');
+  const slotsMsg = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
+  assert.match(slotsMsg, /Spell slots/, 'slots command works');
+  assert.match(slotsMsg, /90 slot rate/, 'warmage is primary-magic tier');
+
   game.removePlayer(p);
 });
 

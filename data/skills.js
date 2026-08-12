@@ -484,3 +484,36 @@ export function mindstate(pct) {
   const idx = Math.min(MINDSTATES.length - 1, Math.floor((Math.max(0, pct) / 100) * MINDSTATES.length));
   return MINDSTATES[idx];
 }
+
+// DR skill-level messaging tiers: Novice -> Practitioner -> ... -> Avatar,
+// with degree modifiers inside most tiers. Used by the `skills` output.
+const TIERS = [
+  { name: 'Novice', lo: 1, hi: 49, degree: ['Lowly', 'Promising', 'Able', 'Trained', 'Full'], width: 10 },
+  { name: 'Practitioner', lo: 50, hi: 99, degree: ['Beginning', 'Competent', 'Proficient', 'Experienced', 'Skilled'], width: 10 },
+  { name: 'Dilettante', lo: 100, hi: 149, degree: ['Beginning', 'Competent', 'Proficient', 'Experienced', 'Skilled'], width: 10 },
+  { name: 'Aficionado', lo: 150, hi: 199, degree: ['Beginning', 'Competent', 'Proficient', 'Experienced', 'Skilled'], width: 10 },
+  { name: 'Adept', lo: 200, hi: 299, degree: null, width: 0 },
+  { name: 'Expert', lo: 300, hi: 399, degree: null, width: 0 },
+  { name: 'Professional', lo: 400, hi: 499, degree: ['Exceptional', 'Outstanding', 'Renowned', 'True'], width: 20 },
+  { name: 'Authority', lo: 500, hi: 599, degree: ['Exceptional', 'Outstanding', 'Renowned', 'True'], width: 20 },
+  { name: 'Genius', lo: 600, hi: 699, degree: ['Exceptional', 'Outstanding', 'Renowned', 'True'], width: 20 },
+  { name: 'Savant', lo: 700, hi: 799, degree: ['Distinguished', 'Venerated', 'Exalted', 'Transcendent'], width: 20 },
+  { name: 'Master', lo: 800, hi: 899, degree: ['Distinguished', 'Venerated', 'Exalted', 'Transcendent'], width: 20 },
+  { name: 'Grand Master', lo: 900, hi: 999, degree: ['Distinguished', 'Venerated', 'Exalted', 'Transcendent'], width: 20 },
+  { name: 'Guru', lo: 1000, hi: 1249, degree: null, width: 0 },
+  { name: 'Legend', lo: 1250, hi: 1499, degree: null, width: 0 },
+  { name: 'Phenom', lo: 1500, hi: 1749, degree: null, width: 0 },
+  { name: 'Avatar', lo: 1750, hi: 1750, degree: null, width: 0 },
+];
+
+export function skillTier(rank) {
+  if (rank <= 0) return { tier: 'Novice', label: 'unskilled' };
+  const t = TIERS.find((x) => rank >= x.lo && rank <= x.hi) || TIERS[0];
+  if (!t.degree) return { tier: t.name, label: t.name };
+  const off = rank - t.lo;
+  // 10-wide tiers start their degrees at +0; 20-wide tiers (Professional+) at +20.
+  const start = t.width === 20 ? 20 : 0;
+  if (off < start) return { tier: t.name, label: t.name };
+  const idx = Math.min(t.degree.length - 1, Math.floor((off - start) / t.width));
+  return { tier: t.name, label: `${t.name} ${t.degree[idx]}` };
+}

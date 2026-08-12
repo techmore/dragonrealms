@@ -35,8 +35,16 @@ testing and analysis — see `docs/api.md`.
 - **TDPs** (Training Development Points) — the DR-authentic growth currency:
   every new character starts with 600, circling grants 50 (+circle) below
   circle 10 (100 above), and every rank-up feeds a shared hidden pool that
-  converts each 200 points into a TDP. Spend with `raise <stat>` or
-  `tdptrain <skill>`; death shaves the pool.
+  converts each 200 points into a TDP. Spend at the **Fane of Training** with
+  `train <stat>` twice (DR's designated stat rooms); `tdptrain <skill>`
+  spends TDPs on any skill; death shaves the pool.
+- **Skills messaging** — `skills` reports the DR 16-tier ladder (Novice →
+  Avatar, with degree modifiers); `exp` shows the mindstate ladder.
+- **PvP & justice v1** — `duel <name> [blood|blow|pain]` with end conditions,
+  `surrender`, and `pvp stance open|guarded|closed` flags. CLOSED characters
+  refuse all challenges; OPEN ones can be attacked without consent; stealing
+  forces your stance OPEN. `target <creature>` marks a combat focus and
+  `slots` shows your guild's spell-slot budget.
 - **Trainers** — your guild leader will drill you in your guild's skills for
   silver: `train <skill>`. This is how you prepare the ranks needed to circle.
 - **Circles** — to advance a circle, meet your guild's rank requirements
