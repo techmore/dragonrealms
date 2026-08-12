@@ -63,6 +63,7 @@ const state = {
   lastPromptAt: 0,
   trainIdx: 0,
   learnIdx: 0,
+  hasMagesLash: false,
   circleAttempts: 0,
   circleTriedThisVisit: false,
   learnTriedThisVisit: false,
@@ -199,13 +200,13 @@ function decide(trigger) {
         navigate('market', ROUTES.market);
         return;
       }
-      if (state.silver >= 150 || state.killsSinceVisit >= 4) {
+      if (!state.boughtGear && state.silver >= 120) {
+        log(`heading to market for gear (${state.silver} silvers)`);
+        navigate('market', ROUTES.market);
+      } else if (state.silver >= 150 || state.killsSinceVisit >= 4) {
         state.killsSinceVisit = 0;
         log(`heading to the guildhall (${state.silver} silvers, ${state.kills} kills)`);
         navigate('hall', ROUTES.hall);
-      } else if (!state.boughtGear && state.silver >= 120) {
-        log(`heading to market (${state.silver} silvers)`);
-        navigate('market', ROUTES.market);
       } else {
         log(`hunting again (${state.silver} silvers)`);
         navigate(huntZone(), ROUTES[huntZone()]);
@@ -239,7 +240,7 @@ function decide(trigger) {
     return;
   }
   if (state.hp < state.maxHp) sendCmd('rest');
-  else sendCmd('look');
+  else patrol();
 }
 
 function combatTactics() {
@@ -249,8 +250,17 @@ function combatTactics() {
     state.tactics = t;
     return;
   }
-  if (state.circle >= 6 && state.creatures.length >= 3) {
-    if (!t.whirlwind) { t.whirlwind = true; sendCmd('whirlwind'); }
+  // Mage's Lash vs magic attackers: learn it at the hall, then flip it on
+  // against wisps and other spell-flinging foes.
+  if (state.hasMagesLash && /wisp|marsh wisp/.test(state.creatures.join(' ')) && !t.lash) {
+    t.lash = true;
+    sendCmd('mageslash');
+    state.tactics = t;
+    return;
+  }
+  if (state.circle >= 6 && state.creatures.length >= 3 && !t.whirlwind) {
+    t.whirlwind = true;
+    sendCmd('whirlwind');
     state.tactics = t;
     return;
   }
@@ -274,7 +284,11 @@ function gearUp() {
   if (state.room === 'market_way') {
     const steps = state.boughtGear
       ? [...SKINS.map((s) => `sell ${s}`)]
-      : [...SKINS.map((s) => `sell ${s}`), 'buy short_sword', 'buy leather', 'buy shield_wood'];
+      : [
+          ...SKINS.map((s) => `sell ${s}`),
+          'buy short_sword', 'buy leather', 'buy shield_wood',
+          'wield short_sword', 'wear leather', 'wear shield_wood',
+        ];
     const step = steps[state.marketStep] || null;
     if (!step) {
       state.marketStep = 0;
@@ -320,6 +334,19 @@ function huntZone() {
   if (state.circle >= 5) return 'marsh';
   if (state.circle >= 3) return 'woods';
   return 'sewers';
+}
+
+// Idle patrolling: sweep the hunting zone so fresh spawns are found fast.
+// Each entry points back into the zone (never toward town).
+const PATROL = {
+  sewers_1: 'n', sewers_2: 'n', sewers_3: 's',
+  woods_path: 's', woods_2: 'n',
+  marsh_1: 's', marsh_2: 'n',
+};
+function patrol() {
+  const dir = PATROL[state.room];
+  if (dir) sendCmd(dir);
+  else sendCmd('look');
 }
 
 function cap(s) {
@@ -371,6 +398,13 @@ function handle(msg) {
       parsePrompt(msg);
       if (state.phase === 'alloc') { state.phase = 'playing'; log(`entered the world. watch live: http://localhost:3000/spectate.html?name=${BOT_NAME}`); }
       if (!state.inCombat) state.tactics = {}; // fresh fight, fresh tactics
+      if (state.wasInCombat && !state.inCombat) {
+        // Combat ended: the room picture is stale — refresh before deciding.
+        state.wasInCombat = false;
+        sendCmd('look');
+        return;
+      }
+      state.wasInCombat = state.inCombat;
       decide('prompt');
       break;
     case 'combat':
@@ -392,6 +426,7 @@ function handle(msg) {
         log(`CIRCLED UP — now circle ${state.circle + 1}`);
         state.circleTriedThisVisit = false;
       }
+      if (/master Mage's Lash/.test(msg.msg)) state.hasMagesLash = true;
       break;
     case 'error':
       if (state.queue.length && /cannot go that way/.test(msg.msg)) {
