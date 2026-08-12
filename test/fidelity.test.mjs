@@ -632,3 +632,138 @@ test('affiliations: guilds craft their trades with a natural edge', async () => 
   game.removePlayer(paladin);
   game.removePlayer(merchant);
 });
+
+// ------------------- Necromancer rituals -------------------
+test('rituals: butchery doubles the harvest, consume and dissect work the dead', async () => {
+  const { addItem } = await import('../server/player.js');
+  const p = await mkChar('RitNecro', 'necromancer');
+  p.room = 'hall_necromancer';
+
+  handleCommand(game, p, 'ritual');
+  assert.match(lastMsg(p), /butchery|consume|dissect|preserve/, 'ritual list shown');
+
+  // Butchery: skinning a corpse yields double loot.
+  handleCommand(game, p, 'ritual butchery');
+  assert.ok(p.ritualButcheryUntil, 'butchery active');
+  p.corpses = [{ def: { id: 'rat', name: 'a sewer rat', circle: 1, loot: ['rat_pelt'] } }];
+  handleCommand(game, p, 'skin rat');
+  assert.equal(p.inventory.find((i) => i.item.id === 'rat_pelt')?.qty || 0, 2, 'butchered corpse gives two hides');
+
+  // Consume: devours a corpse for health.
+  const hpBefore = p.hp;
+  p.hp = Math.max(1, p.hp - 30);
+  p.corpses = [{ def: { id: 'rat', name: 'a sewer rat', circle: 1, loot: [] } }];
+  handleCommand(game, p, 'ritual consume');
+  assert.ok(p.hp > hpBefore - 30, 'consume restored health');
+  assert.equal(p.corpses.length, 0, 'corpse consumed');
+
+  // Dissect: jars the useful bits.
+  p.corpses = [{ def: { id: 'kobold', name: 'a kobold', circle: 2, loot: [] } }];
+  handleCommand(game, p, 'ritual dissect');
+  assert.ok(p.inventory.some((i) => i.item.id === 'organ_vial'), 'organs jarred');
+  game.removePlayer(p);
+});
+
+test('rituals: preserve makes the next risen tougher', async () => {
+  const p = await mkChar('RitPreserve', 'necromancer');
+  p.room = 'hall_necromancer';
+  handleCommand(game, p, 'ritual preserve');
+  assert.ok(p.ritualPreserveUntil, 'preserve active');
+  p.corpses = [{ def: { id: 'rat', name: 'a sewer rat', circle: 1, loot: [] } }];
+  handleCommand(game, p, 'animate rat');
+  assert.ok(p.risen, 'risen servant');
+  assert.ok(p.risen.maxHp > 20 + 4 + 5, 'preserved risen is tougher');
+  assert.equal(p.ritualPreserveUntil, null, 'preserve spent');
+  game.removePlayer(p);
+});
+
+// ------------------- Empath links & scar tax -------------------
+test('empath: link reaches across rooms, touch reads wounds, scar shows the tax', async () => {
+  const empath = await mkChar('LinkEmp', 'empath');
+  const patient = await mkChar('LinkPat', 'trader');
+  empath.room = 'market_way';
+  patient.room = 'market_way';
+  patient.hp = Math.floor(patient.maxHp / 2);
+
+  // No link yet: mending from another room fails.
+  handleCommand(game, empath, `mend ${patient.name}`);
+  const hpAfterFail = patient.hp;
+
+  handleCommand(game, empath, `link ${patient.name}`);
+  assert.ok(empath.empathLink, 'link established');
+  assert.ok(patient.empathLink, 'link is mutual');
+
+  // Touch: diagnostics without healing.
+  handleCommand(game, empath, `touch ${patient.name}`);
+  assert.match(lastMsg(empath), /wounds|hurt|health/i, 'touch reads the patient');
+
+  // Scar: the tax ledger.
+  handleCommand(game, empath, 'scar');
+  assert.match(lastMsg(empath), /scar tax/i, 'scar tax shown');
+
+  // Move the patient away; the link still carries the mend.
+  patient.room = 'temple';
+  handleCommand(game, empath, `mend ${patient.name}`);
+  assert.ok(patient.hp > hpAfterFail, 'mend reached across rooms through the link');
+  assert.ok(empath.hp < empath.maxHp, 'the wound cost the empath');
+  game.removePlayer(empath);
+  game.removePlayer(patient);
+});
+
+// ------------------- Moon mage -------------------
+test('moon mage: observe sky reads the moons and eases casting; telescope needs the hall', async () => {
+  const p = await mkChar('MoonSky', 'moonmage');
+  p.room = 'marsh_1';
+  p.skills.astrology = { rank: 10, exp: 0 };
+  p.mana = 50;
+
+  handleCommand(game, p, 'observe sky');
+  assert.match(lastMsg(p), /Xibar/, 'reads the great moon');
+  assert.ok(p.lunarUntil, 'lunar insight kindled');
+
+  // Lunar insight trims spell costs.
+  const { guildById } = await import('../data/guilds.js');
+  const spell = guildById('moonmage').spells[0];
+  const baseCost = Math.ceil(spell.mana);
+  p.prepared = { spellId: spell.id, pct: 100 };
+  const manaBefore = p.mana;
+  handleCommand(game, p, 'cast');
+  assert.ok(manaBefore - p.mana <= Math.ceil(baseCost * 0.9) + 1, 'lunar insight eased the weave');
+
+  // Telescope is hall-bound.
+  const notThere = await mkChar('MoonTel', 'moonmage');
+  notThere.room = 'marsh_1';
+  notThere.skills.astrology = { rank: 10, exp: 0 };
+  handleCommand(game, notThere, 'telescope');
+  assert.match(lastMsg(notThere), /guildhall/i, 'telescope only at the hall');
+  notThere.room = 'hall_moonmage';
+  handleCommand(game, notThere, 'telescope');
+  assert.match(lastMsg(notThere), /Xibar/, 'telescope observation');
+  game.removePlayer(p);
+  game.removePlayer(notThere);
+});
+
+test('moon gate: bridged by the great moon, refused when Xibar is dark', async () => {
+  const realNow = Date.now;
+  const p = await mkChar('MoonGateT', 'moonmage');
+  p.room = 'square';
+  p.skills.astrology = { rank: 10, exp: 0 };
+  p.mana = 50;
+
+  // Xibar at its peak: t=18h -> sin = 1.
+  Date.now = () => 18 * 3600000;
+  handleCommand(game, p, 'moon gate riverhaven');
+  assert.equal(p.room, 'rh_square', 'gate carried the mage to Riverhaven');
+  assert.ok(p.mana < 50, 'gate cost mana');
+
+  // Xibar dark: t=45h -> sin((45/72)*2π) = sin(3.927) ≈ -0.707 -> xibar ≈ 0.146.
+  Date.now = () => 45 * 3600000;
+  p.mana = 50;
+  const gateBefore = p.mana;
+  handleCommand(game, p, 'moon gate crossing');
+  assert.equal(p.room, 'rh_square', 'gate refused while Xibar is dark');
+  assert.equal(p.mana, gateBefore, 'no mana spent on a failed gate');
+
+  Date.now = realNow;
+  game.removePlayer(p);
+});

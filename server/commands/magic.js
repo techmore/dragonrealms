@@ -2,7 +2,7 @@
 import { roomById } from '../../data/world.js';
 import { spellsFor, spellById } from '../../data/guilds.js';
 import { manaTypeFor, manaCycle, roomManaLevel, manaDescriptor, safeOverchannelPct, backfireChance } from '../../data/mana.js';
-import { gainSkillExp, skillRank, removeItem } from '../player.js';
+import { gainSkillExp, skillRank, removeItem, addItem } from '../player.js';
 import { findInventoryItem } from './util.js';
 
 export const commands = {
@@ -39,8 +39,11 @@ export const commands = {
     const targetName = prepared ? arg1 : (resolved ? arg2 : arg1);
     if (!spell) return emit('You do not know any spells yet.');
     if (spell.minCircle > p.circle) return emit(`You learn ${spell.name} at circle ${spell.minCircle}.`);
-    const cost = Math.ceil(spell.mana * pct / 100);
+    let cost = Math.ceil(spell.mana * pct / 100);
+    const lunar = p.lunarUntil && Date.now() < p.lunarUntil;
+    if (lunar) cost = Math.max(1, Math.ceil(cost * 0.9));
     if (p.mana < cost) return emit(`You need ${cost} mana to cast ${spell.name}.`);
+    if (lunar) emit('Your lunar insight eases the weave (10% less mana).');
     // Foreign-mana backlash (DR SvS-lite): some ground rejects some magic.
     const zone = roomById(p.room)?.zone || 'town';
     const dark = spell.skill === 'necromancy' || spell.skill === 'sorcery';
@@ -209,6 +212,20 @@ export const commands = {
     emit(`You read the turn of the moons and glimpse the pattern of things to come. An omen settles over you — the stars will guide your step.${leveled ? ' Your Astrology improved!' : ''}`);
   },
 
+  // The three moons of the Seventh Age, clean-room analog: the great Xibar
+  // (slow cycle), the lesser Yavash (day cycle), and the dark Katamba.
+  observe(ctx) {
+    const { p, arg1, emit } = ctx;
+    if ((arg1 || '').toLowerCase() !== 'sky') return emit('Observe what? Try "observe sky".');
+    observeMoon(ctx);
+  },
+  telescope(ctx) { telescope(ctx); },
+  moon(ctx) {
+    const { p, arg1, emit } = ctx;
+    if ((arg1 || '').toLowerCase() !== 'gate') return emit('Moon what? Try "moon gate <city>".');
+    moonGate({ ...ctx, arg1: ctx.arg2 });
+  },
+
   summon(ctx) { familiar(ctx); },
   familiar(ctx) { familiar(ctx); },
   dismiss(ctx) {
@@ -229,14 +246,21 @@ export const commands = {
     const corpse = (p.corpses || []).find((c) => c.def.name.replace(/^a /, '').split(' ')[0].includes((arg1 || '').toLowerCase()) || c.def.id === (arg1 || '').toLowerCase());
     if (!corpse) return emit('There is no suitable corpse here. Slay something first.');
     const def = corpse.def;
-    const hp = 20 + p.circle * 4 + def.circle * 5;
+    let hp = 20 + p.circle * 4 + def.circle * 5;
+    let preserved = '';
+    // Ritual Preserve: a preserved corpse rises harder (DR Preserve).
+    if (p.ritualPreserveUntil && Date.now() < p.ritualPreserveUntil) {
+      hp = Math.floor(hp * 1.5);
+      preserved = ' The Preserve ritual holds — it rises tougher than it fell!';
+    }
     p.risen = {
       name: `a risen ${def.name.replace(/^a /, '')}`,
       hp, maxHp: hp, alive: true,
     };
+    p.ritualPreserveUntil = null;
     p.corpses = p.corpses.filter((c) => c !== corpse);
     const leveled = gainSkillExp(p, 'thanatology', 10);
-    emit(`You trace cold sigils over ${def.name} and it rises, hollow-eyed, to serve.${leveled ? ' Your Thanatology improved!' : ''}`);
+    emit(`You trace cold sigils over ${def.name} and it rises, hollow-eyed, to serve.${preserved}${leveled ? ' Your Thanatology improved!' : ''}`);
   },
   risen(ctx) {
     const { p, emit } = ctx;
@@ -245,12 +269,20 @@ export const commands = {
     emit(`Your risen, ${r.name}, ${r.alive ? `shambles beside you (${r.hp}/${r.maxHp})` : 'lies dormant.'}`);
   },
 
+  ritual(ctx) { ritual(ctx); },
+
   mend(ctx) {
     const { game, p, arg1, emit } = ctx;
     if (p.guild.id !== 'empath') return emit('Only empaths feel the wounds of others.');
     if (!arg1) return emit('Mend whom?');
     const n = arg1.toLowerCase();
-    const target = [...game.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === n);
+    let target = [...game.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === n);
+    let viaLink = '';
+    // A living Link lets the empath reach across rooms (DR: link sustains).
+    if (!target && p.empathLink && Date.now() < p.empathLink.until) {
+      target = [...game.players.values()].find((o) => o !== p && o.charId === p.empathLink.charId);
+      if (target) viaLink = ' You reach through the silver thread of your link and find them.';
+    }
     if (!target) return emit('There is no such adventurer here.');
     if (target.hp >= target.maxHp) return emit(`${target.name} is already whole.`);
     const skill = skillRank(p, 'healing_magic');
@@ -261,9 +293,49 @@ export const commands = {
     p.hp = Math.max(1, p.hp - selfCost);
     gainSkillExp(p, 'empathy', 6);
     gainSkillExp(p, 'healing_magic', 8);
-    target.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} lays hands on you — warmth floods the wound and it closes. (+${amount} health)` }));
-    emit(`You take ${target.name}'s wound into yourself, mending ${amount} health — and feel ${selfCost} of it yourself.`);
+    target.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} lays hands on you — warmth floods the wound and it closes. (+${amount} health)${viaLink ? ' You feel the touch across the distance.' : ''}` }));
+    emit(`You take ${target.name}'s wound into yourself, mending ${amount} health${viaLink ? ' from afar' : ''} — and feel ${selfCost} of it yourself.${viaLink}`);
     game.status(target);
+  },
+
+  link(ctx) {
+    const { game, p, arg1, emit } = ctx;
+    if (p.guild.id !== 'empath') return emit('Only empaths spin links.');
+    if (!arg1) return emit('Link whom?');
+    const target = [...game.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === arg1.toLowerCase());
+    if (!target) return emit('There is no such adventurer here to link with.');
+    if (p.linkAt && Date.now() - p.linkAt < 5 * 60 * 1000) {
+      const mins = Math.ceil((5 * 60 * 1000 - (Date.now() - p.linkAt)) / 60000);
+      return emit(`Your spirit is still weary from the last link (${mins} min).`);
+    }
+    p.linkAt = Date.now();
+    const until = Date.now() + 10 * 60 * 1000;
+    p.empathLink = { charId: target.charId, until };
+    target.empathLink = { charId: p.charId, until };
+    const leveled = gainSkillExp(p, 'empathy', 10);
+    target.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} reaches out and a silver thread settles around your heart — an empath link.` }));
+    emit(`You spin a link of silver light between you and ${target.name}. You may "mend" them from any distance for ten minutes.${leveled ? ' Your Empathy improved!' : ''}`);
+  },
+
+  touch(ctx) {
+    const { game, p, arg1, emit } = ctx;
+    if (p.guild.id !== 'empath') return emit('Only empaths read the living.');
+    if (!arg1) return emit('Touch whom?');
+    const target = [...game.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === arg1.toLowerCase());
+    if (!target) return emit('There is no such adventurer here.');
+    const pct = Math.floor((target.hp / target.maxHp) * 100);
+    const state = pct > 90 ? 'hale and whole' : pct > 70 ? 'lightly worn' : pct > 50 ? 'hurt, but fighting fit' : pct > 25 ? 'badly wounded' : 'near death';
+    const leveled = gainSkillExp(p, 'empathy', 6);
+    emit(`You lay your palm on ${target.name}'s brow and feel the shape of their wounds: ${state} (${target.hp}/${target.maxHp}).${leveled ? ' Your Empathy improved!' : ''}`);
+  },
+
+  scar(ctx) {
+    const { p, emit } = ctx;
+    if (p.guild.id !== 'empath') return emit('Only empaths carry the scar tax.');
+    const stain = p.empathicStain || 0;
+    const cap = Math.max(5, Math.floor(p.maxHp * 0.1));
+    const state = stain === 0 ? 'clear' : stain >= cap ? 'heavy' : stain > cap / 2 ? 'worn' : 'light';
+    emit(`The scar tax: you carry ${stain}/${cap} empathic stains.${stain > 0 ? ' Each life you take darkens it and shrinks your own health — it lifts slowly with time.' : ' A clean ledger — you have taken no lives.'} (${state})`);
   },
 
   pray(ctx) {
@@ -467,6 +539,133 @@ function glyph(ctx) {
   gainSkillExp(p, 'conviction', 8);
   gainSkillExp(p, 'holy_magic', 6);
   emit(`You trace ${def.name} in the air — light sears where your finger passes and settles around you. (${p.soul} soul remains)`);
+}
+
+const RITUAL_TICKS_MS = 10 * 60 * 1000;
+
+// The three moons: Xibar the great (72h), Yavash the lesser (24h),
+// Katamba the dark (48h). Each returns a 0..1 fullness.
+export function moonPhases() {
+  const hours = Date.now() / 3600000;
+  const wave = (periodHours, phase = 0) => 0.5 + 0.5 * Math.sin((hours / periodHours) * Math.PI * 2 + phase);
+  return { xibar: wave(72), yavash: wave(24), katamba: wave(48, 2.1) };
+}
+
+function moonPhaseName(v) {
+  if (v > 0.85) return 'full';
+  if (v > 0.6) return 'waxing';
+  if (v > 0.35) return 'waning';
+  return 'dark';
+}
+
+const SKY_CD_MS = 5 * 60 * 1000;
+
+function observeMoon(ctx) {
+  const { p, emit } = ctx;
+  if (p.guild.id !== 'moonmage') return emit('Only moon mages read the moons.');
+  if (skillRank(p, 'astrology') < 1) return emit('You need Astrology to read the sky. Train it at your guild hall.');
+  const cost = 5;
+  if (p.mana < cost) return emit(`You need ${cost} mana to read the sky.`);
+  p.mana -= cost;
+  const { xibar, yavash, katamba } = moonPhases();
+  const leveled = gainSkillExp(p, 'astrology', 8);
+  gainSkillExp(p, 'scholarship', 2);
+  p.buffs = p.buffs || {};
+  // Lunar insight: the next spells cost a little less while it holds.
+  p.lunarUntil = Date.now() + (60 + skillRank(p, 'astrology')) * 1000;
+  emit(`You lift your eyes to the night:\n  Xibar, the great moon, rides ${moonPhaseName(xibar)} (${Math.round(xibar * 100)}%)\n  Yavash, the lesser, is ${moonPhaseName(yavash)} (${Math.round(yavash * 100)}%)\n  Katamba, the dark moon, shows ${moonPhaseName(katamba)} (${Math.round(katamba * 100)}%)\nLunar insight settles over you — your magic flows more easily.${leveled ? ' Your Astrology improved!' : ''}`);
+}
+
+function telescope(ctx) {
+  const { p, emit } = ctx;
+  if (p.guild.id !== 'moonmage') return emit('Only moon mages keep telescopes.');
+  if (p.room !== 'hall_moonmage') return emit('The great telescope stands in the Moon Mage guildhall, beneath the domed roof.');
+  if (p.telescopeAt && Date.now() - p.telescopeAt < SKY_CD_MS) {
+    const mins = Math.ceil((SKY_CD_MS - (Date.now() - p.telescopeAt)) / 60000);
+    return emit(`The telescope is still cooling from your last observation (${mins} min).`);
+  }
+  p.telescopeAt = Date.now();
+  const { xibar, yavash, katamba } = moonPhases();
+  const leveled = gainSkillExp(p, 'astrology', 18);
+  p.buffs = p.buffs || {};
+  p.lunarUntil = Date.now() + (90 + skillRank(p, 'astrology') * 2) * 1000;
+  emit(`You swing the great telescope to the sky and study the moons for a long while. Charts fill with new annotations — Xibar ${moonPhaseName(xibar)}, Yavash ${moonPhaseName(yavash)}, Katamba ${moonPhaseName(katamba)}. Lunar insight burns bright in you.${leveled ? ' Your Astrology improved!' : ''}`);
+}
+
+function moonGate(ctx) {
+  const { game, p, arg1, emit } = ctx;
+  if (p.guild.id !== 'moonmage') return emit('Only moon mages weave moon gates.');
+  if (!arg1) return emit('Moon gate where? Try "moon gate crossing" or "moon gate riverhaven".');
+  const dest = { crossing: 'square', riverhaven: 'rh_square' }[arg1.toLowerCase()];
+  if (!dest) return emit('The moons can carry you to crossing or riverhaven.');
+  if (p.room === dest) return emit('You are already there.');
+  const cost = 15;
+  if (p.mana < cost) return emit(`A moon gate needs ${cost} mana.`);
+  const { xibar } = moonPhases();
+  // Xibar must be waxing enough to bridge the distance; Astrology widens
+  // the window (DR moon-gating is gated on the moons).
+  const window = 0.5 - skillRank(p, 'astrology') * 0.004;
+  if (xibar < window) {
+    return emit(`Xibar stands only ${Math.round(xibar * 100)}% and the gate will not hold. The great moon must be fuller to bridge the distance.`);
+  }
+  p.mana -= cost;
+  p.buffs = p.buffs || {};
+  p.lunarUntil = Date.now() + 30 * 1000;
+  gainSkillExp(p, 'astrology', 12);
+  gainSkillExp(p, 'moon_magic', 10);
+  const roomName = dest === 'square' ? 'the Crossing' : 'Riverhaven';
+  game.moveTo(p, dest);
+  emit(`You trace the moon's path in silver light — the gate yawns, folds of space turn, and you step through into ${roomName}.`);
+  game.status(p);
+}
+
+// Necromancer rituals (DR Thanatology): work the dead for profit and power.
+function ritual(ctx) {
+  const { p, arg1, emit } = ctx;
+  if (p.guild.id !== 'necromancer') return emit('Only necromancers know the rituals of the grave.');
+  if (!arg1) {
+    const lines = [
+      '  butchery  — your next harvests of the dead run twice (10 min)',
+      '  consume   — devour a corpse to steal back its vitality',
+      '  dissect   — cut a corpse for salable organs',
+      '  preserve  — the next corpse you raise rises harder (10 min)',
+    ];
+    const active = [];
+    if (p.ritualButcheryUntil && Date.now() < p.ritualButcheryUntil) active.push(`Butchery (${Math.ceil((p.ritualButcheryUntil - Date.now()) / 60000)}m)`);
+    if (p.ritualPreserveUntil && Date.now() < p.ritualPreserveUntil) active.push('Preserve (ready)');
+    return emit(`\nRituals of Thanatology${active.length ? ` — active: ${active.join(', ')}` : ''}:\n${lines.join('\n')}\n\nSay "ritual <name>".`);
+  }
+  const name = arg1.toLowerCase();
+  if (name === 'butchery') {
+    p.ritualButcheryUntil = Date.now() + RITUAL_TICKS_MS;
+    gainSkillExp(p, 'thanatology', 6);
+    return emit('You speak the ritual of Butchery over your hands — the dead will give twice while it holds.');
+  }
+  if (name === 'preserve') {
+    p.ritualPreserveUntil = Date.now() + RITUAL_TICKS_MS;
+    gainSkillExp(p, 'thanatology', 6);
+    return emit('You ward yourself against the rot — the next corpse you raise will rise harder.');
+  }
+  if (name === 'consume') {
+    if (!(p.corpses || []).length) return emit('There is no corpse here to devour.');
+    const corpse = p.corpses.pop();
+    const heal = Math.min(p.maxHp - p.hp, 15 + p.circle * 3);
+    p.hp += heal;
+    p.mana = Math.min(p.maxMana, p.mana + 20);
+    const leveled = gainSkillExp(p, 'thanatology', 12);
+    emit(`You draw the last vigour from ${corpse.def.name} — ${heal} health and a rush of ${p.guild.magic ? 'mana' : 'power'} settle into your bones.${leveled ? ' Your Thanatology improved!' : ''}`);
+    return;
+  }
+  if (name === 'dissect') {
+    if (!(p.corpses || []).length) return emit('There is no corpse here to dissect.');
+    const corpse = p.corpses.pop();
+    addItem(p, 'organ_vial', 1);
+    const leveled = gainSkillExp(p, 'thanatology', 12);
+    const leveled2 = gainSkillExp(p, 'appraisal', 4);
+    emit(`You open ${corpse.def.name} with precise cuts and jar what is worth keeping.${leveled ? ' Your Thanatology improved!' : ''}${leveled2 ? ' Your Appraisal improved!' : ''}`);
+    return;
+  }
+  return emit('You know no such ritual. Try "ritual" for the list.');
 }
 
 function familiar(ctx) {

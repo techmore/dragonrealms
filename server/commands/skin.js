@@ -10,10 +10,16 @@ export function skinCreature(game, p, name, say, emit) {
   if (idx === -1) return emit('There is no such corpse here.');
   const corpse = p.corpses[idx];
   const loot = corpse.def.loot || [];
+  // Butchery ritual: the dead give twice while it holds.
+  const butchered = p.ritualButcheryUntil && Date.now() < p.ritualButcheryUntil;
   let gained = '';
   for (const itemId of loot) {
     addItem(p, itemId, 1);
     gained += ` ${itemByIdName(itemId)},`;
+    if (butchered) {
+      addItem(p, itemId, 1);
+      gained += ` ${itemByIdName(itemId)},`;
+    }
   }
   p.corpses.splice(idx, 1);
   const sk = skillRank(p, 'skinning');

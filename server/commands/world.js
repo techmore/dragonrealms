@@ -15,7 +15,7 @@ const HELP = `
    Combat:    attack <creature>  |  target <creature>  |  cast [spell] [target]  |  retreat/flee  |  skin <creature>
    Magic:     spells  |  slots  |  prepare <spell> [pct] (then "cast"; overchanneling risks backlash)  |  perceive  |  harness  |  charge/invoke/focus <cambrinth>
    Powers:    berserk (Barbarian)  |  form/roar/meditate <ability>  |  whirlwind/stomp/choke/analyze (barbarian)  |  backstab (Thief)  |  khri <name> (Thief)
-              smite (Paladin)  |  glyph <name> (Paladin, soul-fueled wards)  |  mend <player> (Empath)  |  predict (Moon Mage)  |  summon familiar (Warrior Mage)  |  animate <corpse> (Necromancer)
+              smite (Paladin)  |  glyph <name> (Paladin, soul-fueled wards)  |  mend/touch/scar/link <player> (Empath)  |  predict + observe sky + telescope + moon gate <city> (Moon Mage)  |  summon familiar (Warrior Mage)  |  animate <corpse> + ritual <name> (Necromancer)
               enchante war|bravery|regen (Bard)  |  devotion (Cleric)  |  beseech wind|sun + companion (Ranger)  |  snipe/slip (Ranger)
   Abilities: abilities  (list barbarian arts)  |  learn <ability>  (at the barbarian hall)  |  ask <leader> about forgetting <ability>
   Items:     get <item>  |  drop <item>  |  inventory (i)  |  wear/wield <item>  |  remove <item>  |  use <item>

@@ -82,6 +82,7 @@ export const ITEMS = {
   dread_sigil:   { id: 'dread_sigil', name: 'a dread knight sigil', type: 'misc', slot: null, value: 600, desc: 'A rune-etched sigil torn from a dark breastplate.' },
   troll_hide:    { id: 'troll_hide', name: 'a troll hide', type: 'misc', slot: null, value: 140, desc: 'A knotted, resilient troll hide.' },
   viper_fang:    { id: 'viper_fang', name: 'a viper fang', type: 'misc', slot: null, value: 45, desc: 'A curved, hollow fang, still glistening.' },
+  organ_vial:    { id: 'organ_vial', name: 'a jar of preserved organs', type: 'misc', slot: null, value: 60, desc: 'A glass jar of pale organs in murky brine. Some collectors pay well for such things.' },
   // Named rare loot
   fang_of_shadowpaw: { id: 'fang_of_shadowpaw', name: 'the Fang of Shadowpaw', type: 'weapon', slot: 'hand', skill: 'small_edged', dmg: [10, 16], speed: 3, value: 900, req: 6, desc: 'A fang-dagger carved from the dire wolf Shadowpaw. It hums with the forest.' },
   chieftains_cleaver: { id: 'chieftains_cleaver', name: "the Chieftain's Cleaver", type: 'weapon', slot: 'hand', skill: 'twohanded_edged', dmg: [22, 38], speed: 7, value: 1800, req: 8, desc: 'A great cleaver taken from the Bandit Chieftain. It is still warm.' },

@@ -48,7 +48,7 @@ export const NPCS = {
     desc: 'A stooped man with hands stained dark from curing hides, stretching a fresh pelt over a wooden frame.',
     greeting: 'Bring me your hides and trophies — skins, scales, and stranger things. I pay well. Type "list" to see my leathers.',
     stock: { leather: 4, leather_boots: 5, shield_wood: 3 },
-    buys: ['rat_pelt', 'kobold_skin', 'goblin_skin', 'wolf_pelt', 'troll_hide', 'cinder_scale', 'wraith_essence', 'dread_sigil'],
+    buys: ['rat_pelt', 'kobold_skin', 'goblin_skin', 'wolf_pelt', 'troll_hide', 'cinder_scale', 'wraith_essence', 'dread_sigil', 'viper_fang', 'organ_vial'],
   },
   banker: {
     id: 'banker', name: 'Galen, the banker', role: 'bank',

@@ -363,6 +363,18 @@ export class Game {
     return { ok: true };
   }
 
+  // Direct relocation (moon gate, travel magic): no combat allowed.
+  moveTo(p, roomId) {
+    if (p.combatId) return { ok: false, msg: 'You cannot do that in the middle of a fight.' };
+    this.stopRest(p);
+    p.hidden = false;
+    p.room = roomId;
+    if (this.isWild(roomId)) gainSkillExp(p, 'athletics', 1);
+    this.persistPlayer(p);
+    this.enterRoom(p);
+    return { ok: true };
+  }
+
   enterRoom(p) {
     this.look(p);
     // Aggressive creatures attack on sight.
