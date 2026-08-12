@@ -1,0 +1,20 @@
+{
+  "name": "dragonrealms",
+  "version": "0.1.0",
+  "description": "Dragon Realms: a clean-room text MUD with guilds, circling, EXP, secure login, and async immersive combat.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test test/*.test.mjs",
+    "skills-doc": "node scripts/build-skills-doc.mjs",
+    "simulate": "node scripts/simulate-progression.mjs"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
+  }
+}
