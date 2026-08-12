@@ -767,3 +767,116 @@ test('moon gate: bridged by the great moon, refused when Xibar is dark', async (
   Date.now = realNow;
   game.removePlayer(p);
 });
+
+// ------------------- Spell difficulty tiers -------------------
+test('tiers: spells demand mastery of their skill before they obey', async () => {
+  const { guildById, spellTierFor, SPELL_TIER_RANKS } = await import('../data/guilds.js');
+  assert.equal(spellTierFor(1), 'intro');
+  assert.equal(spellTierFor(3), 'basic');
+  assert.equal(spellTierFor(5), 'intermediate');
+  assert.equal(spellTierFor(8), 'advanced');
+
+  const p = await mkChar('TierGate', 'moonmage');
+  p.circle = 8;
+  p.room = 'marsh_1';
+  p.mana = 100;
+  const spell = guildById('moonmage').spells.find((s) => s.minCircle === 8); // stellar_cascade
+  p.skills.moon_magic = { rank: 10, exp: 0 };
+  handleCommand(game, p, `cast ${spell.id}`);
+  assert.match(lastMsg(p), /advanced magic/i, 'advanced spell refused without mastery');
+  assert.equal(p.mana, 100, 'no mana spent on a refused cast');
+  p.skills.moon_magic = { rank: 40, exp: 0 };
+  const rat = game.makeCreature(CREATURES.rat);
+  game.roomCreatures.get('marsh_1').push(rat);
+  game.startCombat(p, [rat.def]);
+  handleCommand(game, p, `cast ${spell.id}`);
+  assert.ok(p.mana < 100, 'mastery unlocks the cast');
+  game.removePlayer(p);
+});
+
+// ------------------- Cleric communes & sacrifice -------------------
+test('commune: patrons grant their favor; sacrifice burns devotion for wholeness', async () => {
+  const { recalcDerived } = await import('../server/commands/util.js');
+  const p = await mkChar('ComCleric', 'cleric');
+  p.room = 'hall_cleric';
+  p.devotion = 40;
+
+  handleCommand(game, p, 'commune');
+  assert.match(lastMsg(p), /Warmaster|Lady of Life|Merchant of Fate|Scholar of Secrets/, 'pantheon listed');
+
+  const baseHp = p.maxHp;
+  handleCommand(game, p, 'commune warmaster');
+  assert.equal(p.patron, 'war', 'patron set');
+  recalcDerived(p);
+  assert.ok(p.maxHp > baseHp, 'Warmaster strengthens the frame');
+
+  // The Lady of Life amplifies mending (any healer under her favor).
+  const { guildById } = await import('../data/guilds.js');
+  const healer = await mkChar('ComHealer', 'empath');
+  healer.room = 'marsh_1';
+  healer.patron = 'life';
+  healer.mana = 100;
+  healer.skills.healing_magic = { rank: 10, exp: 0 };
+  const sooth = guildById('empath').spells.find((s) => s.minCircle === 1);
+  healer.hp = Math.max(1, healer.hp - 60);
+  handleCommand(game, healer, `cast ${sooth.id}`);
+  assert.ok(healer.hp > healer.maxHp - 60 + 10, 'life patron mends deeper');
+
+  // Sacrifice at the altar: whole again, devotion spent.
+  p.room = 'high_temple';
+  p.hp = Math.floor(p.maxHp / 2);
+  handleCommand(game, p, 'sacrifice');
+  assert.equal(p.hp, p.maxHp, 'sacrifice restores fully');
+  assert.equal(p.devotion, 25, 'devotion spent (40 - 15)');
+  game.removePlayer(p);
+  game.removePlayer(healer);
+});
+
+// ------------------- Warrior Mage elements & conjured weapon -------------------
+test('elements: attuning tints the mage with a passive boon', async () => {
+  const p = await mkChar('ElemWM', 'warmage');
+  handleCommand(game, p, 'element');
+  assert.match(lastMsg(p), /four elements/, 'elements listed');
+  handleCommand(game, p, 'element fire');
+  assert.equal(p.element, 'fire', 'fire attuned');
+  handleCommand(game, p, 'element bogus');
+  assert.match(lastMsg(p), /elements are fire/i, 'unknown element refused');
+
+  // Fire: harness gathers more.
+  p.room = 'woods_1';
+  p.mana = 0;
+  const before = p.heldMana || 0;
+  handleCommand(game, p, 'harness');
+  const fireGain = (p.heldMana || 0) - before;
+  assert.ok(fireGain > 0, 'harness works');
+
+  const earth = await mkChar('ElemEarth', 'warmage');
+  earth.element = 'earth';
+  earth.room = 'west_road';
+  const res = game.startRest(earth);
+  assert.equal(res.ok, true, 'earth mage rests');
+  const hpBefore = earth.hp;
+  earth.hp = Math.max(1, earth.hp - 20);
+  await new Promise((r) => setTimeout(r, 2300));
+  assert.ok(earth.hp > hpBefore - 20, 'earth rest recovers');
+  game.removePlayer(p);
+  game.removePlayer(earth);
+});
+
+test('summon weapon: aether blade holds ten minutes and fades', async () => {
+  const { addItem } = await import('../server/player.js');
+  const p = await mkChar('SummWM', 'warmage');
+  p.room = 'hall_warmage';
+  p.mana = 50;
+  const notHall = await mkChar('SummNo', 'warmage');
+  notHall.room = 'marsh_1';
+  notHall.mana = 50;
+  handleCommand(game, notHall, 'summon weapon');
+  assert.match(lastMsg(notHall), /guildhall/i, 'conjuring needs the hall');
+  handleCommand(game, p, 'summon weapon');
+  assert.ok(p.inventory.some((i) => i.item.id === 'conjured_blade'), 'blade conjured');
+  handleCommand(game, p, 'summon weapon');
+  assert.match(lastMsg(p), /already waits/i, 'only one conjured blade');
+  game.removePlayer(p);
+  game.removePlayer(notHall);
+});

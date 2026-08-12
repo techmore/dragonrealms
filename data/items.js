@@ -60,6 +60,7 @@ export const ITEMS = {
   diamond:       { id: 'diamond', name: 'a cut diamond', type: 'misc', slot: null, value: 500, desc: 'A flawless diamond that burns with cold fire.' },
 
   // --- Magical devices (cambrinth) ---
+  conjured_blade: { id: 'conjured_blade', name: 'a conjured blade of aether', type: 'weapon', slot: 'hand', skill: 'medium_edged', dmg: [12, 22], speed: 5, value: 0, burden: 0, desc: 'A blade of white-hot aether, humming with summoned power. It will not last.' },
   cambrinth_band:    { id: 'cambrinth_band', name: 'a cambrinth band', type: 'cambrinth', slot: null, capacity: 6, value: 150, desc: 'A ring of grey-black cambrinth that drinks and holds spell energy.' },
   cambrinth_pendant: { id: 'cambrinth_pendant', name: 'a cambrinth pendant', type: 'cambrinth', slot: null, capacity: 10, value: 280, desc: 'A pendant of grey-black cambrinth on a silver chain.' },
   cambrinth_orb:     { id: 'cambrinth_orb', name: 'a faceted cambrinth orb', type: 'cambrinth', slot: null, capacity: 30, value: 900, desc: 'A fist-sized orb of faceted cambrinth, humming with stored force.' },

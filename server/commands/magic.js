@@ -1,8 +1,10 @@
 // Magic commands: casting, preparation, mana, cambrinth, familiars.
 import { roomById } from '../../data/world.js';
-import { spellsFor, spellById } from '../../data/guilds.js';
+import { spellsFor, spellById, spellTierFor, SPELL_TIER_RANKS } from '../../data/guilds.js';
+import { SKILLS } from '../../data/skills.js';
 import { manaTypeFor, manaCycle, roomManaLevel, manaDescriptor, safeOverchannelPct, backfireChance } from '../../data/mana.js';
 import { gainSkillExp, skillRank, removeItem, addItem } from '../player.js';
+import { db } from '../db.js';
 import { findInventoryItem } from './util.js';
 
 export const commands = {
@@ -39,6 +41,13 @@ export const commands = {
     const targetName = prepared ? arg1 : (resolved ? arg2 : arg1);
     if (!spell) return emit('You do not know any spells yet.');
     if (spell.minCircle > p.circle) return emit(`You learn ${spell.name} at circle ${spell.minCircle}.`);
+    // Spell difficulty tiers (DR): command the skill before the spell obeys.
+    const tier = spellTierFor(spell.minCircle);
+    const req = SPELL_TIER_RANKS[tier];
+    const castSkill = skillRank(p, spell.skill);
+    if (castSkill < req) {
+      return emit(`${spell.name} is ${tier} magic — you need ${req} ranks of ${SKILLS[spell.skill].name} to command it (you have ${castSkill}).`);
+    }
     let cost = Math.ceil(spell.mana * pct / 100);
     const lunar = p.lunarUntil && Date.now() < p.lunarUntil;
     if (lunar) cost = Math.max(1, Math.ceil(cost * 0.9));
@@ -97,6 +106,8 @@ export const commands = {
       } else if (spell.kind === 'heal') {
         const skill = skillRank(p, spell.skill);
         let amount = Math.round((spell.base + skill * 3) * mult);
+        // Patron of the Lady of Life: mending comes easier to her faithful.
+        if (p.patron === 'life') amount = Math.round(amount * 1.25);
         if ((p.heldMana || 0) > 0) {
           amount += Math.min(spell.base || 8, Math.floor(p.heldMana * 0.2));
           p.heldMana = 0;
@@ -187,7 +198,8 @@ export const commands = {
     if (level < 0.12) return emit('The mana here is too thin to harness.');
     const cap = 10 + skillRank(p, 'attunement') * 2;
     const before = p.heldMana || 0;
-    const gain = Math.floor(8 + level * 10 + skillRank(p, 'attunement') * 0.4);
+    let gain = Math.floor(8 + level * 10 + skillRank(p, 'attunement') * 0.4);
+    if (p.element === 'fire') gain = Math.floor(gain * 1.25);
     p.heldMana = Math.min(cap, before + gain);
     const leveled = gainSkillExp(p, 'attunement', 6);
     emit(`You draw ${p.heldMana - before} points of ${def.name.toLowerCase()} mana into your grasp (holding ${p.heldMana}/${cap}).${leveled ? ' Your Attunement improved!' : ''}`);
@@ -226,7 +238,7 @@ export const commands = {
     moonGate({ ...ctx, arg1: ctx.arg2 });
   },
 
-  summon(ctx) { familiar(ctx); },
+  summon(ctx) { summonCommand(ctx); },
   familiar(ctx) { familiar(ctx); },
   dismiss(ctx) {
     const { p, arg1, emit } = ctx;
@@ -365,7 +377,7 @@ export const commands = {
         ? `You pray before the High Temple's altar, and light settles on your shoulders. Your soul brightens (+${gained}).`
         : `You kneel in the quiet and pray. Your soul brightens (+${gained}).`);
     }
-    const gained = atHighTemple ? 4 : 2;
+    const gained = Math.round((atHighTemple ? 4 : 2) * (p.patron === 'knowledge' ? 1.5 : 1));
     gainSkillExp(p, 'scholarship', gained);
     emit(atHighTemple
       ? 'You stand a long while in the great hall, and the weight of centuries steadies you. A moment of peace steadies you.'
@@ -395,6 +407,10 @@ export const commands = {
     const state = d >= 70 ? 'incandescent' : d >= 40 ? 'steady' : d >= 20 ? 'flickering' : 'dim';
     emit(`Your devotion is ${d}/100 — ${state}. Devotions at the temple deepen it; holy magic burns brighter with it.`);
   },
+
+  commune(ctx) { commune(ctx); },
+  sacrifice(ctx) { sacrifice(ctx); },
+  element(ctx) { element(ctx); },
 
   glyph(ctx) { glyph(ctx); },
 
@@ -666,6 +682,113 @@ function ritual(ctx) {
     return;
   }
   return emit('You know no such ritual. Try "ritual" for the list.');
+}
+
+// The Immortals of the Seventh Age (clean-room): a cleric communes with one
+// patron; faith earns favor, favor buys miracles.
+const PATRONS = {
+  war: {
+    id: 'war', name: 'the Warmaster', desc: 'The god of battle — his faithful are sturdier of frame (+8% health).',
+  },
+  life: {
+    id: 'life', name: 'the Lady of Life', desc: 'The goddess of healing — her faithful mend flesh more easily (+25% mending).',
+  },
+  fortune: {
+    id: 'fortune', name: 'the Merchant of Fate', desc: 'The god of luck — his faithful find more coin in the world (better scavenging and games).',
+  },
+  knowledge: {
+    id: 'knowledge', name: 'the Scholar of Secrets', desc: 'The god of wisdom — his faithful learn faster at shrine and study (+50% prayer scholarship).',
+  },
+};
+
+function commune(ctx) {
+  const { p, arg1, emit } = ctx;
+  if (p.guild.id !== 'cleric') return emit('Only clerics commune with the Immortals.');
+  if (p.room !== 'hall_cleric' && p.room !== 'temple' && p.room !== 'high_temple') {
+    return emit('Communion happens at the cleric guildhall or the temples.');
+  }
+  if ((p.devotion ?? 0) < 10) return emit(`Your faith is too dim to commune (${p.devotion ?? 0} devotion). Pray first.`);
+  if (!arg1) {
+    const lines = Object.values(PATRONS).map((g) => `  ${g.name} — ${g.desc}`);
+    return emit(`\nThe Immortals watch the faithful. Commune with one (you hold ${p.devotion ?? 0} devotion):\n${lines.join('\n')}\n\nSay "commune <name>" — your patron's favor is with you while you serve.`);
+  }
+  const def = Object.values(PATRONS).find((g) => g.name.toLowerCase().includes(arg1.toLowerCase()) || g.id === arg1.toLowerCase());
+  if (!def) return emit('The Immortals know no such name. Try "commune" for the pantheon.');
+  if (p.patron === def.id) return emit(`You already walk with ${def.name}.`);
+  p.patron = def.id;
+  gainSkillExp(p, 'theurgy', 8);
+  emit(`You kneel and open your heart — ${def.name} answers. ${def.desc} Your patron is set.`);
+}
+
+// Favor-spending: burn devotion at the altar for a miracle.
+const SACRIFICE_CD_MS = 10 * 60 * 1000;
+
+function sacrifice(ctx) {
+  const { p, emit } = ctx;
+  if (p.guild.id !== 'cleric') return emit('Only clerics offer sacrifice.');
+  if (p.room !== 'temple' && p.room !== 'high_temple') return emit('Sacrifice is offered at the temples.');
+  if ((p.devotion ?? 0) < 15) return emit(`The altar demands 15 devotion; you hold ${p.devotion ?? 0}. Pray to deepen your faith.`);
+  if (p.sacrificeAt && Date.now() - p.sacrificeAt < SACRIFICE_CD_MS) {
+    const mins = Math.ceil((SACRIFICE_CD_MS - (Date.now() - p.sacrificeAt)) / 60000);
+    return emit(`The altar is still warm from your last offering (${mins} min).`);
+  }
+  p.sacrificeAt = Date.now();
+  p.devotion = (p.devotion ?? 30) - 15;
+  p.hp = p.maxHp;
+  p.mana = p.maxMana;
+  const leveled = gainSkillExp(p, 'theurgy', 10);
+  emit(`You lay your faith on the altar and it burns away in white light — the Immortals answer: you are made whole.${leveled ? ' Your Theurgy improved!' : ''} (${p.devotion} devotion remains)`);
+}
+
+// Warrior Mage elements (DR elements & pathways v1): an active element
+// tints the mage's aether with a passive boon.
+const ELEMENTS = {
+  fire: { id: 'fire', name: 'Fire', desc: 'Your harness runs hot — you gather +25% more mana.' },
+  air: { id: 'air', name: 'Air', desc: 'The wind is your ally — you read the wilds more easily (+5% forage/hunt/track).' },
+  earth: { id: 'earth', name: 'Earth', desc: 'The deep earth steadies you — rest comes +25% faster.' },
+  water: { id: 'water', name: 'Water', desc: 'The tide is your blood — mana renews +25% faster.' },
+};
+
+function element(ctx) {
+  const { p, arg1, emit } = ctx;
+  if (p.guild.id !== 'warmage') return emit('Only warrior mages attune an element.');
+  if (!arg1) {
+    const lines = Object.values(ELEMENTS).map((e) => `  ${e.name} — ${e.desc}`);
+    return emit(`\nThe four elements await your attunement${p.element ? ` — you are currently attuned to ${ELEMENTS[p.element]?.name || p.element}` : ''}:\n${lines.join('\n')}\n\nSay "element <name>".`);
+  }
+  const def = Object.values(ELEMENTS).find((e) => e.id === arg1.toLowerCase() || e.name.toLowerCase() === arg1.toLowerCase());
+  if (!def) return emit('The elements are fire, air, earth, and water.');
+  p.element = def.id;
+  gainSkillExp(p, 'attunement', 4);
+  emit(`You attune yourself to ${def.name}. ${def.desc}`);
+}
+
+// Summoned weapon: a blade of aether that holds ten minutes (DR SUMMON WEAPON).
+const CONJURE_MS = 10 * 60 * 1000;
+
+function summonCommand(ctx) {
+  const { p, arg1, emit } = ctx;
+  if (arg1 === 'familiar' || !arg1) return familiar(ctx);
+  if (arg1 !== 'weapon') return emit('Summon what? Try "summon familiar" or "summon weapon".');
+  if (p.guild.id !== 'warmage') return emit('Only warrior mages conjure weapons.');
+  if (p.room !== 'hall_warmage') return emit('Conjuring a weapon takes the focus of the Warrior Mage guildhall.');
+  if (p.inventory.some((i) => i.item.id === 'conjured_blade')) return emit('A conjured blade already waits in your pack.');
+  if (p.mana < 10) return emit('You need 10 mana to conjure.');
+  p.mana -= 10;
+  addItem(p, 'conjured_blade', 1);
+  const leveled = gainSkillExp(p, 'summoning', 8);
+  emit(`You summon a blade of white-hot aether — it will hold for ten minutes.${leveled ? ' Your Summoning improved!' : ''}`);
+  setTimeout(() => {
+    // The conjuration lapses: clear the DB row and any live copy.
+    try {
+      db.prepare('DELETE FROM inventory WHERE character_id=? AND item_id=?').run(p.charId, 'conjured_blade');
+    } catch { /* server closing */ }
+    const live = p.online ? p : null;
+    if (live) {
+      live.inventory = live.inventory.filter((i) => i.item.id !== 'conjured_blade');
+      if (live.ws) live.ws.send(JSON.stringify({ t: 'msg', msg: 'Your conjured blade dissolves into a wisp of aether.' }));
+    }
+  }, CONJURE_MS).unref();
 }
 
 function familiar(ctx) {

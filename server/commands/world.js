@@ -89,7 +89,7 @@ export const commands = {
     if (p.room !== 'pier') return emit('There are games only on the Amusement Pier, north of the docks.');
     if (p.silver < 5) return emit('The coin toss costs 5 silvers, and you are short.');
     p.silver -= 5;
-    const win = Math.random() < 0.4 + p.circle * 0.01;
+    const win = Math.random() < 0.4 + p.circle * 0.01 + (p.patron === 'fortune' ? 0.1 : 0);
     if (win) {
       const winnings = 10 + Math.floor(Math.random() * (15 + p.circle * 3));
       p.silver += winnings;

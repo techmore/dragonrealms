@@ -36,7 +36,7 @@ export const wilds = {
   forage(game, p) {
     if (!this.isWild(p.room)) return { ok: false, msg: 'You find nothing worth foraging here. Try the wilds.' };
     const skill = skillRank(p, 'foraging');
-    const chance = 0.35 + skill * 0.03 + p.stats.wis * 0.004 + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
+    const chance = 0.35 + skill * 0.03 + p.stats.wis * 0.004 + (p.element === 'air' ? 0.05 : 0) + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
     if (Math.random() >= chance) {
       const leveled = gainSkillExp(p, 'foraging', 3);
       return { ok: true, msg: `You comb the ground but find nothing useful.${leveled ? ' Your Foraging improved!' : ''}` };
@@ -55,7 +55,7 @@ export const wilds = {
     if (p.guild.id === 'ranger') gainSkillExp(p, 'scouting', 4);
     const skill = skillRank(p, 'tracking');
     const room = roomById(p.room);
-    const chance = 0.4 + skill * 0.04 + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
+    const chance = 0.4 + skill * 0.04 + (p.element === 'air' ? 0.05 : 0) + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
     if (Math.random() >= chance) {
       gainSkillExp(p, 'tracking', 3);
       return { ok: true, msg: 'You study the ground but the signs are too faint to follow.' };
@@ -78,7 +78,7 @@ export const wilds = {
     if (p.guild.id === 'ranger') gainSkillExp(p, 'scouting', 4);
     const skill = skillRank(p, 'perception');
     const room = roomById(p.room);
-    const chance = 0.4 + skill * 0.04 + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
+    const chance = 0.4 + skill * 0.04 + (p.element === 'air' ? 0.05 : 0) + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
     if (Math.random() >= chance) {
       const leveled = gainSkillExp(p, 'perception', 3);
       return { ok: true, msg: `You scan the wilds but catch no sign of prey.${leveled ? ' Your Perception improved!' : ''}` };
@@ -147,16 +147,18 @@ export const wilds = {
     if (p.combatId) return { ok: false, msg: 'You cannot rest in the middle of a fight!' };
     if (p.restTimer) return { ok: false, msg: 'You are already resting.' };
     // Taverns and inns ease the body: rest comes faster under a roof.
+    // Earth-attuned warrior mages are steadied by the ground itself.
     const room = roomById(p.room);
     const restful = Boolean(room && room.tavern);
+    const earthBonus = p.element === 'earth' ? 1.25 : 1;
     let ticks = 0;
     p.resting = true;
     p.restTimer = setInterval(() => {
       ticks += 1;
       if (p.combatId || p.room !== p.restRoom) { wilds.stopRest(p); return; }
-      const hpGain = restful ? Math.max(4, Math.floor(p.maxHp * 0.045)) : Math.max(2, Math.floor(p.maxHp * 0.025));
+      const hpGain = restful ? Math.max(4, Math.floor(p.maxHp * 0.045)) : Math.max(2, Math.floor(p.maxHp * 0.025 * earthBonus));
       p.hp = Math.min(p.maxHp, p.hp + hpGain);
-      if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * (restful ? 0.07 : 0.04))));
+      if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * (restful ? 0.07 : 0.04 * earthBonus))));
       p.stamina = Math.min(p.maxStaminaEff, (p.stamina || 0) + (restful ? 9 : 6));
       gainSkillExp(p, 'athletics', 2);
       if (ticks % 10 === 0) p.rexp = Math.min(120, (p.rexp || 0) + 1);
@@ -179,7 +181,7 @@ export const wilds = {
     }
     p.scavengeAt = Date.now();
     const skill = skillRank(p, 'appraisal');
-    const chance = 0.25 + skill * 0.03 + p.stats.wis * 0.004 + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
+    const chance = 0.25 + skill * 0.03 + p.stats.wis * 0.004 + (p.patron === 'fortune' ? 0.1 : 0) + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
     const leveled = gainSkillExp(p, 'appraisal', 6);
     if (Math.random() >= chance) {
       return { ok: true, msg: `You poke through the refuse and find nothing worth keeping.${leveled ? ' Your Appraisal improved!' : ''}` };

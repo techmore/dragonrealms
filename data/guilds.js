@@ -462,3 +462,15 @@ export function circleRequirementNeeds(guild, skills, targetCircle) {
   }
   return out;
 }
+
+// Spell difficulty tiers (DR): a spell's circle gate maps to how many ranks
+// of its skill you must command before it obeys. Intro spells come freely;
+// the high circles demand real mastery (the circle-10 rank cap is 40).
+export const SPELL_TIER_RANKS = { intro: 0, basic: 10, intermediate: 25, advanced: 40, esoteric: 60 };
+
+export function spellTierFor(minCircle) {
+  if (minCircle >= 7) return 'advanced';
+  if (minCircle >= 4) return 'intermediate';
+  if (minCircle >= 2) return 'basic';
+  return 'intro';
+}

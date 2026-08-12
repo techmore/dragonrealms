@@ -83,6 +83,10 @@ export function recalcDerived(p) {
   if (p.guild.id === 'barbarian' && (p.abilities || []).includes('titan')) {
     p.maxHp = Math.floor(p.maxHp * 1.15);
   }
+  // Cleric patron: the Warmaster's faithful are sturdier of frame.
+  if (p.guild.id === 'cleric' && p.patron === 'war') {
+    p.maxHp = Math.floor(p.maxHp * 1.08);
+  }
   if (p.guild.magic) p.maxMana = Math.floor((20 + p.stats.wis * 2 + p.stats.int + p.stats.dis) * (1 + (p.circle - 1) * 0.06));
   else p.maxMana = 0;
   // Stamina pools track the frame and your load.
