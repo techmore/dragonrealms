@@ -20,7 +20,8 @@ server/
   player.js            player model: stats, skills/exp pools, items, equipment,
                        TDPs, aliases, stances
   commands/            command registry (see below)
-  combat.js            Combat (per-fight state machine) + CombatManager
+  combat.js            Combat (per-fight state machine)
+  combat-manager.js    combat lifecycle, duels, death/flee, ticker
   game.js              Game: runtime state + facade delegating to:
   economy.js           shops, bank, healer, commodity pits
   wilds.js             forage/track/hunt/ladder/warhorn/rest/lookDirection

@@ -12,7 +12,7 @@ import { VOICE_POOL } from '../data/abilities.js';
 import {
   savePlayer, addItem, removeItem, unequipItem, skillRank, gainSkillExp,
 } from './player.js';
-import { CombatManager } from './combat.js';
+import { CombatManager } from './combat-manager.js';
 import { economy } from './economy.js';
 import { wilds } from './wilds.js';
 import { quests } from './quests.js';

@@ -1,0 +1,198 @@
+// Combat lifecycle: spawns, teardown, duels, death/flee, the ticker.
+// The per-fight state machine lives in Combat (server/combat.js).
+import { Combat } from './combat.js';
+import { weaponOf, totalArmor, defenseSkillOf } from './player.js';
+
+const TICK_MS = 1000;
+
+export class CombatManager {
+  constructor(game) {
+    this.game = game;
+    this.combats = new Map();
+    this.timer = null;
+  }
+
+  start(player, creatureDefs) {
+    if (this.combats.has(player.charId)) return { ok: false, error: 'You are already in combat!' };
+    if (player.hp <= 0) return { ok: false, error: 'You cannot fight in your condition.' };
+    const enemies = creatureDefs.map((def, i) => ({
+      uid: `c${player.charId}_${i}_${Math.floor(Math.random() * 1e6)}`,
+      def,
+      name: def.name,
+      hp: def.circle * 14 + def.stats.con * 3 + 20,
+      timer: def.weapon.speed,
+      dead: false,
+    }));
+    const combat = new Combat(`combat_${player.charId}_${Date.now()}`, player, enemies, {
+      onEnd: (c, result) => this.end(player, c, result),
+      game: this.game,
+    });
+    this.combats.set(player.charId, combat);
+    player.combatId = combat.id;
+    return { ok: true, combat };
+  }
+
+  getFor(player) {
+    return this.combats.get(player.charId) || null;
+  }
+
+  end(player, combat, result) {
+    this.combats.delete(player.charId);
+    player.combatId = null;
+    if (result.win) {
+      player.ws.send(JSON.stringify({ t: 'combat', msg: '\nVictory! You stand over your fallen foes.' }));
+      this.game.status(player);
+    } else if (result.fled) {
+      this.handleFled(player, result.fleeTo);
+    } else if (result.dead) {
+      this.handleDeath(player);
+    }
+    // Persist combat-relevant state
+    if (this.game.persistPlayer) this.game.persistPlayer(player);
+  }
+
+  // ---------------- PvP duels ----------------
+  startDuel(player, defender, end = 'blood') {
+    if (this.combats.has(player.charId) || this.combats.has(defender.charId)) {
+      return { ok: false, error: 'One of you is already in combat.' };
+    }
+    const def = derivePlayerDef(defender);
+    const enemies = [{
+      uid: `duel_${defender.charId}`,
+      def,
+      name: defender.name,
+      hp: defender.hp,
+      maxHp: defender.maxHp,
+      timer: def.weapon.speed,
+      dead: false,
+    }];
+    const combat = new Combat(`duel_${player.charId}_${Date.now()}`, player, enemies, {
+      onEnd: (c, result) => this.endDuel(player, defender, c, result),
+      game: this.game,
+      defender,
+      duelEnd: end,
+    });
+    this.combats.set(player.charId, combat);
+    this.combats.set(defender.charId, combat);
+    player.combatId = combat.id;
+    defender.combatId = combat.id;
+    return { ok: true, combat };
+  }
+
+  endDuel(player, defender, combat, result) {
+    this.combats.delete(player.charId);
+    this.combats.delete(defender.charId);
+    player.combatId = null;
+    defender.combatId = null;
+    const sayTo = (target, msg) => {
+      if (target && target.online && target.ws) target.ws.send(JSON.stringify({ t: 'combat', msg }));
+    };
+    if (result.conceded) {
+      sayTo(player, `\n${defender.name} yields — the duel ends. You win by forfeit.`);
+      sayTo(defender, '\nYou yield, stepping back. The duel is over.');
+    } else if (result.duelResolved) {
+      // Non-blood duels (blow / pain / surrender): the loser is beaten, not dead.
+      const winner = result.duelResolved === 'player' ? player : defender;
+      const loser = result.duelResolved === 'player' ? defender : player;
+      sayTo(winner, `\nVictory! The duel ends — ${loser.name} is beaten.`);
+      sayTo(loser, `\nThe duel ends. ${winner.name} has beaten you.`);
+      if (result.duelEnd !== 'surrender') {
+        loser.hp = Math.max(1, loser.hp - Math.floor(loser.hp * 0.1));
+      }
+    } else if (result.win) {
+      sayTo(player, '\nVictory! The duel is yours.');
+    } else if (result.dead) {
+      this.handleDeath(player);
+      sayTo(defender, `\nVictory! ${player.name} is overcome. The duel is yours.`);
+    } else if (result.fled) {
+      this.handleFled(player, result.fleeTo);
+      sayTo(defender, `\n${player.name} fled! You win the duel by forfeit.`);
+    }
+    this.game.status(player);
+    this.game.status(defender);
+    this.game.persistPlayer(player);
+    this.game.persistPlayer(defender);
+  }
+
+  disconnect(player) {
+    const combat = this.combats.get(player.charId);
+    if (!combat) return;
+    combat._ended = true;
+    const other = combat.defender === player ? combat.player : combat.defender;
+    this.combats.delete(combat.player.charId);
+    if (combat.defender) this.combats.delete(combat.defender.charId);
+    combat.player.combatId = null;
+    if (combat.defender) combat.defender.combatId = null;
+    if (other && other.online && other.ws) {
+      other.ws.send(JSON.stringify({ t: 'combat', msg: `${player.name} vanished from the fight. You stand alone.` }));
+      this.game.status(other);
+    }
+  }
+
+  handleDeath(player) {
+    // Exp penalty: shave a little rank-progress across skills. The TDP pool
+    // shares the loss (authentic DR: death reduces rank-points toward TDPs).
+    for (const s of Object.values(player.skills)) {
+      if (s.exp > 0) s.exp = Math.max(0, s.exp - Math.floor(s.exp * 0.25));
+    }
+    if (player.tdpPool > 0) player.tdpPool = Math.floor(player.tdpPool * 0.75);
+    const corpse = this.game.dropCorpse(player);
+    player.hp = Math.floor(player.maxHp * 0.5);
+    player.room = 'temple';
+    player.corpses = [];
+    player.heldMana = 0;
+    player.prepared = null;
+    const belongings = corpse
+      ? ' Your belongings lie with your corpse where you fell — return to reclaim them.'
+      : ' You were carrying nothing of worth.';
+    player.ws.send(JSON.stringify({ t: 'combat', msg: `You awaken in the Temple of the Pantheon, a healer dabbing your brow. You feel hollowed out — some of your hard-won experience has slipped away.${belongings}` }));
+    this.game.look(player);
+    this.game.status(player);
+  }
+
+  handleFled(player, fleeTo) {
+    player.hp = Math.max(1, player.hp - Math.floor(player.hp * 0.1));
+    if (fleeTo) player.room = fleeTo;
+    player.corpses = [];
+    player.ws.send(JSON.stringify({ t: 'combat', msg: fleeTo ? 'You stagger back through the gate, breathing hard.' : 'You break free and slip away, heart hammering.' }));
+    this.game.look(player);
+    this.game.status(player);
+  }
+
+  startTicker() {
+    if (this.timer) return;
+    this.timer = setInterval(() => {
+      for (const combat of [...this.combats.values()]) {
+        try { combat.tick(); } catch (e) { console.error('combat tick error', e); }
+      }
+    }, TICK_MS);
+  }
+
+  stopTicker() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+}
+
+export function spawnEnemies(defs) {
+  return defs;
+}
+
+// Derive a "creature-like" definition from a live player for PvP duels.
+function derivePlayerDef(p) {
+  const w = weaponOf(p);
+  return {
+    id: `player_${p.charId}`,
+    name: p.name,
+    plural: p.name,
+    circle: p.circle,
+    stats: p.stats,
+    weapon: w ? { skill: w.skill, dmg: w.dmg, speed: w.speed } : { skill: 'brawling', dmg: [3, 6], speed: 4 },
+    armor: totalArmor(p),
+    defense: defenseSkillOf(p),
+    exp: 0,
+    loot: [],
+    aggressive: true,
+    controller: p,
+  };
+}
