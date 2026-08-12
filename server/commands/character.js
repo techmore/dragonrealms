@@ -150,7 +150,7 @@ function showScore(ctx) {
   const armor = totalArmor(p);
   const lines = [
     `\n\x1b[1m${p.name}\x1b[0m — ${p.race.name} ${p.guild.name} (${guildTitle(p.guild, p.circle)})`,
-    `Circle ${p.circle}  |  Health ${p.hp}/${p.maxHp}  |  ${p.guild.magic ? `Mana ${p.mana}/${p.maxMana} (${manaTypeFor(p.guild).def.name})` : p.guild.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : ''}`,
+    `Circle ${p.circle}  |  Health ${p.hp}/${p.maxHp}  |  Stamina ${p.stamina ?? 0}/${p.maxStaminaEff ?? 0}  |  ${p.guild.magic ? `Mana ${p.mana}/${p.maxMana} (${manaTypeFor(p.guild).def.name})` : p.guild.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : ''}`,
     `Attributes:  Str ${p.stats.str}  Con ${p.stats.con}  Ref ${p.stats.ref}  Agi ${p.stats.agi}`,
     `             Cha ${p.stats.cha}  Dis ${p.stats.dis}  Wis ${p.stats.wis}  Int ${p.stats.int}`,
     `Unspent points: ${p.unspentStat}`,

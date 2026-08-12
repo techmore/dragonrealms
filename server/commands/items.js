@@ -2,7 +2,7 @@
 import { roomById } from '../../data/world.js';
 import { ITEMS, itemById } from '../../data/items.js';
 import { RECIPES, recipeById } from '../../data/recipes.js';
-import { FORGE_RECIPES, forgeRecipeById, qualityRoll } from '../../data/forging.js';
+import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll } from '../../data/forging.js';
 import { npcById } from '../../data/npcs.js';
 import { skillRank, gainSkillExp, addItem, removeItem, equipItem, unequipItem, countItems } from '../player.js';
 import { pad, findInventoryItem, findSlotByItem, findNpcByName } from './util.js';
@@ -128,7 +128,11 @@ export const commands = {
       return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Ore drops from trolls, bandits, and the blackwood dead.`);
     }
     for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
-    const q = qualityRoll(forgeSkill);
+    // Weaponsmithing affinity: barbarians wield the forge with a natural edge
+    // on weapon recipes (DR: 3 free technique slots).
+    const isWeapon = itemById(recipe.item).type === 'weapon';
+    const affinity = isWeapon && p.guild.id === 'barbarian' ? 3 : 0;
+    const q = qualityRoll(forgeSkill + affinity);
     const leveled = gainSkillExp(p, 'forging', 12);
     const base = itemById(recipe.item);
     addItem(p, recipe.item, 1);
@@ -136,6 +140,56 @@ export const commands = {
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
     emit(`You work the metal at the anvil and produce ${q.name} ${base.name}.${leveled ? ' Your Forging improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
+  },
+
+  shape(ctx) {
+    const { p, arg1, emit } = ctx;
+    if (p.room !== 'forge') return emit('The workbench stands at the Ember Forge, east of the brewery.');
+    if (!arg1) {
+      const rows = Object.values(ENGINEER_RECIPES).map((r) => `  ${pad(r.name, 24)} ${r.desc}`);
+      return emit(`\nBram can teach you to shape:\n${rows.join('\n')}\n\nSay "shape <recipe>" — materials are consumed on the attempt. Better Engineering shapes better wood and steel.`);
+    }
+    const recipe = engineerRecipeById(arg1.toLowerCase()) || Object.values(ENGINEER_RECIPES).find((r) => r.name.toLowerCase().includes(arg1.toLowerCase()));
+    if (!recipe) return emit('He does not know that pattern. Try "shape" for the list.');
+    const skill = skillRank(p, 'engineering');
+    if (skill < recipe.minSkill) return emit(`That work needs ${recipe.minSkill} Engineering skill; you have ${skill}. Practice on simpler pieces first.`);
+    const missing = Object.entries(recipe.ingredients).filter(([ing, qty]) => countItems(p, ing) < qty);
+    if (missing.length) {
+      return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Ore and scale drop in the wilds.`);
+    }
+    for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
+    const q = qualityRoll(skill);
+    const leveled = gainSkillExp(p, 'engineering', 12);
+    const base = itemById(recipe.item);
+    addItem(p, recipe.item, 1);
+    p.forgedQuality = p.forgedQuality || {};
+    p.forgedQuality[recipe.item] = q.mult;
+    emit(`You shape the materials into ${q.name} ${base.name}.${leveled ? ' Your Engineering improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
+  },
+
+  tailor(ctx) {
+    const { p, arg1, emit } = ctx;
+    if (p.room !== 'tailor_shop') return emit('The cutting table stands at the Needle & Thread, south of the West Road.');
+    if (!arg1) {
+      const rows = Object.values(OUTFIT_RECIPES).map((r) => `  ${pad(r.name, 24)} ${r.desc}`);
+      return emit(`\nMara can teach you to tailor:\n${rows.join('\n')}\n\nSay "tailor <recipe>" — hides are consumed on the attempt. Better Outfitting cuts better leather.`);
+    }
+    const recipe = outfittingRecipeById(arg1.toLowerCase()) || Object.values(OUTFIT_RECIPES).find((r) => r.name.toLowerCase().includes(arg1.toLowerCase()));
+    if (!recipe) return emit('She does not know that pattern. Try "tailor" for the list.');
+    const skill = skillRank(p, 'outfitting');
+    if (skill < recipe.minSkill) return emit(`That work needs ${recipe.minSkill} Outfitting skill; you have ${skill}. Practice on simpler pieces first.`);
+    const missing = Object.entries(recipe.ingredients).filter(([ing, qty]) => countItems(p, ing) < qty);
+    if (missing.length) {
+      return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Pelts come from the hunt.`);
+    }
+    for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
+    const q = qualityRoll(skill);
+    const leveled = gainSkillExp(p, 'outfitting', 12);
+    const base = itemById(recipe.item);
+    addItem(p, recipe.item, 1);
+    p.forgedQuality = p.forgedQuality || {};
+    p.forgedQuality[recipe.item] = q.mult;
+    emit(`You cut and stitch ${q.name} ${base.name}.${leveled ? ' Your Outfitting improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
   },
 
   craft(ctx) {

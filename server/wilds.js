@@ -97,8 +97,10 @@ export const wilds = {
   },
 
   // Hunting ladder: every creature teaches within a rank band; the zones are
-  // ordered by that band so you can see where to move next.
+  // ordered by that band so you can see where to move next. Loot flags show
+  // what each kind of prey yields (gems, coin, boxes, skins).
   ladder() {
+    const TAG_NAMES = { skins: 'skins', gems: 'gems', coin: 'coin', box: 'boxes', named: 'rare loot' };
     const rows = [];
     for (const [zoneId, zone] of Object.entries(ZONES)) {
       const creatures = {};
@@ -107,14 +109,15 @@ export const wilds = {
         for (const defId of room.spawns || []) {
           const def = creatureById(defId);
           if (def && !creatures[def.id]) {
-            creatures[def.id] = def.teaches ? `teaches ${def.teaches[0]}–${def.teaches[1]}` : `circle ${def.circle}`;
+            const tags = (def.lootTags || []).map((t) => TAG_NAMES[t] || t).join(', ');
+            creatures[def.id] = `${def.teaches ? `teaches ${def.teaches[0]}–${def.teaches[1]}` : `circle ${def.circle}`}${tags ? ` · drops: ${tags}` : ''}`;
           }
         }
       }
       const entries = Object.entries(creatures);
       if (entries.length) {
         rows.push(`\x1b[1m${zone.name}\x1b[0m`);
-        for (const [id, t] of entries) rows.push(`  ${pad(creatureById(id).name.replace(/^a /, ''), 24)} ${t}`);
+        for (const [id, t] of entries) rows.push(`  ${pad(creatureById(id).name.replace(/^a /, ''), 26)} ${t}`);
       }
     }
     return rows.length ? `\nHunting ladder (skill ranks a creature teaches best):\n${rows.join('\n')}` : 'The hunting grounds are empty.';
@@ -151,10 +154,11 @@ export const wilds = {
       const hpGain = Math.max(2, Math.floor(p.maxHp * 0.025));
       p.hp = Math.min(p.maxHp, p.hp + hpGain);
       if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * 0.04)));
+      p.stamina = Math.min(p.maxStaminaEff, (p.stamina || 0) + 6);
       gainSkillExp(p, 'athletics', 2);
       if (ticks % 10 === 0) p.rexp = Math.min(120, (p.rexp || 0) + 1);
-      p.ws.send(JSON.stringify({ t: 'msg', msg: `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}` }));
-      if (p.hp >= p.maxHp && (!p.guild.magic || p.mana >= p.maxMana)) wilds.stopRest(p);
+      p.ws.send(JSON.stringify({ t: 'msg', msg: `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}, stamina ${p.stamina}/${p.maxStaminaEff}` }));
+      if (p.hp >= p.maxHp && (!p.guild.magic || p.mana >= p.maxMana) && p.stamina >= p.maxStaminaEff) wilds.stopRest(p);
       if (ticks >= 20) wilds.stopRest(p);
     }, 2000);
     p.restTimer.unref();

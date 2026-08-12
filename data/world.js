@@ -100,7 +100,12 @@ export const ROOMS = {
   west_road: {
     id: 'west_road', zone: 'town', name: 'West Road', npcs: ['tanner'],
     desc: 'A dusty road heading west past shops and toward the town gate. The smell of the forest begins to creep in, and a rough track splits north toward the hills.',
-    exits: { e: 'square', w: 'west_gate', n: 'camp_path' },
+    exits: { e: 'square', w: 'west_gate', n: 'camp_path', s: 'tailor_shop' },
+  },
+  tailor_shop: {
+    id: 'tailor_shop', zone: 'town', name: 'The Needle & Thread', npcs: ['tailor'],
+    desc: 'A warm shop crowded with stretched hides and half-stitched leathers. A long workbench runs the length of the wall, needles and awls standing ready in their racks.',
+    exits: { n: 'west_road' },
   },
   west_gate: {
     id: 'west_gate', zone: 'town', name: 'West Gate', npcs: ['guard'],

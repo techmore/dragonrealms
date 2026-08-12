@@ -23,6 +23,22 @@ export const KHRI = {
     id: 'strike', name: 'Strike', cost: 6,
     desc: 'Every blow lands with killing intent — +25% damage.',
   },
+  sight: {
+    id: 'sight', name: 'Sight', cost: 5,
+    desc: 'You read the fight like a page — +6 to hit and ambushes find their mark.',
+  },
+  stealth: {
+    id: 'stealth', name: 'Stealth', cost: 6,
+    desc: 'Your presence fades to nothing — ambushes and backstabs bite deeper.',
+  },
+  swiftness: {
+    id: 'swiftness', name: 'Swiftness', cost: 5,
+    desc: 'The ground burns beneath you — you strike faster and flee more surely.',
+  },
+  clarity: {
+    id: 'clarity', name: 'Clarity', cost: 4,
+    desc: 'Your mind is a still pool — hostile magic breaks against it.',
+  },
 };
 
 export const KHRI_TICKS = 60;

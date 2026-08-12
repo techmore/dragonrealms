@@ -8,7 +8,7 @@ export const CREATURES = {
     stats: { str: 5, con: 6, ref: 10, agi: 12 },
     weapon: { skill: 'brawling', dmg: [1, 4], speed: 3 },
     armor: 2, defense: 5,
-    loot: ['rat_pelt'], exp: 30, aggressive: false,
+    loot: ['rat_pelt'], lootTags: ['skins'], exp: 30, aggressive: false,
   },
   kobold: {
     id: 'kobold', name: 'a kobold', plural: 'kobolds', circle: 2,
@@ -17,7 +17,7 @@ export const CREATURES = {
     stats: { str: 9, con: 8, ref: 10, agi: 9 },
     weapon: { skill: 'small_edged', dmg: [4, 9], speed: 4 },
     armor: 8, defense: 10,
-    loot: ['kobold_skin', 'strongbox'], exp: 80, aggressive: false,
+    loot: ['kobold_skin', 'strongbox'], lootTags: ['skins', 'box'], exp: 80, aggressive: false,
   },
   goblin: {
     id: 'goblin', name: 'a goblin', plural: 'goblins', circle: 3,
@@ -26,7 +26,7 @@ export const CREATURES = {
     stats: { str: 12, con: 10, ref: 10, agi: 8 },
     weapon: { skill: 'blunt', dmg: [6, 12], speed: 5 },
     armor: 12, defense: 12,
-    loot: ['goblin_skin'], exp: 140, aggressive: true,
+    loot: ['goblin_skin'], lootTags: ['skins'], exp: 140, aggressive: true,
   },
   wolf: {
     id: 'wolf', name: 'a grey wolf', plural: 'grey wolves', circle: 4,
@@ -35,7 +35,7 @@ export const CREATURES = {
     stats: { str: 14, con: 12, ref: 14, agi: 14 },
     weapon: { skill: 'brawling', dmg: [8, 16], speed: 4 },
     armor: 10, defense: 18,
-    loot: ['wolf_pelt'], exp: 220, aggressive: true,
+    loot: ['wolf_pelt'], lootTags: ['skins'], exp: 220, aggressive: true,
   },
   wisp: {
     id: 'wisp', name: 'a marsh wisp', plural: 'marsh wisps', circle: 5,
@@ -44,7 +44,7 @@ export const CREATURES = {
     stats: { str: 6, con: 10, ref: 16, agi: 16 },
     weapon: { skill: 'offensive_magic', dmg: [10, 18], speed: 6 },
     armor: 15, defense: 22,
-    loot: ['wisp_mote'], exp: 340, aggressive: true,
+    loot: ['wisp_mote'], lootTags: ['gems'], gems: ['garnet', 'sapphire'], exp: 340, aggressive: true,
   },
   troll: {
     id: 'troll', name: 'a forest troll', plural: 'forest trolls', circle: 6,
@@ -53,7 +53,7 @@ export const CREATURES = {
     stats: { str: 20, con: 18, ref: 10, agi: 8 },
     weapon: { skill: 'blunt', dmg: [14, 26], speed: 7 },
     armor: 30, defense: 20, regen: 4,
-    loot: ['troll_hide', 'iron_ore'], exp: 520, aggressive: true,
+    loot: ['troll_hide', 'iron_ore'], lootTags: ['skins', 'gems'], gems: ['garnet'], exp: 520, aggressive: true,
   },
   bandit: {
     id: 'bandit', name: 'a bandit', plural: 'bandits', circle: 5,
@@ -62,7 +62,7 @@ export const CREATURES = {
     stats: { str: 14, con: 12, ref: 13, agi: 13 },
     weapon: { skill: 'medium_edged', dmg: [9, 18], speed: 5 },
     armor: 22, defense: 18,
-    loot: ['iron_ring', 'strongbox'], exp: 380, aggressive: true,
+    loot: ['iron_ring', 'strongbox'], lootTags: ['coin', 'box', 'gems'], gems: ['garnet', 'sapphire'], exp: 380, aggressive: true,
   },
   bandit_captain: {
     id: 'bandit_captain', name: 'a bandit captain', plural: 'bandit captains', circle: 7,
@@ -71,7 +71,7 @@ export const CREATURES = {
     stats: { str: 18, con: 16, ref: 12, agi: 10 },
     weapon: { skill: 'twohanded_edged', dmg: [16, 30], speed: 7 },
     armor: 34, defense: 22,
-    loot: ['iron_ring', 'silver_ring', 'iron_ore'], exp: 700, aggressive: true,
+    loot: ['iron_ring', 'silver_ring', 'iron_ore'], lootTags: ['gems', 'coin'], gems: ['sapphire', 'emerald'], exp: 700, aggressive: true,
   },
 
   // ---- Cinder Cavern (circle 5-7) ----
@@ -82,7 +82,7 @@ export const CREATURES = {
     stats: { str: 12, con: 12, ref: 14, agi: 15 },
     weapon: { skill: 'brawling', dmg: [10, 18], speed: 5 },
     armor: 24, defense: 20,
-    loot: ['cinder_scale'], exp: 360, aggressive: true,
+    loot: ['cinder_scale'], lootTags: ['skins'], exp: 360, aggressive: true,
   },
   fire_drake: {
     id: 'fire_drake', name: 'a fire drake', plural: 'fire drakes', circle: 6,
@@ -91,7 +91,7 @@ export const CREATURES = {
     stats: { str: 16, con: 14, ref: 12, agi: 10 },
     weapon: { skill: 'brawling', dmg: [14, 26], speed: 6 },
     armor: 30, defense: 22,
-    loot: ['cinder_scale'], exp: 480, aggressive: true,
+    loot: ['cinder_scale'], lootTags: ['skins', 'gems'], gems: ['sapphire', 'emerald'], exp: 480, aggressive: true,
   },
 
   // ---- Blackwood Ruins (circle 7-10) ----
@@ -102,7 +102,7 @@ export const CREATURES = {
     stats: { str: 14, con: 12, ref: 16, agi: 16 },
     weapon: { skill: 'offensive_magic', dmg: [16, 30], speed: 6 },
     armor: 20, defense: 26,
-    loot: ['wraith_essence'], exp: 620, aggressive: true,
+    loot: ['wraith_essence'], lootTags: ['gems'], gems: ['sapphire', 'emerald'], exp: 620, aggressive: true,
   },
   revenant: {
     id: 'revenant', name: 'a clanking revenant', plural: 'clanking revenants', circle: 8,
@@ -111,7 +111,7 @@ export const CREATURES = {
     stats: { str: 18, con: 16, ref: 13, agi: 10 },
     weapon: { skill: 'large_edged', dmg: [18, 34], speed: 6 },
     armor: 42, defense: 28,
-    loot: ['wraith_essence', 'silver_ring', 'iron_ore'], exp: 800, aggressive: true,
+    loot: ['wraith_essence', 'silver_ring', 'iron_ore'], lootTags: ['gems', 'coin'], gems: ['emerald', 'diamond'], exp: 800, aggressive: true,
   },
   dread_knight: {
     id: 'dread_knight', name: 'a dread knight', plural: 'dread knights', circle: 10,
@@ -120,7 +120,7 @@ export const CREATURES = {
     stats: { str: 24, con: 20, ref: 14, agi: 12 },
     weapon: { skill: 'twohanded_edged', dmg: [24, 44], speed: 7 },
     armor: 52, defense: 32,
-    loot: ['dread_sigil', 'iron_ore'], exp: 1200, aggressive: true,
+    loot: ['dread_sigil', 'iron_ore'], lootTags: ['gems', 'coin'], gems: ['diamond'], exp: 1200, aggressive: true,
   },
 };
 
@@ -134,7 +134,7 @@ export const RARES = {
     stats: { str: 22, con: 18, ref: 18, agi: 18 },
     weapon: { skill: 'brawling', dmg: [20, 34], speed: 4 },
     armor: 30, defense: 30,
-    loot: ['fang_of_shadowpaw'], exp: 1500, aggressive: true,
+    loot: ['fang_of_shadowpaw'], lootTags: ['gems', 'named'], gems: ['emerald'], exp: 1500, aggressive: true,
   },
   camp: {
     id: 'bandit_chieftain', name: 'the Bandit Chieftain', plural: 'bandit chieftains', circle: 9,
@@ -143,7 +143,7 @@ export const RARES = {
     stats: { str: 26, con: 20, ref: 14, agi: 12 },
     weapon: { skill: 'twohanded_edged', dmg: [24, 40], speed: 7 },
     armor: 44, defense: 28,
-    loot: ['chieftains_cleaver'], exp: 1800, aggressive: true,
+    loot: ['chieftains_cleaver'], lootTags: ['gems', 'named'], gems: ['emerald', 'diamond'], exp: 1800, aggressive: true,
   },
   cinder: {
     id: 'cinder_drake_king', name: 'the Cinder Drake King', plural: 'cinder drake kings', circle: 10,
@@ -152,7 +152,7 @@ export const RARES = {
     stats: { str: 28, con: 22, ref: 16, agi: 12 },
     weapon: { skill: 'brawling', dmg: [26, 46], speed: 6 },
     armor: 50, defense: 32,
-    loot: ['drakeheart_amulet'], exp: 2200, aggressive: true,
+    loot: ['drakeheart_amulet'], lootTags: ['gems', 'named'], gems: ['diamond'], exp: 2200, aggressive: true,
   },
 };
 

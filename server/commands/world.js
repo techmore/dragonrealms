@@ -12,11 +12,11 @@ import { pad, matchSkill, findNpcByName, findInventoryItem, broadcastRoom, gameT
 const HELP = `
 \x1b[1mDragon Realms — quick help\x1b[0m
   Movement:  n, s, e, w, ne, nw, se, sw, u, d  |  go north  |  look (l)
-  Combat:    attack <creature>  |  target <creature>  |  cast [spell] [target]  |  retreat/flee  |  skin <creature>
-  Magic:     spells  |  slots  |  prepare <spell> [pct] (then "cast"; overchanneling risks backlash)  |  perceive  |  harness  |  charge/invoke/focus <cambrinth>
-  Powers:    berserk (Barbarian)  |  form/roar/meditate <ability>  |  whirlwind/stomp/choke/analyze (barbarian)  |  backstab (Thief)  |  khri <name> (Thief)
-             smite (Paladin)  |  mend <player> (Empath)  |  predict (Moon Mage)  |  summon familiar (Warrior Mage)  |  animate <corpse> (Necromancer)
-             enchante war|bravery|regen (Bard)  |  devotion (Cleric)  |  beseech wind|sun + companion (Ranger)
+   Combat:    attack <creature>  |  target <creature>  |  cast [spell] [target]  |  retreat/flee  |  skin <creature>
+   Magic:     spells  |  slots  |  prepare <spell> [pct] (then "cast"; overchanneling risks backlash)  |  perceive  |  harness  |  charge/invoke/focus <cambrinth>
+   Powers:    berserk (Barbarian)  |  form/roar/meditate <ability>  |  whirlwind/stomp/choke/analyze (barbarian)  |  backstab (Thief)  |  khri <name> (Thief)
+              smite (Paladin)  |  glyph <name> (Paladin, soul-fueled wards)  |  mend <player> (Empath)  |  predict (Moon Mage)  |  summon familiar (Warrior Mage)  |  animate <corpse> (Necromancer)
+              enchante war|bravery|regen (Bard)  |  devotion (Cleric)  |  beseech wind|sun + companion (Ranger)  |  snipe/slip (Ranger)
   Abilities: abilities  (list barbarian arts)  |  learn <ability>  (at the barbarian hall)  |  ask <leader> about forgetting <ability>
   Items:     get <item>  |  drop <item>  |  inventory (i)  |  wear/wield <item>  |  remove <item>  |  use <item>
   Death:     die in battle and you awaken at the temple — your gear lies with your corpse; search <corpse>, get <item> from corpse
@@ -28,7 +28,7 @@ const HELP = `
   PvP:       duel <player> [blood|blow|pain] | accept/decline <player> | surrender | pvp stance open|guarded|closed  (wilds only)
   Wilds:     forage  |  hunt  |  track  |  ladder  |  hide  |  ambush <creature>  |  rest  (recover)
   Skills:    perform  |  appraise <item>  |  study  (temple library)
-  Crafting:  craft <recipe>  (Tilted Retort)  |  forge <recipe>  (Ember Forge, east of the brewery)
+   Crafting:  craft <recipe>  (Tilted Retort)  |  forge <recipe>  (Ember Forge)  |  shape <recipe>  (Ember Forge, Engineering)  |  tailor <recipe>  (Needle & Thread, south of West Road)
   Crime:     steal <npc>  (lift coin, town)  |  pick <strongbox>  |  plead guilty|innocent  (if jailed)
   Scripting: alias <name> <command>  |  use ";" to chain commands  (client: macro / timer)
   NPCs:      ask <npc> <topic>  (try "ask crier help")

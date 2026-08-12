@@ -279,6 +279,8 @@ export const commands = {
     emit(`Your devotion is ${d}/100 — ${state}. Devotions at the temple deepen it; holy magic burns brighter with it.`);
   },
 
+  glyph(ctx) { glyph(ctx); },
+
   companion(ctx) { companion(ctx); },
   call: companion,
   release(ctx) {
@@ -376,10 +378,55 @@ function cambrinth(ctx, action) {
   emit(`You charge ${entry.item.name} with ${stored} points of ${def.name.toLowerCase()} mana (${p.cambrinth.charge}/${cap}).${leveled ? ' Your Arcana improved!' : ''}`);
 }
 
+// Paladin glyphs: soul-fueled wards traced in light (DR: glyphs of the
+// Light-Bearer). Each glyph costs soul and mana, and hangs on a cooldown.
+const GLYPHS = {
+  faith: {
+    id: 'faith', name: 'Ward of Faith', soul: 10, mana: 8, ticks: 60,
+    desc: 'Trace the ward of faith — armor hardens while it holds.',
+  },
+  valor: {
+    id: 'valor', name: 'Glyph of Valor', soul: 12, mana: 8, ticks: 60,
+    desc: 'Trace the glyph of valor — blows land with greater force.',
+  },
+  protection: {
+    id: 'protection', name: 'Glyph of Protection', soul: 12, mana: 8, ticks: 60,
+    desc: 'Trace the glyph of protection — harm slides off you.',
+  },
+};
+const GLYPH_COOLDOWN_MS = 2 * 60 * 1000;
+
+function glyph(ctx) {
+  const { p, arg1, emit } = ctx;
+  if (p.guild.id !== 'paladin') return emit('Only paladins trace glyphs.');
+  if (p.circle < 2) return emit(`Glyphs are taught at circle 2; you are circle ${p.circle}.`);
+  if (!arg1) {
+    const lines = Object.values(GLYPHS).map((g) => `  ${g.name} — ${g.soul} soul, ${g.mana} mana — ${g.desc}`);
+    return emit(`\nGlyphs you may trace:\n${lines.join('\n')}\nSay "glyph <name>" — each needs ${Math.round(GLYPH_COOLDOWN_MS / 60000)} min between tracings.`);
+  }
+  const def = GLYPHS[arg1.toLowerCase()] || Object.values(GLYPHS).find((g) => g.name.toLowerCase().includes(arg1.toLowerCase()));
+  if (!def) return emit('You know no such glyph. Try "glyph" for the list.');
+  const soul = p.soul ?? 50;
+  if (soul < def.soul) return emit(`Your soul is too dim to trace ${def.name} (${soul}/${def.soul}). Pray at the temple or slay the undead.`);
+  if (p.mana < def.mana) return emit(`You need ${def.mana} mana to trace ${def.name}.`);
+  if (p.glyphAt && Date.now() - p.glyphAt < GLYPH_COOLDOWN_MS) {
+    const mins = Math.ceil((GLYPH_COOLDOWN_MS - (Date.now() - p.glyphAt)) / 60000);
+    return emit(`Your aura is still settling from the last glyph (${mins} min).`);
+  }
+  p.soul = soul - def.soul;
+  p.mana -= def.mana;
+  p.glyphAt = Date.now();
+  const key = { faith: 'glyph_ward', valor: 'glyph_valor', protection: 'glyph_shield' }[def.id];
+  p.buffs = p.buffs || {};
+  p.buffs[key] = def.ticks;
+  gainSkillExp(p, 'conviction', 8);
+  gainSkillExp(p, 'holy_magic', 6);
+  emit(`You trace ${def.name} in the air — light sears where your finger passes and settles around you. (${p.soul} soul remains)`);
+}
+
 function familiar(ctx) {
   const { p, cmd, arg1, emit } = ctx;
-  if (p.guild.id !== 'warmage') return emit('Only warrior mages bind familiars.');
-  if (cmd === 'familiar' || !arg1) {
+  if (p.guild.id !== 'warmage') return emit('Only warrior mages bind familiars.');  if (cmd === 'familiar' || !arg1) {
     const f = p.familiar;
     if (!f) return emit('You have no familiar bound. At your guild hall, say "summon familiar".');
     return emit(`Your familiar ${f.name} is ${f.alive ? `with you (${f.hp}/${f.maxHp} health)` : 'drained of spirit — it needs time to recover.'}`);

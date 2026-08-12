@@ -89,6 +89,55 @@ function ambush(ctx) {
   game.status(p);
 }
 
+function snipe(ctx) {
+  const { game, p, arg1, emit } = ctx;
+  if (p.guild.id !== 'ranger') return emit('Only rangers know how to put a shaft through the heart.');
+  if (!p.hidden) return emit('You must be hiding to snipe. Try "hide" first.');
+  let combat = game.combat.getFor(p);
+  if (combat && combat.defender === p) return emit('You are locked in an automatic duel.');
+  let uid = combat ? combat.playerTarget : null;
+  if (!combat) {
+    const creature = arg1 ? game.findCreature(p.room, arg1) : null;
+    if (creature) {
+      game.startCombat(p, [creature.def]);
+      combat = game.combat.getFor(p);
+      uid = combat.playerTarget;
+    } else {
+      return emit('There is nothing to snipe here. Try "attack <creature>" first.');
+    }
+  }
+  combat.snipeAttack(uid);
+  game.status(p);
+}
+
+const SLIP_COOLDOWN_MS = 60 * 1000;
+
+function slip(ctx) {
+  const { game, p, emit } = ctx;
+  if (p.guild.id !== 'ranger') return emit('Only rangers know how to slip away.');
+  if (p.slipAt && Date.now() - p.slipAt < SLIP_COOLDOWN_MS) {
+    const secs = Math.ceil((SLIP_COOLDOWN_MS - (Date.now() - p.slipAt)) / 1000);
+    return emit(`You cannot vanish again so soon (${secs}s).`);
+  }
+  const combat = game.combat.getFor(p);
+  if (combat && combat.defender === p) return emit('You are locked in an automatic duel.');
+  const chance = 0.5 + skillRank(p, 'hiding') * 0.01 + skillRank(p, 'evasion') * 0.01;
+  if (combat) {
+    if (Math.random() >= chance) {
+      p.slipAt = Date.now();
+      return emit('You try to melt into the foliage, but your foes press too close!');
+    }
+    p.slipAt = Date.now();
+    gainSkillExp(p, 'hiding', 8);
+    gainSkillExp(p, 'evasion', 6);
+    combat.end(false, false, true, null);
+    return;
+  }
+  p.slipAt = Date.now();
+  const leveled = gainSkillExp(p, 'hiding', 6);
+  emit(`You slip through the ${game.zoneName(p.room)} like water through fingers.${leveled ? ' Your Hiding improved!' : ''}`);
+}
+
 function attack(ctx) {
   const { game, p, arg1, emit } = ctx;
   if (!arg1) {
@@ -247,6 +296,27 @@ function barbarianTech(ctx, abilityId) {
   if (!res.ok) emit(res.msg);
 }
 
+// Use an ability that resolves through the unified useAbility path (dispel,
+// mage's lash): works in combat, may need a named target.
+function barbarianUse(ctx, abilityId) {
+  const { game, p, arg1, emit } = ctx;
+  if (p.guild.id !== 'barbarian') return emit('Only barbarians know this art.');
+  const combat = game.combat.getFor(p);
+  if (!combat) return emit('That takes battle around you.');
+  const def = barbarianAbilityById(abilityId);
+  if (!(p.abilities || []).includes(def.id)) return emit(`You have not learned ${def.name}.`);
+  let uid = combat.playerTarget;
+  if (arg1) {
+    const n = arg1.toLowerCase();
+    const foe = combat.aliveEnemies.find((e) =>
+      e.def.id === n || e.def.name.includes(n) || e.def.plural.includes(n));
+    if (foe) uid = foe.uid;
+    else return emit(`There is no such foe engaged to target.`);
+  }
+  const res = combat.useAbility(def, uid);
+  if (!res.ok) emit(res.msg);
+}
+
 function analyze(ctx) {
   const { game, p, arg1, emit } = ctx;
   if (p.guild.id !== 'barbarian') return emit('Only barbarians know this art.');
@@ -366,6 +436,8 @@ export const commands = {
   target,
   hide,
   ambush,
+  snipe,
+  slip,
   attack,
   kill: attack,
   retreat,
@@ -386,6 +458,8 @@ export const commands = {
   whirlwind: (ctx) => barbarianTech(ctx, 'whirlwind'),
   stomp: (ctx) => barbarianTech(ctx, 'war_stomp'),
   choke: (ctx) => barbarianTech(ctx, 'choke'),
+  dispel: (ctx) => barbarianUse(ctx, 'dispel'),
+  mageslash: (ctx) => barbarianUse(ctx, 'mages_lash'),
   analyze,
   belch,
   shake: shakeHand,

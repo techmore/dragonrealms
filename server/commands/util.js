@@ -3,6 +3,7 @@ import { roomById } from '../../data/world.js';
 import { SKILLS } from '../../data/skills.js';
 import { ITEMS } from '../../data/items.js';
 import { npcById } from '../../data/npcs.js';
+import { maxStaminaFor, maxStaminaEff } from '../player.js';
 
 export const STAT_FULL = {
   str: 'Strength', con: 'Constitution', ref: 'Reflex', agi: 'Agility',
@@ -78,8 +79,16 @@ export function rankExp(rank) {
 
 export function recalcDerived(p) {
   p.maxHp = Math.max(1, Math.floor((40 + p.stats.con * 2 + p.stats.str) * (1 + (p.circle - 1) * 0.08)) - (p.empathicStain || 0));
+  // Titan mastery: the frame swells with raw power.
+  if (p.guild.id === 'barbarian' && (p.abilities || []).includes('titan')) {
+    p.maxHp = Math.floor(p.maxHp * 1.15);
+  }
   if (p.guild.magic) p.maxMana = Math.floor((20 + p.stats.wis * 2 + p.stats.int + p.stats.dis) * (1 + (p.circle - 1) * 0.06));
   else p.maxMana = 0;
+  // Stamina pools track the frame and your load.
+  p.maxStamina = maxStaminaFor(p);
+  p.maxStaminaEff = maxStaminaEff(p);
+  p.stamina = Math.min(p.stamina ?? p.maxStaminaEff, p.maxStaminaEff);
 }
 
 export function itemByIdName(id) {

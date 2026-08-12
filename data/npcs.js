@@ -41,7 +41,7 @@ export const NPCS = {
       mithril_blade: 1, dragonsteel_greatsword: 1, ring_mail: 3, half_plate: 2, full_plate: 1,
       mithril_plate: 1, steel_shield: 2, cambrinth_orb: 1,
     },
-    buys: ['wisp_mote', 'troll_hide', 'iron_ring', 'silver_ring'],
+    buys: ['wisp_mote', 'troll_hide', 'iron_ring', 'silver_ring', 'garnet', 'sapphire', 'emerald', 'diamond'],
   },
   tanner: {
     id: 'tanner', name: 'Aldric, the tanner', role: 'shop',
@@ -74,6 +74,11 @@ export const NPCS = {
     id: 'forge_master', name: 'Bram the Ironhand, the forge master', role: 'craft',
     desc: 'A barrel-chested smith with soot-etched arms, hammer resting on one shoulder.',
     greeting: 'Bring me ore and cinder scale, and I\'ll teach your hands the hammer. Say "forge" to see the recipes.',
+  },
+  tailor: {
+    id: 'tailor', name: 'Mara, the tailor', role: 'craft',
+    desc: 'A quick-fingered woman surrounded by hides, needles, and spools of tough thread.',
+    greeting: 'Bring me pelts and hides, and I\'ll teach you the cut and the stitch. Say "tailor" to see the patterns.',
   },
   jailer: {
     id: 'jailer', name: 'Jailer Grum', role: 'info',

@@ -54,6 +54,8 @@ export function createCharacter(accountId, { name, race, guild, city = 'crossing
     statsObj.unspent, startMana, 600, 150, 0, startRoom, homeCity, maxHp, maxHp, Date.now()
   );
   const charId = Number(info.lastInsertRowid);
+  // Stamina is derived at load: the row's 0 means "full for your frame".
+  db.prepare('UPDATE characters SET stamina = ? WHERE id = ?').run(maxStaminaFor({ stats: statsObj, circle: 1 }), charId);
 
   // Initialize every skill to rank 0.
   const ins = db.prepare('INSERT INTO skills (character_id, skill_id, rank, exp) VALUES (?,?,0,0)');
@@ -84,8 +86,8 @@ export function loadPlayer(charId) {
     stance: row.stance || 'balanced',
     pvpStance: row.pvp_stance || 'guarded',
     rexp: row.rexp || 0,
-    soul: row.soul ?? 50,
-    empathicStain: row.empathic_stain || 0,
+    stamina: row.stamina || 0,
+    soul: row.soul ?? 50,    empathicStain: row.empathic_stain || 0,
     devotion: row.devotion ?? 30,
     homeCity: row.home_city || 'crossing',
     expPools: (() => { try { return JSON.parse(row.exp_pools || '{}'); } catch { return {}; } })(),
@@ -136,7 +138,31 @@ export function loadPlayer(charId) {
     if (item) player.equipment[eq.slot] = item;
   }
 
+  // Stamina is derived from Con and Fitness, then capped by what you carry.
+  player.maxStamina = maxStaminaFor(player);
+  player.maxStaminaEff = maxStaminaEff(player);
+  if (!(row.stamina > 0)) player.stamina = player.maxStaminaEff;
+
   return player;
+}
+
+// Stamina pool: Constitution and Fitness define the frame.
+export function maxStaminaFor(p) {
+  const fit = p.skills && p.skills.fitness ? p.skills.fitness.rank : 0;
+  return Math.max(30, Math.floor(40 + p.stats.con * 2 + fit * 0.5));
+}
+
+// Burden: the total weight class of everything you carry and wear.
+// Heavy gear shrinks the pool and slows recovery (DR encumbrance feel).
+export function totalBurden(p) {
+  let b = 0;
+  for (const item of Object.values(p.equipment || {})) b += item.burden || 0;
+  return b;
+}
+
+// Effective stamina pool after burden: each burden point costs 2 pool.
+export function maxStaminaEff(p) {
+  return Math.max(20, maxStaminaFor(p) - totalBurden(p) * 2);
 }
 
 export function savePlayer(p) {
@@ -404,6 +430,8 @@ export function stancePoints(p) {
   let pts = 3;
   if (p.guild.id === 'barbarian') pts += Math.floor(skillRank(p, 'defending') / 60);
   if (p.guild.id === 'ranger') pts += Math.floor((skillRank(p, 'evasion') + skillRank(p, 'shield_usage')) / 60);
+  // Exemplar mastery: a paragon of the wild commands an extra edge.
+  if (p.guild.id === 'barbarian' && (p.abilities || []).includes('exemplar')) pts += 2;
   return pts;
 }
 

@@ -38,6 +38,48 @@ export function forgeRecipeById(id) {
   return FORGE_RECIPES[id] || null;
 }
 
+// Engineering recipes (clean-room): wood-and-steel work at the Ember Forge
+// with the Engineering skill (DR: the Engineering discipline).
+export const ENGINEER_RECIPES = {
+  carved_staff: {
+    id: 'carved_staff', name: 'carved oak staff', item: 'carved_staff',
+    ingredients: { iron_ore: 1, herb_root: 1 },
+    minSkill: 0,
+    desc: 'A staff of carved oak, iron-shod. (1 iron ore + 1 bitter root)',
+  },
+  arbalest: {
+    id: 'arbalest', name: 'hand-worked arbalest', item: 'arbalest',
+    ingredients: { iron_ore: 2, cinder_scale: 1 },
+    minSkill: 10,
+    desc: 'A crossbow built by a clever hand. (2 iron ore + 1 cinder scale)',
+  },
+};
+
+export function engineerRecipeById(id) {
+  return ENGINEER_RECIPES[id] || null;
+}
+
+// Outfitting recipes (clean-room): leather and hide work at the Needle &
+// Thread with the Outfitting skill (DR: the Outfitting discipline).
+export const OUTFIT_RECIPES = {
+  cured_leather: {
+    id: 'cured_leather', name: 'cured leather jerkin', item: 'cured_leather',
+    ingredients: { wolf_pelt: 1, herb_root: 1 },
+    minSkill: 0,
+    desc: 'A jerkin of cured wolf hide. (1 wolf pelt + 1 bitter root)',
+  },
+  studded_crafted: {
+    id: 'studded_crafted', name: 'studded hide armor', item: 'studded_crafted',
+    ingredients: { wolf_pelt: 2, goblin_skin: 1 },
+    minSkill: 15,
+    desc: 'Hide armor stitched with studs. (2 wolf pelts + 1 goblin hide)',
+  },
+};
+
+export function outfittingRecipeById(id) {
+  return OUTFIT_RECIPES[id] || null;
+}
+
 // DR quality ladder: quality improves the forged item's stats.
 export const QUALITY_LADDER = [
   { name: 'practically worthless', mult: 0.9, min: 0.0 },
