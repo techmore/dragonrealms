@@ -12,7 +12,7 @@ const { migrate, db, closeDb } = await import('../server/db.js');
 const auth = await import('../server/auth.js');
 const { createCharacter, loadPlayer } = await import('../server/player.js');
 const { Game } = await import('../server/game.js');
-const { handleCommand } = await import('../server/commands.js');
+const { handleCommand } = await import('../server/commands/index.js');
 
 function fakeWs() {
   const msgs = [];

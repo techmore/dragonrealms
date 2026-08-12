@@ -8,7 +8,7 @@ import { raceById } from '../data/races.js';
 import { guildById } from '../data/guilds.js';
 import { roomById } from '../data/world.js';
 import { db } from './db.js';
-import { handleCommand } from './commands.js';
+import { handleCommand } from './commands/index.js';
 
 const COMMANDS_PER_SEC = 20;
 const MAX_BODY = 16 * 1024;

@@ -7,7 +7,7 @@ import { MAX_CHARS } from './player.js';
 import { raceById } from '../data/races.js';
 import { guildById } from '../data/guilds.js';
 import { db } from './db.js';
-import { handleCommand } from './commands.js';
+import { handleCommand } from './commands/index.js';
 import { sendChargenMenu, doCharSelect, doCharCreate, doAlloc, doEnter } from './chargen.js';
 
 const INPUT_MAX = 20; // commands per second

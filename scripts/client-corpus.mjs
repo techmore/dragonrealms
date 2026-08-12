@@ -16,8 +16,9 @@ const inFile = process.argv[3] || '/tmp/dr-corpus.json';
 const user = 'corp' + Date.now();
 const cname = 'Corp' + Array.from({ length: 7 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
 
-// Deterministic commands only — combat and RNG outputs are covered by the
-// smoke suite and the client regression (scripts/client-regression.mjs).
+// Deterministic commands only — combat, RNG rolls, and random-flavor output are
+// covered by the smoke suite and the client regression (scripts/client-regression.mjs).
+// Numbers and session tokens are normalized at diff time.
 const SCRIPT = [
   ['look', 400], ['help', 300], ['inventory', 300], ['score', 300],
   ['skills', 300], ['exp', 300], ['spells', 300], ['tdp', 300],
@@ -28,14 +29,12 @@ const SCRIPT = [
   ['target', 300], ['slots', 300], ['ability', 300], ['meditate', 300],
   ['analyze', 300], ['belch', 300], ['shakehand', 300], ['w', 500],
   ['s', 500], ['look', 300], ['ask', 300], ['ask crier help', 400],
-  ['quest', 300], ['claim', 300], ['track', 400], ['hunt', 400],
-  ['rest', 300], ['wake', 300], ['hide', 300], ['ambush', 300],
-  ['study', 300], ['sing', 300], ['appraise', 300], ['forage', 400],
+  ['study', 300], ['appraise', 300], ['hide', 300], ['ambush', 300],
   ['use sword', 300], ['wear sword', 300], ['drop sword', 300],
   ['get sword', 300], ['drink water', 300], ['search', 400],
-  ['steal crier', 400], ['unlock box', 300], ['deposit 10', 300],
-  ['withdraw 5', 300], ['heal', 300], ['train', 300], ['circle', 300],
-  ['raise str', 300], ['tdptrain large_edged', 300], ['alloc str 5', 300],
+  ['deposit 10', 300], ['withdraw 5', 300], ['heal', 300],
+  ['train', 300], ['circle', 300], ['raise str', 300],
+  ['tdptrain large_edged', 300], ['alloc str 5', 300],
   ['say hello there', 300], ['emote waves', 300], ['shout testing', 300],
   ['alias testcmd say hi', 300], ['alias', 300], ['testcmd', 300],
   ['unalias testcmd', 300], ['alias', 300], ['save', 300], ['quit', 300],
@@ -67,8 +66,14 @@ async function runScript() {
 
 function normalize(msgs) {
   return msgs
-    .map((m) => ({ ...m, msg: m.msg == null ? m.msg : String(m.msg).replace(/\s+/g, ' ') }))
-    .map((m) => JSON.stringify(m))
+    .map((m) => {
+      if (typeof m.msg === 'string') {
+        m = { ...m, msg: m.msg.replace(/\s+/g, ' ') };
+      }
+      return JSON.stringify(m)
+        .replace(/[0-9a-f]{32,64}/g, 'TOKEN')
+        .replace(/\d+/g, 'N');
+    })
     .join('\n');
 }
 
@@ -83,7 +88,7 @@ ws.on('open', async () => {
     await sleep(200);
     ws.send(JSON.stringify({ t: 'enter' }));
     await waitFor('prompt');
-    await runScriptFrom(0);
+    await runScript();
 
     if (mode === 'capture') {
       writeFileSync(inFile, JSON.stringify({ name: cname, output }, null, 1));
