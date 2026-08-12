@@ -109,14 +109,13 @@ const STAGES = [
   { id:11, title:"Stage 11 — Cross-Guild Systems", badge:"partial",
     desc:"Full DR skill set, mana types, spell-slot progressions, Nth-skill requirement engine, crafting disciplines." },
   { id:12, title:"Stage 12 — Guild Fidelity", badge:"partial",
-    desc:"Faithful passes for Bard, Cleric, Empath, Moon Mage, Necromancer, Paladin, Ranger, Thief, Trader, Warrior Mage." },
+    desc:"All ten remaining guilds have live fidelity v1s; deeper trees per guild pending." },
   { id:13, title:"Stage 13 — World & Systems Fidelity", badge:"partial",
     desc:"Hunting ladders, Crossing/Riverhaven depth, skill-system structure, magic mechanics, crafting, PvP & justice." },
 ];
 
 // status: done | partial | todo
 const FEATURES = [
-  // --- Stage 1
   { s:1, id:"f1", label:"Secure accounts", detail:"scrypt hashing, salt, lockout after 5 fails, session tokens, rate-limited input", status:"done" },
   { s:1, id:"f2", label:"5 character slots per account", detail:"cap enforced in creation, slot display in char select, 'new' flow", status:"done" },
   { s:1, id:"f3", label:"Character creation", detail:"name, race, guild with full descriptions", status:"done" },
@@ -126,8 +125,6 @@ const FEATURES = [
   { s:1, id:"f7", label:"Persistence + autosave", detail:"SQLite (node:sqlite), autosave every 60s", status:"done" },
   { s:1, id:"f8", label:"Character deletion", detail:"'deletechar <name>' frees a slot; cannot delete active char", status:"done" },
   { s:1, id:"f9", label:"Respec / reroll spent stats", detail:"safety net before TDP economy lands", status:"todo" },
-
-  // --- Stage 2
   { s:2, id:"f10", label:"83 skills in 8 categories", detail:"six DR skillsets + combat manipulation + defense", status:"done" },
   { s:2, id:"f11", label:"EXP earned through use", detail:"skills gain exp when used; auto rank-up", status:"done" },
   { s:2, id:"f12", label:"Guild trainers", detail:"train <skill> pays silvers for skill exp; guild-only lists", status:"done" },
@@ -136,8 +133,6 @@ const FEATURES = [
   { s:2, id:"f15", label:"World skills", detail:"forage, track, skin — gated by their skills", status:"done" },
   { s:2, id:"f16", label:"Rest recovery", detail:"gradual hp/mana regen; interrupted by combat or movement", status:"done" },
   { s:2, id:"f17", label:"Ask NPC system", detail:"crier, shopkeepers, banker, healer, guild leaders", status:"done" },
-
-  // --- Stage 3
   { s:3, id:"f18", label:"Async ticker combat", detail:"server-ticked rounds, weapon speed, narrative", status:"done" },
   { s:3, id:"f19", label:"Armor / shield / defense", detail:"armor mitigation, evasion, parry, shield usage", status:"done" },
   { s:3, id:"f20", label:"Ranged ammo", detail:"bows need arrows, crossbows need bolts", status:"done" },
@@ -147,15 +142,10 @@ const FEATURES = [
   { s:3, id:"f24", label:"Creature variety", detail:"15 types across 7 zones + named rares", status:"done" },
   { s:3, id:"f25", label:"Combat stances", detail:"aggressive / defensive / guarded / balanced + stance points (barb/ranger bonuses)", status:"done" },
   { s:3, id:"f26", label:"PvP combat", detail:"duel <player>, accept/decline, wilds only, concession/defeat", status:"done" },
-  { s:3, id:"f26b", label:"Ambush from hiding", detail:"hide -> ambush; thieves hide mid-fight", status:"done" },
-  { s:3, id:"f26c", label:"Hunting ladder", detail:"creature teaching bands; ladder command; anti-grind scaling", status:"done" },
   { s:3, id:"f27", label:"Mid/high-tier hunting grounds", detail:"Cinder Cavern (5-7) + Blackwood Ruins dungeon (7-10)", status:"done" },
   { s:3, id:"f28", label:"Special maneuvers", detail:"disarm, trip, shield-bash with cooldowns", status:"done" },
   { s:3, id:"f29", label:"Third spells at circle 5", detail:"all magic guilds gain a third spell", status:"done" },
-  { s:3, id:"f29b", label:"Fourth spells at circle 8", detail:"capstone-tier spell per magic guild (all 8 live)", status:"done" },
   { s:3, id:"f30", label:"Scaleable loot tables", detail:"loot value/drops scale with creature circle", status:"todo" },
-
-  // --- Stage 4
   { s:4, id:"f31", label:"Shops & bank & healer", detail:"buy/sell, deposit/withdraw, heal", status:"done" },
   { s:4, id:"f32", label:"Crier quests", detail:"pest-control quests with silver + exp rewards", status:"done" },
   { s:4, id:"f33", label:"Forage → consumables", detail:"herbs and potions found in the wild", status:"done" },
@@ -165,17 +155,13 @@ const FEATURES = [
   { s:4, id:"f37", label:"Named creatures & rare loot", detail:"Shadowpaw, Bandit Chieftain, Cinder Drake King", status:"done" },
   { s:4, id:"f38", label:"Economy balance", detail:"silver sinks vs. sources; training costs scale", status:"todo" },
   { s:4, id:"f39", label:"Item durability / repair", detail:"optional depth", status:"todo" },
-
-  // --- Stage 5
   { s:5, id:"f40", label:"TDP awards from rank-ups + circle bonus", detail:"mirrors source game: ranks in skills grant TDPs", status:"done" },
   { s:5, id:"f41", label:"Spend TDPs on stats", detail:"Fane of Training, train-twice (DR-authentic)", status:"done" },
   { s:5, id:"f42", label:"Spend TDPs on skills", detail:"'tdptrain <skill>' trains any skill", status:"done" },
-  { s:5, id:"f43", label:"Circle caps on skills", detail:"can't out-rank your circle too far", status:"todo" },
-  { s:5, id:"f44", label:"Circles 4–6 pacing", detail:"exp/training curves tuned", status:"todo" },
-  { s:5, id:"f45", label:"Circles 7–10 pacing", detail:"endgame curve + rewards", status:"todo" },
+  { s:5, id:"f43", label:"Circle caps on skills", detail:"can't out-rank your circle too far", status:"done" },
+  { s:5, id:"f44", label:"Circles 4–6 pacing", detail:"exp/training curves tuned", status:"partial" },
+  { s:5, id:"f45", label:"Circles 7–10 pacing", detail:"endgame curve + rewards", status:"partial" },
   { s:5, id:"f46", label:"Guild rank titles", detail:"flavor titles per circle for all guilds", status:"done" },
-
-  // --- Stage 6
   { s:6, id:"f47", label:"Aliases", detail:"'alias <name> <command>' expands, supports $1..$9, persisted", status:"done" },
   { s:6, id:"f48", label:"Multi-command strings", detail:"';'-separated commands", status:"done" },
   { s:6, id:"f49", label:"Macro bar", detail:"clickable buttons that fire commands (client)", status:"done" },
@@ -183,8 +169,6 @@ const FEATURES = [
   { s:6, id:"f51", label:"Triggers", detail:"'trigger <text> <command>' reacts to incoming text", status:"done" },
   { s:6, id:"f52", label:"Per-character scripts persisted", detail:"aliases stored server-side; full scripts pending", status:"done" },
   { s:6, id:"f53", label:"Script safety", detail:"rate limits; no server-state eval", status:"done" },
-
-  // --- Stage 7
   { s:7, id:"f54", label:"Clickable exits", detail:"room messages carry structured exits", status:"done" },
   { s:7, id:"f55", label:"Command history", detail:"up/down arrow recall", status:"done" },
   { s:7, id:"f56", label:"Themes", detail:"dark / parchment / terminal-green", status:"done" },
@@ -192,118 +176,99 @@ const FEATURES = [
   { s:7, id:"f58", label:"Custom color palette", detail:"text/accent/success/muted pickers", status:"done" },
   { s:7, id:"f59", label:"Auto-scroll toggle", detail:"scroll-lock pill; End returns to latest", status:"done" },
   { s:7, id:"f60", label:"Text styling per channel", detail:"room/combat/notice/error/echo styles", status:"done" },
-  { s:5, id:"f72", label:"Skill messaging tiers", detail:"Novice -> Avatar, 16 tiers in skills output", status:"done" },
-  { s:3, id:"f73", label:"TARGET verb + spell slots", detail:"target <creature>, slots budget display", status:"done" },
-  { s:3, id:"f74", label:"PvP/justice v1", detail:"duel end conditions, surrender, pvp stance flags, forced-open on theft", status:"done" },
-  { s:4, id:"f75", label:"Thief khri v1", detail:"concentration pool, 5 khri buffs, break on hit", status:"done" },
-  { s:4, id:"f76", label:"Guild leader tasks", detail:"ask <leader> task, guild-skill rewards", status:"done" },
-  { s:3, id:"f77", label:"Rested Experience", detail:"bank offline 2:1, 2x drain while active", status:"done" },
-  { s:3, id:"f78", label:"Moon Mage prediction", detail:"predict -> omen buff, astrology exp", status:"done" },
-  { s:3, id:"f79", label:"Warmage familiars", detail:"summon familiar, combat ally, summoning exp", status:"done" },
-  { s:4, id:"f80", label:"Justice loop", detail:"arrest, jail, plead guilty/innocent", status:"done" },
-  { s:4, id:"f81", label:"Empath wound-taking", detail:"mend <player>, empathic shock on living kills", status:"done" },
-  { s:4, id:"f82", label:"Paladin soul", detail:"smite, code of honor, undead restores soul", status:"done" },
-  { s:4, id:"f83", label:"Ranger companions + beseeches", detail:"wolf bonding, wind/sun buffs", status:"done" },
-  { s:4, id:"f84", label:"Necromancer risen v1", detail:"animate corpses into minions", status:"done" },
-  { s:4, id:"f85", label:"Cleric devotion v1", detail:"rituals, holy scaling, mana penalty", status:"done" },
-  { s:4, id:"f86", label:"Bard enchantes v1", detail:"cyclic songs with upkeep", status:"done" },
-  { s:4, id:"f87", label:"Trader commodity pits v1", detail:"fluctuating board, buy low/sell high", status:"done" },
-  { s:2, id:"f88", label:"Exp pools/pulses", detail:"70/30 field split, 30s pulses, mindstate from pool", status:"done" },
-  { s:4, id:"f89", label:"Riverhaven second city", detail:"square/market/temple/hall row/ferry, city choice", status:"done" },
-  { s:4, id:"f90", label:"Judge verdicts", detail:"heat-scaled fines on release", status:"done" },
-  { s:7, id:"f72", label:"Mobile layout", detail:"bottom-sheet dock, safe-area insets, thumb-reachable exits", status:"done" },
-  { s:7, id:"f73", label:"Scrollback search", detail:"Ctrl-F or /search, highlight + prev/next", status:"done" },
-  { s:7, id:"f74", label:"Tab completion", detail:"command dictionary + contextual args", status:"done" },
-  { s:7, id:"f75", label:"Status bar", detail:"HP/mana gauges, circle, silvers parsed from prompt", status:"done" },
-  { s:7, id:"f76", label:"Info panels", detail:"inventory/score/skills/spells docked panels", status:"done" },
-  { s:7, id:"f77", label:"Scripts panel", detail:"manage macros/timers/triggers in-dock", status:"done" },
-  { s:7, id:"f78", label:"Welcome screen", detail:"framed login + character select cards", status:"done" },
-
-  // --- Stage 8
-  { s:8, id:"f61", label:"On-screen D-pad", detail:"touch D-pad, sends go <dir>", status:"done" },
-  { s:8, id:"f62", label:"D-pad exit navigation", detail:"dpad moves through n/s/e/w/u", status:"done" },
-  { s:8, id:"f63", label:"Gamepad API support", detail:"dpad + face buttons mapped (browser controllers)", status:"done" },
-  { s:8, id:"f64", label:"D-pad combat actions", detail:"attack/cast/retreat shortcuts", status:"todo" },
-  { s:8, id:"f65", label:"Touch feedback", detail:"visual + haptic feedback on press", status:"todo" },
-
-  // --- Stage 9
-  { s:9, id:"f66", label:"All guilds reach circle 10", detail:"verified per-guild requirement matrix + simulator", status:"done" },
-  { s:9, id:"f67", label:"Creature economy tuned 1→10", detail:"sim: all 11 guilds reach circle 10 in 4–12 sim-minutes", status:"done" },
-  { s:9, id:"f68", label:"Endgame gear", detail:"circle-10 equipment for every build", status:"done" },
-  { s:9, id:"f69", label:"Guild capstone rewards", detail:"circle-10 signature passive per guild (all 11)", status:"done" },
-  { s:9, id:"f70", label:"Playtest balance pass", detail:"exp curves, training costs, quest rewards", status:"todo" },
-  { s:9, id:"f71", label:"Achievements / leaderboard", detail:"optional polish", status:"todo" },
-
-  // --- Stage 10 — Barbarian Fidelity (see ROADMAP.md Pillar 11)
-  { s:10, id:"f72", label:"Inner Fire resource", detail:"mana type none; combat regen to 100%, passive cap ~30% at c1 growing with skill, kill-recharge, ranked skill trains in battle", status:"partial" },
-  { s:10, id:"f73", label:"Ability slots at tertiary rate", detail:"1 slot at circle 1, +1 every even circle; learn at hall with path prereqs", status:"partial" },
-  { s:10, id:"f74", label:"Berserks", detail:"Berserk + Wildfire live: IF startup + pulsing upkeep, immediate activation, burns out at 0 IF", status:"partial" },
-  { s:10, id:"f75", label:"Forms", detail:"Dragon Form live: IF startup, 1/tick upkeep, duration expiry", status:"partial" },
-  { s:10, id:"f76", label:"Meditations", detail:"Tenacity live: large IF startup, no upkeep, duration expiry", status:"partial" },
-  { s:10, id:"f77", label:"Roars + Voice Pool", detail:"voice pool live with regen; Everild Rage + Screech; single-target targeting", status:"partial" },
-  { s:10, id:"f78", label:"Masteries + Pit Masters", detail:"Duelist live (passive cap +25); Pit Master NPC + more masteries pending", status:"partial" },
-  { s:10, id:"f79", label:"Ability paths", detail:"Flame / Horde / Predator prereqs live in learn; full trees pending", status:"partial" },
-  { s:10, id:"f80", label:"Forgetting abilities", detail:"ask guild leader about forgetting <ability>; 1 per 30 days, slot refund", status:"partial" },
-  { s:10, id:"f81", label:"Whirlwind", detail:"live: circle 6 gate, IF cost, 30-tick cooldown, hits all engaged", status:"partial" },
-  { s:10, id:"f82", label:"War Stomp", detail:"live: circle 8 gate, IF cost, staggers all engaged", status:"partial" },
-  { s:10, id:"f83", label:"Choke", detail:"live: single-target grip halves foe damage for 5 ticks", status:"partial" },
-  { s:10, id:"f84", label:"Dual Load", detail:"live: learnable at circle 7, bow only, 2x ammo per shot, 1.5x damage", status:"partial" },
-  { s:10, id:"f85", label:"Magic Resistance", detail:"innate -40% damage from magic-weapon creatures; Serenity/Dispel/Mage's Lash pending", status:"partial" },
-  { s:10, id:"f86", label:"Bonus stance points", detail:"+1 stance point per 60 Defending ranks", status:"todo" },
-  { s:10, id:"f87", label:"Expertise + Barbarian combos", detail:"analyze flame/accuracy/damage live; 3-part combo advantage; ACM check reduction pending", status:"partial" },
-  { s:10, id:"f88", label:"Barbarian items", detail:"warhorn live (spawns beasts, 15-min timer); chakrel live (neck slot, cheaper meditations); warpaint/roar helms pending", status:"partial" },
-  { s:10, id:"f89", label:"Faithful circle requirements", detail:"Weapon primary / Survival+Armor secondary / Lore+Magic tertiary; real DR table (4 weapons, 2 armors, Evasion, 4 survival, Tactics + 2nd lore, Inner Fire + 2 supernatural)", status:"todo" },
-  { s:10, id:"f90", label:"Weaponsmithing affinity", detail:"3 free technique slots in the Weaponsmithing discipline (Forging)", status:"todo" },
-  { s:10, id:"f91", label:"Flavor verbs & registers", detail:"belch + barbarian handshake live; registers/titles pending", status:"partial" },
-
-  // --- Stage 11 — Cross-Guild Systems (ROADMAP.md Pillar 12)
-  { s:11, id:"f92", label:"Full DR skill set (~60 skills)", detail:"Empathy, Thanatology, Summoning, Tactics, Scholarship, Performance, Defending, Parry Ability, Offhand Weapon, Masteries, Inner Fire, Augmentation, Debilitation, Warding, Targeted Magic, Arcana, Sorcery, Outdoorsmanship, Thievery, Athletics, crafting", status:"partial" },
-  { s:11, id:"f93", label:"Mana-type system", detail:"Elemental (Bard, WM), Holy (Cleric, Paladin), Life (Empath, Ranger), Lunar (Moon Mage, Trader), Necromantic (Necro), none (Barbarian, Thief); cycles live with perceive/harness", status:"partial" },
-  { s:11, id:"f94", label:"Spell-slot progressions per guild", detail:"primary magic 89–91 slots @150; secondary 55–76; tertiary 60–61; free magical feats at circle 2", status:"todo" },
-  { s:11, id:"f95", label:"Nth-skill + hard/soft requirement engine", detail:"real DR circle tables; hard skills never count toward Nth; mastery skills excluded; Sorcery/Thievery exclusions; organic exp: all requirement skills (incl. steal, strongboxes, empathy, arcana)", status:"partial" },
-  { s:11, id:"f96", label:"Crafting skills + disciplines", detail:"Forging, Enchanting, Alchemy, Outfitting, Engineering with per-guild technique slots", status:"todo" },
-  { s:11, id:"f97", label:"Guild crafting affiliations", detail:"free technique slots per guild (e.g. Paladin 3× Armorsmithing, Empath 2× Remedies + 1× Cooking)", status:"todo" },
-  { s:11, id:"f98", label:"Stamina + burden pools", detail:"prerequisite for War Stomp, berserks, heavy gear", status:"todo" },
-  { s:11, id:"f99", label:"Magic techniques / patterns", detail:"magic techniques, analogous patterns, metaspells", status:"todo" },
-
-  // --- Stage 12 — Guild Fidelity (ROADMAP.md Pillars 13–22)
-  { s:12, id:"f100", label:"Bard fidelity", detail:"enchantes + Segue, 55-slot spell tree, Performance circle reqs, PRACTICE VOICE, BLUFF/Recall/Playact, Engineering affinity", status:"todo" },
-  { s:12, id:"f101", label:"Cleric fidelity", detail:"Align (39 Immortals), Devotion/favor, Communes, Infusion, Resurrection, Theurgy reqs, Enchanting affinity", status:"todo" },
-  { s:12, id:"f102", label:"Empath fidelity", detail:"Touch/Transfer wounds, empathic shock, Link/Manipulate/Shift, 5 spellbooks, Empathy reqs, Alchemy affinity", status:"todo" },
-  { s:12, id:"f103", label:"Moon Mage fidelity", detail:"moon-gated lunar mana, Prediction, Teleport/Moon Gate, astral travel, Astrology reqs, Enchanting affinity", status:"todo" },
-  { s:12, id:"f104", label:"Necromancer fidelity", detail:"Risen minions, Thanatology rituals, Outrage meters, States of Being, Slip, 77 slots, Alchemy+Carving affinity", status:"todo" },
-  { s:12, id:"f105", label:"Paladin fidelity", detail:"Code of Honor, soul system + Smite, Armor Proficiency, Lead/Protect/Glyphs, Conviction reqs, Armorsmithing affinity", status:"todo" },
-  { s:12, id:"f106", label:"Ranger fidelity", detail:"beseeches, animal companions, horse wrangling, Snipe, Dual Load, Instinct reqs, Tailoring affinity", status:"todo" },
-  { s:12, id:"f107", label:"Thief fidelity", detail:"khri system, Blindside, Ambush Moves, Passages, lockpick carving, urban bonus/reputation, Thievery reqs", status:"todo" },
-  { s:12, id:"f108", label:"Trader fidelity", detail:"caravans, commodity pits, Market Advantages, hirelings, Speculate, Trading reqs, Blacksmithing affinity", status:"todo" },
-  { s:12, id:"f109", label:"Warrior Mage fidelity", detail:"element charge + SUMMON WEAPON, Aethereal Pathways, familiars, 89-slot tree, Summoning reqs, Enchanting affinity", status:"todo" },
-
-  // --- Stage 13 — World & Systems Fidelity (ROADMAP.md Pillars 23–27)
-  { s:13, id:"f110", label:"Hunting ladders & world depth", detail:"creature levels with min/max teaching ranks, depth-tiered grounds, Crossing landmarks/inns/task-givers, Riverhaven alt start", status:"todo" },
-  { s:13, id:"f111", label:"Skill-system structure", detail:"Weapon 19 / Armor 7 / Magic 8+guild / Survival 10+guild / Lore 9+guild; mastery + guild skills; hard/soft/restricted", status:"todo" },
-  { s:13, id:"f112", label:"Learning model", detail:"field exp → pools → pulses, mindstate ladder, retention by skillset rate, 16 messaging tiers, rank cap 1750", status:"todo" },
-  { s:13, id:"f113", label:"Magic mechanics", detail:"mana spectrum + cycles, HARNESS/PERCEIVE, attunement pulses, cambrinth (charge/invoke/focus, type-lock, leakage), PREPARE/CAST model, spell types, backfire", status:"partial" },
-  { s:13, id:"f114", label:"Crafting system", detail:"5 skills × 3 disciplines, technique slots (13 general/careers/hobbies/3 guild), workflow, quality ladder, maker's marks", status:"todo" },
-  { s:13, id:"f115", label:"PvP & dueling fidelity", detail:"CHALLENGE end conditions + reasons, stance flagging (OPEN/GUARDED/CLOSED), forced-open triggers", status:"todo" },
-  { s:13, id:"f116", label:"Justice system", detail:"justice zones, crime list, arrest/jail/judge/debts, warrants, stocks, DEPART ITEM", status:"todo" },
-  { s:13, id:"f117", label:"Anti-abuse guardrails", detail:"no ganking/spawn-camping/preying on weaker players; REPORT for abuse", status:"todo" },
+  { s:5, id:"f61", label:"Skill messaging tiers", detail:"Novice -> Avatar, 16 tiers in skills output", status:"done" },
+  { s:3, id:"f62", label:"TARGET verb + spell slots", detail:"target <creature>, slots budget display", status:"done" },
+  { s:3, id:"f63", label:"PvP/justice v1", detail:"duel end conditions, surrender, pvp stance flags, forced-open on theft", status:"done" },
+  { s:4, id:"f64", label:"Thief khri v1", detail:"concentration pool, 5 khri buffs, break on hit", status:"done" },
+  { s:4, id:"f65", label:"Guild leader tasks", detail:"ask <leader> task, guild-skill rewards", status:"done" },
+  { s:3, id:"f66", label:"Rested Experience", detail:"bank offline 2:1, 2x drain while active", status:"done" },
+  { s:3, id:"f67", label:"Moon Mage prediction", detail:"predict -> omen buff, astrology exp", status:"done" },
+  { s:3, id:"f68", label:"Warmage familiars", detail:"summon familiar, combat ally, summoning exp", status:"done" },
+  { s:4, id:"f69", label:"Justice loop", detail:"arrest, jail, plead guilty/innocent", status:"done" },
+  { s:4, id:"f70", label:"Empath wound-taking", detail:"mend <player>, empathic shock on living kills", status:"done" },
+  { s:4, id:"f71", label:"Paladin soul", detail:"smite, code of honor, undead restores soul", status:"done" },
+  { s:4, id:"f72", label:"Ranger companions + beseeches", detail:"wolf bonding, wind/sun buffs", status:"done" },
+  { s:4, id:"f73", label:"Necromancer risen v1", detail:"animate corpses into minions", status:"done" },
+  { s:4, id:"f74", label:"Cleric devotion v1", detail:"rituals, holy scaling, mana penalty", status:"done" },
+  { s:4, id:"f75", label:"Bard enchantes v1", detail:"cyclic songs with upkeep", status:"done" },
+  { s:4, id:"f76", label:"Trader commodity pits v1", detail:"fluctuating board, buy low/sell high", status:"done" },
+  { s:2, id:"f77", label:"Exp pools/pulses", detail:"70/30 field split, 30s pulses, mindstate from pool", status:"done" },
+  { s:4, id:"f78", label:"Riverhaven second city", detail:"square/market/temple/hall row/ferry, city choice", status:"done" },
+  { s:4, id:"f79", label:"Judge verdicts", detail:"heat-scaled fines on release", status:"done" },
+  { s:7, id:"f80", label:"Mobile layout", detail:"bottom-sheet dock, safe-area insets, thumb-reachable exits", status:"done" },
+  { s:7, id:"f81", label:"Scrollback search", detail:"Ctrl-F or /search, highlight + prev/next", status:"done" },
+  { s:7, id:"f82", label:"Tab completion", detail:"command dictionary + contextual args", status:"done" },
+  { s:7, id:"f83", label:"Status bar", detail:"HP/mana gauges, circle, silvers parsed from prompt", status:"done" },
+  { s:7, id:"f84", label:"Info panels", detail:"inventory/score/skills/spells docked panels", status:"done" },
+  { s:7, id:"f85", label:"Scripts panel", detail:"manage macros/timers/triggers in-dock", status:"done" },
+  { s:7, id:"f86", label:"Welcome screen", detail:"framed login + character select cards", status:"done" },
+  { s:8, id:"f87", label:"On-screen D-pad", detail:"touch D-pad, sends go <dir>", status:"done" },
+  { s:8, id:"f88", label:"D-pad exit navigation", detail:"dpad moves through n/s/e/w/u", status:"done" },
+  { s:8, id:"f89", label:"Gamepad API support", detail:"dpad + face buttons mapped (browser controllers)", status:"done" },
+  { s:8, id:"f90", label:"D-pad combat actions", detail:"attack/cast/retreat shortcuts", status:"done" },
+  { s:8, id:"f91", label:"Touch feedback", detail:"visual + haptic feedback on press", status:"done" },
+  { s:9, id:"f92", label:"All guilds reach circle 10", detail:"verified per-guild requirement matrix + simulator", status:"done" },
+  { s:9, id:"f93", label:"Creature economy tuned 1→10", detail:"sim: all 11 guilds reach circle 10 in 4–12 sim-minutes", status:"done" },
+  { s:9, id:"f94", label:"Endgame gear", detail:"circle-10 equipment for every build", status:"done" },
+  { s:9, id:"f95", label:"Guild capstone rewards", detail:"circle-10 signature passive per guild (all 11)", status:"done" },
+  { s:9, id:"f96", label:"Playtest balance pass", detail:"exp curves, training costs, quest rewards", status:"todo" },
+  { s:9, id:"f97", label:"Achievements / leaderboard", detail:"optional polish", status:"todo" },
+  { s:10, id:"f98", label:"Inner Fire resource", detail:"mana type none; combat regen to 100%, passive cap ~30% at c1 growing with skill, kill-recharge, ranked skill trains in battle", status:"partial" },
+  { s:10, id:"f99", label:"Ability slots at tertiary rate", detail:"1 slot at circle 1, +1 every even circle; learn at hall with path prereqs", status:"partial" },
+  { s:10, id:"f100", label:"Berserks", detail:"Berserk + Wildfire live: IF startup + pulsing upkeep, immediate activation, burns out at 0 IF", status:"partial" },
+  { s:10, id:"f101", label:"Forms", detail:"Dragon Form live: IF startup, 1/tick upkeep, duration expiry", status:"partial" },
+  { s:10, id:"f102", label:"Meditations", detail:"Tenacity live: large IF startup, no upkeep, duration expiry", status:"partial" },
+  { s:10, id:"f103", label:"Roars + Voice Pool", detail:"voice pool live with regen; Everild Rage + Screech; single-target targeting", status:"partial" },
+  { s:10, id:"f104", label:"Masteries + Pit Masters", detail:"Duelist live (passive cap +25); Pit Master NPC + more masteries pending", status:"partial" },
+  { s:10, id:"f105", label:"Ability paths", detail:"Flame / Horde / Predator prereqs live in learn; full trees pending", status:"partial" },
+  { s:10, id:"f106", label:"Forgetting abilities", detail:"ask guild leader about forgetting <ability>; 1 per 30 days, slot refund", status:"partial" },
+  { s:10, id:"f107", label:"Whirlwind", detail:"live: circle 6 gate, IF cost, 30-tick cooldown, hits all engaged", status:"partial" },
+  { s:10, id:"f108", label:"War Stomp", detail:"live: circle 8 gate, IF cost, staggers all engaged", status:"partial" },
+  { s:10, id:"f109", label:"Choke", detail:"live: single-target grip halves foe damage for 5 ticks", status:"partial" },
+  { s:10, id:"f110", label:"Dual Load", detail:"live: learnable at circle 7, bow only, 2x ammo per shot, 1.5x damage", status:"partial" },
+  { s:10, id:"f111", label:"Magic Resistance", detail:"innate -40% damage from magic-weapon creatures; Serenity/Dispel/Mage's Lash pending", status:"partial" },
+  { s:10, id:"f112", label:"Bonus stance points", detail:"+1 stance point per 60 Defending ranks (stance-points model live)", status:"done" },
+  { s:10, id:"f113", label:"Expertise + Barbarian combos", detail:"analyze flame/accuracy/damage live; 3-part combo advantage; ACM check reduction pending", status:"partial" },
+  { s:10, id:"f114", label:"Barbarian items", detail:"warhorn live (spawns beasts, 15-min timer); chakrel live (neck slot, cheaper meditations); warpaint/roar helms pending", status:"partial" },
+  { s:10, id:"f115", label:"Faithful circle requirements", detail:"authentic DR band table live in the engine (Weapon primary; Survival+Armor secondary; Lore+Magic tertiary)", status:"done" },
+  { s:10, id:"f116", label:"Weaponsmithing affinity", detail:"3 free technique slots in the Weaponsmithing discipline (Forging)", status:"todo" },
+  { s:10, id:"f117", label:"Flavor verbs & registers", detail:"belch + barbarian handshake live; registers/titles pending", status:"partial" },
+  { s:11, id:"f118", label:"Full DR skill set (~60 skills)", detail:"83 skills live: Empathy, Thanatology, Summoning, Tactics, Scholarship, Performance, Defending, Parry, Offhand, Masteries, Inner Fire, Augmentation, Debilitation, Warding, Targeted Magic, Arcana, Sorcery, Outdoorsmanship, Thievery, Athletics, crafting", status:"done" },
+  { s:11, id:"f119", label:"Mana-type system", detail:"Elemental (Bard, WM), Holy (Cleric, Paladin), Life (Empath, Ranger), Lunar (Moon Mage, Trader), Necromantic (Necro), none (Barbarian, Thief); cycles + perceive/harness + cambrinth live", status:"partial" },
+  { s:11, id:"f120", label:"Spell-slot progressions per guild", detail:"primary 89-91 @150, secondary 55-76, tertiary 60-61; slots display live; constrained learning + free feats pending", status:"partial" },
+  { s:11, id:"f121", label:"Nth-skill + hard/soft requirement engine", detail:"real DR circle tables; hard skills never count toward Nth; mastery skills excluded; Sorcery/Thievery exclusions; organic exp: all requirement skills (incl. steal, strongboxes, empathy, arcana)", status:"partial" },
+  { s:11, id:"f122", label:"Crafting skills + disciplines", detail:"alchemy + forging v1 live (ore -> quality steel); full disciplines + technique slots pending", status:"partial" },
+  { s:11, id:"f123", label:"Guild crafting affiliations", detail:"free technique slots per guild (e.g. Paladin 3× Armorsmithing, Empath 2× Remedies + 1× Cooking)", status:"todo" },
+  { s:11, id:"f124", label:"Stamina + burden pools", detail:"prerequisite for War Stomp, berserks, heavy gear", status:"todo" },
+  { s:11, id:"f125", label:"Magic techniques / patterns", detail:"magic techniques, analogous patterns, metaspells", status:"todo" },
+  { s:12, id:"f126", label:"Bard fidelity", detail:"enchantes v1 live; Segue, 55-slot spell tree, PRACTICE VOICE, BLUFF/Recall, Engineering affinity pending", status:"partial" },
+  { s:12, id:"f127", label:"Cleric fidelity", detail:"devotion v1 live; Align (39 Immortals), Communes, Infusion, Resurrection, Enchanting affinity pending", status:"partial" },
+  { s:12, id:"f128", label:"Empath fidelity", detail:"wound-taking v1 live (mend + empathic stain); Link/Shift, 5 spellbooks, Alchemy affinity pending", status:"partial" },
+  { s:12, id:"f129", label:"Moon Mage fidelity", detail:"prediction v1 live (omen); moon-gated mana partial, Teleport/Moon Gate, astral travel pending", status:"partial" },
+  { s:12, id:"f130", label:"Necromancer fidelity", detail:"risen minions v1 live; Thanatology rituals, Outrage meters, States of Being, Slip pending", status:"partial" },
+  { s:12, id:"f131", label:"Paladin fidelity", detail:"soul/smite/code-of-honor v1 live; Armor Proficiency, Lead/Protect/Glyphs, Armorsmithing affinity pending", status:"partial" },
+  { s:12, id:"f132", label:"Ranger fidelity", detail:"wolf companions + beseeches v1 live; horse wrangling, Snipe, Slip, Tailoring affinity pending", status:"partial" },
+  { s:12, id:"f133", label:"Thief fidelity", detail:"khri v1 live (5 khri); Blindside, Ambush Moves, Passages, lockpick carving, reputation pending", status:"partial" },
+  { s:12, id:"f134", label:"Trader fidelity", detail:"commodity pits v1 live; caravans, Market Advantages, hirelings, Speculate, Blacksmithing affinity pending", status:"partial" },
+  { s:12, id:"f135", label:"Warrior Mage fidelity", detail:"familiars v1 live; element charge + SUMMON WEAPON, Aethereal Pathways, 89-slot tree pending", status:"partial" },
+  { s:13, id:"f136", label:"Hunting ladders & world depth", detail:"teaching bands + Riverhaven live; province/city/type ladders, depth-tiered grounds, Crossing landmarks pending", status:"partial" },
+  { s:13, id:"f137", label:"Skill-system structure", detail:"Weapon 19 / Armor 7 / Magic 8+guild / Survival 10+guild / Lore 9+guild; mastery + 11 guild skills; hard/soft semantics live", status:"done" },
+  { s:13, id:"f138", label:"Learning model", detail:"field pools + 30s pulses live; mindstate ladder; 16 messaging tiers; REXP; 10-group offsets + retention rates pending", status:"partial" },
+  { s:13, id:"f139", label:"Magic mechanics", detail:"six mana types + cycles, HARNESS/PERCEIVE, cambrinth, PREPARE/CAST + TARGET, overchannel backfire live; spell types/patterns/tiers pending", status:"partial" },
+  { s:13, id:"f140", label:"Crafting system", detail:"quality ladder + damage scaling v1 live; disciplines, technique slots, maker marks pending", status:"partial" },
+  { s:13, id:"f141", label:"PvP & dueling fidelity", detail:"duel end conditions (blood/blow/pain), surrender, stance flags, forced-open on theft live; reasons/zones/warrants pending", status:"partial" },
+  { s:13, id:"f142", label:"Justice system", detail:"theft justice live (arrest, jail, PLEAD, judge costs); more crimes, debts, stocks pending", status:"partial" },
+  { s:13, id:"f143", label:"Anti-abuse guardrails", detail:"no ganking/spawn-camping/preying on weaker players; REPORT for abuse", status:"todo" },
+  { s:3, id:"f144", label:"Group / party system", detail:"form a party, share hunt credit (DR parties)", status:"todo" },
+  { s:4, id:"f145", label:"Bank vault", detail:"store items at the bank alongside silvers", status:"todo" },
+  { s:4, id:"f146", label:"Quest variety", detail:"delivery / recovery / skin quests + street task givers (DR)", status:"todo" },
+  { s:5, id:"f147", label:"Exp debt / locks", detail:"DR-style learning debt and lockout to temper grinding", status:"todo" },
+  { s:13, id:"f148", label:"Weather & seasons", detail:"affect mana cycles and the wilds (DR holy days/seasons)", status:"todo" },
 ];
 
-const GUILD_MATRIX = [
-  ["Barbarian","large_edged, twohanded_edged, twohanded_blunt, light_armor, fitness, evasion","blunt, thrown, perception, foraging"],
-  ["Bard","medium_edged, small_edged, light_armor, illusion, utility_magic, perception","attunement, appraisal, fitness, evasion"],
-  ["Cleric","blunt, medium_edged, chain_armor, holy_magic, theurgy, healing_magic","attunement, defensive_magic, fitness, shield_usage"],
-  ["Empath","blunt, small_edged, light_armor, healing_magic, attunement, evasion","first_aid, herbal_lore, fitness, utility_magic"],
-  ["Moon Mage","small_edged, medium_edged, light_armor, moon_magic, astrology, attunement","utility_magic, defensive_magic, perception, evasion"],
-  ["Necromancer","small_edged, blunt, chain_armor, necromancy, necromancy_lore, attunement","offensive_magic, utility_magic, perception, fitness"],
-  ["Paladin","large_edged, medium_edged, plate_armor, shield_usage, holy_magic, defensive_magic","attunement, fitness, parry, theurgy"],
-  ["Ranger","bow, large_edged, light_armor, tracking, foraging, evasion","medium_edged, fitness, swimming, climbing, perception"],
-  ["Thief","small_edged, medium_edged, light_armor, hiding, stealth, evasion","lockpicking, perception, appraisal, brawling"],
-  ["Trader","small_edged, blunt, light_armor, appraisal, perception, brawling","fitness, evasion, foraging, utility_magic"],
-  ["Warrior Mage","medium_edged, blunt, chain_armor, war_magic, offensive_magic, attunement","elemental_lore, defensive_magic, fitness, evasion"],
-];
+const GUILD_BANDS = {"barbarian":"expertise 4; inner_fire 1; 5th survival 1; parry 4; 1st weapon 4; 2nd weapon 4; 3rd weapon 2; 4th weapon 1; 1st armor 3; 2nd armor 1; evasion 3; 1st survival 2; 2nd survival 2; 3rd survival 2; 4th survival 1; tactics 1; 1st lore 2","bard":"1st armor 2; parry 2; 1st weapon 3; 2nd weapon 2; performance 4; tactics 2; 1st lore 3; 2nd lore 3; 3rd lore 2; 1st magic 3; 2nd magic 2; 3rd magic 2; 4th magic 1; 1st survival 1; 2nd survival 1; 3rd survival 1; 4th survival 1","cleric":"shield_usage 1; 1st armor 2; parry 2; 1st weapon 3; 1st lore 2; 2nd lore 2; 3rd lore 1; theurgy 3; attunement 2; 1st magic 4; 2nd magic 4; 3rd magic 3; 1st survival 1; 2nd survival 1; 3rd survival 1; 4th survival 1","empath":"empathy 4; scholarship 3; 1st lore 3; 2nd lore 2; 3rd lore 2; first_aid 2; foraging 1; 1st magic 3; 2nd magic 2; 3rd magic 2; 1st survival 1; 2nd survival 1; 3rd survival 1","moonmage":"scholarship 3; 1st lore 2; 2nd lore 2; 3rd lore 1; astrology 3; 1st magic 4; 2nd magic 4; 3rd magic 3; 4th magic 2; 1st survival 2; 2nd survival 2; 3rd survival 2; 4th survival 2","necromancer":"thanatology 3; 1st survival 4; 2nd survival 4; 3rd survival 3; 4th survival 3; 5th survival 3; 6th survival 3; 7th survival 2; targeted_magic 2; 1st magic 3; 2nd magic 3; 3rd magic 2; 4th magic 2; 1st lore 2; 2nd lore 2; small_edged 1; 1st armor 1","paladin":"conviction 3; defending 3; shield_usage 2; 1st armor 4; 2nd armor 2; parry 3; 1st weapon 3; tactics 1; scholarship 1; 1st lore 2; 2nd lore 1; 3rd lore 1; 1st magic 1; 2nd magic 1; 3rd magic 1; evasion 2; 1st survival 1; 2nd survival 1; 3rd survival 1; 4th survival 1","ranger":"1st survival 4; 2nd survival 4; 3rd survival 3; 4th survival 3; 5th survival 3; 6th survival 2; 7th survival 2; 8th survival 2; 1st weapon 3; 2nd weapon 1; parry 2; 1st armor 2; defending 1; 1st magic 1; 2nd magic 1; 3rd magic 1; 1st lore 1","thief":"thievery 2; stealth 2; 1st survival 4; 2nd survival 4; 3rd survival 3; 4th survival 3; 5th survival 3; 6th survival 2; 7th survival 2; 8th survival 1; 1st weapon 3; 2nd weapon 1; parry 1; 1st armor 2; 1st lore 1; 2nd lore 1; 3rd lore 1; 2nd lore 2","trader":"1st armor 2; 2nd armor 1; 1st weapon 1; trading 4; appraisal 3; 1st lore 3; 2nd lore 2; 3rd lore 2; 1st survival 3; 2nd survival 2; 3rd survival 2; 4th survival 1; 5th survival 1; 6th survival 1","warmage":"summoning 3; targeted_magic 4; 1st magic 4; 2nd magic 4; 3rd magic 3; parry 2; 1st weapon 3; scholarship 1; 1st lore 2; 2nd lore 2; 3rd lore 1; defending 1; 1st armor 2; 1st survival 1; 2nd survival 1; 3rd survival 1; 4th survival 1"};
 
-const LS_KEY = "dr_roadmap_v1";
+const LS_KEY = "dr_roadmap_v2";
 const saved = (() => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } })();
 
 function state(id) { return saved[id] !== undefined ? saved[id] : (FEATURES.find(f => f.id === id)?.status === "done"); }
@@ -353,14 +318,18 @@ function render() {
     main.appendChild(details);
   }
 
-  // Guild matrix
+  // Guild band matrix (live from the circle engine)
   const matrix = document.createElement("div");
   matrix.className = "matrix";
+  const bandRows = Object.entries(GUILD_BANDS).map(([gid, bands]) =>
+    `<tr><td><b>${gid[0].toUpperCase() + gid.slice(1)}</b></td><td>${bands}</td></tr>`
+  ).join("");
   matrix.innerHTML = `
-    <h2>Circle-10 Requirement Matrix</h2>
+    <h2>Circle-10 Band Requirement Matrix</h2>
+    <p class="sub">Each guild’s authentic DR band table as implemented in the live engine (named skills + Nth-of-skillset pools, 1–10 bands scaled per circle). * = hard requirement.</p>
     <table>
-      <tr><th>Guild</th><th>Primary ≥ 10</th><th>Secondary ≥ 8</th></tr>
-      ${GUILD_MATRIX.map(r => `<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join("")}
+      <tr><th>Guild</th><th>Circle-10 band requirements</th></tr>
+      ${bandRows}
     </table>`;
   main.appendChild(matrix);
 

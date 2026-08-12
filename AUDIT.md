@@ -300,3 +300,13 @@ alongside the circle engine.**
 | Riverhaven (second starting city) | ✅ square/market/shrine/shared hall row/ferry; chargen city choice |
 | Justice judge verdicts | ✅ heat-scaled costs on release after pleading innocent |
 | DR 10-group pulse offsets, provinces, full crimes+debts | ⬜ roadmap |
+
+**Revision 9 — tracker (public/ROADMAP.html) deep audit:**
+
+| Issue | Fix |
+|---|---|
+| **19 duplicate feature ids** (f72–f90 reused across stages) — `state()` used `find` so toggling one feature flipped every feature sharing the id, corrupting saved state and counts | Renumbered all 148 features with unique ids; bumped the localStorage key to v2 so stale saved state can't collide |
+| **Stale circle matrix** — showed the retired primary ≥10/secondary ≥8 model | Replaced with the live band-table matrix, generated from `data/guilds.js` CIRCLE_TABLES (named + Nth skillsets, 1–10 bands, hard-flag marked) |
+| **Stale statuses** — circle caps, stance points, faithful circle tables, dpad combat actions, touch feedback, guild v1s (stage 12), skill-structure/learning-model rows all marked todo though live | Corrected to done/partial with accurate details (27 overrides, 22 detail rewrites) |
+| **Missing DR features** | Added: group/party system, bank vault, quest variety (delivery/recovery/skins), exp debt/locks, weather & seasons |
+| Net state | 148 features: 93 done, 39 partial, 16 todo — the remaining todos are the genuine deep-tree backlog |
