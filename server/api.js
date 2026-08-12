@@ -5,7 +5,6 @@
 import { registerAccount, loginAccount, validateSession, logoutSession } from './auth.js';
 import { createCharacter, loadPlayer, addItem, MAX_CHARS } from './player.js';
 import { raceById } from '../data/races.js';
-import { guildById } from '../data/guilds.js';
 import { roomById } from '../data/world.js';
 import { db } from './db.js';
 import { handleCommand } from './commands/index.js';

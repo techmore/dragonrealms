@@ -2,7 +2,7 @@
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { migrate, db, closeDb } from './db.js';
+import { migrate, closeDb } from './db.js';
 import { Game } from './game.js';
 import { attachWebSocket } from './session.js';
 import { apiRequest } from './api.js';

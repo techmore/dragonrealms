@@ -1,7 +1,6 @@
 // Async immersive combat engine.
 // Combats resolve on a server-side ticker; players issue commands between ticks
 // (attack, cast, retreat, berserk, backstab) and read the running narrative.
-import { creatureById } from '../data/creatures.js';
 import { roomById } from '../data/world.js';
 import { SKILLS, CATEGORIES } from '../data/skills.js';
 import {

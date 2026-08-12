@@ -159,26 +159,33 @@ testing and analysis — see `docs/api.md`.
 ## Commands
 
 ```
-Movement:  n s e w ne nw se sw u d | go <dir> | look [dir]
-Combat:    attack <creature> | cast [spell] [target] | retreat | skin <creature>
+Movement:  n s e w ne nw se sw u d | go <dir> | look [dir] | look <npc/item>
+Combat:    attack <creature> | target <creature> | cast [spell] [target] | retreat/flee | skin <creature>
 Maneuvers: disarm <target> | trip <target> | bash <target>  (shield required)
-PvP:       duel <player> | accept/decline <player>  (wilds only)
+PvP:       duel <player> [blood|blow|pain] | accept/decline <player> | surrender | pvp stance open|guarded|closed  (wilds only)
 Stances:   stance aggressive | defensive | guarded | balanced
-Magic:     spells | cast heal/flee spells outside combat
-Powers:    berserk (Barbarian) | backstab (Thief)
-Items:     get/drop <item> | inventory | wear/wield <item> | remove <item> | use <item>
+Magic:     spells | slots | prepare <spell> [pct] | cast | perceive | harness | charge/invoke/focus <cambrinth>
+Powers:    berserk | abilities | learn <ability> | form/roar/meditate <ability> | whirlwind | stomp | choke | analyze (Barbarian)
+           backstab (Thief) | khri <name> (Thief) | smite (Paladin) | beseech wind|sun (Ranger) | mend <player> (Empath)
+           predict (Moon Mage) | summon familiar / familiar / dismiss familiar (Warrior Mage)
+           animate <corpse> / risen (Necromancer) | enchante war|bravery|regen / enchant off (Bard) | devotion (Cleric)
+Companions: companion | call | release (Ranger)  |  pray (soul, Paladin)
+Items:     get/drop <item> | get <item> from corpse | inventory | wear/wield <item> | remove <item> | use/eat/drink <item> | search <corpse>
 Death:     die -> temple; gear stays on your corpse (search <corpse>, get <item> from corpse)
-Shops:     list | buy <item> [qty] | sell <item> [qty] | deposit/withdraw <silvers>
-Training:  train <skill> (silvers, at your guild hall) | circle
+Shops:     list | buy <item> [qty] | sell <item> [qty] | deposit/withdraw <silvers> | pit (commodities) | heal
+Training:  train <skill> (silvers, at your guild hall) | train <stat> twice (Fane of Training) | circle
 TDPs:      tdp | raise <stat> | tdptrain <skill>
-Quests:    quest | claim
-Crafting:  craft <recipe>  (at the Tilted Retort)
+Quests:    quest | claim | ask <leader> task
+Crafting:  craft <recipe> (Tilted Retort) | forge <recipe> (Ember Forge)
+Wilds:     forage | hunt | track | ladder | hide | ambush <creature> | rest | wake | study | perform/sing | appraise <item>
+Crime:     steal <npc> | pick <strongbox> | plead guilty|innocent  (jail)
 Scripting: alias <name> <command> | use ";" to chain | client: macro / timer / trigger
 NPCs:      ask <npc> <topic> (try "ask crier help")
-Character: score | skills | exp | alloc <stat> <amount>
-Social:    say | emote | shout | who | time
+Character: score | skills | exp | alloc <stat> <amount> | rexp
+Social:    say | emote | shout | who | time | belch | shakehand
 Misc:      help | save | quit | deletechar <name>
 ```
+
 
 ## Layout
 

@@ -2,7 +2,7 @@
 // markdown so the audit and fidelity passes can be searched offline.
 // Usage: node scripts/fetch-elanthipedia.mjs [Category ...] [Page ...]
 // Default categories: Skills Guilds Spells Combat Statistics
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
