@@ -7,7 +7,8 @@ import { roomById } from '../data/world.js';
 import { SKILLS, CATEGORIES } from '../data/skills.js';
 import {
   weaponOf, skillRank, effectiveRank, totalArmor, gainSkillExp, defenseSkillOf,
-  countItems, removeItem, addItem, totalBurden, maxStaminaEff, MASTERY_SETS,
+  countItems, removeItem, addItem, totalBurden, maxStaminaEff, conditionMult,
+  wearCondition, MASTERY_SETS,
 } from './player.js';
 import { itemById } from '../data/items.js';
 
@@ -170,6 +171,9 @@ export class Combat {
       dmg = rand(w.dmg[0], w.dmg[1]) + Math.floor(this.player.stats.str * 0.12);
       const forged = this.player.forgedQuality && this.player.forgedQuality[w.id];
       if (forged) dmg = Math.floor(dmg * forged);
+      // A worn blade bites less (durability).
+      dmg = Math.floor(dmg * conditionMult(w));
+      wearCondition(this.player, 'hand', 0.012);
     } else {
       dmg = rand(2, 5) + Math.floor(this.player.stats.str * 0.1);
     }
@@ -368,7 +372,10 @@ export class Combat {
       if (controller.berserk === true) dmg = Math.floor(dmg * 1.5);
       gainSkillExp(controller, e.def.weapon.skill, 8);
     }
-    const armor = totalArmor(this.player);
+    // Armor is condition-scaled: worn gear guards less (durability).
+    const armor = Object.entries(this.player.equipment)
+      .filter(([, piece]) => piece.type === 'armor')
+      .reduce((tot, [, piece]) => tot + Math.floor(piece.armor * conditionMult(piece)), 0);
     // Glyph of Faith: the ward stiffens what you wear while it holds.
     const effArmor = this.player.buffs && this.player.buffs.glyph_ward > 0 ? Math.floor(armor * 1.1) : armor;
     dmg = Math.max(1, Math.floor(dmg * (1 - effArmor / (effArmor + 80))));
@@ -417,8 +424,10 @@ export class Combat {
     gainSkillExp(this.player, 'fitness', 6);
     gainSkillExp(this.player, 'defending', Math.floor(e.def.circle * 3));
     gainSkillExp(this.player, 'parry', Math.floor(e.def.circle * 3));
-    for (const piece of Object.values(this.player.equipment)) {
+    // Armor takes wear with every blow that lands (durability).
+    for (const [slot, piece] of Object.entries(this.player.equipment)) {
       if (piece.type === 'armor') {
+        wearCondition(this.player, slot, 0.01);
         gainSkillExp(this.player, piece.skill, Math.floor(e.def.circle * 3 + piece.armor / 8));
       }
     }
