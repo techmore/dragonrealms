@@ -107,6 +107,17 @@ testing and analysis — see `docs/api.md`.
 - **Ranger companions & beseeches** — slay a wolf and its spirit may bond as
   a combat companion; `beseech wind` quickens you, `beseech sun` mends you
   (the wilds grow wary of overuse).
+- **Necromancer risen** — `animate <creature>` raises a corpse you have
+  felled as a shambling minion that fights alongside (Thanatology).
+- **Cleric devotion** — `pray` at the temple deepens devotion (cap 100);
+  holy magic burns brighter with it and dims without it (higher mana cost
+  below 20). `devotion` reads your faith.
+- **Bard enchantes** — `enchant war|bravery|regen` starts a cyclic song
+  with mana upkeep: war marches (+damage), bravery wards (+defense), and
+  renewal mends you as you fight. One at a time; `enchant off` ends it.
+- **Trader commodity pits** — at the Grain Pit (west of Market Way) the
+  board fluctuates every hour: `pit` reads prices, buy low and sell high
+  (`buy grain 10` / `sell silk 5`); traders earn a bonus on sells.
 - **Justice** — theft near a guard can land you in the Town Cells:
   `plead guilty` (fine) or `plead innocent` (serve the sentence).
 - **Dungeons & rares** — the Cinder Cavern (circle 5–7) lies under the bandit

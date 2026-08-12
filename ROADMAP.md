@@ -245,7 +245,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| Enchantes: cyclic area-affecting songs + Segue (swap cyclics without prep) | ⬜ |
+| Enchantes: cyclic songs (war / bravery / regen) with mana upkeep, one at a time | 🚧 v1 live; Segue + true area effect pending |
 | Spell tree: 55 slots to master (76 @150); free feat Raw Channeling at circle 2 | ⬜ |
 | Performance-centric circle table (1–10): Performance 4 hard, Tactics 2, Parry Ability 2, 1st/2nd weapon 3/2, 1st armor 2, 1st–3rd lore 3/3/2, 1st–4th magic 3/2/2/1, 1st–4th survival 1/1/1/1 | ⬜ |
 | Vocals & instruments: PRACTICE VOICE <range>, percussion/string/wind disciplines, inspirational state | ⬜ |
@@ -259,7 +259,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Feature | Status |
 |---|---|
 | Align: choose one of 39 Immortals — +2 of five magic skills, −3 others | ⬜ |
-| Devotion: ritual sequences earn divine favor; high favor boosts magic, neglect fades abilities | ⬜ |
+| Devotion: `pray` rituals deepen it; holy damage scales with devotion; dim devotion costs more mana | 🚧 v1 live; ritual sequences/communes pending |
 | Communes (gods, favor-spending), Infusion (Attunement-powered matrices), Resurrection ritual | ⬜ |
 | Faithful circle table (1–10): Theurgy 3 hard, Attunement 2 soft, Shield Usage 1 hard, Parry Ability 2, 1st/2nd weapon 3/0, 1st armor 2, 1st–4th lore 2/2/1/0, 1st–5th magic 4/4/3/0/0, 1st–4th survival 1/1/1/1 | ⬜ |
 | Holy quests, visions, altar network, undead-fearing presence | ⬜ |
@@ -297,7 +297,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| Risen: undead minions — temporary via Call from Beyond, permanent via Creation ritual | ⬜ |
+| Risen: `animate` corpses into fighting minions (thanatology), dismiss | 🚧 v1 live; Call/Creation rituals + states pending |
 | States of Being (Unsullied/Forsaken/Redeemed/Lichdom) + Divine/Social Outrage meters, drain-time limits | ⬜ |
 | 5 spellbooks + Anabasis (Holy sorcery); 77 slots @150; free feat Alternate Preparation | ⬜ |
 | Thanatology rituals (Arise, Butchery, Consume, Dissection, Preserve…), Slip 30–70 (stealth) | ⬜ |
@@ -351,7 +351,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Feature | Status |
 |---|---|
 | Caravan system: RENT caravan, TELL to LEAD/SPOOK, TIE (corpse hauling), RECALL, crates; pack animals | ⬜ |
-| Commodity trading pits (speculate on price fluctuations), Market Advantages (better buy/sell, Charisma boosts), gem pouches, fur crates, Trader Markets (20), Auction Halls (30) | ⬜ |
+| Commodity trading pits: fluctuating board, buy low / sell high, Trader bonus | 🚧 v1 live; market advantages/gem pouches/auctions pending |
 | Hirelings (attendant/crier/messenger/delivery at 8), Speculate Coin (12), Chaffer (45), tessera remote spell learning | ⬜ |
 | Starlight Aura confound; lunar spellbooks Fabrication / Illusion / Noematics | ⬜ |
 | Faithful circle table (1–10): Trading 4 hard, Appraisal 3 hard, 1st weapon 1, 1st/2nd armor 2/1, 1st–3rd lore 3/2/2, 1st–6th survival 3/2/2/1/1/1 | ⬜ |

@@ -168,6 +168,7 @@ export class Combat {
     else if (stance === 'defensive' || stance === 'guarded') dmg = Math.floor(dmg * 0.85);
     if (this.player.buffs && this.player.buffs.frenzy > 0) dmg = Math.floor(dmg * 1.3);
     if (this.player.khri && this.player.khri.strike > 0) dmg = Math.floor(dmg * 1.25);
+    if (this.player.cyclic && this.player.cyclic.song === 'war' && this.player.cyclic.ticks > 0) dmg = Math.floor(dmg * 1.1);
     if (capstoneActive(this.player, 'necromancer')) {
       const steal = Math.max(1, Math.floor(dmg * 0.1));
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + steal);
@@ -280,6 +281,7 @@ export class Combat {
     if (this.player.buffs && this.player.buffs.shadow > 0) def = Math.floor(def * 1.15);
     if (this.player.buffs && this.player.buffs.omen > 0) def = Math.floor(def * 1.1);
     if (this.player.khri && this.player.khri.elusion > 0) def = Math.floor(def * 1.2);
+    if (this.player.cyclic && this.player.cyclic.song === 'bravery' && this.player.cyclic.ticks > 0) def = Math.floor(def * 1.1);
     if (capstoneActive(this.player, 'ranger') && this.game && this.game.isWild(this.player.room)) def = Math.floor(def * 1.2);
     const hit = Math.random() < clamp(0.45 + (atk - def) * 0.012, 0.15, 0.95);
 
@@ -418,7 +420,11 @@ export class Combat {
   // --- Spells ---
   cast(spell, targetUid, mult = 1) {
     const p = this.player;
-    const cost = Math.ceil(spell.mana * mult);
+    let cost = Math.ceil(spell.mana * mult);
+    // Dim devotion makes holy magic thirstier.
+    if (p.guild.id === 'cleric' && spell.skill === 'holy_magic' && (p.devotion ?? 30) < 20) {
+      cost = Math.ceil(cost * 1.25);
+    }
     if (p.mana < cost) { this.say('You do not have enough mana.'); return; }
     p.mana -= cost;
     const skill = effectiveRank(p, spell.skill);
@@ -483,6 +489,10 @@ export class Combat {
       case 'damage': {
         let dmg = Math.round((rand(4, 6) + Math.floor(power * 0.9) + spell.base + p.circle * 2) * mult) + heldBonus;
         if (capstoneActive(p, 'cleric') || capstoneActive(p, 'warmage')) dmg = Math.floor(dmg * 1.3);
+        // Cleric devotion scales holy magic (neglect dims it).
+        if (p.guild.id === 'cleric' && spell.skill === 'holy_magic') {
+          dmg = Math.floor(dmg * (0.8 + (p.devotion ?? 30) / 100));
+        }
         this.say(`You cast ${spell.name}! ${cap(target.def.name)} is engulfed for ${dmg} damage!`);
         if (capstoneActive(p, 'necromancer')) {
           const steal = Math.max(1, Math.floor(dmg * 0.1));
@@ -863,23 +873,44 @@ export class Combat {
       this.player.buffs.sun -= 1;
       if (this.player.hp < this.player.maxHp) this.player.hp = Math.min(this.player.maxHp, this.player.hp + 2);
     }
+    // Bard enchante: upkeep + renewal.
+    const cyc = this.player.cyclic;
+    if (cyc && cyc.ticks > 0) {
+      cyc.tickCount = (cyc.tickCount || 0) + 1;
+      cyc.ticks -= 1;
+      if (cyc.tickCount % 10 === 0) {
+        if (this.player.mana < cyc.upkeep) {
+          this.player.cyclic = null;
+          this.say('Your enchante falters — the song dies for lack of mana.');
+        } else {
+          this.player.mana -= cyc.upkeep;
+        }
+      }
+      if (cyc.song === 'regen' && this.player.hp < this.player.maxHp) {
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + 2);
+      }
+    }
     if (this.player.khri) {
       for (const k of Object.keys(this.player.khri)) {
         if (this.player.khri[k] > 0) this.player.khri[k] -= 1;
       }
     }
-    // A bound familiar or companion fights alongside every few beats.
-    const ally = this.player.familiar || this.player.companion;
+    // A bound familiar, companion, or risen minion fights alongside.
+    const ally = this.player.familiar || this.player.companion || this.player.risen;
     if (ally && ally.alive && this.aliveEnemies.length) {
       this._famTick = (this._famTick || 0) + 1;
       if (this._famTick % 3 === 0) {
         const target = this.aliveEnemies[0];
-        const allySkill = this.player.familiar ? skillRank(this.player, 'summoning') : skillRank(this.player, 'tracking');
+        let allySkill;
+        let skillId;
+        if (this.player.familiar) { allySkill = skillRank(this.player, 'summoning'); skillId = 'summoning'; }
+        else if (this.player.companion) { allySkill = skillRank(this.player, 'tracking'); skillId = 'tracking'; }
+        else { allySkill = skillRank(this.player, 'necromancy'); skillId = 'necromancy'; }
         const dmg = Math.max(1, 3 + this.player.circle * 2 + Math.floor(allySkill / 10));
         target.hp -= dmg;
         if (target.def.controller) target.def.controller.hp = Math.max(0, target.hp);
-        this.say(`Your ${this.player.familiar ? `familiar ${ally.name}` : `${ally.name}`} strikes ${target.def.name} for ${dmg} damage!`);
-        gainSkillExp(this.player, this.player.familiar ? 'summoning' : 'tracking', 2);
+        this.say(`Your ${this.player.familiar ? `familiar ${ally.name}` : ally.name} strikes ${target.def.name} for ${dmg} damage!`);
+        gainSkillExp(this.player, skillId, 2);
         if (target.hp <= 0) {
           if (target.def.controller) this.defenderDefeated();
           else this.killCreature(target);

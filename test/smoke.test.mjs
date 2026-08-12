@@ -2005,6 +2005,7 @@ test('paladin soul: smite burns it, undead and prayer restore, low soul blocks c
   game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.wraith));
   handleCommand(game, p, 'attack wraith');
   combat = game.combat.getFor(p);
+  combat.aliveEnemies[0].hp = 1; // deterministic kill
   let guard = 0;
   while (game.combat.getFor(p) && guard++ < 400) combat.tick();
   assert.ok(p.soul > soulBefore, 'slaying undead restores the soul');
@@ -2062,6 +2063,127 @@ test('ranger: wolf companion bonds and fights; beseech buffs', async () => {
   p.beseechAt = 0; // bypass the cooldown for the second test
   handleCommand(game, p, 'beseech sun');
   assert.ok((p.buffs.sun || 0) > 0, 'sun buff active');
+
+  game.removePlayer(p);
+});
+
+test('necromancer: animate corpses into risen minions that fight', async () => {
+  const acc = await auth.registerAccount('Risen', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Boney', race: 'human', guild: 'necromancer' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  const { CREATURES } = await import('../data/creatures.js');
+  const { addItem } = await import('../server/player.js');
+  p.room = 'sewers_1';
+  p.circle = 4;
+  p.skills.small_edged = { rank: 15, exp: 0 };
+  addItem(p, 'dagger', 1);
+  handleCommand(game, p, 'wield dagger');
+  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.rat));
+  handleCommand(game, p, 'attack rat');
+  let combat = game.combat.getFor(p);
+  let guard = 0;
+  while (game.combat.getFor(p) && guard++ < 400) combat.tick();
+  assert.ok((p.corpses || []).length >= 1, 'corpse from the kill');
+
+  handleCommand(game, p, 'animate rat');
+  assert.ok(p.risen && p.risen.alive, 'risen raised');
+  assert.equal((p.corpses || []).length, 0, 'corpse consumed');
+
+  // The risen fights.
+  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.rat));
+  handleCommand(game, p, 'attack rat');
+  combat = game.combat.getFor(p);
+  guard = 0;
+  while (game.combat.getFor(p) && guard++ < 400) combat.tick();
+  const msgs = ws.msgs.filter((m) => m.t === 'combat').map((m) => m.msg).join(' ');
+  assert.match(msgs, /risen/, 'risen attacks in combat');
+
+  handleCommand(game, p, 'dismiss risen');
+  assert.equal(p.risen, null, 'dismissed');
+
+  game.removePlayer(p);
+});
+
+test('cleric devotion: rituals deepen it, holy magic scales', async () => {
+  const acc = await auth.registerAccount('Devout', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Faith', race: 'human', guild: 'cleric' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  assert.equal(p.devotion, 30, 'starts with steady devotion');
+  handleCommand(game, p, 'devotion');
+  assert.match(ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' '), /30\/100/, 'devotion reports');
+
+  p.room = 'temple';
+  handleCommand(game, p, 'pray');
+  assert.equal(p.devotion, 35, 'devotion ritual deepens faith');
+  assert.ok(p.skills.theurgy.exp > 0, 'ritual trains theurgy');
+
+  game.removePlayer(p);
+});
+
+test('bard enchantes: cyclic songs with mana upkeep', async () => {
+  const acc = await auth.registerAccount('Singer', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Lyric', race: 'human', guild: 'bard' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  handleCommand(game, p, 'enchant war');
+  assert.ok(p.cyclic && p.cyclic.song === 'war', 'war enchante active');
+  handleCommand(game, p, 'enchante');
+  assert.match(ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' '), /Enchante active/, 'status reads');
+
+  // Combat: upkeep drains mana and the song lifts damage.
+  const { CREATURES } = await import('../data/creatures.js');
+  p.room = 'sewers_1';
+  p.circle = 4;
+  p.skills.medium_edged = { rank: 15, exp: 0 };
+  const { addItem } = await import('../server/player.js');
+  addItem(p, 'short_sword', 1);
+  handleCommand(game, p, 'wield short_sword');
+  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.rat));
+  handleCommand(game, p, 'attack rat');
+  let combat = game.combat.getFor(p);
+  let guard = 0;
+  while (game.combat.getFor(p) && guard++ < 400) combat.tick();
+  assert.ok(p.mana < p.maxMana || !p.cyclic, 'upkeep drained mana');
+
+  handleCommand(game, p, 'enchant off');
+  assert.equal(p.cyclic, null, 'song ends');
+
+  game.removePlayer(p);
+});
+
+test('trader commodity pits: buy and sell on the board', async () => {
+  const acc = await auth.registerAccount('Pit', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Bull', race: 'human', guild: 'trader' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  p.room = 'commodity_pit';
+  handleCommand(game, p, 'pit');
+  const board = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
+  assert.match(board, /grain|wool|silk|spices/, 'board lists commodities');
+
+  p.silver = 1000;
+  handleCommand(game, p, 'buy grain 5');
+  assert.ok(p.commodities.grain.qty === 5, 'grain held');
+  const { commodityPrice } = await import('../data/commodities.js');
+  p.commodities.grain.avgCost = 1; // force a fat profit
+  handleCommand(game, p, 'sell grain 5');
+  assert.equal(p.commodities.grain, undefined, 'holdings cleared');
+  const sellMsgs = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).at(-1) || '';
+  assert.match(sellMsgs, /profit/, 'profit reported');
 
   game.removePlayer(p);
 });

@@ -80,6 +80,11 @@ export const NPCS = {
     desc: 'A tired man in a rusted breastplate, keys clinking at his belt.',
     greeting: 'Plead guilty and pay your fine, or plead innocent and wait for the judge. Either way, you\'ll think twice about thieving.',
   },
+  pit_master: {
+    id: 'pit_master', name: 'Sable, the pit master', role: 'craft',
+    desc: 'A razor-thin woman in grey, chalk in hand, watching the board with hungry eyes.',
+    greeting: 'The board moves every hour. Buy low, sell high, and don\'t blink. Say "pit" to read the prices.',
+  },
 
   // Guild leaders (trainers)
   leader_barbarian: { id: 'leader_barbarian', name: 'Warchief Ulfgar', role: 'guild', guild: 'barbarian', desc: 'A mountain of a man with a beard braided with trophies.', greeting: 'The wild calls to those with fury in their blood. Say "circle" when you are ready to advance.' },

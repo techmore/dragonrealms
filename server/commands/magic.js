@@ -178,10 +178,36 @@ export const commands = {
   familiar(ctx) { familiar(ctx); },
   dismiss(ctx) {
     const { p, arg1, emit } = ctx;
-    if (arg1 !== 'familiar') return emit('Usage: dismiss familiar');
-    if (!p.familiar) return emit('You have no familiar to dismiss.');
-    p.familiar = null;
-    emit('You release the aetherial thread. Your familiar fades into the air.');
+    if (arg1 === 'familiar' || arg1 === 'companion' || arg1 === 'risen') {
+      const slot = arg1 === 'familiar' ? 'familiar' : arg1 === 'companion' ? 'companion' : 'risen';
+      if (!p[slot]) return emit(`You have no ${slot} to dismiss.`);
+      p[slot] = null;
+      return emit(slot === 'risen' ? 'The risen shambles back into the earth.' : slot === 'companion' ? 'You release your companion back to the wild.' : 'You release the aetherial thread. Your familiar fades into the air.');
+    }
+    return emit('Usage: dismiss familiar | companion | risen');
+  },
+
+  animate(ctx) {
+    const { game, p, arg1, emit } = ctx;
+    if (p.guild.id !== 'necromancer') return emit('Only necromancers speak with the dead.');
+    if (p.risen) return emit(`Your risen, ${p.risen.name}, already serves you. Dismiss it first.`);
+    const corpse = (p.corpses || []).find((c) => c.def.name.replace(/^a /, '').split(' ')[0].includes((arg1 || '').toLowerCase()) || c.def.id === (arg1 || '').toLowerCase());
+    if (!corpse) return emit('There is no suitable corpse here. Slay something first.');
+    const def = corpse.def;
+    const hp = 20 + p.circle * 4 + def.circle * 5;
+    p.risen = {
+      name: `a risen ${def.name.replace(/^a /, '')}`,
+      hp, maxHp: hp, alive: true,
+    };
+    p.corpses = p.corpses.filter((c) => c !== corpse);
+    const leveled = gainSkillExp(p, 'thanatology', 10);
+    emit(`You trace cold sigils over ${def.name} and it rises, hollow-eyed, to serve.${leveled ? ' Your Thanatology improved!' : ''}`);
+  },
+  risen(ctx) {
+    const { p, emit } = ctx;
+    const r = p.risen;
+    if (!r) return emit('No risen servant walks at your side. Animate a corpse to raise one.');
+    emit(`Your risen, ${r.name}, ${r.alive ? `shambles beside you (${r.hp}/${r.maxHp})` : 'lies dormant.'}`);
   },
 
   mend(ctx) {
@@ -208,15 +234,49 @@ export const commands = {
   pray(ctx) {
     const { p, emit } = ctx;
     if (p.room !== 'temple' && p.room !== 'temple_row') return emit('You can pray at the Temple of the Pantheon.');
+    if (p.guild.id === 'cleric') {
+      if (p.devoteAt && Date.now() - p.devoteAt < 10 * 60 * 1000) {
+        const mins = Math.ceil((10 * 60 * 1000 - (Date.now() - p.devoteAt)) / 60000);
+        return emit(`Your devotion is still warm from the last ritual. Wait ${mins} min.`);
+      }
+      p.devoteAt = Date.now();
+      const gained = Math.min(5, 100 - (p.devotion ?? 30));
+      p.devotion = (p.devotion ?? 30) + gained;
+      gainSkillExp(p, 'theurgy', 8);
+      return emit(`You kneel and perform a quiet devotion. Your faith deepens (+${gained} devotion; ${p.devotion}/100).\nHigh devotion empowers your holy magic; neglect dims it.`);
+    }
     if (p.guild.id === 'paladin') {
       const gained = Math.min(2, 100 - (p.soul ?? 50));
       p.soul = (p.soul ?? 50) + gained;
       gainSkillExp(p, 'conviction', 4);
-      emit(`You kneel in the quiet and pray. Your soul brightens (+${gained}).`);
-    } else {
-      gainSkillExp(p, 'scholarship', 2);
-      emit('You kneel in the quiet and pray. A moment of peace steadies you.');
+      return emit(`You kneel in the quiet and pray. Your soul brightens (+${gained}).`);
     }
+    gainSkillExp(p, 'scholarship', 2);
+    emit('You kneel in the quiet and pray. A moment of peace steadies you.');
+  },
+  enchant(ctx) {
+    const { p, arg1, emit } = ctx;
+    if (p.guild.id !== 'bard') return emit('Only bards weave enchantes.');
+    if (!arg1 || arg1 === 'off' || arg1 === 'stop') {
+      p.cyclic = null;
+      return emit('The song fades from the air.');
+    }
+    const song = arg1.toLowerCase();
+    if (!['war', 'bravery', 'regen'].includes(song)) return emit('You know three enchantes: enchant war (fury), enchant bravery (ward), enchant regen (renewal).');
+    if (p.cyclic) return emit(`You are already singing an enchante. "enchant off" to end it.`);
+    const cost = song === 'regen' ? 5 : 4;
+    p.cyclic = { song, ticks: 60, tickCount: 0, upkeep: cost };
+    gainSkillExp(p, 'illusion', 6);
+    gainSkillExp(p, 'performance', 6);
+    emit(`You begin an enchante — ${song === 'war' ? 'a driving war march' : song === 'bravery' ? 'a steady ballad of bravery' : 'a gentle hymn of renewal'}. It costs ${cost} mana every few beats to sustain.`);
+  },
+  enchante(ctx) { /* alias */ const { p, emit } = ctx; const c = p.cyclic; emit(c ? `Enchante active: ${c.song} (${c.ticks} beats left)` : 'No enchante is playing.'); },
+  devotion(ctx) {
+    const { p, emit } = ctx;
+    if (p.guild.id !== 'cleric') return emit('Only clerics keep devotion.');
+    const d = p.devotion ?? 30;
+    const state = d >= 70 ? 'incandescent' : d >= 40 ? 'steady' : d >= 20 ? 'flickering' : 'dim';
+    emit(`Your devotion is ${d}/100 — ${state}. Devotions at the temple deepen it; holy magic burns brighter with it.`);
   },
 
   companion(ctx) { companion(ctx); },

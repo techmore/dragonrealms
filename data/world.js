@@ -27,8 +27,13 @@ export const ROOMS = {
   },
   market_way: {
     id: 'market_way', zone: 'town', name: 'Market Way', npcs: ['shopkeeper', 'weaponsmith', 'armorer'],
-    desc: 'A crowded market lane lined with stalls. Canvas awnings flap overhead while vendors hawk their wares. The scent of herbs and hot glass drifts from the east.',
-    exits: { s: 'square', n: 'market_end', e: 'brewery' },
+    desc: 'A crowded market lane lined with stalls. Canvas awnings flap overhead while vendors hawk their wares. The scent of herbs and hot glass drifts from the east; a shuttered pit hall stands to the west.',
+    exits: { s: 'square', n: 'market_end', e: 'brewery', w: 'commodity_pit' },
+  },
+  commodity_pit: {
+    id: 'commodity_pit', zone: 'town', name: 'The Grain Pit', npcs: ['pit_master'],
+    desc: 'A long hall of ledger counters and grain chutes. Slaves to the market scrawl prices on a great board as they change. Merchants whisper, gamble, and watch the board.',
+    exits: { e: 'market_way' },
   },
   brewery: {
     id: 'brewery', zone: 'town', name: 'The Tilted Retort', npcs: ['alchemist'],

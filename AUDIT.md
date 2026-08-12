@@ -280,3 +280,14 @@ alongside the circle engine.**
 | Ranger companions + beseeches v1 (Pillar 19) | ✅ wolf bonding, wind/sun buffs, overuse spurning |
 | Command refactor (parallel session) | ✅ commands.js split into server/commands/ modules; `plead` restored after the split dropped it; sim import path fixed |
 | Exp pool/pulse timing, Riverhaven, full crimes+judge, remaining guild passes | ⬜ roadmap |
+
+**Revision 7 — all guild fidelity pillars now have live v1s:**
+
+| Item | Status |
+|---|---|
+| Necromancer risen v1 (Pillar 17) | ✅ animate corpses → fighting minions |
+| Cleric devotion v1 (Pillar 14) | ✅ rituals, holy scaling, dim-devotion mana penalty |
+| Bard enchantes v1 (Pillar 13) | ✅ cyclic songs with upkeep |
+| Trader commodity pits v1 (Pillar 21) | ✅ fluctuating board, buy low/sell high |
+| 11/11 guilds now have a fidelity v1 (Barbarian, Thief, Warmage, Moon Mage, Empath, Paladin, Ranger, Necro, Cleric, Bard, Trader) | ✅ |
+| Exp pool/pulse timing, Riverhaven, full crimes+judge | ⬜ roadmap |

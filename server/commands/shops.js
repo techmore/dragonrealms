@@ -10,6 +10,11 @@ export const commands = {
     const { game, p, arg1, arg2, emit } = ctx;
     if (!arg1) return emit('Buy what?');
     const qty = parseInt(arg2, 10) || 1;
+    // At the pit, "buy <commodity> <qty>" trades on the board.
+    if (p.room === 'commodity_pit') {
+      const res = game.commodityTrade(p, 'buy', arg1, qty);
+      if (res.ok) return emit(res.msg);
+    }
     const res = game.buy(p, arg1, qty);
     emit(res.msg);
   },
@@ -18,8 +23,18 @@ export const commands = {
     const { game, p, arg1, arg2, emit } = ctx;
     if (!arg1) return emit('Sell what?');
     const qty = parseInt(arg2, 10) || 1;
+    if (p.room === 'commodity_pit') {
+      const res = game.commodityTrade(p, 'sell', arg1, qty);
+      if (res.ok) return emit(res.msg);
+    }
     const res = game.sell(p, arg1, qty);
     emit(res.msg);
+  },
+
+  pit(ctx) {
+    const { game, p, emit } = ctx;
+    if (p.room !== 'commodity_pit') return emit('The pit hall stands west of Market Way.');
+    emit(game.commodityBoard(p));
   },
 
   deposit(ctx) {

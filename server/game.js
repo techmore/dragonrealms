@@ -6,6 +6,7 @@ import { creatureById, RARES } from '../data/creatures.js';
 import { guildById } from '../data/guilds.js';
 import { ITEMS, itemById } from '../data/items.js';
 import { SKILLS } from '../data/skills.js';
+import { commodityPrice, commodityById, commodityHoldings } from '../data/commodities.js';
 import { bankRexp } from './player.js';
 import { manaRegenRate } from '../data/mana.js';
 import { VOICE_POOL } from '../data/abilities.js';
@@ -694,6 +695,49 @@ export class Game {
     return fromLeader
       ? { ok: true, msg: `Your guild leader nods. "Work well done." You pocket ${silver} silvers and your ${SKILLS[p.guild.guildSkill].name} sharpens.` }
       : { ok: true, msg: `The crier hands you ${silver} silvers. "Good hunting," he says with a grin.` };
+  }
+
+  // ---------- Commodity pits ----------
+  commodityBoard(p) {
+    const rows = [];
+    for (const id of ['grain', 'wool', 'silk', 'spices']) {
+      const price = commodityPrice(id);
+      const held = commodityHoldings(p)[id];
+      rows.push(`  ${pad(id, 8)} ${price} silvers/unit${held && held.qty ? `  (you hold ${held.qty} @ ~${Math.round(held.avgCost)})` : ''}`);
+    }
+    return `\nThe board flickers with the hour:\n${rows.join('\n')}\nBuy and sell with "buy <commodity> <qty>" and "sell <commodity> <qty>".`;
+  }
+
+  commodityTrade(p, side, name, qty) {
+    if (p.room !== 'commodity_pit') return { ok: false, msg: 'The board only moves at the Grain Pit, west of Market Way.' };
+    const def = commodityById(name);
+    if (!def) return { ok: false, msg: 'No such commodity. The pit trades grain, wool, silk, and spices.' };
+    qty = Math.max(1, Math.min(200, Math.floor(qty) || 1));
+    const price = commodityPrice(def.id);
+    const holdings = commodityHoldings(p);
+
+    if (side === 'buy') {
+      const cost = price * qty;
+      if (p.silver < cost) return { ok: false, msg: `That costs ${cost} silvers; you have ${p.silver}.` };
+      p.silver -= cost;
+      const cur = holdings[def.id] || { qty: 0, avgCost: 0 };
+      cur.avgCost = cur.qty ? (cur.avgCost * cur.qty + cost) / (cur.qty + qty) : price;
+      cur.qty += qty;
+      holdings[def.id] = cur;
+      gainSkillExp(p, 'trading', 6);
+      return { ok: true, msg: `You buy ${qty} unit(s) of ${def.name} at ${price} silvers each.` };
+    }
+
+    const cur = holdings[def.id];
+    if (!cur || cur.qty < qty) return { ok: false, msg: `You hold ${cur ? cur.qty : 0} unit(s) of ${def.name}.` };
+    const trader = p.guild.id === 'trader' ? 1.1 : 1;
+    const proceeds = Math.floor(price * qty * trader);
+    const profit = proceeds - Math.floor(cur.avgCost * qty);
+    cur.qty -= qty;
+    if (cur.qty <= 0) delete holdings[def.id];
+    p.silver += proceeds;
+    gainSkillExp(p, 'trading', 8);
+    return { ok: true, msg: `You sell ${qty} unit(s) of ${def.name} for ${proceeds} silvers${trader > 1 ? ' (Golden Touch!)' : ''} — ${profit >= 0 ? 'a profit' : 'a loss'} of ${Math.abs(profit)}.` };
   }
 
   // ---------- Justice ----------
