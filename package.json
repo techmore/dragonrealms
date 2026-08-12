@@ -11,6 +11,7 @@
     "corpus": "node scripts/client-corpus.mjs",
     "regression": "node scripts/client-regression.mjs",
     "skills-doc": "node scripts/build-skills-doc.mjs",
+    "roadmap-doc": "node scripts/build-roadmap.mjs",
     "simulate": "node scripts/simulate-progression.mjs"
   },
   "engines": {

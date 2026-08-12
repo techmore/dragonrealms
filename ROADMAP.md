@@ -2,8 +2,9 @@
 
 Full-feature parity for all eleven guilds up to circle 10. This is the living
 plan. The matching tracker lives at `public/ROADMAP.html` (served at
-`/ROADMAP.html` while the game runs) — features are checked off there as they
-ship.
+`/ROADMAP.html` while the game runs) and is **generated** from
+`data/roadmap.js` — edit the data file, then run `npm run roadmap-doc` to
+regenerate (the circle matrix is pulled live from the circle engine).
 
 - **Current state:** see the `Status` markers below. ✅ = live, 🚧 = partial, ⬜ = planned.
 - **Parity bar:** every guild must be able to reach circle 10 through a fair,
