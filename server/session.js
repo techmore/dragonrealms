@@ -9,6 +9,7 @@ import { guildById } from '../data/guilds.js';
 import { db } from './db.js';
 import { handleCommand } from './commands/index.js';
 import { sendChargenMenu, doCharSelect, doCharCreate, doAlloc, doEnter } from './chargen.js';
+import { subscribe, unsubscribe, forward } from './spectate.js';
 
 const INPUT_MAX = 20; // commands per second
 
@@ -26,6 +27,17 @@ export function attachWebSocket(httpServer, game) {
       charCreate: null,     // {name, race, guild, stats, pool}
       cmdTimestamps: [],
       game,
+    };
+    // Wrap the socket's send so any message the player emits (rooms, combat,
+    // prompts — all sent via p.ws.send) also mirrors to spectators.
+    const origSend = socket.send.bind(socket);
+    socket.send = (data) => {
+      origSend(data);
+      if (session.player && session.state === 'playing') {
+        try {
+          forward(session.player, typeof data === 'string' ? JSON.parse(data) : data);
+        } catch {}
+      }
     };
     session.send = (obj) => {
       if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(obj));
@@ -46,6 +58,7 @@ export function attachWebSocket(httpServer, game) {
     });
 
     socket.on('close', () => {
+      unsubscribe(session);
       if (session.player) game.removePlayer(session.player);
       if (session.token) logoutSession(session.token);
     });
@@ -77,6 +90,18 @@ function route(session, msg) {
     case 'enter':
       doEnter(session);
       break;
+    case 'spectate': {
+      const res = subscribe(session, msg.name);
+      if (!res.ok) return session.send({ t: 'error', msg: res.msg });
+      session.state = 'spectating';
+      session.send({ t: 'notice', msg: res.msg });
+      break;
+    }
+    case 'unspectate': {
+      unsubscribe(session);
+      session.send({ t: 'notice', msg: 'You are no longer spectating.' });
+      break;
+    }
     case 'input':
       rateLimit(session);
       if (session.state === 'playing' && session.player) {

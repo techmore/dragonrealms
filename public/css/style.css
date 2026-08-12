@@ -771,6 +771,51 @@ body[data-theme="green"] #terminal b { color: #8aff8a; }
 }
 #settings-panel #set-fontval { color: var(--text); }
 
+/* ---------------- Spectator page ---------------- */
+#watchbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+#watchbar label { color: var(--dim); display: flex; align-items: center; gap: 6px; }
+#watchbar input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  width: 160px;
+}
+#watchbar button {
+  background: var(--amber);
+  color: #1a1505;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+}
+#watchbar button:hover { filter: brightness(1.1); }
+.watch-info { color: var(--green); font-weight: bold; }
+#hint {
+  padding: 4px 14px;
+  color: var(--dim);
+  font-size: 11px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+}
+#hint code { color: var(--amber); }
+
 /* ---------------- Mobile ---------------- */
 @media (max-width: 700px) {
   #dock {

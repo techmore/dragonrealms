@@ -68,7 +68,7 @@ try {
 
   // 6. Exits widget
   const exits = await evalJs(`[...document.querySelectorAll('#exits-row .exbtn')].map(b => b.textContent).join(',')`);
-  check('exits widget', exits === 'NORTH,SOUTH,EAST,WEST,DOWN', exits);
+  check('exits widget', exits === 'NORTH,SOUTH,EAST,WEST,DOWN,NORTHWEST', exits);
 
   // 7. Inventory panel
   await evalJs(`document.getElementById('btn-inv').click();true`);

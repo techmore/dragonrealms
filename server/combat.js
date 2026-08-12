@@ -7,8 +7,9 @@ import { roomById } from '../data/world.js';
 import { SKILLS, CATEGORIES } from '../data/skills.js';
 import {
   weaponOf, skillRank, effectiveRank, totalArmor, gainSkillExp, defenseSkillOf,
-  countItems, removeItem, MASTERY_SETS,
+  countItems, removeItem, addItem, totalBurden, maxStaminaEff, MASTERY_SETS,
 } from './player.js';
+import { itemById } from '../data/items.js';
 
 const { MELEE_WEAPONS, RANGED_WEAPONS } = MASTERY_SETS;
 
@@ -53,6 +54,9 @@ export class Combat {
     this.dragonTicks = 0;
     this.tenacityTicks = 0;
     this.rageTicks = 0;
+    this.serenityTicks = 0;
+    this.magesLash = false;
+    this.roarHelm = false;
     this.specialCd = { whirlwind: 0, stomp: 0, choke: 0, analyze: 0 };
     this.analyzeCombo = 0;
     this.analyzeTicks = 0;
@@ -90,6 +94,21 @@ export class Combat {
     return false;
   }
 
+  // Stamina gate: big efforts need wind; burden makes them pricier.
+  spendStamina(amount) {
+    const p = this.player;
+    const burden = totalBurden(p);
+    const cost = amount + (burden >= 3 ? 3 : burden >= 1 ? 1 : 0);
+    if ((p.stamina ?? 0) < cost) {
+      this.say(burden > 0
+        ? 'Your load drags at you — you are too winded to give it your all! (Lighten your gear or catch your breath.)'
+        : 'You are too winded for that! Catch your breath before pressing on.');
+      return false;
+    }
+    p.stamina -= cost;
+    return true;
+  }
+
   startAttack() {
     this.playerTimer = Math.max(this.playerTimer, this.attackSpeed());
   }
@@ -99,8 +118,9 @@ export class Combat {
     const base = w ? w.speed : 4;
     const agiBonus = Math.floor(this.player.stats.agi / 20);
     const nimble = this.player.khri && this.player.khri.nimbleness > 0 ? 1 : 0;
+    const swift = this.player.khri && this.player.khri.swiftness > 0 ? 1 : 0;
     const wind = this.player.buffs && this.player.buffs.wind > 0 ? 1 : 0;
-    return Math.max(2, base - agiBonus - nimble - wind);
+    return Math.max(2, base - agiBonus - nimble - swift - wind);
   }
 
   playerAttack() {
@@ -126,7 +146,8 @@ export class Combat {
 
     const skill = effectiveRank(this.player, skillId);
     const focus = this.player.khri && this.player.khri.focus > 0 ? 4 : 0;
-    const atk = skill + focus + this.player.stats.str * 0.06 + this.player.stats.agi * 0.04;
+    const sight = this.player.khri && this.player.khri.sight > 0 ? 6 : 0;
+    const atk = skill + focus + sight + this.player.stats.str * 0.06 + this.player.stats.agi * 0.04;
     const def = target.def.defense + target.def.stats.ref * 0.03;
     const hit = Math.random() < clamp(0.5 + (atk - def) * 0.012, 0.15, 0.95);
 
@@ -156,7 +177,7 @@ export class Combat {
 
     if (this.berserk) dmg = Math.floor(dmg * 1.5);
     if (this.dragonTicks > 0) dmg = Math.floor(dmg * 1.25);
-    if (this.rageTicks > 0) dmg = Math.floor(dmg * 1.25);
+    if (this.rageTicks > 0) dmg = Math.floor(dmg * (this.roarHelm ? 1.4 : 1.25));
     if (this.analyzeTicks > 0) dmg = Math.floor(dmg * 1.25);
     if (this.mark && this.mark.uid === target.uid && this.mark.rounds > 0) {
       this.mark.rounds -= 1;
@@ -167,6 +188,8 @@ export class Combat {
     if (stance === 'aggressive') dmg = Math.floor(dmg * 1.25);
     else if (stance === 'defensive' || stance === 'guarded') dmg = Math.floor(dmg * 0.85);
     if (this.player.buffs && this.player.buffs.frenzy > 0) dmg = Math.floor(dmg * 1.3);
+    if (this.player.buffs && this.player.buffs.glyph_valor > 0) dmg = Math.floor(dmg * 1.15);
+    if (this.player.buffs && this.player.buffs.warpaint > 0) dmg = Math.floor(dmg * 1.15);
     if (this.player.khri && this.player.khri.strike > 0) dmg = Math.floor(dmg * 1.25);
     if (this.player.cyclic && this.player.cyclic.song === 'war' && this.player.cyclic.ticks > 0) dmg = Math.floor(dmg * 1.1);
     if (capstoneActive(this.player, 'necromancer')) {
@@ -248,6 +271,15 @@ export class Combat {
     const coins = target.def.circle * (2 + Math.floor(Math.random() * 4));
     this.player.silver += coins;
     this.say(`You pry ${coins} silvers from the corpse.`);
+    // Gems: flagged creatures carry stones worth a visit to the quartermaster.
+    if (target.def.gems && target.def.gems.length && Math.random() < 0.45) {
+      const gemId = target.def.gems[Math.floor(Math.random() * target.def.gems.length)];
+      const gem = itemById(gemId);
+      if (gem) {
+        addItem(this.player, gemId, 1);
+        this.say(`A ${gem.name.replace(/^a /, '')} glints among the remains — you claim it.`);
+      }
+    }
     gainSkillExp(this.player, 'fitness', target.def.circle * 10);
     gainSkillExp(this.player, 'endurance', target.def.circle * 8);
     gainSkillExp(this.player, 'hunting', target.def.circle * 4);
@@ -297,8 +329,33 @@ export class Combat {
 
     let dmg = rand(e.def.weapon.dmg[0], e.def.weapon.dmg[1]) + Math.floor(e.def.stats.str * 0.12);
     const weaponDef = SKILLS[e.def.weapon.skill];
-    if (weaponDef && weaponDef.cat === CATEGORIES.MAGIC && this.player.guild.id === 'barbarian') {
-      dmg = Math.max(1, Math.floor(dmg * 0.6));
+    const isMagic = weaponDef && weaponDef.cat === CATEGORIES.MAGIC;
+    // Barbarian magic resistance: a premier anti-magic edge. The base ward
+    // scales with Defending ranks; Serenity halves what gets through; Mage's
+    // Lash flings the spell back at its caster.
+    if (isMagic && this.player.guild.id === 'barbarian') {
+      const defending = skillRank(this.player, 'defending');
+      const resist = clamp(0.6 - defending * 0.002, 0.35, 0.6);
+      dmg = Math.max(1, Math.floor(dmg * resist));
+      if (this.serenityTicks > 0) dmg = Math.max(1, Math.floor(dmg * 0.5));
+      if (this.magesLash && e.hp > 0) {
+        const reflect = Math.max(1, Math.floor(dmg * 0.6));
+        e.hp -= reflect;
+        this.say(`Mage's Lash! The spell recoils — ${cap(e.def.name)} takes ${reflect} damage!`);
+        gainSkillExp(this.player, 'inner_fire', 6);
+        if (e.hp <= 0) {
+          this.killCreature(e);
+          return;
+        }
+      }
+    }
+    // Khri Clarity: a still mind turns hostile magic aside.
+    if (isMagic && this.player.khri && this.player.khri.clarity > 0) {
+      dmg = Math.max(1, Math.floor(dmg * 0.75));
+    }
+    if (e.dispelledTicks > 0) {
+      e.dispelledTicks -= 1;
+      dmg = Math.max(1, Math.floor(dmg * (isMagic ? 0.3 : 0.75)));
     }
     if (e.disarmedTicks > 0) {
       e.disarmedTicks -= 1;
@@ -312,7 +369,9 @@ export class Combat {
       gainSkillExp(controller, e.def.weapon.skill, 8);
     }
     const armor = totalArmor(this.player);
-    dmg = Math.max(1, Math.floor(dmg * (1 - armor / (armor + 80))));
+    // Glyph of Faith: the ward stiffens what you wear while it holds.
+    const effArmor = this.player.buffs && this.player.buffs.glyph_ward > 0 ? Math.floor(armor * 1.1) : armor;
+    dmg = Math.max(1, Math.floor(dmg * (1 - effArmor / (effArmor + 80))));
     if (this.berserk && !capstoneActive(this.player, 'barbarian')) dmg = Math.floor(dmg * 1.25);
     if (this.player.buffs && this.player.buffs.ironhide > 0) dmg = Math.max(1, dmg - 6);
     if (capstoneActive(this.player, 'paladin') && Math.random() < 0.15) {
@@ -325,6 +384,9 @@ export class Combat {
       const absorbed = dmg - reduced;
       dmg = reduced;
       this.say(`Your ward flashes, absorbing ${absorbed} damage!`);
+    }
+    if (this.player.buffs && this.player.buffs.glyph_shield > 0) {
+      dmg = Math.max(1, dmg - 4);
     }
     if (this.tenacityTicks > 0) dmg = Math.max(1, dmg - 3);
     if (this.player.guild.id === 'barbarian' && (this.player.abilities || []).includes('juggernaut')) {
@@ -373,6 +435,7 @@ export class Combat {
   // --- Ambush from hiding: a preemptive strike that breaks concealment ---
   ambushAttack(targetUid) {
     const p = this.player;
+    if (!this.spendStamina(10)) return;
     const target = this.enemies.find((e) => e.uid === targetUid && !e.dead);
     if (!target) { this.say('Your ambush finds no target.'); p.hidden = false; return; }
     const w = weaponOf(p);
@@ -402,6 +465,8 @@ export class Combat {
     }
     dmg = Math.floor(dmg * (1.5 + stealth * 0.02));
     if (p.khri && p.khri.dampen > 0) dmg = Math.floor(dmg * 1.3);
+    if (p.khri && p.khri.stealth > 0) dmg = Math.floor(dmg * 1.25);
+    if (p.khri && p.khri.sight > 0) dmg = Math.floor(dmg * 1.15);
     this.announce(
       `You burst from hiding and strike ${target.def.name} for ${dmg} damage!`,
       `${p.name} bursts from hiding and strikes you for ${dmg} damage!`
@@ -410,6 +475,57 @@ export class Combat {
     gainSkillExp(p, 'stealth', 8);
     gainSkillExp(p, 'hiding', 8);
     if (p.guild.guildSkill) gainSkillExp(p, p.guild.guildSkill, 4);
+    target.hp -= dmg;
+    if (target.hp <= 0) {
+      if (target.def.controller) this.defenderDefeated();
+      else this.killCreature(target);
+    }
+  }
+
+  // --- Snipe from hiding: a ranger's long shot ---
+  snipeAttack(targetUid) {
+    const p = this.player;
+    const w = weaponOf(p);
+    if (!w || !RANGED_WEAPONS.has(w.skill)) {
+      this.say('Snipe needs a bow or crossbow in hand.');
+      return;
+    }
+    const target = this.enemies.find((e) => e.uid === targetUid && !e.dead);
+    if (!target) { this.say('Your shot finds no target.'); p.hidden = false; return; }
+    const ammoId = AMMO[w.skill];
+    if (ammoId && countItems(p, ammoId) < 1) {
+      this.say(`You nock a shot, but you have no ${ammoId}!`);
+      return;
+    }
+    if (ammoId) removeItem(p, ammoId, 1);
+    if (!this.spendStamina(10)) return;
+
+    const skill = effectiveRank(p, w.skill);
+    const stealth = skillRank(p, 'hiding') + skillRank(p, 'stealth');
+    const atk = skill + stealth * 0.5 + p.stats.ref * 0.05 + p.stats.agi * 0.05;
+    const def = target.def.defense + target.def.stats.ref * 0.03;
+    const hit = Math.random() < clamp(0.55 + (atk - def) * 0.012, 0.2, 0.97);
+    p.hidden = false;
+
+    if (!hit) {
+      this.announce(
+        `You loose a shaft from the shadows, but ${target.def.name} darts clear of the shot!`,
+        `${p.name} looses a shaft at you from the shadows — you throw yourself aside!`
+      );
+      gainSkillExp(p, w.skill, 4);
+      return;
+    }
+    let dmg = rand(w.dmg[0], w.dmg[1]) + Math.floor(p.stats.str * 0.1);
+    dmg = Math.floor(dmg * (2 + stealth * 0.02));
+    if (p.khri && p.khri.stealth > 0) dmg = Math.floor(dmg * 1.2);
+    this.announce(
+      `You draw a bead and loose — the shaft thuds home in ${target.def.name} for ${dmg} damage!`,
+      `${p.name} steps from cover and the bowstring snaps — ${dmg} damage!`
+    );
+    gainSkillExp(p, w.skill, 12);
+    gainSkillExp(p, 'hiding', 8);
+    gainSkillExp(p, 'stealth', 6);
+    gainSkillExp(p, 'missile_mastery', 3);
     target.hp -= dmg;
     if (target.hp <= 0) {
       if (target.def.controller) this.defenderDefeated();
@@ -561,6 +677,7 @@ export class Combat {
     if (this.specialCd.whirlwind > 0) return { ok: false, msg: 'You are still recovering from your last whirlwind.' };
     if ((p.innerFire || 0) < 10) return { ok: false, msg: 'Not enough inner fire (10).' };
     if (!this.aliveEnemies.length) return { ok: false, msg: 'There is nothing to whirl through.' };
+    if (!this.spendStamina(10)) return { ok: false, msg: '' };
     p.innerFire -= 10;
     this.specialCd.whirlwind = 30;
     let total = 0;
@@ -582,6 +699,7 @@ export class Combat {
     if (this.specialCd.stomp > 0) return { ok: false, msg: 'The ground has not yet settled from your last stomp.' };
     if ((p.innerFire || 0) < 15) return { ok: false, msg: 'Not enough inner fire (15).' };
     if (!this.aliveEnemies.length) return { ok: false, msg: 'There is nothing to shake here.' };
+    if (!this.spendStamina(10)) return { ok: false, msg: '' };
     p.innerFire -= 15;
     this.specialCd.stomp = 40;
     let shaken = 0;
@@ -604,6 +722,7 @@ export class Combat {
     const target = this.enemies.find((e) => e.uid === this.playerTarget && !e.dead);
     if (!target) return { ok: false, msg: 'There is nothing in reach to choke.' };
     if ((p.innerFire || 0) < 10) return { ok: false, msg: 'Not enough inner fire (10).' };
+    if (!this.spendStamina(6)) return { ok: false, msg: '' };
     p.innerFire -= 10;
     this.specialCd.choke = 25;
     target.chokedTicks = 5;
@@ -665,24 +784,68 @@ export class Combat {
       }
       case 'everilds_rage': {
         if (this.rageTicks > 0) return { ok: false, msg: 'The rage already burns in you.' };
-        if ((p.voice || 0) < 10) return { ok: false, msg: 'Your voice is spent (10 voice needed).' };
-        p.voice -= 10;
+        const hasHelm = Object.values(p.equipment).some((i) => i.id === 'roar_helm');
+        const cost = hasHelm ? 5 : 10;
+        if ((p.voice || 0) < cost) return { ok: false, msg: `Your voice is spent (${cost} voice needed).` };
+        p.voice -= cost;
         this.rageTicks = 12;
+        this.roarHelm = hasHelm;
         gainSkillExp(p, 'inner_fire', 6);
-        return msg('You roar a battle cry — Everild\'s Rage sets your blood ablaze!');
+        return msg(hasHelm ? 'Your roar helm bellows! Everild\'s Rage sets your blood ablaze!' : 'You roar a battle cry — Everild\'s Rage sets your blood ablaze!');
       }
       case 'screech': {
-        if ((p.voice || 0) < 12) return { ok: false, msg: 'Your voice is spent (12 voice needed).' };
+        const hasHelm = Object.values(p.equipment).some((i) => i.id === 'roar_helm');
+        const cost = hasHelm ? 6 : 12;
+        if ((p.voice || 0) < cost) return { ok: false, msg: `Your voice is spent (${cost} voice needed).` };
         const target = this.enemies.find((e) => e.uid === targetUid && !e.dead);
         if (!target) return { ok: false, msg: 'Your screech needs a foe to lash.' };
-        p.voice -= 12;
-        target.timer += target.def.weapon.speed * 1.5;
+        p.voice -= cost;
+        target.timer += target.def.weapon.speed * (hasHelm ? 2.5 : 1.5);
         gainSkillExp(p, 'inner_fire', 6);
         this.announce(
           `You shriek! ${cap(target.def.name)} staggers, clutching its ears!`,
           `${this.player.name} shrieks — you stagger, ears ringing!`
         );
         return msg('');
+      }
+      case 'serenity': {
+        if (this.serenityTicks > 0) return { ok: false, msg: 'A Serenity ward already enfolds you.' };
+        const hasChakrel = Object.values(p.equipment).some((i) => i.id === 'chakrel_1');
+        const cost = hasChakrel ? 15 : 20;
+        if ((p.innerFire || 0) < cost) return { ok: false, msg: `Not enough inner fire (${cost}).` };
+        p.innerFire -= cost;
+        this.serenityTicks = 30;
+        // Purge corruption: any lingering negative buffs are cleansed.
+        for (const [k, v] of Object.entries(p.buffs || {})) {
+          if (v < 0) delete p.buffs[k];
+        }
+        gainSkillExp(p, 'inner_fire', 8);
+        return msg('You settle your mind mid-fury — corruption washes away and a calm ward rises against hostile magic.');
+      }
+      case 'dispel': {
+        if ((p.innerFire || 0) < 15) return { ok: false, msg: 'Not enough inner fire (15).' };
+        const target = this.enemies.find((e) => e.uid === targetUid && !e.dead);
+        if (!target) return { ok: false, msg: 'Dispel needs a foe to strike.' };
+        p.innerFire -= 15;
+        target.dispelledTicks = 5;
+        gainSkillExp(p, 'inner_fire', 8);
+        this.announce(
+          `You thrust your will through ${cap(target.def.name)}'s aether — its magic sputters and dies!`,
+          `${this.player.name} severs your aether — your spells gutter out!`
+        );
+        return msg('');
+      }
+      case 'mages_lash': {
+        if (this.magesLash) {
+          this.magesLash = false;
+          return msg('Mage\'s Lash subsides — your fury turns back inward.');
+        }
+        const cost = 10;
+        if ((p.innerFire || 0) < cost) return { ok: false, msg: `Not enough inner fire (${cost}).` };
+        p.innerFire -= cost;
+        this.magesLash = true;
+        gainSkillExp(p, 'inner_fire', 8);
+        return msg('Mage\'s Lash ignites! Spells hurled at you will recoil upon their caster!');
       }
       default:
         return { ok: false, msg: 'That ability cannot be used here.' };
@@ -713,6 +876,7 @@ export class Combat {
     if ((this.maneuverCd[kind] || 0) > 0) { this.say('You are not ready for that maneuver yet.'); return; }
     const target = this.enemies.find((e) => e.uid === targetUid && !e.dead);
     if (!target) { this.say('Your maneuver fizzles without a target.'); return; }
+    if (!this.spendStamina(8)) return;
 
     if (kind === 'bash' && !this.player.equipment.shield) {
       this.say('You need a shield equipped to bash!');
@@ -781,8 +945,10 @@ export class Combat {
     if (this.backstabCooldown > 0) { this.say('You are not yet poised to strike again.'); return; }
     const target = this.enemies.find((e) => e.uid === this.playerTarget && !e.dead);
     if (!target) { this.say('There is nothing to backstab.'); return; }
+    if (!this.spendStamina(8)) return;
     const skill = skillRank(this.player, 'small_edged') + skillRank(this.player, 'stealth');
-    const dmg = rand(10, 16) + skill * 2 + this.player.circle * 3;
+    let dmg = rand(10, 16) + skill * 2 + this.player.circle * 3;
+    if (this.player.khri && this.player.khri.stealth > 0) dmg = Math.floor(dmg * 1.5);
     this.say(`You slip behind ${target.def.name} and bury your blade deep — ${dmg} damage!`);
     gainSkillExp(this.player, 'stealth', 8);
     gainSkillExp(this.player, 'small_edged', 8);
@@ -795,8 +961,9 @@ export class Combat {
   // --- Retreat ---
   retreat() {
     const evade = skillRank(this.player, 'evasion') + this.player.stats.agi * 0.05;
+    const swift = this.player.khri && this.player.khri.swiftness > 0 ? 15 : 0;
     const pursuit = this.aliveEnemies.reduce((s, e) => s + e.def.circle * 2, 0);
-    const chance = clamp(0.4 + (evade - pursuit) * 0.03, 0.15, 0.9);
+    const chance = clamp(0.4 + (evade - pursuit) * 0.03 + swift * 0.01, 0.15, 0.9);
     if (Math.random() < chance) {
       this.say('You break away and sprint for safety!');
       this.end(false, false, true);
@@ -869,6 +1036,14 @@ export class Combat {
     if (this.player.buffs && this.player.buffs.shadow > 0) this.player.buffs.shadow -= 1;
     if (this.player.buffs && this.player.buffs.omen > 0) this.player.buffs.omen -= 1;
     if (this.player.buffs && this.player.buffs.wind > 0) this.player.buffs.wind -= 1;
+    if (this.player.buffs && this.player.buffs.warpaint > 0) this.player.buffs.warpaint -= 1;
+    if (this.player.buffs && this.player.buffs.glyph_ward > 0) this.player.buffs.glyph_ward -= 1;
+    if (this.player.buffs && this.player.buffs.glyph_valor > 0) this.player.buffs.glyph_valor -= 1;
+    if (this.player.buffs && this.player.buffs.glyph_shield > 0) this.player.buffs.glyph_shield -= 1;
+    if (this.serenityTicks > 0) {
+      this.serenityTicks -= 1;
+      if (this.serenityTicks <= 0) this.say('Your Serenity ward fades.');
+    }
     if (this.player.buffs && this.player.buffs.sun > 0) {
       this.player.buffs.sun -= 1;
       if (this.player.hp < this.player.maxHp) this.player.hp = Math.min(this.player.maxHp, this.player.hp + 2);
@@ -948,6 +1123,10 @@ export class Combat {
       this.rageTicks -= 1;
       if (this.rageTicks <= 0) this.say('The rage fades from your blood.');
     }
+    // Wind catches: burden slows recovery (heavy gear fights hard to wind you).
+    const burd = totalBurden(this.player);
+    const staminaCap = maxStaminaEff(this.player);
+    this.player.stamina = Math.min(staminaCap, (this.player.stamina ?? staminaCap) + (burd >= 2 ? 1 : 2));
     if (this.player.hp <= 0) return;
 
     // Player action

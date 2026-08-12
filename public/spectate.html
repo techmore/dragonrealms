@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dragon Realms — Spectator</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header id="topbar">
+    <span class="brand"><span class="brand-mark">&#128009;</span> DRAGON REALMS <span style="color:var(--dim);font-weight:normal">— spectator</span></span>
+    <span class="topbar-right">
+      <span id="conn-status" class="conn-off">disconnected</span>
+    </span>
+  </header>
+
+  <div id="watchbar">
+    <label>Watching
+      <input id="watch-name" placeholder="player name" autocomplete="off" spellcheck="false">
+      <button id="watch-go">Watch</button>
+    </label>
+    <span id="watch-info" class="watch-info"></span>
+  </div>
+
+  <div id="terminal" aria-live="polite"></div>
+
+  <div id="hint">Live stream of the adventurer's session — their room, their fights, their words. Open
+    <code>/spectate.html?name=&lt;player&gt;</code> to auto-watch.</div>
+
+  <script type="module" src="/js/spectate.js"></script>
+</body>
+</html>

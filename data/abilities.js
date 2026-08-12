@@ -52,12 +52,32 @@ export const BARBARIAN_ABILITIES = [
     desc: 'Nock two arrows at once — your bow fires twice the steel at half again the force.',
   },
   {
+    id: 'serenity', name: 'Serenity', kind: 'meditation', path: 'flame', req: 2, minCircle: 5,
+    desc: 'Settle the mind mid-fury — purge corruption from your body and raise a ward that blunts hostile magic.',
+  },
+  {
+    id: 'dispel', name: 'Dispel', kind: 'special', path: 'flame', req: 2, minCircle: 5,
+    desc: 'Strike through a foe\u2019s aether with your will — its magic sputters and dies for a time.',
+  },
+  {
+    id: 'mages_lash', name: "Mage's Lash", kind: 'berserk', path: 'predator', req: 2,
+    desc: 'A fury that turns stolen magic back on its wielder — spells hurled at you lash their caster instead.',
+  },
+  {
     id: 'duelist', name: 'Duelist', kind: 'mastery', path: null, req: 0,
     desc: 'Passive mastery — your inner fire burns brighter out of combat (passive regen cap +25).',
   },
   {
     id: 'juggernaut', name: 'Juggernaut', kind: 'mastery', path: null, req: 0,
     desc: 'Passive mastery — hardened beyond fury, you shrug off a share of every blow.',
+  },
+  {
+    id: 'titan', name: 'Titan', kind: 'mastery', path: null, req: 0,
+    desc: 'Passive mastery — your frame swells with raw power: +15% health.',
+  },
+  {
+    id: 'exemplar', name: 'Exemplar', kind: 'mastery', path: null, req: 0,
+    desc: 'Passive mastery — a true paragon of the wild: +2 stance points.',
   },
 ];
 
