@@ -91,6 +91,7 @@ export function migrate() {
       character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
       slot TEXT NOT NULL,
       item_id TEXT NOT NULL,
+      condition INTEGER NOT NULL DEFAULT 100,
       PRIMARY KEY (character_id, slot)
     );
 
@@ -140,6 +141,10 @@ export function migrate() {
       db.exec(`ALTER TABLE characters ADD COLUMN ${col} ${def}`);
     } catch { /* column already exists */ }
   }
+  // Equipment condition (durability).
+  try {
+    db.exec('ALTER TABLE equipment ADD COLUMN condition INTEGER NOT NULL DEFAULT 100');
+  } catch { /* column already exists */ }
 }
 
 export function closeDb() {

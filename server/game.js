@@ -2,7 +2,8 @@
 // combat wiring, and the combat manager ticker. Domain logic (shops, wilds,
 // quests, status) lives in server/economy.js, server/wilds.js,
 // server/quests.js, and server/status.js — this class delegates to them.
-import { ROOMS, ZONES, roomById } from '../data/world.js';
+import { roomById, ROOMS, ZONES } from '../data/world.js';
+import { db } from './db.js';
 import { npcById } from '../data/npcs.js';
 import { creatureById, RARES } from '../data/creatures.js';
 import { itemById } from '../data/items.js';
@@ -61,6 +62,7 @@ export class Game {
     this.roomCreatures = new Map(); // roomId -> [{uid, def, hp, maxHp, alive, respawnAt}]
     this.floorItems = new Map();    // roomId -> [{uid, item, qty}]
     this.pendingDuels = new Map();  // `${initiator}|${target}` -> {initiator, target, createdAt}
+    this.auctions = [];             // [{id, seller, sellerName, itemId, qty, price, at}]
     this.combat = new CombatManager(this);
     this.respawnTicker = null;
     // Weather drifts every few game-hours; seasons follow the real calendar.
@@ -732,6 +734,55 @@ export class Game {
       return m ? m.name : '?';
     });
     return { ok: true, msg: `\nParty (${names.length}/5): ${names.join(', ')}. Kill credit and quest progress are shared in the same room.` };
+  }
+
+  // ---------- Auction house (player trading) ----------
+  auctionPrune() {
+    const now = Date.now();
+    this.auctions = this.auctions.filter((a) => now - a.at < 3600 * 1000);
+  }
+
+  auctionList(p) {
+    if (p.room !== 'auction_house') return { ok: false, msg: 'The auction board hangs in the Merchants\' Auction Hall, north of the Grain Pit.' };
+    this.auctionPrune();
+    if (!this.auctions.length) return { ok: true, msg: 'The auction board is bare. Post a lot with "auction offer <item> [qty] for <price>" (at the hall).' };
+    const lines = this.auctions.map((a) => `  #${a.id}  ${a.itemName}${a.qty > 1 ? ` x${a.qty}` : ''} — ${a.price} silvers (by ${a.sellerName})`);
+    return { ok: true, msg: `\nThe auction board reads:\n${lines.join('\n')}\n\nSay "auction buy <#>". Listings lapse after an hour.` };
+  }
+
+  auctionOffer(p, itemName, qty, price) {
+    if (p.room !== 'auction_house') return { ok: false, msg: 'Lots are posted at the Merchants\' Auction Hall, north of the Grain Pit.' };
+    const entry = p.inventory.find((e) => e.item.id === itemName || e.item.name.includes(itemName));
+    if (!entry) return { ok: false, msg: 'You do not have that to offer.' };
+    qty = Math.max(1, Math.min(entry.qty, Math.floor(qty) || 1));
+    if (!(price > 0)) return { ok: false, msg: 'Set a price in silvers: "auction offer <item> [qty] for <price>".' };
+    removeItem(p, entry.item.id, qty);
+    const id = this.auctions.length ? Math.max(...this.auctions.map((a) => a.id)) + 1 : 1;
+    this.auctions.push({ id, seller: p.charId, sellerName: p.name, itemId: entry.item.id, itemName: entry.item.name, qty, price, at: Date.now() });
+    gainSkillExp(p, 'trading', 6);
+    return { ok: true, msg: `You chalk your lot on the board: ${entry.item.name}${qty > 1 ? ` x${qty}` : ''} at ${price} silvers. (listing #${id})` };
+  }
+
+  auctionBuy(p, listingId) {
+    if (p.room !== 'auction_house') return { ok: false, msg: 'The auction board hangs in the Merchants\' Auction Hall.' };
+    this.auctionPrune();
+    const lot = this.auctions.find((a) => a.id === listingId);
+    if (!lot) return { ok: false, msg: 'No such lot is still on the board.' };
+    if (lot.seller === p.charId) return { ok: false, msg: 'You cannot buy your own lot.' };
+    if (p.silver < lot.price) return { ok: false, msg: `That lot costs ${lot.price} silvers; you have ${p.silver}.` };
+    p.silver -= lot.price;
+    this.auctions = this.auctions.filter((a) => a !== lot);
+    addItem(p, lot.itemId, lot.qty);
+    const seller = this.players.get(lot.seller);
+    if (seller && seller.online) {
+      seller.silver += lot.price;
+      if (seller.ws) seller.ws.send(JSON.stringify({ t: 'msg', msg: `Your lot sold at auction: ${lot.itemName}${lot.qty > 1 ? ` x${lot.qty}` : ''} for ${lot.price} silvers.` }));
+    } else {
+      // Offline sellers are paid into the bank.
+      db.prepare('UPDATE characters SET bank = bank + ? WHERE id = ?').run(lot.price, lot.seller);
+    }
+    gainSkillExp(p, 'trading', 8);
+    return { ok: true, msg: `You buy ${lot.itemName}${lot.qty > 1 ? ` x${lot.qty}` : ''} for ${lot.price} silvers.` };
   }
 
   guildTrainer(p) { return statusView.guildTrainer(p); }

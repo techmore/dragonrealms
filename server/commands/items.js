@@ -49,6 +49,25 @@ export const commands = {
   wear: wearItem,
   wield: wearItem,
 
+  repair(ctx) {
+    const { p, arg1, emit } = ctx;
+    if (p.room !== 'forge' && p.room !== 'tailor_shop') {
+      return emit('Repair work happens at the Ember Forge or the Needle & Thread.');
+    }
+    const slot = findSlotByItem(p, arg1 || '');
+    if (!slot) return emit('You must be wearing or wielding the piece to have it repaired.');
+    const item = p.equipment[slot];
+    const cond = item.condition ?? 100;
+    if (cond >= 100) return emit(`${item.name} is in perfect condition — nothing to mend.`);
+    const missing = 100 - cond;
+    const cost = Math.max(5, Math.floor(missing * item.value / 100 * 2));
+    if (p.silver < cost) return emit(`Repairing ${item.name} costs ${cost} silvers; you have ${p.silver}.`);
+    p.silver -= cost;
+    item.condition = 100;
+    gainSkillExp(p, slot === 'hand' ? 'forging' : 'outfitting', 8);
+    emit(`The ${slot === 'hand' ? 'hammer' : 'needle'} works over ${item.name} — it is as good as new (${cost} silvers).`);
+  },
+
   remove(ctx) {
     const { p, arg1, emit } = ctx;
     const slot = findSlotByItem(p, arg1 || '');

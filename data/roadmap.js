@@ -29,7 +29,7 @@ export const STAGES = [
     desc:"All ten remaining guilds have live fidelity v1s; deeper trees per guild pending." },
   { id:13, title:"Stage 13 — World & Systems Fidelity", badge:"partial",
     desc:"Hunting ladders, Crossing/Riverhaven depth, skill-system structure, magic mechanics, crafting, PvP & justice." },
-  { s:4, id:"f164", label:"Auction / player trading", detail:"player-to-player trading: auction house or person-to-person offers, broker fees, escrow (optional)", status:"todo" },
+  { s:4, id:"f164", label:"Auction / player trading", detail:"live: the Merchants' Auction Hall (north of the Grain Pit) with AUCTION OFFER/BUY — listings lapse after an hour, buyers pay sellers directly, offline sellers are paid into the bank; broker fees pending", status:"done" },
 ];
 
 export const FEATURES = [
@@ -71,7 +71,7 @@ export const FEATURES = [
   { s:4, id:"f36", label:"Multi-level dungeon", detail:"Blackwood Ruins: keep -> Crypt of the Dread Knight", status:"done" },
   { s:4, id:"f37", label:"Named creatures & rare loot", detail:"Shadowpaw, Bandit Chieftain, Cinder Drake King", status:"done" },
   { s:4, id:"f38", label:"Economy balance", detail:"partial: training costs scale with rank, healer/tavern/chaffer/respec sinks, caravan hirelings; full sink-vs-source pass pending playtest data", status:"partial" },
-  { s:4, id:"f39", label:"Item durability / repair", detail:"blocked on the shared combat seam (degradation and effects both live in server/combat.js, owned by the parallel session)", status:"todo" },
+  { s:4, id:"f39", label:"Item durability / repair", detail:"live in the working tree: gear wears with use (weapons on swings, armor on hits, floor 20), condition scales damage and armor, REPAIR at the Ember Forge or the Needle & Thread; seam commit (server/combat.js) pending with the parallel session", status:"partial" },
   { s:5, id:"f40", label:"TDP awards from rank-ups + circle bonus", detail:"mirrors source game: ranks in skills grant TDPs", status:"done" },
   { s:5, id:"f41", label:"Spend TDPs on stats", detail:"Fane of Training, train-twice (DR-authentic)", status:"done" },
   { s:5, id:"f42", label:"Spend TDPs on skills", detail:"'tdptrain <skill>' trains any skill", status:"done" },
@@ -179,7 +179,7 @@ export const FEATURES = [
   { s:3, id:"f144", label:"Group / party system", detail:"live: party invite/join/leave (up to 5); kill credit and quest progress shared in the same room, party-mates earn hunting exp on kills", status:"done" },
   { s:4, id:"f145", label:"Bank vault", detail:"live: VAULT/STORE/RETRIEVE at the bank (market_end and Riverhaven market)", status:"done" },
   { s:4, id:"f146", label:"Quest variety", detail:"crier quests span four kinds: kill, delivery (parcel runs to named NPCs), recovery (find a lost trinket), skinning; street task givers still pending", status:"done" },
-  { s:5, id:"f147", label:"Exp debt / locks", detail:"live: learning lockout — 3+ rapid rank-ups in one skill dims further learning 50% for two minutes; death costs rank progress (DR debts/locks feel)", status:"done" },
+  { s:5, id:"f147", label:"Exp debt / locks", detail:"live: learning lockout — 3+ rapid rank-ups in one skill dims further learning 50% for two minutes; death costs rank progress (DR debts/locks feel; tempers runaway grinding)", status:"done" },
   { s:13, id:"f148", label:"Weather & seasons", detail:"weather drifts every few game-hours by season (clear/fair/rain/fog/storm/snow); storms charge mana, fog dims it, the sky helps or hinders forage/hunt/track; 'time' reports the sky", status:"done" },
   { s:3, id:"f149", label:"Battlefield healing & potion timers", detail:"30s chug timer between draughts; no eating or drinking in combat (healing comes from magic and the healer)", status:"done" },
   { s:4, id:"f150", label:"Crossing landmarks & districts", detail:"live: High Temple (prayer/faith), Asemath Academy (study), The Middens (scavenge), the Docks, Amusement Pier (barge to Riverhaven, coin-toss games), Half Pint + Tenderfoot taverns (faster rest)", status:"done" },
@@ -196,5 +196,5 @@ export const FEATURES = [
   { s:13, id:"f161", label:"Crafted gear superiority", detail:"live: crafted base stats exceed store-bought and the quality ladder (practically worthless -> masterfully-crafted, 1.3x) scales with skill; magic buffs at half strength on crafting checks pending", status:"done" },
   { s:13, id:"f162", label:"Justice zones & warrants", detail:"murder warrants live: killing an OPEN adventurer in town draws a warrant, guards seize you on sight, RECALL WARRANT / SURRENDER / plead to clear; Standard / Clan / Dirge / Hara'jaal / None zones with distinct crime consequences, stocks, DEPART ITEM pending", status:"partial" },
   { s:13, id:"f163", label:"Anti-abuse guardrails", detail:"v1 live: assault refuses targets 5+ circles below, hot rooms throttle respawns (anti-camp), REPORT command files complaints; broader moderation tooling pending", status:"partial" },
-  { s:4, id:"f164", label:"Auction / player trading", detail:"player-to-player trading: auction house or person-to-person offers, broker fees, escrow (optional)", status:"todo" },
+  { s:4, id:"f164", label:"Auction / player trading", detail:"live: the Merchants' Auction Hall (north of the Grain Pit) with AUCTION OFFER/BUY — listings lapse after an hour, buyers pay sellers directly, offline sellers are paid into the bank; broker fees pending", status:"done" },
 ];

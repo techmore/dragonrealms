@@ -139,9 +139,9 @@ export function loadPlayer(charId) {
     const item = itemById(inv.item_id);
     if (item) player.inventory.push({ id: inv.id, item, qty: inv.qty });
   }
-  for (const eq of db.prepare('SELECT slot, item_id FROM equipment WHERE character_id = ?').all(charId)) {
+  for (const eq of db.prepare('SELECT slot, item_id, condition FROM equipment WHERE character_id = ?').all(charId)) {
     const item = itemById(eq.item_id);
-    if (item) player.equipment[eq.slot] = item;
+    if (item) player.equipment[eq.slot] = { ...item, condition: eq.condition ?? 100 };
   }
 
   // Stamina is derived from Con and Fitness, then capped by what you carry.
@@ -193,6 +193,12 @@ export function savePlayer(p) {
     ON CONFLICT(character_id, skill_id) DO UPDATE SET rank=excluded.rank, exp=excluded.exp
   `);
   for (const [skillId, s] of Object.entries(p.skills)) ins.run(p.charId, skillId, s.rank, s.exp);
+
+  // Persist equipment condition (durability) alongside everything else.
+  for (const [slot, item] of Object.entries(p.equipment || {})) {
+    db.prepare('UPDATE equipment SET condition=? WHERE character_id=? AND slot=?')
+      .run(item.condition ?? 100, p.charId, slot);
+  }
 
   if (p.quest) {
     db.prepare(`
@@ -435,9 +441,9 @@ export function equipItem(p, invEntry) {
     db.prepare('DELETE FROM equipment WHERE character_id=? AND slot=?').run(p.charId, slot);
     addItem(p, existing.id, 1);
   }
-  p.equipment[slot] = item;
+  p.equipment[slot] = { ...item, condition: 100 };
   removeItem(p, item.id, 1);
-  db.prepare('INSERT INTO equipment (character_id, slot, item_id) VALUES (?,?,?)')
+  db.prepare('INSERT INTO equipment (character_id, slot, item_id, condition) VALUES (?,?,?,100)')
     .run(p.charId, slot, item.id);
   return { ok: true, slot };
 }
@@ -453,6 +459,20 @@ export function unequipItem(p, slot) {
 
 export function weaponOf(p) {
   return p.equipment.hand && p.equipment.hand.type === 'weapon' ? p.equipment.hand : null;
+}
+
+// ---------------- Durability (wear and tear) ----------------
+// Gear works at reduced power below full condition; repair restores it.
+export function conditionMult(item) {
+  return item ? 0.6 + 0.4 * ((item.condition ?? 100) / 100) : 1;
+}
+
+// A piece of equipped gear takes wear; it cannot fall below 20 ("well-worn").
+export function wearCondition(p, slot, chance) {
+  const item = p.equipment[slot];
+  if (!item) return;
+  if ((item.condition ?? 100) <= 20) return;
+  if (Math.random() < chance) item.condition = (item.condition ?? 100) - 1;
 }
 
 export function totalArmor(p) {

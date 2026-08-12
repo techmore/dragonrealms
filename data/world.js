@@ -68,8 +68,13 @@ export const ROOMS = {
   },
   commodity_pit: {
     id: 'commodity_pit', zone: 'town', name: 'The Grain Pit', npcs: ['pit_master'],
-    desc: 'A long hall of ledger counters and grain chutes. Slaves to the market scrawl prices on a great board as they change. Merchants whisper, gamble, and watch the board.',
-    exits: { e: 'market_way' },
+    desc: 'A long hall of ledger counters and grain chutes. Slaves to the market scrawl prices on a great board as they change. Merchants whisper, gamble, and watch the board. A door at the back opens onto the auction hall.',
+    exits: { e: 'market_way', n: 'auction_house' },
+  },
+  auction_house: {
+    id: 'auction_house', zone: 'town', name: 'The Merchants\' Auction Hall',
+    desc: 'A panelled hall where the Crossing does its real trading. Lots are chalked on a great board as they come in — gear, salvage, and stranger goods, each with an asking price. The hall takes no cut on the first sales.',
+    exits: { s: 'commodity_pit' },
   },
   brewery: {
     id: 'brewery', zone: 'town', name: 'The Tilted Retort', npcs: ['alchemist'],

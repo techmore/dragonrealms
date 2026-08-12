@@ -39,6 +39,31 @@ export const commands = {
     emit(game.commodityBoard(p));
   },
 
+  auction(ctx) {
+    const { game, p, rest, emit } = ctx;
+    const r = (rest || '').trim();
+    if (!r) {
+      const res = game.auctionList(p);
+      emit(res.msg);
+      return;
+    }
+    // "offer <item> [qty] for <price>" — a new lot.
+    const offer = r.match(/^offer\s+(?:(\d+)\s+)?(.+?)\s+for\s+(\d+)$/i);
+    if (offer) {
+      const res = game.auctionOffer(p, offer[2], parseInt(offer[1], 10) || 1, parseInt(offer[3], 10));
+      emit(res.msg);
+      return;
+    }
+    // "buy <#>" — take a lot.
+    const buy = r.match(/^buy\s+(\d+)$/i);
+    if (buy) {
+      const res = game.auctionBuy(p, parseInt(buy[1], 10));
+      emit(res.msg);
+      return;
+    }
+    emit('Auction what? Try "auction" (board), "auction offer <item> [qty] for <price>", or "auction buy <#>".');
+  },
+
   deposit(ctx) {
     const { game, p, arg1, emit } = ctx;
     const amt = parseInt(arg1, 10);

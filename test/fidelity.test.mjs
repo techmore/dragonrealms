@@ -1155,3 +1155,81 @@ test('techniques: cold casting widens the safe overchannel ceiling', async () =>
   assert.equal(p.hp, before2, 'cold casting held the weave safe');
   game.removePlayer(p);
 });
+
+// ------------------- Durability -------------------
+test('durability: worn gear bites less and guards worse; repair restores it', async () => {
+  const { conditionMult, wearCondition } = await import('../server/player.js');
+  const p = await mkChar('DuraT', 'barbarian');
+  const { addItem } = await import('../server/player.js');
+  addItem(p, 'long_sword', 1);
+  addItem(p, 'chainmail', 1);
+  handleCommand(game, p, 'wield long_sword');
+  handleCommand(game, p, 'wear chainmail');
+  assert.equal(p.equipment.hand.condition, 100, 'fresh gear at 100');
+
+  // Wear it down.
+  p.equipment.hand.condition = 40;
+  p.equipment.torso.condition = 40;
+  assert.ok(conditionMult(p.equipment.hand) < 1, 'worn blade is weaker');
+  const dmgFull = conditionMult({ condition: 100 });
+  const dmgWorn = conditionMult({ condition: 40 });
+  assert.ok(dmgWorn < dmgFull, 'condition scales damage');
+
+  // wearCondition refuses to drop below 20 and decrements by chance.
+  p.equipment.hand.condition = 21;
+  Math.random = () => 0.001;
+  wearCondition(p, 'hand', 1);
+  assert.equal(p.equipment.hand.condition, 20, 'floor at 20');
+
+  // Repair at the forge.
+  p.room = 'forge';
+  p.silver = 1000;
+  handleCommand(game, p, 'repair long_sword');
+  assert.equal(p.equipment.hand.condition, 100, 'repaired to full');
+  assert.ok(p.silver < 1000, 'repair costs silver');
+  game.removePlayer(p);
+});
+
+test('durability: equipment condition persists across save/load', async () => {
+  const p = await mkChar('DuraPers', 'barbarian');
+  const { addItem } = await import('../server/player.js');
+  addItem(p, 'long_sword', 1);
+  handleCommand(game, p, 'wield long_sword');
+  p.equipment.hand.condition = 55;
+  game.persistPlayer(p);
+  const reloaded = loadPlayer(p.charId);
+  assert.equal(reloaded.equipment.hand.condition, 55, 'condition survives reload');
+  game.removePlayer(p);
+});
+
+// ------------------- Auction house -------------------
+test('auction: post a lot, buy it, pay the seller', async () => {
+  const { addItem } = await import('../server/player.js');
+  const seller = await mkChar('AucSell', 'trader');
+  const buyer = await mkChar('AucBuy', 'warmage');
+  seller.room = 'auction_house';
+  buyer.room = 'auction_house';
+  addItem(seller, 'wolf_pelt', 1);
+  buyer.silver = 1000;
+
+  const off = game.auctionOffer(seller, 'wolf_pelt', 1, 40);
+  assert.equal(off.ok, true, 'lot posted');
+  const list = game.auctionList(buyer);
+  assert.match(list.msg, /wolf pelt/, 'board shows the lot');
+
+  const sellerBefore = seller.silver;
+  const bought = game.auctionBuy(buyer, 1);
+  assert.equal(bought.ok, true, 'bought');
+  assert.ok(buyer.inventory.some((i) => i.item.id === 'wolf_pelt'), 'buyer holds the pelt');
+  assert.equal(seller.silver, sellerBefore + 40, 'seller paid');
+  assert.equal(seller.inventory.some((i) => i.item.id === 'wolf_pelt'), false, 'seller no longer holds it');
+
+  // Own lot refused; wrong room refused.
+  const self = game.auctionOffer(seller, 'wolf_pelt', 1, 10);
+  assert.equal(self.ok, false, 'seller has nothing to post');
+  seller.room = 'square';
+  const nowhere = game.auctionList(seller);
+  assert.equal(nowhere.ok, false, 'board only at the hall');
+  game.removePlayer(seller);
+  game.removePlayer(buyer);
+});

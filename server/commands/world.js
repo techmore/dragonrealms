@@ -18,9 +18,9 @@ const HELP = `
               smite (Paladin)  |  glyph <name> (Paladin, soul-fueled wards)  |  mend/touch/scar/link <player> (Empath)  |  predict + observe sky + telescope + moon gate <city> (Moon Mage)  |  summon familiar (Warrior Mage)  |  animate <corpse> + ritual <name> (Necromancer)
               enchante war|bravery|regen (Bard)  |  devotion (Cleric)  |  beseech wind|sun + companion (Ranger)  |  snipe/slip (Ranger)
   Abilities: abilities  (list barbarian arts)  |  learn <ability>  (at the barbarian hall)  |  ask <leader> about forgetting <ability>
-  Items:     get <item>  |  drop <item>  |  inventory (i)  |  wear/wield <item>  |  remove <item>  |  use <item>
+  Items:     get <item>  |  drop <item>  |  inventory (i)  |  wear/wield <item>  |  remove <item>  |  use <item>  |  repair <item>  (gear wears with use)
   Death:     die in battle and you awaken at the temple — your gear lies with your corpse; search <corpse>, get <item> from corpse
-  Shops:     list  |  buy <item> [qty]  |  sell <item> [qty]  |  deposit/withdraw <silvers>  |  vault/store/retrieve  |  pit  |  heal
+  Shops:     list  |  buy <item> [qty]  |  sell <item> [qty]  |  deposit/withdraw <silvers>  |  vault/store/retrieve  |  pit  |  heal  |  auction offer/buy  (Auction Hall, north of the pit)
   Training:  train <skill>  (pay silvers to advance guild skills)  |  train <stat> twice (Fane of Training, east of Temple Row)  |  circle
   TDPs:      tdp  |  raise <stat>  |  tdptrain <skill>
   Quests:    quest  |  claim  |  deliver  |  ask <leader> task
