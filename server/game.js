@@ -410,7 +410,7 @@ export class Game {
     return Boolean(room && room.zone !== 'town' && room.zone !== 'riverhaven');
   }
 
-  challengeDuel(p, targetName, end = 'blood') {
+  challengeDuel(p, targetName, end = 'blood', reason = '') {
     if (!this.canDuelHere(p)) return { ok: false, msg: 'The town guards do not permit duels here. Take it to the wilds.' };
     if (p.combatId) return { ok: false, msg: 'You are already in combat.' };
     // Paladins may not strike first (code of honor).
@@ -428,21 +428,22 @@ export class Game {
     if (target.pvpStance === 'closed') {
       return { ok: false, msg: `${target.name} stands CLOSED to all challenges.` };
     }
+    const reasonLine = reason ? ` — "${reason}"` : '';
     if (target.pvpStance === 'open') {
       // OPEN: no consent needed — the duel begins at once.
       const res = this.combat.startDuel(p, target, end);
       if (!res.ok) return { ok: false, msg: res.error };
-      res.combat.say(`\n\x1b[1mThe duel begins! ${p.name} faces ${target.name} (ends when ${endLabel}).\x1b[0m`);
+      res.combat.say(`\n\x1b[1mThe duel begins! ${p.name} faces ${target.name} (ends when ${endLabel}).${reasonLine}\x1b[0m`);
       res.combat.startAttack();
       this.status(p);
       this.status(target);
-      return { ok: true, msg: `${target.name} stands OPEN — the duel begins! (Ends when ${endLabel}.)` };
+      return { ok: true, msg: `${target.name} stands OPEN — the duel begins! (Ends when ${endLabel}.)${reasonLine}` };
     }
 
     const key = `${p.charId}|${target.charId}`;
-    this.pendingDuels.set(key, { initiator: p.charId, target: target.charId, createdAt: Date.now(), end });
-    target.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1m${p.name} challenges you to a duel!\x1b[0m (ends when ${endLabel}) Type "accept ${p.name}" or "decline ${p.name}".` }));
-    return { ok: true, msg: `You challenge ${target.name} to a duel (ends when ${endLabel}). They must "accept" it to begin.` };
+    this.pendingDuels.set(key, { initiator: p.charId, target: target.charId, createdAt: Date.now(), end, reason });
+    target.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1m${p.name} challenges you to a duel!\x1b[0m (ends when ${endLabel})${reasonLine} Type "accept ${p.name}" or "decline ${p.name}".` }));
+    return { ok: true, msg: `You challenge ${target.name} to a duel (ends when ${endLabel})${reasonLine}. They must "accept" it to begin.` };
   }
 
   acceptDuel(p, initiatorName) {

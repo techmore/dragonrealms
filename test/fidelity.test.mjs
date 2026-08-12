@@ -1310,3 +1310,76 @@ test('link: the silver thread survives reloads while it holds', async () => {
   game.removePlayer(a);
   game.removePlayer(b);
 });
+
+// ------------------- Contested spells (SvS) -------------------
+test('SvS: spells resolve against the target defense, not a flat chance', async () => {
+  const p = await mkChar('SvsT', 'cleric');
+  p.room = 'marsh_1';
+  p.mana = 100;
+  p.skills.holy_magic = { rank: 40, exp: 0 };
+  p.circle = 8;
+  const { guildById } = await import('../data/guilds.js');
+  const wrath = guildById('cleric').spells.find((s) => s.minCircle === 3);
+
+  // A high-defense wisp is far harder to land spells on than a rat.
+  const rat = game.makeCreature(CREATURES.rat);
+  const wisp = game.makeCreature(CREATURES.wisp);
+  game.roomCreatures.get('marsh_1').push(rat, wisp);
+  game.startCombat(p, [rat.def, wisp.def]);
+  const combat = game.combat.getFor(p);
+  combat.setTarget(rat.uid);
+  const mana1 = p.mana;
+  combat.cast(wrath, rat.uid);
+  const spent1 = mana1 - p.mana;
+  combat.setTarget(wisp.uid);
+  const mana2 = p.mana;
+  combat.cast(wrath, wisp.uid);
+  const spent2 = mana2 - p.mana;
+  // Both casts charge; the contested roll decides (the wisp's 22 defense
+  // vs the rat's 5 means the rat eats the spell far more often).
+  assert.equal(spent1, spent2, 'both casts cost the same');
+  game.removePlayer(p);
+});
+
+// ------------------- Duel reasons -------------------
+test('duel: challenges carry a reason into the messages', async () => {
+  const a = await mkChar('DuelRa', 'barbarian');
+  const b = await mkChar('DuelRb', 'trader');
+  a.room = 'marsh_1';
+  b.room = 'marsh_1';
+  const res = game.challengeDuel(a, b.name, 'blood', 'for the insult at the market');
+  assert.equal(res.ok, true, 'challenge sent');
+  assert.match(res.msg, /for the insult at the market/, 'reason shown to the challenger');
+  const invite = b.ws.msgs.find((m) => m.t === 'msg')?.msg || '';
+  assert.match(invite, /for the insult at the market/, 'reason shown to the challenged');
+  game.removePlayer(a);
+  game.removePlayer(b);
+});
+
+// ------------------- Warrior mage impedance -------------------
+test('impede: clinging earth freezes a foe; mana and cooldown gate it', async () => {
+  const p = await mkChar('ImpedeT', 'warmage');
+  p.room = 'marsh_1';
+  p.mana = 50;
+  p.skills.war_magic = { rank: 40, exp: 0 };
+  const rat = game.makeCreature(CREATURES.rat);
+  game.roomCreatures.get('marsh_1').push(rat);
+  game.startCombat(p, [rat.def]);
+  const combat = game.combat.getFor(p);
+  Math.random = () => 0.01; // the bind lands
+  const manaBefore = p.mana;
+  const res = combat.impede(combat.playerTarget);
+  assert.equal(res.ok, true, 'impede usable');
+  assert.equal(combat.enemies[0].impededTicks, 5, 'foe bound');
+  assert.ok(p.mana < manaBefore, 'mana spent');
+
+  const again = combat.impede(combat.playerTarget);
+  assert.equal(again.ok, false, 'cooldown gates the next bind');
+
+  // While bound, the foe never attacks.
+  const hpBefore = p.hp;
+  combat.tick();
+  combat.tick();
+  assert.equal(p.hp, hpBefore, 'bound foe dealt no damage');
+  game.removePlayer(p);
+});

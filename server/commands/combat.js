@@ -391,11 +391,34 @@ function smite(ctx) {
   game.status(p);
 }
 
+function impede(ctx) {
+  const { game, p, arg1, emit } = ctx;
+  if (p.guild.id !== 'warmage') return emit('Only warrior mages bind the elements.');
+  let combat = game.combat.getFor(p);
+  if (combat && combat.defender === p) return emit('You are locked in an automatic duel.');
+  let uid = combat ? combat.playerTarget : null;
+  if (!combat) {
+    const creature = arg1 ? game.findCreature(p.room, arg1) : null;
+    if (creature) {
+      game.startCombat(p, [creature.def]);
+      combat = game.combat.getFor(p);
+      uid = combat.playerTarget;
+    } else {
+      return emit('There is nothing to impede here. Try "attack <creature>" first.');
+    }
+  }
+  const res = combat.impede(uid);
+  if (!res.ok) emit(res.msg);
+  game.status(p);
+}
+
 // ---------------- PvP ----------------
 function duel(ctx) {
-  const { game, p, arg1, arg2, emit } = ctx;
-  if (!arg1) return emit('Usage: duel <playername> [blood|blow|pain] — challenges them to a duel (wilds only).');
-  const res = game.challengeDuel(p, arg1, (arg2 || 'blood').toLowerCase());
+  const { game, p, arg1, arg2, rest, emit } = ctx;
+  if (!arg1) return emit('Usage: duel <playername> [blood|blow|pain] [reason...] — challenges them to a duel (wilds only).');
+  const end = (arg2 || 'blood').toLowerCase();
+  const reason = (rest || '').split(/\s+/).slice(2).join(' ');
+  const res = game.challengeDuel(p, arg1, end, reason);
   emit(res.msg);
 }
 
@@ -486,6 +509,7 @@ export const commands = {
   shakehand: shakeHand,
   backstab,
   smite,
+  impede,
   duel,
   assault,
   recall,

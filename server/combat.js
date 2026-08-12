@@ -58,7 +58,7 @@ export class Combat {
     this.serenityTicks = 0;
     this.magesLash = false;
     this.roarHelm = false;
-    this.specialCd = { whirlwind: 0, stomp: 0, choke: 0, analyze: 0 };
+    this.specialCd = { whirlwind: 0, stomp: 0, choke: 0, analyze: 0, impede: 0 };
     this.analyzeCombo = 0;
     this.analyzeTicks = 0;
   }
@@ -607,7 +607,11 @@ export class Combat {
 
     const target = this.enemies.find((e) => e.uid === targetUid && !e.dead);
     if (!target) { this.say('Your spell fizzles without a target.'); return; }
-    const hit = Math.random() < 0.8 + skill * 0.005;
+    // Contested spells (DR SvS): the weave rolls against the target's
+    // defense like any attack — a warded or swift foe may slip the spell.
+    const atk = skill + power * 0.15 + this.player.stats.wis * 0.05;
+    const def = target.def.defense + target.def.stats.ref * 0.03;
+    const hit = Math.random() < clamp(0.55 + (atk - def) * 0.012, 0.15, 0.97);
     if (!hit) { this.say(`You weave ${spell.name}, but ${target.def.name} resists it.`); afterCast(); return; }
 
     switch (spell.kind) {
@@ -679,6 +683,32 @@ export class Combat {
   }
 
   // --- Powers ---
+  // Warrior mage impedance: bind a foe with clinging earth (DR ADMITTANCE/
+  // IMPEDANCE v1) — the target's attacks freeze while the bind holds.
+  impede(targetUid) {
+    const p = this.player;
+    if (p.guild.id !== 'warmage') return { ok: false, msg: 'Only warrior mages bind the elements.' };
+    if (this.specialCd.impede > 0) return { ok: false, msg: 'The elements are still settling from your last bind.' };
+    const target = this.enemies.find((e) => e.uid === targetUid && !e.dead);
+    if (!target) return { ok: false, msg: 'There is nothing in reach to impede.' };
+    if (p.mana < 10) return { ok: false, msg: 'You need 10 mana to bind the elements.' };
+    p.mana -= 10;
+    this.specialCd.impede = 25;
+    const skill = effectiveRank(p, 'war_magic');
+    const chance = clamp(0.5 + skill * 0.01 - target.def.defense * 0.01, 0.2, 0.9);
+    if (Math.random() < chance) {
+      target.impededTicks = 5;
+      this.announce(
+        `You lash ${target.def.name} with clinging earth — its limbs move like stone!`,
+        `${p.name} lashes you with clinging earth — you can barely move!`
+      );
+    } else {
+      this.say(`You lash ${target.def.name} with clinging earth, but it shrugs the magic off.`);
+    }
+    gainSkillExp(p, 'war_magic', 8);
+    return { ok: true, msg: '' };
+  }
+
   whirlwind() {
     const p = this.player;
     const w = weaponOf(p);
@@ -1039,6 +1069,11 @@ export class Combat {
         e.chokedTicks -= 1;
         if (e.chokedTicks <= 0) this.say(`${cap(e.def.name)} breaks free of your grip!`);
       }
+      // Impeded: clinging earth holds the foe — no attacks while bound.
+      if (e.impededTicks > 0) {
+        e.impededTicks -= 1;
+        if (e.impededTicks <= 0) this.say(`${cap(e.def.name)} shakes free of the clinging earth!`);
+      }
     }
     if (this.player.buffs && this.player.buffs.frenzy > 0) this.player.buffs.frenzy -= 1;
     if (this.player.buffs && this.player.buffs.ironhide > 0) this.player.buffs.ironhide -= 1;
@@ -1149,6 +1184,7 @@ export class Combat {
     // Enemy actions
     for (const e of this.aliveEnemies) {
       if (e.dead || this._ended) continue;
+      if (e.impededTicks > 0) continue; // bound by clinging earth
       e.timer -= 1;
       if (e.timer <= 0) {
         this.creatureAttack(e);

@@ -15,7 +15,7 @@ const HELP = `
    Combat:    attack <creature>  |  target <creature>  |  cast [spell] [target]  |  retreat/flee  |  skin <creature>
    Magic:     spells  |  slots  |  technique [learn <name>]  |  prepare <spell> [pct] (then "cast"; overchanneling risks backlash)  |  perceive  |  harness  |  charge/invoke/focus <cambrinth>
    Powers:    berserk (Barbarian)  |  form/roar/meditate <ability>  |  whirlwind/stomp/choke/analyze (barbarian)  |  backstab (Thief)  |  khri <name> (Thief)
-              smite (Paladin)  |  glyph <name> (Paladin, soul-fueled wards)  |  mend/touch/scar/link <player> (Empath)  |  predict + observe sky + telescope + moon gate <city> (Moon Mage)  |  summon familiar (Warrior Mage)  |  animate <corpse> + ritual <name> (Necromancer)
+              smite (Paladin)  |  glyph <name> (Paladin, soul-fueled wards)  |  impede <creature> (Warrior Mage)  |  mend/touch/scar/link <player> (Empath)  |  predict + observe sky + telescope + moon gate <city> (Moon Mage)  |  summon familiar (Warrior Mage)  |  animate <corpse> + ritual <name> (Necromancer)
               enchante war|bravery|regen (Bard)  |  devotion (Cleric)  |  beseech wind|sun + companion (Ranger)  |  snipe/slip (Ranger)
   Abilities: abilities  (list barbarian arts)  |  learn <ability>  (at the barbarian hall)  |  ask <leader> about forgetting <ability>
   Items:     get <item>  |  drop <item>  |  inventory (i)  |  wear/wield <item>  |  remove <item>  |  use <item>  |  repair <item>  (gear wears with use)
@@ -25,7 +25,7 @@ const HELP = `
   TDPs:      tdp  |  raise <stat>  |  tdptrain <skill>
   Quests:    quest  |  claim  |  deliver  |  ask <leader> task
   Stances:   stance aggressive | defensive | guarded | balanced  (costs stance points)
-  PvP:       duel <player> [blood|blow|pain] | accept/decline <player> | surrender | assault <player> (OPEN targets only) | recall warrant | pvp stance open|guarded|closed  (duels wilds only)
+  PvP:       duel <player> [blood|blow|pain] [reason] | accept/decline <player> | surrender | assault <player> (OPEN targets only) | recall warrant | pvp stance open|guarded|closed  (duels wilds only)
   Wilds:     forage  |  hunt  |  track  |  ladder  |  hide  |  ambush <creature>  |  rest  (recover)
   Skills:    perform  |  appraise <item>  |  study  (temple library)
    Crafting:  craft <recipe>  (Tilted Retort)  |  forge <recipe>  (Ember Forge)  |  shape <recipe>  (Ember Forge, Engineering)  |  tailor <recipe>  (Needle & Thread, south of West Road)
