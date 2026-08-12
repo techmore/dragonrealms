@@ -429,6 +429,73 @@ function handleOther(game, p, cmd, arg1, arg2, rest, args, say, emit) {
       }
       return emit('There is no such creature or adventurer here.');
     }
+    case 'rexp': {
+      say(`\nRested experience: ${p.rexp || 0} minute(s) banked (cap 120).\nBank it by logging out (2 minutes away = 1 minute of rest) or by resting deeply. While active it doubles your learning.`);
+      break;
+    }
+    case 'predict': {
+      if (p.guild.id !== 'moonmage') return emit('Only moon mages read the stars.');
+      if (skillRank(p, 'astrology') < 1) return emit('You need Astrology to read the sky. Train it at your guild hall.');
+      const cost = 10;
+      if (p.mana < cost) return emit(`You need ${cost} mana to cast your gaze skyward.`);
+      p.mana -= cost;
+      const skill = skillRank(p, 'astrology');
+      p.buffs = p.buffs || {};
+      p.buffs.omen = Math.min(120, 60 + skill * 2);
+      const leveled = gainSkillExp(p, 'astrology', 8);
+      gainSkillExp(p, 'scholarship', 4);
+      emit(`You read the turn of the moons and glimpse the pattern of things to come. An omen settles over you — the stars will guide your step.${leveled ? ' Your Astrology improved!' : ''}`);
+      break;
+    }
+    case 'summon': case 'familiar': {
+      if (p.guild.id !== 'warmage') return emit('Only warrior mages bind familiars.');
+      if (cmd === 'familiar' || !arg1) {
+        const f = p.familiar;
+        if (!f) return emit('You have no familiar bound. At your guild hall, say "summon familiar".');
+        return emit(`Your familiar ${f.name} is ${f.alive ? `with you (${f.hp}/${f.maxHp} health)` : 'drained of spirit — it needs time to recover.'}`);
+      }
+      if (arg1 !== 'familiar') return emit('Usage: summon familiar | familiar | dismiss familiar');
+      if (p.room !== 'hall_warmage') return emit('Familiars are bound at the Warrior Mage guildhall.');
+      if (skillRank(p, 'summoning') < 1) return emit('You need Summoning skill to bind a familiar. Train it first.');
+      if (p.familiar && p.familiar.alive) return emit(`${p.familiar.name} is already bound to you.`);
+      const names = ['Sparx', 'Nimbus', 'Flick', 'Ember', 'Zephyr', 'Pyre'];
+      const hp = 30 + p.circle * 5;
+      p.familiar = {
+        name: names[Math.floor(Math.random() * names.length)],
+        hp, maxHp: hp, alive: true,
+      };
+      gainSkillExp(p, 'summoning', 8);
+      emit(`You bind a thread of aether to ${p.familiar.name}, a small spirit of crackling light. It will fight beside you.`);
+      break;
+    }
+    case 'dismiss': {
+      if (arg1 !== 'familiar') return emit('Usage: dismiss familiar');
+      if (!p.familiar) return emit('You have no familiar to dismiss.');
+      p.familiar = null;
+      emit('You release the aetherial thread. Your familiar fades into the air.');
+      break;
+    }
+    case 'plead': {
+      if (p.room !== 'jail') return emit('You are not in jail.');
+      const remaining = game.timeLeftInJail(p);
+      if (!arg1 || !['guilty', 'innocent'].includes(arg1.toLowerCase())) {
+        return emit(`The jailer looks up. "Guilty or innocent, thief?${remaining ? ` (${remaining}s left if you wait)` : ''}"`);
+      }
+      if (arg1.toLowerCase() === 'guilty') {
+        const fine = 5 + p.circle * 5;
+        const paid = Math.min(p.silver, fine);
+        p.silver -= paid;
+        p.jailUntil = 0;
+        p.room = 'square';
+        emit(`You plead guilty. The fine is ${fine} silvers — you pay ${paid}${paid < fine ? ' (the rest from your debts)' : ''}. Jailer Grum unlocks the door: "Mind your hands."`);
+        game.look(p);
+      } else {
+        if (remaining > 60) return emit('The judge has already heard you once. Wait out your sentence.');
+        p.jailUntil = Date.now() + 60 * 1000;
+        emit('You plead innocent. Jailer Grum shrugs: "The judge will see you in a minute. Sit tight."');
+      }
+      break;
+    }
     case 'slots': {
       const guild = p.guild;
       if (!guild.magic) return emit('Your guild forswears magic.');
@@ -1024,6 +1091,11 @@ function handleOther(game, p, cmd, arg1, arg2, rest, args, say, emit) {
         const coins = 5 + Math.floor(Math.random() * (5 + p.circle * 3));
         p.silver += coins;
         const leveled = gainSkillExp(p, 'thievery', 8);
+        p.crimeHeat = (p.crimeHeat || 0) + 1;
+        // A guard may spot the theft (justice: arrest -> jail -> plead).
+        if (game.guardInRoom(p) && Math.random() < Math.min(0.6, 0.2 + p.crimeHeat * 0.1)) {
+          return game.arrest(p);
+        }
         // Crime flags you: your PvP stance is forced OPEN (DR justice).
         if (p.pvpStance !== 'open') {
           p.pvpStance = 'open';

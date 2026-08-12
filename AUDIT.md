@@ -260,3 +260,13 @@ alongside the circle engine.**
 | Forging crafting v1 (Pillar 26) | ✅ ore drops, Ember Forge, quality ladder (worthless → masterfully-crafted), crafted steel scales damage |
 | Guild-leader tasks | ✅ `ask <leader> task`, guild-skill rewards |
 | Exp pools/pulses, world fidelity, full justice, remaining per-guild passes | ⬜ roadmap |
+
+**Revision 5:**
+
+| Item | Status |
+|---|---|
+| Rested Experience | ✅ bank offline 2:1 (cap 120), 2× drain while active |
+| Moon Mage prediction v1 (Pillar 16) | ✅ `predict` omen buff + Astrology/Scholarship exp |
+| Warrior Mage familiars v1 (Pillar 22) | ✅ combat ally, Summoning exp, hall-bound |
+| Justice loop (Pillar 27) | ✅ theft → arrest → Town Cells → PLEAD guilty/innocent |
+| Exp pool/pulse timing, Riverhaven/world depth, full crimes+judge, remaining guild passes | ⬜ roadmap |

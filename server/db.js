@@ -52,6 +52,7 @@ export function migrate() {
       tdp_pool INTEGER NOT NULL DEFAULT 0,
       stance TEXT NOT NULL DEFAULT 'balanced',
       pvp_stance TEXT NOT NULL DEFAULT 'guarded',
+      rexp INTEGER NOT NULL DEFAULT 0,
       silver INTEGER NOT NULL DEFAULT 0,
       bank INTEGER NOT NULL DEFAULT 0,
       room TEXT NOT NULL,
@@ -102,6 +103,7 @@ export function migrate() {
     ['stance', "TEXT NOT NULL DEFAULT 'balanced'"],
     ['tdp_pool', 'INTEGER NOT NULL DEFAULT 0'],
     ['pvp_stance', "TEXT NOT NULL DEFAULT 'guarded'"],
+    ['rexp', 'INTEGER NOT NULL DEFAULT 0'],
   ]) {
     try {
       db.exec(`ALTER TABLE characters ADD COLUMN ${col} ${def}`);

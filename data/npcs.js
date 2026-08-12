@@ -75,6 +75,11 @@ export const NPCS = {
     desc: 'A barrel-chested smith with soot-etched arms, hammer resting on one shoulder.',
     greeting: 'Bring me ore and cinder scale, and I\'ll teach your hands the hammer. Say "forge" to see the recipes.',
   },
+  jailer: {
+    id: 'jailer', name: 'Jailer Grum', role: 'info',
+    desc: 'A tired man in a rusted breastplate, keys clinking at his belt.',
+    greeting: 'Plead guilty and pay your fine, or plead innocent and wait for the judge. Either way, you\'ll think twice about thieving.',
+  },
 
   // Guild leaders (trainers)
   leader_barbarian: { id: 'leader_barbarian', name: 'Warchief Ulfgar', role: 'guild', guild: 'barbarian', desc: 'A mountain of a man with a beard braided with trophies.', greeting: 'The wild calls to those with fury in their blood. Say "circle" when you are ready to advance.' },

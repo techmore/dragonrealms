@@ -80,6 +80,7 @@ export function loadPlayer(charId) {
     tdpPool: row.tdp_pool || 0,
     stance: row.stance || 'balanced',
     pvpStance: row.pvp_stance || 'guarded',
+    rexp: row.rexp || 0,
     maxMana: guildById(row.guild).magic ? 20 + row.wis * 2 + row.int + row.dis : 0,
     silver: row.silver,
     bank: row.bank,
@@ -134,13 +135,13 @@ export function savePlayer(p) {
   db.prepare(`
     UPDATE characters SET
       circle=?, str=?, con=?, ref=?, agi=?, cha=?, dis=?, wis=?, int=?,
-      unspent_stat=?, mana=?, tdp=?, tdp_pool=?, stance=?, pvp_stance=?, silver=?, bank=?, room=?, hp=?, max_hp=?
+      unspent_stat=?, mana=?, tdp=?, tdp_pool=?, stance=?, pvp_stance=?, rexp=?, silver=?, bank=?, room=?, hp=?, max_hp=?
     WHERE id=?
   `).run(
     p.circle, p.stats.str, p.stats.con, p.stats.ref, p.stats.agi, p.stats.cha,
     p.stats.dis, p.stats.wis, p.stats.int, p.unspentStat, p.mana, p.tdp || 0,
-    p.tdpPool || 0, p.stance || 'balanced', p.pvpStance || 'guarded', p.silver,
-    p.bank, p.room, p.hp, p.maxHp, p.charId
+    p.tdpPool || 0, p.stance || 'balanced', p.pvpStance || 'guarded', p.rexp || 0,
+    p.silver, p.bank, p.room, p.hp, p.maxHp, p.charId
   );
   const ins = db.prepare(`
     INSERT INTO skills (character_id, skill_id, rank, exp) VALUES (?,?,?,?)
@@ -202,9 +203,22 @@ export function tdpGainFor(rank) {
 
 export const TDP_POOL_CONVERSION = 200;
 
+// Rested Experience (REXP): banks while logged out (2 offline minutes -> 1
+// REXP) and while resting; while active it doubles exp drain (DR-authentic).
+export const REXP_CAP = 120;
+
 // Skills can't out-rank your circle too far (circle 10 -> rank 40 cap).
 export function maxRankFor(circle) {
   return circle * 4;
+}
+
+export function bankRexp(p, offlineMs) {
+  const gained = Math.floor(offlineMs / 120000);
+  if (gained > 0) {
+    p.rexp = Math.min(REXP_CAP, (p.rexp || 0) + gained);
+    return gained;
+  }
+  return 0;
 }
 
 // Gain experience in a skill; auto-rank-up when enough accumulates.
@@ -212,7 +226,12 @@ export function maxRankFor(circle) {
 export function gainSkillExp(p, skillId, amount) {
   if (!SKILLS[skillId]) return 0;
   const s = p.skills[skillId] || (p.skills[skillId] = { rank: 0, exp: 0 });
-  s.exp += Math.max(0, Math.floor(amount * learningMultiplier(p)));
+  let base = Math.max(0, Math.floor(amount * learningMultiplier(p)));
+  if (p.rexp > 0) {
+    base *= 2;
+    p.rexp -= 1;
+  }
+  s.exp += base;
   let leveled = 0;
   const cap = maxRankFor(p.circle);
   while (s.exp >= expToNextRank(s.rank) && s.rank < cap) {

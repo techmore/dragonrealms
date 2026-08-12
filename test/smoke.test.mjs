@@ -1824,6 +1824,118 @@ test('guild leader tasks assign, complete, and reward guild skill exp', async ()
   game.removePlayer(p);
 });
 
+test('REXP banks offline and doubles learning', async () => {
+  const { bankRexp } = await import('../server/player.js');
+  const acc = await auth.registerAccount('Rexptest', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Napper', race: 'human', guild: 'warmage' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  assert.equal(p.rexp, 0);
+  const gained = bankRexp(p, 10 * 60 * 1000); // 10 min offline -> 5 REXP (2:1)
+  assert.equal(gained, 5);
+  assert.equal(p.rexp, 5);
+
+  // REXP doubles exp gain and drains.
+  const before = p.skills.war_magic.exp;
+  const { gainSkillExp, learningMultiplier } = await import('../server/player.js');
+  gainSkillExp(p, 'war_magic', 10);
+  const expected = Math.floor(10 * learningMultiplier(p)) * 2;
+  assert.equal(p.skills.war_magic.exp - before, expected, 'doubled learning');
+  assert.equal(p.rexp, 4, 'one REXP drained');
+
+  game.removePlayer(p);
+});
+
+test('moon mage prediction grants an omen buff', async () => {
+  const acc = await auth.registerAccount('Predictor', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Oracle', race: 'human', guild: 'moonmage' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  handleCommand(game, p, 'predict');
+  assert.match(ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' '), /Astrology/, 'needs astrology to predict');
+
+  p.skills.astrology.rank = 3;
+  handleCommand(game, p, 'predict');
+  assert.ok((p.buffs.omen || 0) > 0, 'omen buff granted');
+  assert.ok(p.mana < p.maxMana, 'prediction costs mana');
+
+  game.removePlayer(p);
+});
+
+test('warmage familiar summons, fights, and survives death', async () => {
+  const acc = await auth.registerAccount('Familiar', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Fam', race: 'human', guild: 'warmage' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  handleCommand(game, p, 'summon familiar'); // not at the hall
+  assert.equal(p.familiar, undefined, 'binding requires the hall');
+
+  p.room = 'hall_warmage';
+  p.skills.summoning.rank = 1;
+  handleCommand(game, p, 'summon familiar');
+  assert.ok(p.familiar && p.familiar.alive, 'familiar bound');
+  const name = p.familiar.name;
+
+  handleCommand(game, p, 'familiar');
+  assert.match(ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' '), new RegExp(name), 'familiar reports');
+
+  // The familiar fights in combat.
+  p.room = 'sewers_1';
+  const { CREATURES } = await import('../data/creatures.js');
+  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.rat));
+  handleCommand(game, p, 'attack rat');
+  let combat = game.combat.getFor(p);
+  let guard = 0;
+  while (game.combat.getFor(p) && guard++ < 400) combat.tick();
+  const fightMsgs = ws.msgs.filter((m) => m.t === 'combat').map((m) => m.msg).join(' ');
+  assert.match(fightMsgs, new RegExp(name), 'familiar attacks in combat');
+
+  handleCommand(game, p, 'dismiss familiar');
+  assert.equal(p.familiar, null, 'dismissed');
+
+  game.removePlayer(p);
+});
+
+test('justice: theft near a guard risks arrest, plead releases', async () => {
+  const acc = await auth.registerAccount('Justicetest', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Lightfingered', race: 'human', guild: 'thief' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  // Deterministic arrest: near-max thievery so the theft almost always lands.
+  p.room = 'west_gate'; // has a guard
+  p.crimeHeat = 5;
+  p.skills.thievery.rank = 40;
+  p.stats.agi = 100;
+  p.silver = 100;
+  for (let i = 0; i < 8 && p.room === 'west_gate'; i++) {
+    handleCommand(game, p, 'steal guard');
+  }
+  assert.equal(p.room, 'jail', 'arrested and jailed');
+  assert.ok(p.silver < 100, 'silver confiscated');
+
+  // Jail blocks movement while serving.
+  const before = p.room;
+  game.move(p, 'u');
+  assert.equal(p.room, before, 'jail holds you');
+
+  handleCommand(game, p, 'plead guilty');
+  assert.equal(p.room, 'square', 'released to the square');
+
+  game.removePlayer(p);
+});
+
 test('combat death respawns at temple', async () => {  const acc = await auth.registerAccount('Glasstest', 's3cretword');
   const charId = createCharacter(acc.accountId, { name: 'Glassjaw', race: 'halfling', guild: 'thief' });
   const p = loadPlayer(charId);

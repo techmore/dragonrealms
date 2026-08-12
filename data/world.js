@@ -17,8 +17,8 @@ export const ROOMS = {
   // ================= TOWN =================
   square: {
     id: 'square', zone: 'town', name: 'Town Square', npcs: ['towncrier'],
-    desc: 'The broad flagstones of the Crossing town square bustle with merchants, guards, and travelers. A weathered fountain burbles at the center. Streets lead off in every direction.',
-    exits: { n: 'market_way', s: 'temple_row', e: 'guild_district', w: 'west_road' },
+    desc: 'The broad flagstones of the Crossing town square bustle with merchants, guards, and travelers. A weathered fountain burbles at the center. Streets lead off in every direction, and a barred grate in the flags opens onto the town cells below.',
+    exits: { n: 'market_way', s: 'temple_row', e: 'guild_district', w: 'west_road', d: 'jail' },
   },
   east_road: {
     id: 'east_road', zone: 'town', name: 'East Road',
@@ -54,6 +54,11 @@ export const ROOMS = {
     id: 'fane', zone: 'town', name: 'Fane of Training', npcs: ['fane_keeper'],
     desc: 'A vaulted training hall hung with the banners of a hundred pilgrims. Eight alcoves ring the walls, each devoted to a single attribute. Novices squat in meditation, steeling body and mind.',
     exits: { w: 'temple_row' },
+  },
+  jail: {
+    id: 'jail', zone: 'town', name: 'The Town Cells', npcs: ['jailer'],
+    desc: 'A low stone cell with a heavy door of iron bars. A narrow slit of daylight falls from the street above. Scratched into the wall: a list of names, and a warning.',
+    exits: { up: 'square' },
   },
   temple: {
     id: 'temple', zone: 'town', name: 'Temple of the Pantheon', npcs: ['healer'],

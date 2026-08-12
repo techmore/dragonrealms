@@ -6,6 +6,7 @@ import { creatureById, RARES } from '../data/creatures.js';
 import { guildById } from '../data/guilds.js';
 import { ITEMS, itemById } from '../data/items.js';
 import { SKILLS } from '../data/skills.js';
+import { bankRexp } from './player.js';
 import { manaRegenRate } from '../data/mana.js';
 import { VOICE_POOL } from '../data/abilities.js';
 import {
@@ -199,12 +200,14 @@ export class Game {
     this.players.set(p.charId, p);
     p.online = true;
     p.corpses = [];
+    p.loginAt = Date.now();
   }
 
   removePlayer(p) {
     this.players.delete(p.charId);
     p.online = false;
     this.stopRest(p);
+    if (p.loginAt) bankRexp(p, Date.now() - p.loginAt);
     this.combat.disconnect(p);
     this.persistPlayer(p);
   }
@@ -219,6 +222,11 @@ export class Game {
     const target = room && resolveExit(room, dir);
     if (!target) return { ok: false, msg: 'You cannot go that way.' };
     if (p.combatId) return { ok: false, msg: 'You are in combat! Try "retreat" to flee.' };
+    if (p.room === 'jail') {
+      const left = this.timeLeftInJail(p);
+      if (left > 0) return { ok: false, msg: `The cell door is barred. ${left}s until your sentence is served (or "plead guilty").` };
+      p.jailUntil = 0;
+    }
     this.stopRest(p);
     p.hidden = false;
     p.room = target;
@@ -598,6 +606,7 @@ export class Game {
       p.hp = Math.min(p.maxHp, p.hp + hpGain);
       if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * 0.04)));
       gainSkillExp(p, 'athletics', 2);
+      if (ticks % 10 === 0) p.rexp = Math.min(120, (p.rexp || 0) + 1);
       p.ws.send(JSON.stringify({ t: 'msg', msg: `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}` }));
       if (p.hp >= p.maxHp && (!p.guild.magic || p.mana >= p.maxMana)) this.stopRest(p);
       if (ticks >= 20) this.stopRest(p);
@@ -680,6 +689,34 @@ export class Game {
     return fromLeader
       ? { ok: true, msg: `Your guild leader nods. "Work well done." You pocket ${silver} silvers and your ${SKILLS[p.guild.guildSkill].name} sharpens.` }
       : { ok: true, msg: `The crier hands you ${silver} silvers. "Good hunting," he says with a grin.` };
+  }
+
+  // ---------- Justice ----------
+  guardInRoom(p) {
+    const room = roomById(p.room);
+    return Boolean(room && room.npcs && room.npcs.includes('guard'));
+  }
+
+  // A guard spots the theft: jail, confiscation, and a pending plea.
+  arrest(p) {
+    const taken = Math.floor(p.silver * 0.25);
+    p.silver -= taken;
+    p.crimeHeat = 0;
+    p.jailUntil = Date.now() + 90 * 1000;
+    p.room = 'jail';
+    p.hidden = false;
+    p.combatId = null;
+    const combat = this.combat.getFor(p);
+    if (combat) this.combat.disconnect(p);
+    p.ws.send(JSON.stringify({ t: 'msg', msg: `\nA guard seizes your arm! "Caught red-handed, thief."\nYou are dragged to the Town Cells. ${taken} silvers are confiscated.\nType "plead guilty" to pay your fine, or "plead innocent" to wait for the judge.` }));
+    this.look(p);
+    this.status(p);
+    this.persistPlayer(p);
+  }
+
+  timeLeftInJail(p) {
+    if (!p.jailUntil) return 0;
+    return Math.max(0, Math.ceil((p.jailUntil - Date.now()) / 1000));
   }
 
   // ---------- Status / prompt ----------

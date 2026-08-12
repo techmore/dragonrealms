@@ -252,6 +252,7 @@ export class Combat {
     else if (stance === 'aggressive') def = Math.floor(def * 0.8);
     if (capstoneActive(this.player, 'moonmage')) def = Math.floor(def * 1.2);
     if (this.player.buffs && this.player.buffs.shadow > 0) def = Math.floor(def * 1.15);
+    if (this.player.buffs && this.player.buffs.omen > 0) def = Math.floor(def * 1.1);
     if (this.player.khri && this.player.khri.elusion > 0) def = Math.floor(def * 1.2);
     if (capstoneActive(this.player, 'ranger') && this.game && this.game.isWild(this.player.room)) def = Math.floor(def * 1.2);
     const hit = Math.random() < clamp(0.45 + (atk - def) * 0.012, 0.15, 0.95);
@@ -830,9 +831,27 @@ export class Combat {
     if (this.player.buffs && this.player.buffs.frenzy > 0) this.player.buffs.frenzy -= 1;
     if (this.player.buffs && this.player.buffs.ironhide > 0) this.player.buffs.ironhide -= 1;
     if (this.player.buffs && this.player.buffs.shadow > 0) this.player.buffs.shadow -= 1;
+    if (this.player.buffs && this.player.buffs.omen > 0) this.player.buffs.omen -= 1;
     if (this.player.khri) {
       for (const k of Object.keys(this.player.khri)) {
         if (this.player.khri[k] > 0) this.player.khri[k] -= 1;
+      }
+    }
+    // The warmage's familiar fights alongside every few beats.
+    const fam = this.player.familiar;
+    if (fam && fam.alive && this.aliveEnemies.length) {
+      this._famTick = (this._famTick || 0) + 1;
+      if (this._famTick % 3 === 0) {
+        const target = this.aliveEnemies[0];
+        const dmg = Math.max(1, 3 + this.player.circle * 2 + Math.floor(skillRank(this.player, 'summoning') / 10));
+        target.hp -= dmg;
+        if (target.def.controller) target.def.controller.hp = Math.max(0, target.hp);
+        this.say(`Your familiar ${fam.name} strikes ${target.def.name} for ${dmg} damage!`);
+        gainSkillExp(this.player, 'summoning', 2);
+        if (target.hp <= 0) {
+          if (target.def.controller) this.defenderDefeated();
+          else this.killCreature(target);
+        }
       }
     }
     if (capstoneActive(this.player, 'empath') && this.player.hp < this.player.maxHp) {
