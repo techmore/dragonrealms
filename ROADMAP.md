@@ -300,7 +300,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 |---|---|
 | Take wounds (`mend <player>` — the wound passes into the empath); empathic shock — living kills permanently stain max healing | 🚧 v1 live; links/shift/scars pending |
 | Link, Persistent Link, Unity Link, Manipulate, Shift; Hand of Hodierna at 80 | ⬜ |
-| 5 spellbooks (Healing, Protection, Purification, Mental Prep, Life Force); 63 slots to master (76 @150); free feat Injured Casting | ⬜ |
+| 5 spellbooks (Healing, Protection, Purification, Mental Prep, Life Force); 63 slots to master (76 @150); free feat Injured Casting | 🚧 |
 | Faithful circle table (1–10): Empathy 4 hard, Scholarship 3, First Aid 2 hard, Outdoorsmanship 1, 1st–3rd lore 3/2/2, 1st–5th magic 3/2/2/0/0, 1st–3rd survival 1/1/1 | ✅ (live in the band-table engine) |
 | Scar tax, TOUCH diagnostics, Khalaen leadership | ⬜ |
 | Crafting affiliation: Alchemy — 2× Remedies, 1× Cooking | ⬜ |
@@ -312,7 +312,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Feature | Status |
 |---|---|
 | Lunar mana gated by the moons (Xibar, Yavash, Katamba); OBSERVE SKY, telescope | ⬜ |
-| 6 spellbooks (Stellar Magic, Perception, Geometry, Projection, Moonlight, Teleologic Sorcery); 89 slots @150; free feats Basic Preparation Recognition + Utility Mastery | ⬜ |
+| 6 spellbooks (Stellar Magic, Perception, Geometry, Projection, Moonlight, Teleologic Sorcery); 89 slots @150; free feats Basic Preparation Recognition + Utility Mastery | 🚧 |
 | Prediction: `predict` reads the moons for an omen buff (Astrology/Scholarship exp) | 🚧 v1 live; ALIGN/tools/sects/Event Prediction pending |
 | Teleport / Moon Gate (25), astral travel via Grazhir shards, 100th-circle quest | ⬜ |
 | Faithful circle table (1–10): Astrology 3 hard, Scholarship 3, 1st–6th magic 4/4/3/2/0/0, 1st–3rd lore 2/2/1, 1st–5th survival 2/2/2/2/0 | ✅ (live in the band-table engine) |
@@ -326,7 +326,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 |---|---|
 | Risen: `animate` corpses into fighting minions (thanatology), dismiss | 🚧 v1 live; Call/Creation rituals + states pending |
 | States of Being (Unsullied/Forsaken/Redeemed/Lichdom) + Divine/Social Outrage meters, drain-time limits | ⬜ |
-| 5 spellbooks + Anabasis (Holy sorcery); 77 slots @150; free feat Alternate Preparation | ⬜ |
+| 5 spellbooks + Anabasis (Holy sorcery); 77 slots @150; free feat Alternate Preparation | 🚧 |
 | Thanatology rituals (Arise, Butchery, Consume, Dissection, Preserve…), Slip 30–70 (stealth) | ⬜ |
 | Faithful circle table (1–10): Thanatology 3 hard, Targeted Magic 2 soft, Small Edged 1, 1st–7th survival 4/4/3/3/3/3/2, 1st–5th magic 3/3/2/2/0, 1st–2nd lore 2/2, 1st armor 1 | ✅ (live in the band-table engine) |
 | Crafting affiliation: Alchemy 2× Poison + Engineering 1× Carving | ⬜ |
