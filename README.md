@@ -154,10 +154,13 @@ testing and analysis — see `docs/api.md`.
   regenerates the tracker from `data/roadmap.js`. A test-only HTTP API (`server/api.js`,
   `DR_ENABLE_API=1`) drives the game headlessly for analysis.
 - **Barbarian bot + spectator** — `node scripts/barbarian-bot.mjs` (or
-  `npm run bot`) plays a real gortog barbarian: it shops, hunts, skins,
-  trains, learns abilities, and circles. Watch it live at
-  `/spectate.html?name=<bot>` — the spectator page streams the bot's room,
-  fights, and prompts through the new wire relay (`server/spectate.js`).
+  `npm run bot`) plays a real gortog barbarian: it shops, gears up, hunts,
+  skins, hauls to market, trains, learns abilities, and circles. Watch it
+  live at `/spectate.html?name=<bot>` — the spectator page streams the bot's
+  room, fights, and prompts through the wire relay (`server/spectate.js`).
+  Options: `--minutes N` (cap), `--circle N` (target), `--name <n>`,
+  `--silver N` and `--start-ranks N` (head-starts via the test API,
+  `DR_ENABLE_API=1`, for watchable demos that circle within minutes).
 - **Barbarian arts** — inner fire + voice pool, ability paths (Flame/Horde/
   Predator), berserks (Berserk, Wildfire, Mage's Lash), forms (Dragon),
   meditations (Tenacity, Serenity), roars (Everild's Rage, Screech),

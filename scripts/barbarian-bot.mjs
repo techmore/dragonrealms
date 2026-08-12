@@ -14,6 +14,8 @@ const opt = (flag, dflt) => {
 };
 const MAX_MINUTES = Number(opt('--minutes', '5'));
 const TARGET_CIRCLE = Number(opt('--circle', '3'));
+const START_SILVER = Number(opt('--silver', '0'));
+const START_RANKS = Number(opt('--start-ranks', '0'));
 const letters = 'abcdefghijklmnopqrstuvwxyz';
 const rnd = (n) => letters[Math.floor(Math.random() * n)];
 const BOT_NAME = (opt('--name', '') || 'Gor' + Array.from({ length: 5 }, () => rnd(26)).join('')).replace(/[^a-zA-Z]/g, '');
@@ -44,6 +46,13 @@ const ARRIVES = {
 };
 const SKINS = ['rat pelt', 'kobold hide', 'goblin hide', 'wolf pelt', 'wisp mote', 'troll hide', 'cinder scale'];
 const TRAIN_PRIORITY = ['large_edged', 'twohanded_edged', 'twohanded_blunt', 'light_armor', 'fitness', 'evasion', 'blunt', 'thrown', 'perception', 'foraging'];
+// Circle-gated abilities: learn them when the circle allows.
+const ABILITY_MIN_CIRCLE = { whirlwind: 6, war_stomp: 8, choke: 5, dual_load: 7 };
+// Skills boosted by --start-ranks: the circle-band requirements, so a
+// head-started bot can actually circle up.
+const RANK_BOOST_SKILLS = [...TRAIN_PRIORITY, 'medium_edged', 'small_edged', 'chain_armor', 'shield_usage',
+  'parry', 'expertise', 'inner_fire', 'tactics', 'stealth', 'hiding', 'skinning', 'appraisal',
+  'tracking', 'swimming', 'climbing', 'scholarship'];
 const ABILITY_PLAN = ['dragon', 'tenacity', 'serenity', 'everilds_rage', 'screech', 'choke', 'dispel', 'mageslash', 'whirlwind', 'war_stomp', 'dual_load', 'juggernaut', 'duelist', 'titan', 'exemplar'];
 
 const state = {
@@ -313,11 +322,17 @@ function hallBusiness() {
     return;
   }
   if (!state.learnTriedThisVisit && state.learnIdx < ABILITY_PLAN.length) {
-    state.learnTriedThisVisit = true;
-    const id = ABILITY_PLAN[state.learnIdx];
-    state.learnIdx += 1;
-    sendCmd(`learn ${id}`);
-    return;
+    while (state.learnIdx < ABILITY_PLAN.length &&
+           (ABILITY_MIN_CIRCLE[ABILITY_PLAN[state.learnIdx]] || 0) > state.circle) {
+      state.learnIdx += 1; // gate not open yet — defer
+    }
+    if (state.learnIdx < ABILITY_PLAN.length) {
+      state.learnTriedThisVisit = true;
+      const id = ABILITY_PLAN[state.learnIdx];
+      state.learnIdx += 1;
+      sendCmd(`learn ${id}`);
+      return;
+    }
   }
   if (!state.circleTriedThisVisit) {
     state.circleTriedThisVisit = true;
@@ -354,6 +369,48 @@ function cap(s) {
 }
 
 // ---------------- lifecycle ----------------
+let apiToken = null;
+
+// Bootstrap via the HTTP test API (DR_ENABLE_API=1): create the character and
+// apply optional head-starts (silver, skill ranks) so demos can showcase
+// training and circling without the full grind. Returns a session token for
+// the WS login, or null if the API is unavailable.
+async function apiBootstrap() {
+  const base = 'http://localhost:3000/api';
+  const call = async (path, method = 'GET', body) => {
+    const res = await fetch(base + path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiToken ? { Authorization: 'Bearer ' + apiToken } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return res.json();
+  };
+  try {
+    const health = await call('/health');
+    if (!health.ok) return null;
+    const reg = await call('/register', 'POST', { user: ACCOUNT, pass: 'botpass123' });
+    if (!reg.ok) return null;
+    apiToken = reg.token;
+    const cc = await call('/characters', 'POST', { name: BOT_NAME, race: 'gortog', guild: 'barbarian' });
+    if (!cc.ok) return null;
+    await call('/enter', 'POST', { charId: cc.charId });
+    if (START_SILVER > 0) await call('/debug', 'POST', { silver: START_SILVER });
+    if (START_RANKS > 0) {
+      const skills = {};
+      for (const id of RANK_BOOST_SKILLS) skills[id] = START_RANKS;
+      await call('/debug', 'POST', { setSkills: skills });
+    }
+    log(`API bootstrap: ${BOT_NAME} created${START_SILVER ? ` with ${START_SILVER} silvers` : ''}${START_RANKS ? `, primaries at rank ${START_RANKS}` : ''}`);
+    return apiToken;
+  } catch (e) {
+    log('API bootstrap unavailable (' + e.message + ') — playing a fresh character');
+    return null;
+  }
+}
+
 function finish(reason) {
   log(`done — ${reason}. circle ${state.circle}, ${state.kills} kills, ${state.silver} silvers, ${Math.round((Date.now() - state.start) / 1000)}s`);
   try { send({ t: 'input', line: 'quit' }); } catch {}
@@ -370,12 +427,32 @@ ws.on('message', (raw) => {
   }
 });
 
-function handle(msg) {
+let bootstrapDone = null;
+if (START_SILVER > 0 || START_RANKS > 0) bootstrapDone = apiBootstrap();
+
+async function handle(msg) {
   switch (msg.t) {
     case 'login_prompt':
-      log('registering account ' + ACCOUNT);
-      send({ t: 'register', u: ACCOUNT, p: 'botpass123' });
+      if (bootstrapDone) {
+        await bootstrapDone; // the login banner races the API bootstrap
+        bootstrapDone = null;
+      }
+      if (apiToken) {
+        log('logging in with API session token');
+        send({ t: 'token', token: apiToken });
+        apiToken = null;
+      } else {
+        log('registering account ' + ACCOUNT);
+        send({ t: 'register', u: ACCOUNT, p: 'botpass123' });
+      }
       break;
+    case 'charselect': {
+      // The API-created character may already exist; enter the first slot.
+      const m = /^\s*(\d+)\)/m.exec(String(msg.msg || ''));
+      if (m) { log('entering character slot ' + m[1]); send({ t: 'charselect', id: m[1] }); }
+      else { log('no character to enter — exiting'); process.exit(1); }
+      break;
+    }
     case 'charcreate':
       state.phase = 'chargen';
       log(`creating ${BOT_NAME}, a gortog barbarian`);
@@ -437,6 +514,8 @@ function handle(msg) {
       }
       break;
     case 'enter':
+      state.phase = 'playing';
+      log(`entered the world. watch live: http://localhost:3000/spectate.html?name=${BOT_NAME}`);
       break;
   }
 }

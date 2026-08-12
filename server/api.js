@@ -229,6 +229,7 @@ export async function apiRequest(req, res, game) {
       if (d.die) {
         game.combat.handleDeath(p);
       }
+      game.persistPlayer(p); // fixture effects must survive re-entry
       return json(res, 200, { ok: true, state: apiState(game, p) });
     }
     default:

@@ -22,7 +22,7 @@ const cname = 'Corp' + Array.from({ length: 7 }, () => 'abcdefghijklmnopqrstuvwx
 const SCRIPT = [
   ['look', 400], ['help', 300], ['inventory', 300], ['score', 300],
   ['skills', 300], ['exp', 300], ['spells', 300], ['tdp', 300],
-  ['who', 300], ['time', 300], ['stats', 300], ['stance', 300],
+  ['who', 300], ['stats', 300], ['stance', 300],
   ['stance balanced', 300], ['n', 500], ['look', 300], ['list', 300],
   ['buy nonexistent', 300], ['s', 500], ['e', 500], ['look', 300],
   ['list', 300], ['forge', 300], ['craft', 300], ['khri', 300],
