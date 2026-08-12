@@ -29,6 +29,7 @@ export const STAGES = [
     desc:"All ten remaining guilds have live fidelity v1s; deeper trees per guild pending." },
   { id:13, title:"Stage 13 — World & Systems Fidelity", badge:"partial",
     desc:"Hunting ladders, Crossing/Riverhaven depth, skill-system structure, magic mechanics, crafting, PvP & justice." },
+  { s:4, id:"f164", label:"Auction / player trading", detail:"player-to-player trading: auction house or person-to-person offers, broker fees, escrow (optional)", status:"todo" },
 ];
 
 export const FEATURES = [
@@ -70,7 +71,7 @@ export const FEATURES = [
   { s:4, id:"f36", label:"Multi-level dungeon", detail:"Blackwood Ruins: keep -> Crypt of the Dread Knight", status:"done" },
   { s:4, id:"f37", label:"Named creatures & rare loot", detail:"Shadowpaw, Bandit Chieftain, Cinder Drake King", status:"done" },
   { s:4, id:"f38", label:"Economy balance", detail:"partial: training costs scale with rank, healer/tavern/chaffer/respec sinks, caravan hirelings; full sink-vs-source pass pending playtest data", status:"partial" },
-  { s:4, id:"f39", label:"Item durability / repair", detail:"optional depth", status:"todo" },
+  { s:4, id:"f39", label:"Item durability / repair", detail:"blocked on the shared combat seam (degradation and effects both live in server/combat.js, owned by the parallel session)", status:"todo" },
   { s:5, id:"f40", label:"TDP awards from rank-ups + circle bonus", detail:"mirrors source game: ranks in skills grant TDPs", status:"done" },
   { s:5, id:"f41", label:"Spend TDPs on stats", detail:"Fane of Training, train-twice (DR-authentic)", status:"done" },
   { s:5, id:"f42", label:"Spend TDPs on skills", detail:"'tdptrain <skill>' trains any skill", status:"done" },
@@ -127,7 +128,7 @@ export const FEATURES = [
   { s:9, id:"f93", label:"Creature economy tuned 1→10", detail:"sim: all 11 guilds reach circle 10 in 4–12 sim-minutes", status:"done" },
   { s:9, id:"f94", label:"Endgame gear", detail:"circle-10 equipment for every build", status:"done" },
   { s:9, id:"f95", label:"Guild capstone rewards", detail:"circle-10 signature passive per guild (all 11)", status:"done" },
-  { s:9, id:"f96", label:"Playtest balance pass", detail:"exp curves, training costs, quest rewards", status:"todo" },
+  { s:9, id:"f96", label:"Playtest balance pass", detail:"pacing re-verified 2026-08 with stamina/lockout/tier systems live: all 11 guilds reach circle 10 in 4-14 sim-min, zero deaths; silver runs tight at high circles (training sinks outpace hunt income) — live-play rebalance pending", status:"partial" },
   { s:9, id:"f97", label:"Achievements / leaderboard", detail:"live: 9 milestone achievements (quests, circles, casting, crafting, scavenging, wealth, slaying) with unlock notices and an ACHIEVEMENTS ledger; leaderboard pending", status:"partial" },
   { s:10, id:"f98", label:"Inner Fire resource", detail:"mana type none; combat regen to 100%, passive cap ~30% at c1 growing with skill, kill-recharge, ranked skill trains in battle", status:"partial" },
   { s:10, id:"f99", label:"Ability slots at tertiary rate", detail:"1 slot at circle 1, +1 every even circle; learn at hall with path prereqs", status:"partial" },
@@ -156,7 +157,7 @@ export const FEATURES = [
   { s:11, id:"f122", label:"Crafting skills + disciplines", detail:"alchemy + forging v1 live; engineering (shape: carved staff, arbalest) + outfitting (tailor: cured leather, studded hide) v1 live; full technique slots pending", status:"partial" },
   { s:11, id:"f123", label:"Guild crafting affiliations", detail:"v1 live: Paladin +3 tailoring (Armorsmithing), Ranger +2 tailoring, Trader +2 engineering, Empath +2 alchemy (Remedies), Barbarian +3 forging; explicit technique slots pending", status:"partial" },
   { s:11, id:"f124", label:"Stamina + burden pools", detail:"stamina pool (Con + Fitness); burden on weapons/armor shrinks the pool and slows recovery; big efforts (maneuvers, ambush, backstab, whirlwind/stomp/choke, snipe) spend wind and refuse when spent; rest and combat ticks recover", status:"done" },
-  { s:11, id:"f125", label:"Magic techniques / patterns", detail:"magic techniques, analogous patterns, metaspells", status:"todo" },
+  { s:11, id:"f125", label:"Magic techniques / patterns", detail:"v1 live: five magic techniques with slots growing by circle, learned at the guild hall (Aether Efficiency -10% mana, Deep Harness +30%, Resonant Attunement, Meditation +20% regen, Cold Casting +15 safe ceiling); analogous patterns and metaspells pending", status:"partial" },
   { s:12, id:"f126", label:"Bard fidelity", detail:"enchantes v1 live; Segue, 55-slot spell tree, PRACTICE VOICE, BLUFF/Recall, Engineering affinity pending", status:"partial" },
   { s:12, id:"f127", label:"Cleric fidelity", detail:"devotion v1 live; Align (39 Immortals), Communes, Infusion, Resurrection, Enchanting affinity pending", status:"partial" },
   { s:12, id:"f128", label:"Empath fidelity", detail:"wound-taking v1 live (mend + empathic stain); Link/Shift, 5 spellbooks, Alchemy affinity pending", status:"partial" },
@@ -178,7 +179,7 @@ export const FEATURES = [
   { s:3, id:"f144", label:"Group / party system", detail:"live: party invite/join/leave (up to 5); kill credit and quest progress shared in the same room, party-mates earn hunting exp on kills", status:"done" },
   { s:4, id:"f145", label:"Bank vault", detail:"live: VAULT/STORE/RETRIEVE at the bank (market_end and Riverhaven market)", status:"done" },
   { s:4, id:"f146", label:"Quest variety", detail:"crier quests span four kinds: kill, delivery (parcel runs to named NPCs), recovery (find a lost trinket), skinning; street task givers still pending", status:"done" },
-  { s:5, id:"f147", label:"Exp debt / locks", detail:"live: learning lockout — 3+ rapid rank-ups in one skill dims further learning 50% for two minutes (death already costs rank progress)", status:"done" },
+  { s:5, id:"f147", label:"Exp debt / locks", detail:"live: learning lockout — 3+ rapid rank-ups in one skill dims further learning 50% for two minutes; death costs rank progress (DR debts/locks feel)", status:"done" },
   { s:13, id:"f148", label:"Weather & seasons", detail:"weather drifts every few game-hours by season (clear/fair/rain/fog/storm/snow); storms charge mana, fog dims it, the sky helps or hinders forage/hunt/track; 'time' reports the sky", status:"done" },
   { s:3, id:"f149", label:"Battlefield healing & potion timers", detail:"30s chug timer between draughts; no eating or drinking in combat (healing comes from magic and the healer)", status:"done" },
   { s:4, id:"f150", label:"Crossing landmarks & districts", detail:"live: High Temple (prayer/faith), Asemath Academy (study), The Middens (scavenge), the Docks, Amusement Pier (barge to Riverhaven, coin-toss games), Half Pint + Tenderfoot taverns (faster rest)", status:"done" },
@@ -195,4 +196,5 @@ export const FEATURES = [
   { s:13, id:"f161", label:"Crafted gear superiority", detail:"live: crafted base stats exceed store-bought and the quality ladder (practically worthless -> masterfully-crafted, 1.3x) scales with skill; magic buffs at half strength on crafting checks pending", status:"done" },
   { s:13, id:"f162", label:"Justice zones & warrants", detail:"murder warrants live: killing an OPEN adventurer in town draws a warrant, guards seize you on sight, RECALL WARRANT / SURRENDER / plead to clear; Standard / Clan / Dirge / Hara'jaal / None zones with distinct crime consequences, stocks, DEPART ITEM pending", status:"partial" },
   { s:13, id:"f163", label:"Anti-abuse guardrails", detail:"v1 live: assault refuses targets 5+ circles below, hot rooms throttle respawns (anti-camp), REPORT command files complaints; broader moderation tooling pending", status:"partial" },
+  { s:4, id:"f164", label:"Auction / player trading", detail:"player-to-player trading: auction house or person-to-person offers, broker fees, escrow (optional)", status:"todo" },
 ];

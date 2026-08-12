@@ -1093,3 +1093,65 @@ test('party: invites, shared hunt credit, and leaving', async () => {
   game.removePlayer(a);
   game.removePlayer(b);
 });
+
+// ------------------- Magic techniques -------------------
+test('techniques: slots grow with circle, learn at the hall, effects land', async () => {
+  const { techniqueSlots, knowsTechnique } = await import('../server/commands/magic.js');
+  assert.equal(techniqueSlots(1), 1);
+  assert.equal(techniqueSlots(6), 3);
+  assert.equal(techniqueSlots(10), 4);
+
+  const p = await mkChar('TechWarm', 'warmage');
+  p.room = 'marsh_1';
+  p.mana = 100;
+  p.silver = 1000;
+
+  // Wrong room refused.
+  handleCommand(game, p, 'technique learn aether_efficiency');
+  assert.match(lastMsg(p), /guild hall/i, 'learn at the hall only');
+  p.room = 'hall_warmage';
+  handleCommand(game, p, 'technique learn aether_efficiency');
+  assert.ok(knowsTechnique(p, 'aether_efficiency'), 'learned');
+  assert.equal(p.techniques.length, 1, 'one technique');
+  handleCommand(game, p, 'technique');
+  assert.match(lastMsg(p), /Aether Efficiency/, 'listed');
+
+  // Aether Efficiency trims spell costs.
+  const { guildById } = await import('../data/guilds.js');
+  const shard = guildById('warmage').spells.find((sp) => sp.minCircle === 1);
+  p.skills.war_magic = { rank: 20, exp: 0 };
+  const rat = game.makeCreature(CREATURES.rat);
+  game.roomCreatures.get('marsh_1').push(rat);
+  game.startCombat(p, [rat.def]);
+  const manaBefore = p.mana;
+  handleCommand(game, p, `cast ${shard.id}`);
+  const spent = manaBefore - p.mana;
+  assert.ok(spent <= Math.ceil(shard.mana * 0.9), `efficiency trimmed the cost (${spent})`);
+
+  // Slot cap: circle 1 has one slot.
+  handleCommand(game, p, 'technique learn meditation');
+  assert.match(lastMsg(p), /no free technique slots/i, 'slots cap at circle 1');
+  game.removePlayer(p);
+});
+
+test('techniques: cold casting widens the safe overchannel ceiling', async () => {
+  const p = await mkChar('TechCold', 'moonmage');
+  p.skills.primary_magic = { rank: 20, exp: 0 };
+  p.skills.moon_magic = { rank: 40, exp: 0 };
+  p.circle = 8;
+  p.room = 'marsh_1';
+  p.mana = 300;
+  const safeBase = (await import('../data/mana.js')).safeOverchannelPct(20);
+  handleCommand(game, p, 'prepare moon_bolt 100');
+  const before = p.hp;
+  Math.random = () => 0.99; // force any backfire roll to fail to fire
+  handleCommand(game, p, 'cast');
+  assert.equal(p.hp, before, 'safe prepare never backfires');
+  // With cold casting, a 100%+12 overchannel stays safe.
+  p.techniques = ['cold_casting'];
+  handleCommand(game, p, `prepare moon_bolt ${safeBase + 12}`);
+  const before2 = p.hp;
+  handleCommand(game, p, 'cast');
+  assert.equal(p.hp, before2, 'cold casting held the weave safe');
+  game.removePlayer(p);
+});

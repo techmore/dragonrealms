@@ -13,7 +13,7 @@ const HELP = `
 \x1b[1mDragon Realms — quick help\x1b[0m
   Movement:  n, s, e, w, ne, nw, se, sw, u, d  |  go north  |  look (l)
    Combat:    attack <creature>  |  target <creature>  |  cast [spell] [target]  |  retreat/flee  |  skin <creature>
-   Magic:     spells  |  slots  |  prepare <spell> [pct] (then "cast"; overchanneling risks backlash)  |  perceive  |  harness  |  charge/invoke/focus <cambrinth>
+   Magic:     spells  |  slots  |  technique [learn <name>]  |  prepare <spell> [pct] (then "cast"; overchanneling risks backlash)  |  perceive  |  harness  |  charge/invoke/focus <cambrinth>
    Powers:    berserk (Barbarian)  |  form/roar/meditate <ability>  |  whirlwind/stomp/choke/analyze (barbarian)  |  backstab (Thief)  |  khri <name> (Thief)
               smite (Paladin)  |  glyph <name> (Paladin, soul-fueled wards)  |  mend/touch/scar/link <player> (Empath)  |  predict + observe sky + telescope + moon gate <city> (Moon Mage)  |  summon familiar (Warrior Mage)  |  animate <corpse> + ritual <name> (Necromancer)
               enchante war|bravery|regen (Bard)  |  devotion (Cleric)  |  beseech wind|sun + companion (Ranger)  |  snipe/slip (Ranger)

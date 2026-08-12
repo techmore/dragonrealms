@@ -165,8 +165,10 @@ export class Game {
       }
       if (!p.guild.magic || p.mana >= p.maxMana) continue;
       let rate = manaRegenRate(p.guild.id) * Math.min(2.5, 0.5 + skillRank(p, 'attunement') * 0.005);
-      // Water-attuned warrior mages renew like the tide.
+      // Water-attuned warrior mages renew like the tide; the Meditation
+      // technique steadies any magic guild's renewal.
       if (p.guild.id === 'warmage' && p.element === 'water') rate *= 1.25;
+      if ((p.techniques || []).includes('meditation')) rate *= 1.2;
       const gain = Math.max(1, Math.floor(p.maxMana * rate));
       p.mana = Math.min(p.maxMana, p.mana + gain);
     }

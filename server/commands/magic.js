@@ -51,6 +51,7 @@ export const commands = {
     let cost = Math.ceil(spell.mana * pct / 100);
     const lunar = p.lunarUntil && Date.now() < p.lunarUntil;
     if (lunar) cost = Math.max(1, Math.ceil(cost * 0.9));
+    if (knowsTechnique(p, 'aether_efficiency')) cost = Math.max(1, Math.ceil(cost * 0.9));
     if (p.mana < cost) return emit(`You need ${cost} mana to cast ${spell.name}.`);
     if (lunar) emit('Your lunar insight eases the weave (10% less mana).');
     // Foreign-mana backlash (DR SvS-lite): some ground rejects some magic.
@@ -85,7 +86,7 @@ export const commands = {
     }
     unlockAchievement(p, 'first_cast');
     if (spell.minCircle >= 7) unlockAchievement(p, 'master_arcana');
-    const safe = safeOverchannelPct(skillRank(p, 'primary_magic'));
+    const safe = safeOverchannelPct(skillRank(p, 'primary_magic')) + (knowsTechnique(p, 'cold_casting') ? 15 : 0);
     if (backfireChance(pct, safe) > 0 && Math.random() < backfireChance(pct, safe)) {
       p.mana -= Math.floor(cost * 0.6);
       p.prepared = null;
@@ -182,7 +183,7 @@ export const commands = {
     const bonus = Math.min(0.3, skillRank(p, 'attunement') * 0.002);
     const tide = manaCycle(type) > 0.62 ? ' waxing' : manaCycle(type) < 0.38 ? ' waning' : '';
     const sky = weather > 0 ? ' The storm-charged aether surges!' : weather < 0 ? ' The fog dims the flow.' : '';
-    const leveled = gainSkillExp(p, 'attunement', 3);
+    const leveled = gainSkillExp(p, 'attunement', knowsTechnique(p, 'resonant_attunement') ? 5 : 3);
     emit(`You reach out with your senses... ${def.desc} The ${def.name.toLowerCase()} mana here flows ${manaDescriptor(level + bonus)}${tide} (${Math.floor(level * 100)}% base).${sky}${leveled ? ' Your Attunement improved!' : ''}`);
   },
 
@@ -202,8 +203,9 @@ export const commands = {
     const before = p.heldMana || 0;
     let gain = Math.floor(8 + level * 10 + skillRank(p, 'attunement') * 0.4);
     if (p.element === 'fire') gain = Math.floor(gain * 1.25);
+    if (knowsTechnique(p, 'deep_harness')) gain = Math.floor(gain * 1.3);
     p.heldMana = Math.min(cap, before + gain);
-    const leveled = gainSkillExp(p, 'attunement', 6);
+    const leveled = gainSkillExp(p, 'attunement', knowsTechnique(p, 'resonant_attunement') ? 9 : 6);
     emit(`You draw ${p.heldMana - before} points of ${def.name.toLowerCase()} mana into your grasp (holding ${p.heldMana}/${cap}).${leveled ? ' Your Attunement improved!' : ''}`);
   },
 
@@ -409,6 +411,8 @@ export const commands = {
     const state = d >= 70 ? 'incandescent' : d >= 40 ? 'steady' : d >= 20 ? 'flickering' : 'dim';
     emit(`Your devotion is ${d}/100 — ${state}. Devotions at the temple deepen it; holy magic burns brighter with it.`);
   },
+
+  technique(ctx) { technique(ctx); },
 
   commune(ctx) { commune(ctx); },
   sacrifice(ctx) { sacrifice(ctx); },
@@ -791,6 +795,52 @@ function summonCommand(ctx) {
       if (live.ws) live.ws.send(JSON.stringify({ t: 'msg', msg: 'Your conjured blade dissolves into a wisp of aether.' }));
     }
   }, CONJURE_MS).unref();
+}
+
+// Magic techniques (DR): focused training that bends how you weave. Learned
+// at your guild hall; slots grow with circle.
+const TECHNIQUES = {
+  aether_efficiency: { id: 'aether_efficiency', name: 'Aether Efficiency', desc: 'Your weaves run lean — spells cost 10% less mana.' },
+  deep_harness: { id: 'deep_harness', name: 'Deep Harness', desc: 'You draw deeper — harness gathers 30% more mana.' },
+  resonant_attunement: { id: 'resonant_attunement', name: 'Resonant Attunement', desc: 'The ambient answers you — Attunement grows 50% faster when you perceive or harness.' },
+  meditation: { id: 'meditation', name: 'Meditation', desc: 'Your spirit breathes — mana renews 20% faster.' },
+  cold_casting: { id: 'cold_casting', name: 'Cold Casting', desc: 'You keep your head at the edge — safe overchannel ceiling rises 15 points.' },
+};
+
+const TECHNIQUE_COST = 150;
+
+export function techniqueSlots(circle) {
+  return 1 + Math.floor(circle / 3);
+}
+
+export function knowsTechnique(p, id) {
+  return (p.techniques || []).includes(id);
+}
+
+function technique(ctx) {
+  const { p, arg1, emit } = ctx;
+  if (!p.guild.magic) return emit('Your guild forswears magic — there are no techniques to learn.');
+  if (!arg1) {
+    const slots = techniqueSlots(p.circle);
+    const known = (p.techniques || []).map((id) => TECHNIQUES[id]?.name || id);
+    const lines = Object.values(TECHNIQUES).map((t) => `  ${t.name} — ${t.desc}${(p.techniques || []).includes(t.id) ? '  \x1b[1m[known]\x1b[0m' : ''}`);
+    return emit(`\nMagic techniques (${known.length}/${slots} slots):\n${lines.join('\n')}\n\nSay "technique learn <name>" at your guild hall (${TECHNIQUE_COST} silvers).`);
+  }
+  if (arg1.toLowerCase() !== 'learn') return emit('Technique what? Try "technique learn <name>".');
+  const name = (ctx.arg2 || '').toLowerCase();
+  const def = TECHNIQUES[name] || Object.values(TECHNIQUES).find((t) => t.name.toLowerCase().includes(name));
+  if (!def) return emit('You know of no such technique. Try "technique" for the list.');
+  if ((p.techniques || []).includes(def.id)) return emit(`You already know ${def.name}.`);
+  if (p.room !== `hall_${p.guild.id}`) return emit(`Techniques are taught at your guild hall (${roomById(p.room).name !== `hall_${p.guild.id}` ? 'the Guild District' : 'here'}).`);
+  const slots = techniqueSlots(p.circle);
+  if ((p.techniques || []).length >= slots) {
+    return emit(`You have no free technique slots (${(p.techniques || []).length}/${slots}). Circle higher to earn more.`);
+  }
+  if (p.silver < TECHNIQUE_COST) return emit(`Learning a technique costs ${TECHNIQUE_COST} silvers; you have ${p.silver}.`);
+  p.silver -= TECHNIQUE_COST;
+  p.techniques = [...(p.techniques || []), def.id];
+  gainSkillExp(p, 'primary_magic', 10);
+  emit(`You sit with the masters and master ${def.name}. ${def.desc} (${(p.techniques || []).length}/${slots} slots)`);
 }
 
 function familiar(ctx) {
