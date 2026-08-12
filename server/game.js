@@ -177,15 +177,50 @@ export class Game {
 
   respawnTick() {
     const now = Date.now();
-    for (const insts of this.roomCreatures.values()) {
+    for (const [roomId, insts] of this.roomCreatures) {
       for (const c of insts) {
         if (!c.alive && c.respawnAt && c.respawnAt <= now) {
+          // Anti-camp throttle: a room that keeps churning kills slows its
+          // respawns, so no one can grind a single spot forever.
+          if (this.campThrottled(roomId, now)) {
+            c.respawnAt = now + 120 * 1000;
+            continue;
+          }
+          this.logRespawn(roomId, now);
           c.alive = true;
           c.hp = c.maxHp;
           c.respawnAt = 0;
         }
       }
     }
+  }
+
+  // Respawn ledger: roomId -> recent respawn timestamps (rolling 5-min window).
+  logRespawn(roomId, now) {
+    if (!this.spawnLog) this.spawnLog = new Map();
+    const t = this.spawnLog.get(roomId) || [];
+    t.push(now);
+    this.spawnLog.set(roomId, t.filter((x) => now - x < 5 * 60 * 1000));
+  }
+
+  campThrottled(roomId, now) {
+    if (!this.spawnLog) return false;
+    const t = this.spawnLog.get(roomId) || [];
+    const recent = t.filter((x) => now - x < 5 * 60 * 1000);
+    if (recent.length < 14) return false;
+    // Tell anyone camping this room once per throttle period.
+    const key = `throttle_${roomId}`;
+    if (!this.throttleNotices || this.throttleNotices.get(key) !== this.throttleEpoch) {
+      this.throttleNotices = this.throttleNotices || new Map();
+      this.throttleEpoch = (this.throttleEpoch || 0) + 1;
+      this.throttleNotices.set(key, this.throttleEpoch);
+      for (const o of this.players.values()) {
+        if (o.room === roomId) {
+          o.ws.send(JSON.stringify({ t: 'msg', msg: 'The hunting here has grown thin — the game has scattered. (Move on, and the ground will recover.)' }));
+        }
+      }
+    }
+    return true;
   }
 
   creaturesIn(roomId) {
@@ -436,6 +471,11 @@ export class Game {
     if (target.pvpStance !== 'open') {
       return { ok: false, msg: `${target.name} is not OPEN to attack. Challenge them to a duel instead.` };
     }
+    // Anti-abuse: striking far weaker adventurers is refused (the guard
+    // notices, and decency does too).
+    if (target.circle < p.circle - 4) {
+      return { ok: false, msg: `${target.name} is circle ${target.circle} to your ${p.circle}. Preying on the weak shames the Crossing.` };
+    }
     const res = this.combat.startAssault(p, target);
     if (!res.ok) return { ok: false, msg: res.error };
     res.combat.say(`\n\x1b[1m${p.name} strikes at ${target.name} without warning!\x1b[0m`);
@@ -582,6 +622,7 @@ export class Game {
   isWild(roomId) { return wilds.isWild(roomId); }
   zoneName(roomId) { return wilds.zoneName(roomId); }
   forage(p) { return wilds.forage(this, p); }
+  scavenge(p) { return wilds.scavenge(this, p); }
   track(p) { return wilds.track(this, p); }
   hunt(p) { return wilds.hunt(this, p); }
   ladder() { return wilds.ladder(); }

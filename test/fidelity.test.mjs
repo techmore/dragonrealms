@@ -495,3 +495,140 @@ test('warrants: surrender to the law clears the noose at once', async () => {
   assert.equal(p.warrant, null, 'cleared after plea');
   game.removePlayer(p);
 });
+
+// ------------------- Crossing landmarks & districts -------------------
+test('landmarks: taverns ease rest, the middens yield salvage, the pier gambles', async () => {
+  const { ROOMS } = await import('../data/world.js');
+  for (const id of ['half_pint', 'tenderfoot', 'middens', 'docks', 'pier', 'academy', 'high_temple']) {
+    assert.ok(ROOMS[id], `${id} exists`);
+  }
+  assert.equal(ROOMS.half_pint.tavern, true, 'tavern flagged restful');
+  assert.equal(ROOMS.square.exits.nw, 'half_pint', 'square connects to the Half Pint');
+  assert.equal(ROOMS.pier.exits.w, 'rh_square', 'pier barge reaches Riverhaven');
+  assert.equal(ROOMS.guild_district.exits.e, 'academy', 'academy off the guild district');
+  assert.equal(ROOMS.temple.exits.s, 'high_temple', 'high temple behind the temple');
+
+  // Tavern rest is faster.
+  const p = await mkChar('TavernRest', 'barbarian');
+  p.room = 'half_pint';
+  p.hp = Math.max(1, Math.floor(p.maxHp / 2));
+  const res = game.startRest(p);
+  assert.match(res.msg, /hearth/i, 'tavern rest flavor');
+  const hpBefore = p.hp;
+  await new Promise((r) => setTimeout(r, 2300));
+  assert.ok(p.hp > hpBefore, 'resting recovers');
+  assert.ok(p.hp - hpBefore >= 4, 'tavern rest is generous');
+  game.removePlayer(p);
+
+  // The Middens: scavenge finds salvage (force the roll).
+  const q = await mkChar('ScavHunt', 'trader');
+  q.room = 'middens';
+  Math.random = () => 0.01;
+  const scav = game.scavenge(q);
+  assert.equal(scav.ok, true, 'scavenge works in the middens');
+  assert.ok(q.inventory.length > 0, 'found something');
+  const notThere = await mkChar('ScavNo', 'trader');
+  const no = game.scavenge(notThere);
+  assert.equal(no.ok, false, 'no scavenging outside the middens');
+  game.removePlayer(q);
+  game.removePlayer(notThere);
+
+  // The pier: play costs coin and can win.
+  const gambler = await mkChar('PierPlay', 'trader');
+  gambler.room = 'pier';
+  gambler.silver = 100;
+  handleCommand(game, gambler, 'play');
+  assert.ok(gambler.silver !== 100, 'wager changed the purse');
+  game.removePlayer(gambler);
+});
+
+// ------------------- Sorcerous backlash -------------------
+test('backlash: dark magic writhes on holy ground; holy light is swallowed in the blackwood', async () => {
+  const { guildById } = await import('../data/guilds.js');
+  const necro = await mkChar('DarkBack', 'necromancer');
+  necro.room = 'high_temple';
+  necro.mana = 100;
+  necro.skills.necromancy = { rank: 20, exp: 0 };
+  const spell = guildById('necromancer').spells[0];
+  // Force the backlash roll to fire.
+  Math.random = () => 0.01;
+  const hpBefore = necro.hp;
+  handleCommand(game, necro, `cast ${spell.id}`);
+  assert.ok(necro.hp < hpBefore, 'sacred ground burned the dark caster');
+
+  const cleric = await mkChar('HolyBack', 'cleric');
+  cleric.room = 'black_1';
+  cleric.mana = 100;
+  cleric.skills.holy_magic = { rank: 20, exp: 0 };
+  const holy = guildById('cleric').spells.find((s) => s.skill === 'holy_magic');
+  Math.random = () => 0.01;
+  const hpBefore2 = cleric.hp;
+  handleCommand(game, cleric, `cast ${holy.id}`);
+  assert.ok(cleric.hp < hpBefore2, 'the blackwood drank the holy light');
+  game.removePlayer(necro);
+  game.removePlayer(cleric);
+});
+
+test('backlash: benign ground leaves casting alone', async () => {
+  const { guildById } = await import('../data/guilds.js');
+  const necro = await mkChar('SafeCast', 'necromancer');
+  necro.room = 'marsh_1';
+  necro.mana = 100;
+  necro.skills.necromancy = { rank: 20, exp: 0 };
+  const spell = guildById('necromancer').spells[0];
+  Math.random = () => 0.01;
+  const hpBefore = necro.hp;
+  handleCommand(game, necro, `cast ${spell.id}`);
+  assert.equal(necro.hp, hpBefore, 'no backlash in the wilds');
+  game.removePlayer(necro);
+});
+
+// ------------------- Anti-abuse guardrails -------------------
+test('guardrails: assault refuses far weaker targets; spawn camping throttles', async () => {
+  const attacker = await mkChar('BullyA', 'barbarian');
+  attacker.circle = 10;
+  const victim = await mkChar('PreyV', 'trader');
+  attacker.room = 'market_way';
+  victim.room = 'market_way';
+  victim.pvpStance = 'open';
+  const res = game.startAssault(attacker, victim.name);
+  assert.equal(res.ok, false, 'circle-gap assault refused');
+  assert.match(res.msg, /weak/i, 'tells the bully why');
+
+  // Spawn throttle: a hot room pauses respawns.
+  game.spawnLog = new Map();
+  const now = Date.now();
+  const stamps = [];
+  for (let i = 0; i < 14; i++) stamps.push(now - i * 1000);
+  game.spawnLog.set('sewers_1', stamps);
+  assert.equal(game.campThrottled('sewers_1', now), true, 'camping room throttled');
+  assert.equal(game.campThrottled('sewers_1', now + 10 * 60 * 1000), false, 'window slides, throttle lifts');
+  game.removePlayer(attacker);
+  game.removePlayer(victim);
+});
+
+// ------------------- Guild crafting affiliations -------------------
+test('affiliations: guilds craft their trades with a natural edge', async () => {
+  const { addItem } = await import('../server/player.js');
+  // Rank 44 + fixed roll: paladin's +3 crosses into masterfully-crafted
+  // (0.911) where the trader's plain roll lands well-crafted (0.872).
+  Math.random = () => 0;
+  const paladin = await mkChar('AffPal', 'paladin');
+  paladin.room = 'tailor_shop';
+  paladin.skills.outfitting = { rank: 44, exp: 0 };
+  addItem(paladin, 'wolf_pelt', 1);
+  addItem(paladin, 'herb_root', 1);
+  handleCommand(game, paladin, 'tailor cured_leather');
+  const palMult = paladin.forgedQuality?.cured_leather;
+
+  const merchant = await mkChar('AffTrader', 'trader');
+  merchant.room = 'tailor_shop';
+  merchant.skills.outfitting = { rank: 44, exp: 0 };
+  addItem(merchant, 'wolf_pelt', 1);
+  addItem(merchant, 'herb_root', 1);
+  handleCommand(game, merchant, 'tailor cured_leather');
+  const trMult = merchant.forgedQuality?.cured_leather;
+  assert.ok(palMult > trMult, `paladin armorsmithing outshines the trader (${palMult} > ${trMult})`);
+  game.removePlayer(paladin);
+  game.removePlayer(merchant);
+});

@@ -19,12 +19,47 @@ export const ROOMS = {
   square: {
     id: 'square', zone: 'town', name: 'Town Square', npcs: ['towncrier'],
     desc: 'The broad flagstones of the Crossing town square bustle with merchants, guards, and travelers. A weathered fountain burbles at the center. Streets lead off in every direction, and a barred grate in the flags opens onto the town cells below.',
-    exits: { n: 'market_way', s: 'temple_row', e: 'guild_district', w: 'west_road', d: 'jail' },
+    exits: { n: 'market_way', s: 'temple_row', e: 'guild_district', w: 'west_road', d: 'jail', nw: 'half_pint' },
+  },
+  half_pint: {
+    id: 'half_pint', zone: 'town', name: 'The Half Pint', tavern: true,
+    desc: 'A smoky, low-beamed tavern packed to the rafters. A scarred bar runs the length of the room, and benches groan under hunters and merchants alike. The ale is cheap and the rest comes easy.',
+    exits: { se: 'square' },
   },
   east_road: {
     id: 'east_road', zone: 'town', name: 'East Road',
     desc: 'A wide road heading east past the market. The cold mist of the marsh hangs low over the fields ahead.',
-    exits: { w: 'market_end', e: 'east_gate' },
+    exits: { w: 'market_end', e: 'east_gate', n: 'tenderfoot', s: 'middens' },
+  },
+  tenderfoot: {
+    id: 'tenderfoot', zone: 'town', name: 'The Tenderfoot', tavern: true,
+    desc: 'A board-and-timber inn where new arrivals sleep three to a bunk. The common room smells of woodsmoke and hot stew, and the pallets are dry. A good place to get your wind back.',
+    exits: { s: 'east_road' },
+  },
+  middens: {
+    id: 'middens', zone: 'town', name: 'The Middens',
+    desc: 'A sprawling junkyard where the town throws what it cannot sell. Rusted pikes, cracked amphorae, and heaps of nameless scrap lie in drifts. Scavengers pick through the refuse for anything worth a copper.',
+    exits: { n: 'east_road' },
+  },
+  docks: {
+    id: 'docks', zone: 'town', name: 'The Docks', npcs: ['dockmaster'],
+    desc: 'Planked piers crowd the riverbank, where barges and fishing skiffs creak at their moorings. Stevedores haul crates down the gangplanks, and the river smells of wet rope and fish. A barge at the far pier takes passengers upriver.',
+    exits: { s: 'market_end', n: 'pier' },
+  },
+  pier: {
+    id: 'pier', zone: 'town', name: 'Amusement Pier', npcs: ['pier_master'],
+    desc: 'A gaily painted pier of stalls and games. Lanterns bob overhead, and a crowd gathers around a coin-toss table where a grinning fellow wins more than he loses. A barge moors at the end of the pier.',
+    exits: { s: 'docks', w: 'rh_square' },
+  },
+  academy: {
+    id: 'academy', zone: 'town', name: 'Asemath Academy',
+    desc: 'A quiet cloister of the College of Asemath, its walls lined with scrolls and star charts. Scholars murmur over desks, and the air smells of old parchment and ink.',
+    exits: { w: 'guild_district' },
+  },
+  high_temple: {
+    id: 'high_temple', zone: 'town', name: 'The High Temple',
+    desc: 'The great temple of the Crossing, its vaulted ceiling painted with the deeds of the gods. Candle flames float in ranks before a towering altar, and the air itself feels heavier with faith.',
+    exits: { n: 'temple' },
   },
   market_way: {
     id: 'market_way', zone: 'town', name: 'Market Way', npcs: ['shopkeeper', 'weaponsmith', 'armorer'],
@@ -48,8 +83,8 @@ export const ROOMS = {
   },
   market_end: {
     id: 'market_end', zone: 'town', name: 'Market Way North', npcs: ['banker', 'quartermaster'],
-    desc: 'The market lane ends at the low, iron-doored facade of the bank. Guards clatter by with wagons of bound steel — the quartermaster\'s stock. A road continues east toward the gate.',
-    exits: { s: 'market_way', e: 'east_road' },
+    desc: 'The market lane ends at the low, iron-doored facade of the bank. Guards clatter by with wagons of bound steel — the quartermaster\'s stock. A road continues east toward the gate, and the docks lie downriver to the north.',
+    exits: { s: 'market_way', e: 'east_road', n: 'docks' },
   },
   temple_row: {
     id: 'temple_row', zone: 'town', name: 'Temple Row', npcs: ['healer'],
@@ -68,13 +103,13 @@ export const ROOMS = {
   },
   temple: {
     id: 'temple', zone: 'town', name: 'Temple of the Pantheon', npcs: ['healer'],
-    desc: 'A vaulted hall lit by candles and shafts of stained light. Priests tend the wounded on low cots.',
-    exits: { n: 'temple_row' },
+    desc: 'A vaulted hall lit by candles and shafts of stained light. Priests tend the wounded on low cots. A great door at the back opens onto the High Temple.',
+    exits: { n: 'temple_row', s: 'high_temple' },
   },
   guild_district: {
     id: 'guild_district', zone: 'town', name: 'Guild District', npcs: ['towncrier'],
-    desc: 'An avenue of grand guildhalls, each flying a banner of its order. Stone faces watch the street. North and south run long rows of guild halls.',
-    exits: { w: 'square', n: 'guild_halls_n', s: 'guild_halls_s' },
+    desc: 'An avenue of grand guildhalls, each flying a banner of its order. Stone faces watch the street. North and south run long rows of guild halls; a quiet cloister stands to the east.',
+    exits: { w: 'square', n: 'guild_halls_n', s: 'guild_halls_s', e: 'academy' },
   },
   guild_halls_n: {
     id: 'guild_halls_n', zone: 'town', name: 'North Guild Row',

@@ -41,6 +41,36 @@ export const commands = {
     if (spell.minCircle > p.circle) return emit(`You learn ${spell.name} at circle ${spell.minCircle}.`);
     const cost = Math.ceil(spell.mana * pct / 100);
     if (p.mana < cost) return emit(`You need ${cost} mana to cast ${spell.name}.`);
+    // Foreign-mana backlash (DR SvS-lite): some ground rejects some magic.
+    const zone = roomById(p.room)?.zone || 'town';
+    const dark = spell.skill === 'necromancy' || spell.skill === 'sorcery';
+    const sacred = zone === 'town' && (p.room === 'high_temple' || p.room === 'temple');
+    if (dark && sacred) {
+      const chance = 0.4;
+      if (Math.random() < chance) {
+        p.mana -= Math.floor(cost * 0.5);
+        p.prepared = null;
+        const dmg = Math.max(1, Math.floor(p.maxHp * 0.12));
+        p.hp = Math.max(1, p.hp - dmg);
+        gainSkillExp(p, 'arcana', 4);
+        emit(`The holy ground burns against your ${dark ? 'dark' : 'foreign'} magic! Your spell unravels and the backlash scores you for ${dmg} damage.`);
+        game.status(p);
+        return;
+      }
+    }
+    if (spell.skill === 'holy_magic' && zone === 'blackwood') {
+      const chance = 0.3;
+      if (Math.random() < chance) {
+        p.mana -= Math.floor(cost * 0.5);
+        p.prepared = null;
+        const dmg = Math.max(1, Math.floor(p.maxHp * 0.08));
+        p.hp = Math.max(1, p.hp - dmg);
+        gainSkillExp(p, 'arcana', 4);
+        emit(`The blackwood drinks your holy light — the spell gouts out and the cold bites you for ${dmg} damage.`);
+        game.status(p);
+        return;
+      }
+    }
     const safe = safeOverchannelPct(skillRank(p, 'primary_magic'));
     if (backfireChance(pct, safe) > 0 && Math.random() < backfireChance(pct, safe)) {
       p.mana -= Math.floor(cost * 0.6);
@@ -238,26 +268,36 @@ export const commands = {
 
   pray(ctx) {
     const { p, emit } = ctx;
-    if (p.room !== 'temple' && p.room !== 'temple_row') return emit('You can pray at the Temple of the Pantheon.');
+    const atHighTemple = p.room === 'high_temple';
+    if (p.room !== 'temple' && p.room !== 'temple_row' && !atHighTemple) {
+      return emit('You can pray at the Temple of the Pantheon — or in the High Temple, behind the altar.');
+    }
     if (p.guild.id === 'cleric') {
       if (p.devoteAt && Date.now() - p.devoteAt < 10 * 60 * 1000) {
         const mins = Math.ceil((10 * 60 * 1000 - (Date.now() - p.devoteAt)) / 60000);
         return emit(`Your devotion is still warm from the last ritual. Wait ${mins} min.`);
       }
       p.devoteAt = Date.now();
-      const gained = Math.min(5, 100 - (p.devotion ?? 30));
+      const gained = Math.min(atHighTemple ? 10 : 5, 100 - (p.devotion ?? 30));
       p.devotion = (p.devotion ?? 30) + gained;
       gainSkillExp(p, 'theurgy', 8);
-      return emit(`You kneel and perform a quiet devotion. Your faith deepens (+${gained} devotion; ${p.devotion}/100).\nHigh devotion empowers your holy magic; neglect dims it.`);
+      return emit(atHighTemple
+        ? `You kneel before the great altar and give yourself to the silence. The gods answer — your faith deepens (+${gained} devotion; ${p.devotion}/100).`
+        : `You kneel and perform a quiet devotion. Your faith deepens (+${gained} devotion; ${p.devotion}/100).\nHigh devotion empowers your holy magic; neglect dims it.`);
     }
     if (p.guild.id === 'paladin') {
-      const gained = Math.min(2, 100 - (p.soul ?? 50));
+      const gained = Math.min(atHighTemple ? 4 : 2, 100 - (p.soul ?? 50));
       p.soul = (p.soul ?? 50) + gained;
       gainSkillExp(p, 'conviction', 4);
-      return emit(`You kneel in the quiet and pray. Your soul brightens (+${gained}).`);
+      return emit(atHighTemple
+        ? `You pray before the High Temple's altar, and light settles on your shoulders. Your soul brightens (+${gained}).`
+        : `You kneel in the quiet and pray. Your soul brightens (+${gained}).`);
     }
-    gainSkillExp(p, 'scholarship', 2);
-    emit('You kneel in the quiet and pray. A moment of peace steadies you.');
+    const gained = atHighTemple ? 4 : 2;
+    gainSkillExp(p, 'scholarship', gained);
+    emit(atHighTemple
+      ? 'You stand a long while in the great hall, and the weight of centuries steadies you. A moment of peace steadies you.'
+      : 'You kneel in the quiet and pray. A moment of peace steadies you.');
   },
   enchant(ctx) {
     const { p, arg1, emit } = ctx;

@@ -7,6 +7,19 @@ import { npcById } from '../../data/npcs.js';
 import { skillRank, gainSkillExp, addItem, removeItem, equipItem, unequipItem, countItems } from '../player.js';
 import { pad, findInventoryItem, findSlotByItem, findNpcByName } from './util.js';
 
+// Guild crafting affiliations (DR: free technique slots per discipline).
+// A guild's crafters hold a natural edge in their traditional trades.
+const CRAFT_AFFINITY = {
+  forge: { barbarian: 3 },  // Weaponsmithing
+  shape: { trader: 2 },     // Engineering
+  tailor: { paladin: 3, ranger: 2 }, // Armorsmithing, Tailoring
+  craft: { empath: 2 },     // Remedies
+};
+
+function craftAffinity(guildId, craft) {
+  return (CRAFT_AFFINITY[craft] && CRAFT_AFFINITY[craft][guildId]) || 0;
+}
+
 export const commands = {
   inventory(ctx) { showInventory(ctx); },
   inv: showInventory,
@@ -129,10 +142,8 @@ export const commands = {
     }
     for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
     // Weaponsmithing affinity: barbarians wield the forge with a natural edge
-    // on weapon recipes (DR: 3 free technique slots).
-    const isWeapon = itemById(recipe.item).type === 'weapon';
-    const affinity = isWeapon && p.guild.id === 'barbarian' ? 3 : 0;
-    const q = qualityRoll(forgeSkill + affinity);
+    // (DR: 3 free technique slots in the Weaponsmithing discipline).
+    const q = qualityRoll(forgeSkill + craftAffinity(p.guild.id, 'forge'));
     const leveled = gainSkillExp(p, 'forging', 12);
     const base = itemById(recipe.item);
     addItem(p, recipe.item, 1);
@@ -158,7 +169,7 @@ export const commands = {
       return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Ore and scale drop in the wilds.`);
     }
     for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
-    const q = qualityRoll(skill);
+    const q = qualityRoll(skill + craftAffinity(p.guild.id, 'shape'));
     const leveled = gainSkillExp(p, 'engineering', 12);
     const base = itemById(recipe.item);
     addItem(p, recipe.item, 1);
@@ -183,7 +194,7 @@ export const commands = {
       return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Pelts come from the hunt.`);
     }
     for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
-    const q = qualityRoll(skill);
+    const q = qualityRoll(skill + craftAffinity(p.guild.id, 'tailor'));
     const leveled = gainSkillExp(p, 'outfitting', 12);
     const base = itemById(recipe.item);
     addItem(p, recipe.item, 1);
@@ -209,7 +220,7 @@ export const commands = {
     }
     for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
     const skill = skillRank(p, 'alchemy');
-    const chance = Math.min(0.95, 0.5 + skill * 0.03 + p.stats.wis * 0.003);
+    const chance = Math.min(0.95, 0.5 + (skill + craftAffinity(p.guild.id, 'craft')) * 0.03 + p.stats.wis * 0.003);
     const leveled = gainSkillExp(p, 'alchemy', 10);
     if (Math.random() < chance) {
       addItem(p, recipe.item, 1);

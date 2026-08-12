@@ -85,6 +85,16 @@ export const NPCS = {
     desc: 'A tired man in a rusted breastplate, keys clinking at his belt.',
     greeting: 'Plead guilty and pay your fine, or plead innocent and wait for the judge. Either way, you\'ll think twice about thieving.',
   },
+  dockmaster: {
+    id: 'dockmaster', name: 'Old Whit, the dockmaster', role: 'info',
+    desc: 'A weathered man in tar-stained oilskins, watching the river with knowing eyes.',
+    greeting: 'The barge upriver to Riverhaven leaves from the Amusement Pier. Ask me about the town with "ask Whit help".',
+  },
+  pier_master: {
+    id: 'pier_master', name: 'Rollo, the pier master', role: 'info',
+    desc: 'A showman in a velvet vest, rattling a cup of coppers.',
+    greeting: 'Try your luck at the coin table — "play" for a copper. The house is always fair. Almost always.',
+  },
   pit_master: {
     id: 'pit_master', name: 'Sable, the pit master', role: 'craft',
     desc: 'A razor-thin woman in grey, chalk in hand, watching the board with hungry eyes.',

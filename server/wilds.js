@@ -146,24 +146,53 @@ export const wilds = {
   startRest(game, p) {
     if (p.combatId) return { ok: false, msg: 'You cannot rest in the middle of a fight!' };
     if (p.restTimer) return { ok: false, msg: 'You are already resting.' };
+    // Taverns and inns ease the body: rest comes faster under a roof.
+    const room = roomById(p.room);
+    const restful = Boolean(room && room.tavern);
     let ticks = 0;
     p.resting = true;
     p.restTimer = setInterval(() => {
       ticks += 1;
       if (p.combatId || p.room !== p.restRoom) { wilds.stopRest(p); return; }
-      const hpGain = Math.max(2, Math.floor(p.maxHp * 0.025));
+      const hpGain = restful ? Math.max(4, Math.floor(p.maxHp * 0.045)) : Math.max(2, Math.floor(p.maxHp * 0.025));
       p.hp = Math.min(p.maxHp, p.hp + hpGain);
-      if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * 0.04)));
-      p.stamina = Math.min(p.maxStaminaEff, (p.stamina || 0) + 6);
+      if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * (restful ? 0.07 : 0.04))));
+      p.stamina = Math.min(p.maxStaminaEff, (p.stamina || 0) + (restful ? 9 : 6));
       gainSkillExp(p, 'athletics', 2);
       if (ticks % 10 === 0) p.rexp = Math.min(120, (p.rexp || 0) + 1);
-      p.ws.send(JSON.stringify({ t: 'msg', msg: `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}, stamina ${p.stamina}/${p.maxStaminaEff}` }));
+      p.ws.send(JSON.stringify({ t: 'msg', msg: `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}, stamina ${p.stamina}/${p.maxStaminaEff}${restful ? ' (warm and dry)' : ''}` }));
       if (p.hp >= p.maxHp && (!p.guild.magic || p.mana >= p.maxMana) && p.stamina >= p.maxStaminaEff) wilds.stopRest(p);
       if (ticks >= 20) wilds.stopRest(p);
     }, 2000);
     p.restTimer.unref();
     p.restRoom = p.room;
-    return { ok: true, msg: 'You settle down to rest and recover.' };
+    return { ok: true, msg: restful ? 'You settle into a bench by the hearth. Rest comes easily here.' : 'You settle down to rest and recover.' };
+  },
+
+  // The Middens: the town junkyard. Scavenging turns Appraisal and luck
+  // into stray coin and odd treasures.
+  scavenge(game, p) {
+    if (p.room !== 'middens') return { ok: false, msg: 'There is nowhere to scavenge here. The Middens lie south of the East Road.' };
+    if (p.scavengeAt && Date.now() - p.scavengeAt < 15 * 1000) {
+      const secs = Math.ceil((15 * 1000 - (Date.now() - p.scavengeAt)) / 1000);
+      return { ok: false, msg: `You have already picked this heap over (${secs}s).` };
+    }
+    p.scavengeAt = Date.now();
+    const skill = skillRank(p, 'appraisal');
+    const chance = 0.25 + skill * 0.03 + p.stats.wis * 0.004 + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
+    const leveled = gainSkillExp(p, 'appraisal', 6);
+    if (Math.random() >= chance) {
+      return { ok: true, msg: `You poke through the refuse and find nothing worth keeping.${leveled ? ' Your Appraisal improved!' : ''}` };
+    }
+    const roll = Math.random();
+    let found;
+    if (roll < 0.02) found = { item: 'diamond', qty: 1, text: 'buried under a rusted kettle, a diamond catches the light!' };
+    else if (roll < 0.1) found = { item: 'garnet', qty: 1, text: 'among the shards you find a blood garnet.' };
+    else if (roll < 0.3) found = { item: 'iron_ore', qty: 1, text: 'a lump of iron ore, half-buried in ash.' };
+    else if (roll < 0.5) found = { item: 'herb_root', qty: 1, text: 'a bitter root growing through the refuse.' };
+    else found = { item: 'iron_ring', qty: 1, text: 'a bent iron ring, still worth a coin or two.' };
+    addItem(p, found.item, found.qty);
+    return { ok: true, msg: `You sort through the heaps — ${found.text}${leveled ? ' Your Appraisal improved!' : ''}` };
   },
 
   stopRest(p) {

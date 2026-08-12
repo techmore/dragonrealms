@@ -34,7 +34,7 @@ const HELP = `
   NPCs:      ask <npc> <topic>  (try "ask crier help")
   Character: score  |  skills  |  exp  |  alloc <stat> <amount>  |  rexp
   Social:    say <text>  |  emote <text>  |  shout <text>  |  who  |  time
-  Misc:      help  |  save  |  quit
+  Misc:      help  |  save  |  report <what happened>  |  quit
 `.trim();
 
 export const commands = {
@@ -78,6 +78,27 @@ export const commands = {
     emit(res.msg);
   },
 
+  scavenge(ctx) {
+    const { game, p, emit } = ctx;
+    const res = game.scavenge(p);
+    emit(res.msg);
+  },
+
+  play(ctx) {
+    const { p, emit } = ctx;
+    if (p.room !== 'pier') return emit('There are games only on the Amusement Pier, north of the docks.');
+    if (p.silver < 5) return emit('The coin toss costs 5 silvers, and you are short.');
+    p.silver -= 5;
+    const win = Math.random() < 0.4 + p.circle * 0.01;
+    if (win) {
+      const winnings = 10 + Math.floor(Math.random() * (15 + p.circle * 3));
+      p.silver += winnings;
+      emit(`You toss the copper and the table man grins — the coin lands your way! You walk away with ${winnings} silvers.`);
+    } else {
+      emit('The coin spins, wobbles... and lands the house\'s way. The table man pockets your 5 silvers with a sympathetic shrug.');
+    }
+  },
+
   track(ctx) {
     const { game, p, emit } = ctx;
     const res = game.track(p);
@@ -106,10 +127,11 @@ export const commands = {
 
   study(ctx) {
     const { p, emit } = ctx;
-    if (p.room !== 'temple' && p.room !== 'temple_row') return emit('You need books. The Temple of the Pantheon keeps a library.');
+    const atAcademy = p.room === 'academy';
+    if (p.room !== 'temple' && p.room !== 'temple_row' && !atAcademy) return emit('You need books. The Temple of the Pantheon keeps a library, and Asemath Academy keeps a better one.');
     const leveled = gainSkillExp(p, 'scholarship', 10);
-    const leveled2 = gainSkillExp(p, 'appraisal', 2);
-    emit(`You pore over a dusty tome of lore.${leveled ? ' Your Scholarship improved!' : ''}${leveled2 ? ' Your Appraisal improved!' : ''}`);
+    const leveled2 = gainSkillExp(p, 'appraisal', atAcademy ? 6 : 2);
+    emit(`${atAcademy ? 'You pore over the Academy\'s scrolls of appraisal and trade.' : 'You pore over a dusty tome of lore.'}${leveled ? ' Your Scholarship improved!' : ''}${leveled2 ? ' Your Appraisal improved!' : ''}`);
   },
 
   perform(ctx) { perform(ctx); },
@@ -146,6 +168,15 @@ export const commands = {
     const { game, p, emit } = ctx;
     game.persistPlayer(p);
     emit('Progress saved.');
+  },
+
+  report(ctx) {
+    const { p, rest, emit } = ctx;
+    if (!rest || !rest.trim()) return emit('Usage: report <what happened> — files a complaint with the town scribes.');
+    const line = `${new Date().toISOString()} REPORT by ${p.name}: ${rest}`;
+    // eslint-disable-next-line no-console
+    console.log(line);
+    emit('Your report has been filed with the scribes. The town takes these matters seriously.');
   },
 
   quit(ctx) {
