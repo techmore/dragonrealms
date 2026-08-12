@@ -725,10 +725,13 @@ test('moon mage: observe sky reads the moons and eases casting; telescope needs 
   const { guildById } = await import('../data/guilds.js');
   const spell = guildById('moonmage').spells[0];
   const baseCost = Math.ceil(spell.mana);
+  const rat = game.makeCreature(CREATURES.rat);
+  game.roomCreatures.get('marsh_1').push(rat);
+  game.startCombat(p, [rat.def]);
   p.prepared = { spellId: spell.id, pct: 100 };
   const manaBefore = p.mana;
   handleCommand(game, p, 'cast');
-  assert.ok(manaBefore - p.mana <= Math.ceil(baseCost * 0.9) + 1, 'lunar insight eased the weave');
+  assert.equal(manaBefore - p.mana, Math.ceil(baseCost * 0.9), 'lunar insight eased the weave exactly');
 
   // Telescope is hall-bound.
   const notThere = await mkChar('MoonTel', 'moonmage');
@@ -1126,7 +1129,7 @@ test('techniques: slots grow with circle, learn at the hall, effects land', asyn
   const manaBefore = p.mana;
   handleCommand(game, p, `cast ${shard.id}`);
   const spent = manaBefore - p.mana;
-  assert.ok(spent <= Math.ceil(shard.mana * 0.9), `efficiency trimmed the cost (${spent})`);
+  assert.equal(spent, Math.ceil(shard.mana * 0.9), 'efficiency trimmed the cost exactly');
 
   // Slot cap: circle 1 has one slot.
   handleCommand(game, p, 'technique learn meditation');
@@ -1232,4 +1235,78 @@ test('auction: post a lot, buy it, pay the seller', async () => {
   assert.equal(nowhere.ok, false, 'board only at the hall');
   game.removePlayer(seller);
   game.removePlayer(buyer);
+});
+
+// ------------------- Lunar gating -------------------
+test('lunar gating: moon mage spells are dearer while Xibar is dark', async () => {
+  const realNow = Date.now;
+  const p = await mkChar('LunarGateT', 'moonmage');
+  p.room = 'square';
+  p.mana = 100;
+  p.skills.moon_magic = { rank: 40, exp: 0 };
+  const { guildById } = await import('../data/guilds.js');
+  const bolt = guildById('moonmage').spells.find((s) => s.minCircle === 1);
+  const target = game.makeCreature(CREATURES.rat);
+  game.roomCreatures.get('square').push(target);
+
+  // Xibar dark (t=45h -> xibar ~0.15): +25% cost in town.
+  Date.now = () => 45 * 3600000;
+  const baseCost = Math.ceil(bolt.mana);
+  game.startCombat(p, [target.def]);
+  const before = p.mana;
+  handleCommand(game, p, `cast ${bolt.id}`);
+  assert.equal(p.mana, before - Math.ceil(baseCost * 1.25), 'dark moon dearer in town');
+
+  // Xibar full (t=18h -> 1.0): 10% off.
+  Date.now = () => 18 * 3600000;
+  p.mana = 100;
+  const rat2 = game.makeCreature(CREATURES.rat);
+  game.roomCreatures.get('square').push(rat2);
+  game.startCombat(p, [rat2.def]);
+  handleCommand(game, p, `cast ${bolt.id}`);
+  assert.equal(p.mana, 100 - Math.ceil(baseCost * 0.9), 'full moon cheaper in town');
+  Date.now = realNow;
+  game.removePlayer(p);
+});
+
+// ------------------- Stocks -------------------
+test('stocks: murderers are pilloried before they may move again', async () => {
+  const p = await mkChar('StocksT', 'barbarian');
+  p.room = 'jail';
+  p.warrant = { charge: 'murder', issuedAt: Date.now() };
+  p.silver = 500;
+  handleCommand(game, p, 'plead guilty');
+  assert.equal(p.warrant, null, 'warrant cleared');
+  assert.ok(p.stocksUntil && p.stocksUntil > Date.now(), 'stocks sentence set');
+  const mv = game.move(p, 'n');
+  assert.equal(mv.ok, false, 'stocks hold the criminal');
+  assert.match(mv.msg, /stocks/i, 'stocks message');
+  game.removePlayer(p);
+});
+
+// ------------------- City ladder -------------------
+test('ladder city: grounds group under their town', async () => {
+  const byCity = game.ladder('city');
+  assert.match(byCity, /the Crossing/, 'Crossing grounds grouped');
+  assert.ok(byCity.split('\x1b[1m').length < game.ladder(null).split('\x1b[1m').length, 'city view groups zones');
+});
+
+// ------------------- Persistent link -------------------
+test('link: the silver thread survives reloads while it holds', async () => {
+  const a = await mkChar('LinkPersA', 'empath');
+  const b = await mkChar('LinkPersB', 'trader');
+  a.room = 'market_way';
+  b.room = 'market_way';
+  handleCommand(game, a, `link ${b.name}`);
+  assert.ok(a.empathLink, 'linked');
+  game.persistPlayer(a);
+  const reloaded = loadPlayer(a.charId);
+  assert.ok(reloaded.empathLink && reloaded.empathLink.charId === b.charId, 'link persisted');
+  // An expired link does not survive.
+  reloaded.empathLink.until = Date.now() - 1000;
+  game.persistPlayer(reloaded);
+  const reloaded2 = loadPlayer(a.charId);
+  assert.equal(reloaded2.empathLink, null, 'expired link dropped at load');
+  game.removePlayer(a);
+  game.removePlayer(b);
 });

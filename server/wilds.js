@@ -99,18 +99,26 @@ export const wilds = {
   // Hunting ladder: every creature teaches within a rank band; the zones are
   // ordered by that band so you can see where to move next. Loot flags show
   // what each kind of prey yields (gems, coin, boxes, skins). With 'province'
-  // the zones group under their province (the Crossing lands vs Riverhaven).
+  // the zones group under their province (the Crossing lands vs Riverhaven);
+  // with 'city' the grounds group by which town they hang from.
   ladder(province = null) {
     const TAG_NAMES = { skins: 'skins', gems: 'gems', coin: 'coin', box: 'boxes', named: 'rare loot' };
     const PROVINCES = {
       crossing: ['sewers', 'woods', 'marsh', 'deepwoods', 'camp', 'cinder', 'blackwood'],
       riverhaven: ['riverhaven'],
     };
+    const CITY_ZONES = {
+      'the Crossing': ['sewers', 'woods', 'marsh', 'deepwoods', 'camp', 'cinder', 'blackwood'],
+      Riverhaven: ['riverhaven'],
+    };
     const groups = {};
     for (const [zoneId, zone] of Object.entries(ZONES)) {
       if (province === 'province') {
         const prov = Object.entries(PROVINCES).find(([, zones]) => zones.includes(zoneId))?.[0] || 'crossing';
         (groups[prov] ||= []).push([zoneId, zone]);
+      } else if (province === 'city') {
+        const city = Object.entries(CITY_ZONES).find(([, zones]) => zones.includes(zoneId))?.[0] || 'the Crossing';
+        (groups[city] ||= []).push([zoneId, zone]);
       } else {
         (groups[zoneId] ||= []).push([zoneId, zone]);
       }
@@ -137,7 +145,7 @@ export const wilds = {
         for (const [id, t] of entries) rows.push(`  ${pad(creatureById(id).name.replace(/^a /, ''), 26)} ${t}`);
       }
     }
-    return rows.length ? `\nHunting ladder (skill ranks a creature teaches best):\n${rows.join('\n')}${province === 'province' ? '\n\n("ladder" alone lists every zone)' : ''}` : 'The hunting grounds are empty.';
+    return rows.length ? `\nHunting ladder (skill ranks a creature teaches best):\n${rows.join('\n')}${province ? '\n\n("ladder" alone lists every zone)' : ''}` : 'The hunting grounds are empty.';
   },
 
   // Blowing a warhorn calls beasts to the room (15-minute timer).

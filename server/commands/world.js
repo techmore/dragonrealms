@@ -59,9 +59,14 @@ export const commands = {
       const paid = Math.min(p.silver, fine);
       p.silver -= paid;
       p.jailUntil = 0;
+      const stocks = p.warrant ? 10 : 0; // murder earns the stocks
       p.warrant = null;
       p.room = 'square';
       emit(`You plead guilty. The fine is ${fine} silvers — you pay ${paid}${paid < fine ? ' (the rest from your debts)' : ''}. Jailer Grum unlocks the door: "Mind your hands."`);
+      if (stocks > 0) {
+        p.stocksUntil = Date.now() + stocks * 1000;
+        emit(`A crowd has gathered — for murder you are set in the stocks for ${stocks}s before you may move.`);
+      }
       game.look(p);
     } else {
       if (remaining > 60) return emit('The judge has already heard you once. Wait out your sentence.');
@@ -114,8 +119,8 @@ export const commands = {
 
   ladder(ctx) {
     const { game, p, arg1, emit } = ctx;
-    if (arg1 && arg1.toLowerCase() !== 'province') return emit('Usage: ladder — or "ladder province" to group by province.');
-    emit(game.ladder(arg1 ? 'province' : null));
+    if (arg1 && !['province', 'city'].includes(arg1.toLowerCase())) return emit('Usage: ladder — or "ladder province" / "ladder city" to group.');
+    emit(game.ladder(arg1 ? arg1.toLowerCase() : null));
   },
 
   rest(ctx) {

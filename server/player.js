@@ -91,6 +91,7 @@ export function loadPlayer(charId) {
     patron: row.patron || null,
     element: row.element || null,
     caravan: (() => { try { return row.caravan ? JSON.parse(row.caravan) : null; } catch { return null; } })(),
+    empathLink: (() => { try { const l = row.link ? JSON.parse(row.link) : null; return l && l.until > Date.now() ? l : null; } catch { return null; } })(),
     achievements: (() => { try { return JSON.parse(row.achievements || '[]'); } catch { return []; } })(),
     techniques: (() => { try { return JSON.parse(row.techniques || '[]'); } catch { return []; } })(),
     soul: row.soul ?? 50,    empathicStain: row.empathic_stain || 0,
@@ -176,7 +177,7 @@ export function savePlayer(p) {
     UPDATE characters SET
       circle=?, str=?, con=?, ref=?, agi=?, cha=?, dis=?, wis=?, int=?,
       unspent_stat=?, mana=?, tdp=?, tdp_pool=?, stance=?, pvp_stance=?, rexp=?,
-      soul=?, empathic_stain=?, devotion=?, exp_pools=?, home_city=?, silver=?, bank=?, room=?, hp=?, max_hp=?, warrant=?, patron=?, element=?, caravan=?, achievements=?, techniques=?
+      soul=?, empathic_stain=?, devotion=?, exp_pools=?, home_city=?, silver=?, bank=?, room=?, hp=?, max_hp=?, warrant=?, patron=?, element=?, caravan=?, link=?, achievements=?, techniques=?
     WHERE id=?
   `).run(
     p.circle, p.stats.str, p.stats.con, p.stats.ref, p.stats.agi, p.stats.cha,
@@ -186,6 +187,7 @@ export function savePlayer(p) {
     JSON.stringify(p.expPools || {}), p.homeCity || 'crossing',
     p.silver, p.bank, p.room, p.hp, p.maxHp, p.warrant ? JSON.stringify(p.warrant) : null,
     p.patron || null, p.element || null, p.caravan ? JSON.stringify(p.caravan) : null,
+    p.empathLink ? JSON.stringify(p.empathLink) : null,
     JSON.stringify(p.achievements || []), JSON.stringify(p.techniques || []), p.charId
   );
   const ins = db.prepare(`

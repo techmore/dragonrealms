@@ -52,6 +52,13 @@ export const commands = {
     const lunar = p.lunarUntil && Date.now() < p.lunarUntil;
     if (lunar) cost = Math.max(1, Math.ceil(cost * 0.9));
     if (knowsTechnique(p, 'aether_efficiency')) cost = Math.max(1, Math.ceil(cost * 0.9));
+    // Lunar gating: the moon mage's spells are dearer while Xibar is dark
+    // (DR: lunar mana waxes and wanes with the great moon).
+    if (p.guild.id === 'moonmage' && (roomById(p.room)?.zone || 'town') === 'town') {
+      const { xibar } = moonPhases();
+      if (xibar < 0.35) cost = Math.ceil(cost * 1.25);
+      else if (xibar > 0.85) cost = Math.max(1, Math.ceil(cost * 0.9));
+    }
     if (p.mana < cost) return emit(`You need ${cost} mana to cast ${spell.name}.`);
     if (lunar) emit('Your lunar insight eases the weave (10% less mana).');
     // Foreign-mana backlash (DR SvS-lite): some ground rejects some magic.
@@ -151,7 +158,14 @@ export const commands = {
         return emit('There is nothing to cast at. Try "attack <creature>" first.');
       }
     }
-    combat.cast(spell, uid, mult);
+    // Cost modifiers (lunar gating, insight, techniques) travel with the
+    // spell so the engine's own charge reflects them.
+    const baseMana = spell.mana;
+    if (cost !== Math.ceil(baseMana * mult)) {
+      combat.cast({ ...spell, mana: cost }, uid, 1);
+    } else {
+      combat.cast(spell, uid, mult);
+    }
     game.status(p);
   },
 
@@ -328,6 +342,8 @@ export const commands = {
     const until = Date.now() + 10 * 60 * 1000;
     p.empathLink = { charId: target.charId, until };
     target.empathLink = { charId: p.charId, until };
+    game.persistPlayer(p);
+    game.persistPlayer(target);
     const leveled = gainSkillExp(p, 'empathy', 10);
     target.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} reaches out and a silver thread settles around your heart — an empath link.` }));
     emit(`You spin a link of silver light between you and ${target.name}. You may "mend" them from any distance for ten minutes.${leveled ? ' Your Empathy improved!' : ''}`);

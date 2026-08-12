@@ -344,6 +344,10 @@ export class Game {
     const target = room && resolveExit(room, dir);
     if (!target) return { ok: false, msg: 'You cannot go that way.' };
     if (p.combatId) return { ok: false, msg: 'You are in combat! Try "retreat" to flee.' };
+    if (p.stocksUntil && Date.now() < p.stocksUntil) {
+      const secs = Math.ceil((p.stocksUntil - Date.now()) / 1000);
+      return { ok: false, msg: `You are in the stocks! A crowd pelts you with soft fruit (${secs}s).` };
+    }
     if (p.room === 'jail') {
       const left = this.timeLeftInJail(p);
       if (left > 0) return { ok: false, msg: `The cell door is barred. ${left}s until your sentence is served (or "plead guilty").` };
