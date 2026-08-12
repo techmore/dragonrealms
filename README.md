@@ -118,6 +118,12 @@ testing and analysis — see `docs/api.md`.
 - **Trader commodity pits** — at the Grain Pit (west of Market Way) the
   board fluctuates every hour: `pit` reads prices, buy low and sell high
   (`buy grain 10` / `sell silk 5`); traders earn a bonus on sells.
+- **Field exp & pulses** — exp lands 70% immediately and 30% banks in a
+  field pool that pulses into ranks every 30s (retention feel, mindstate
+  ladder reads the pool); REXP doubles learning.
+- **Riverhaven** — a second starting city across the river: its own square,
+  market, shrine, and a shared guild-hall row (circle works there too), with
+  a ferry road into the Old Woods. Choose your city at character creation.
 - **Justice** — theft near a guard can land you in the Town Cells:
   `plead guilty` (fine) or `plead innocent` (serve the sentence).
 - **Dungeons & rares** — the Cinder Cavern (circle 5–7) lies under the bandit

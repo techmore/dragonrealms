@@ -291,3 +291,12 @@ alongside the circle engine.**
 | Trader commodity pits v1 (Pillar 21) | ✅ fluctuating board, buy low/sell high |
 | 11/11 guilds now have a fidelity v1 (Barbarian, Thief, Warmage, Moon Mage, Empath, Paladin, Ranger, Necro, Cleric, Bard, Trader) | ✅ |
 | Exp pool/pulse timing, Riverhaven, full crimes+judge | ⬜ roadmap |
+
+**Revision 8:**
+
+| Item | Status |
+|---|---|
+| Exp pools/pulses | ✅ 70/30 field split, 30s pulse ticker, persistent pools, mindstate reads the pool |
+| Riverhaven (second starting city) | ✅ square/market/shrine/shared hall row/ferry; chargen city choice |
+| Justice judge verdicts | ✅ heat-scaled costs on release after pleading innocent |
+| DR 10-group pulse offsets, provinces, full crimes+debts | ⬜ roadmap |

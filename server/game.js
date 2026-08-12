@@ -1,19 +1,22 @@
 // Runtime world manager: player presence, creature spawns, movement, look,
-// shops, banking, healing, and the combat manager ticker.
+// combat wiring, and the combat manager ticker. Domain logic (shops, wilds,
+// quests, status) lives in server/economy.js, server/wilds.js,
+// server/quests.js, and server/status.js — this class delegates to them.
 import { ROOMS, ZONES, roomById } from '../data/world.js';
 import { npcById } from '../data/npcs.js';
 import { creatureById, RARES } from '../data/creatures.js';
-import { guildById } from '../data/guilds.js';
-import { ITEMS, itemById } from '../data/items.js';
-import { SKILLS } from '../data/skills.js';
-import { commodityPrice, commodityById, commodityHoldings } from '../data/commodities.js';
-import { bankRexp } from './player.js';
+import { itemById } from '../data/items.js';
+import { bankRexp, pulseExp } from './player.js';
 import { manaRegenRate } from '../data/mana.js';
 import { VOICE_POOL } from '../data/abilities.js';
 import {
-  savePlayer, addItem, removeItem, unequipItem, skillRank, gainSkillExp, weaponOf, countItems,
+  savePlayer, addItem, removeItem, unequipItem, skillRank, gainSkillExp,
 } from './player.js';
 import { CombatManager } from './combat.js';
+import { economy } from './economy.js';
+import { wilds } from './wilds.js';
+import { quests } from './quests.js';
+import { status as statusView } from './status.js';
 
 const RESPAWN_MS = 25 * 1000;
 const MANA_PULSE_MS = 6 * 1000;
@@ -30,6 +33,10 @@ function resolveExit(room, dir) {
 }
 
 const creatureUid = () => `crt_${Math.random().toString(36).slice(2, 10)}`;
+
+function cap(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 export class Game {
   constructor() {
@@ -64,6 +71,15 @@ export class Game {
       }
     }, 60 * 1000);
     this.autosaveTicker.unref();
+    // Field-exp pulse: banked pool drains into ranks (DR pulse feel).
+    this.pulseTicker = setInterval(() => {
+      for (const p of this.players.values()) {
+        try {
+          if (pulseExp(p) > 0) savePlayer(p);
+        } catch (e) { console.error('pulse error', e); }
+      }
+    }, 30 * 1000);
+    this.pulseTicker.unref();
   }
 
   // Attunement pulses: magic guilds regenerate mana in steady pulses, faster
@@ -226,7 +242,14 @@ export class Game {
     if (p.room === 'jail') {
       const left = this.timeLeftInJail(p);
       if (left > 0) return { ok: false, msg: `The cell door is barred. ${left}s until your sentence is served (or "plead guilty").` };
+      // The judge's verdict: costs deducted on release (heat-scaled fine).
+      const heat = p.crimeHeat || 0;
+      const fine = 5 + heat * 5;
+      const paid = Math.min(p.silver, fine);
+      p.silver -= paid;
       p.jailUntil = 0;
+      p.crimeHeat = 0;
+      p.ws.send(JSON.stringify({ t: 'msg', msg: `The judge's verdict is read: ${fine} silvers in town costs. You pay ${paid}${paid < fine ? ' (the rest from your debts)' : ''} and the cell door opens.` }));
     }
     this.stopRest(p);
     p.hidden = false;
@@ -259,7 +282,7 @@ export class Game {
   // ---------- PvP duels ----------
   canDuelHere(p) {
     const room = roomById(p.room);
-    return Boolean(room && room.zone !== 'town');
+    return Boolean(room && room.zone !== 'town' && room.zone !== 'riverhaven');
   }
 
   challengeDuel(p, targetName, end = 'blood') {
@@ -385,361 +408,6 @@ export class Game {
     p.ws.send(JSON.stringify({ t: 'room', msg: out, exits, roomId: p.room }));
   }
 
-  // ---------- Shops ----------
-  shopNpcsIn(p) {
-    const room = roomById(p.room);
-    return (room.npcs || []).map(npcById).filter((n) => n && n.role === 'shop');
-  }
-
-  listShop(p) {
-    const shops = this.shopNpcsIn(p);
-    if (!shops.length) return { ok: false, msg: 'There is no shopkeeper here.' };
-    const blocks = shops.map((shop) => {
-      const rows = Object.entries(shop.stock).map(([id, qty]) => {
-        const it = itemById(id);
-        if (!it) return null;
-        return `${pad(it.name, 30)} ${pad(weaponString(it), 8)} ${pad(`${it.value} silvers`, 14)} ${qty} in stock`;
-      }).filter(Boolean);
-      return `${shop.name}\n${rows.join('\n')}`;
-    });
-    return { ok: true, msg: `\n${blocks.join('\n\n')}\n\nSay "buy <item>" to purchase. Some vendors also buy hides and skins.` };
-  }
-
-  buy(p, itemName, qty = 1) {
-    qty = Math.max(1, Math.min(100, Math.floor(qty) || 1));
-    const shops = this.shopNpcsIn(p);
-    if (!shops.length) return { ok: false, msg: 'There is no shopkeeper here.' };
-    const target = shops
-      .flatMap((shop) => Object.entries(shop.stock).map(([id, q]) => ({ shop, item: itemById(id), q })))
-      .find((e) => e.item && (e.item.id === itemName || e.item.name.includes(itemName)));
-    if (!target) return { ok: false, msg: 'They do not sell that here.' };
-    if (target.q < qty) return { ok: false, msg: 'They do not have that many in stock.' };
-    const cost = target.item.value * qty;
-    if (p.silver < cost) return { ok: false, msg: `You cannot afford ${cost} silvers.` };
-    p.silver -= cost;
-    addItem(p, target.item.id, qty);
-    target.q -= qty;
-    return { ok: true, msg: `You buy ${qty > 1 ? `${qty}x ` : ''}${target.item.name} for ${cost} silvers.` };
-  }
-
-  sell(p, itemName, qty = 1) {
-    qty = Math.max(1, Math.min(100, Math.floor(qty) || 1));
-    const shops = this.shopNpcsIn(p);
-    if (!shops.length) return { ok: false, msg: 'There is no shopkeeper here.' };
-    const item = itemById(itemName) || Object.values(ITEMS).find((i) => i.name.includes(itemName));
-    if (!item) return { ok: false, msg: 'You do not have that.' };
-    const willing = shops.find((shop) => shop.buys.includes(item.id));
-    if (!willing) return { ok: false, msg: 'No one here is interested in buying that.' };
-    const have = countItems(p, item.id);
-    if (have < qty) return { ok: false, msg: 'You do not have that many.' };
-    const mult = p.circle >= 10 && p.guild.id === 'trader' ? 1.25 : 1;
-    const price = Math.floor(item.value * 0.5 * mult) * qty;
-    removeItem(p, item.id, qty);
-    p.silver += price;
-    gainSkillExp(p, 'trading', 4);
-    return { ok: true, msg: `You sell ${qty > 1 ? `${qty}x ` : ''}${item.name} to ${willing.name} for ${price} silvers.${mult > 1 ? ' (Golden Touch!)' : ''}` };
-  }
-
-  // ---------- Bank ----------
-  bankerIn(p) {
-    const room = roomById(p.room);
-    return (room.npcs || []).map(npcById).find((n) => n && n.role === 'bank');
-  }
-
-  deposit(p, amt) {
-    if (!this.bankerIn(p)) return { ok: false, msg: 'There is no banker here.' };
-    amt = Math.max(1, Math.floor(amt));
-    if (p.silver < amt) return { ok: false, msg: 'You do not have that many silvers.' };
-    p.silver -= amt;
-    p.bank += amt;
-    return { ok: true, msg: `You deposit ${amt} silvers. Your bank holds ${p.bank}.` };
-  }
-
-  withdraw(p, amt) {
-    if (!this.bankerIn(p)) return { ok: false, msg: 'There is no banker here.' };
-    amt = Math.max(1, Math.floor(amt));
-    if (p.bank < amt) return { ok: false, msg: 'Your bank does not hold that much.' };
-    p.bank -= amt;
-    p.silver += amt;
-    return { ok: true, msg: `You withdraw ${amt} silvers.` };
-  }
-
-  // ---------- Healer ----------
-  healerIn(p) {
-    const room = roomById(p.room);
-    return (room.npcs || []).map(npcById).find((n) => n && n.role === 'healer');
-  }
-
-  heal(p) {
-    if (!this.healerIn(p)) return { ok: false, msg: 'There is no healer here.' };
-    const cost = Math.max(5, Math.floor((p.maxHp - p.hp) * 0.1));
-    if (p.silver < cost) return { ok: false, msg: `The healer wants ${cost} silvers and you have ${p.silver}.` };
-    if (p.hp >= p.maxHp) return { ok: false, msg: 'You are already in full health.' };
-    p.silver -= cost;
-    p.hp = p.maxHp;
-    if (p.guild.magic) p.mana = p.maxMana;
-    return { ok: true, msg: `Sister Cora closes her eyes and channels warmth through your body. You are restored for ${cost} silvers.` };
-  }
-
-  // ---------- World skills ----------
-  WILD_ZONES = new Set(['woods', 'marsh', 'deepwoods', 'camp', 'sewers']);
-
-  isWild(roomId) {
-    const room = roomById(roomId);
-    return room ? this.WILD_ZONES.has(room.zone) : false;
-  }
-
-  zoneName(roomId) {
-    const room = roomById(roomId);
-    return room && ZONES[room.zone] ? ZONES[room.zone].name : 'wilds';
-  }
-
-  forage(p) {
-    if (!this.isWild(p.room)) return { ok: false, msg: 'You find nothing worth foraging here. Try the wilds.' };
-    const skill = skillRank(p, 'foraging');
-    const chance = 0.35 + skill * 0.03 + p.stats.wis * 0.004;
-    if (Math.random() >= chance) {
-      const leveled = gainSkillExp(p, 'foraging', 3);
-      return { ok: true, msg: `You comb the ground but find nothing useful.${leveled ? ' Your Foraging improved!' : ''}` };
-    }
-    const pool = ['herb_mint', 'herb_mint', 'herb_root', 'herb_root', 'potion_heal'];
-    const roll = Math.random();
-    const itemId = roll < 0.02 ? 'potion_heal' : pool[Math.floor(Math.random() * 3)];
-    addItem(p, itemId, 1);
-    const leveled = gainSkillExp(p, 'foraging', 8);
-    const item = itemById(itemId);
-    return { ok: true, msg: `You find ${item.name} growing here and tuck it into your pack.${leveled ? ' Your Foraging improved!' : ''}` };
-  }
-
-  track(p) {
-    if (!this.isWild(p.room)) return { ok: false, msg: 'There is nothing to track in town.' };
-    if (p.guild.id === 'ranger') gainSkillExp(p, 'scouting', 4);
-    const skill = skillRank(p, 'tracking');
-    const room = roomById(p.room);
-    const chance = 0.4 + skill * 0.04;
-    if (Math.random() >= chance) {
-      gainSkillExp(p, 'tracking', 3);
-      return { ok: true, msg: 'You study the ground but the signs are too faint to follow.' };
-    }
-    const lines = [];
-    for (const [rid, r] of Object.entries(ROOMS)) {
-      if (r.zone !== room.zone) continue;
-      const creatures = this.creaturesIn(rid);
-      if (!creatures.length) continue;
-      const desc = creatures.map((c) => cap(c.def.name)).join(', ');
-      lines.push(`  ${r.name}: ${desc}`);
-    }
-    const leveled = gainSkillExp(p, 'tracking', 6);
-    if (!lines.length) return { ok: true, msg: `The ${ZONES[room.zone].name} is quiet. No tracks to follow.` };
-    return { ok: true, msg: `\nYou read the signs of the ${ZONES[room.zone].name}:\n${lines.join('\n')}${leveled ? '\nYour Tracking improved!' : ''}` };
-  }
-
-  hunt(p) {
-    if (!this.isWild(p.room)) return { ok: false, msg: 'There is nothing to hunt in town. Try the wilds.' };
-    if (p.guild.id === 'ranger') gainSkillExp(p, 'scouting', 4);
-    const skill = skillRank(p, 'perception');
-    const room = roomById(p.room);
-    const chance = 0.4 + skill * 0.04;
-    if (Math.random() >= chance) {
-      const leveled = gainSkillExp(p, 'perception', 3);
-      return { ok: true, msg: `You scan the wilds but catch no sign of prey.${leveled ? ' Your Perception improved!' : ''}` };
-    }
-    const lines = [];
-    for (const [rid, r] of Object.entries(ROOMS)) {
-      if (r.zone !== room.zone) continue;
-      const creatures = this.creaturesIn(rid);
-      if (!creatures.length) continue;
-      const desc = creatures.map((c) => cap(c.def.name)).join(', ');
-      lines.push(`  ${r.name}: ${desc}`);
-    }
-    const leveled = gainSkillExp(p, 'perception', 6);
-    if (!lines.length) return { ok: true, msg: `The ${ZONES[room.zone].name} is quiet. Nothing moves.` };
-    return { ok: true, msg: `\nYou hunt the ${ZONES[room.zone].name} and catch the signs:\n${lines.join('\n')}${leveled ? '\nYour Perception improved!' : ''}` };
-  }
-
-  // Hunting ladder: every creature teaches within a rank band; the zones are
-  // ordered by that band so you can see where to move next.
-  ladder() {
-    const rows = [];
-    for (const [zoneId, zone] of Object.entries(ZONES)) {
-      const creatures = {};
-      for (const room of Object.values(ROOMS)) {
-        if (room.zone !== zoneId) continue;
-        for (const defId of room.spawns || []) {
-          const def = creatureById(defId);
-          if (def && !creatures[def.id]) {
-            creatures[def.id] = def.teaches ? `teaches ${def.teaches[0]}–${def.teaches[1]}` : `circle ${def.circle}`;
-          }
-        }
-      }
-      const entries = Object.entries(creatures);
-      if (entries.length) {
-        rows.push(`\x1b[1m${zone.name}\x1b[0m`);
-        for (const [id, t] of entries) rows.push(`  ${pad(creatureById(id).name.replace(/^a /, ''), 24)} ${t}`);
-      }
-    }
-    return rows.length ? `\nHunting ladder (skill ranks a creature teaches best):\n${rows.join('\n')}` : 'The hunting grounds are empty.';
-  }
-
-  // Blowing a warhorn calls beasts to the room (15-minute timer).
-  warhorn(p) {
-    const cd = 15 * 60 * 1000;
-    if (p.warhornAt && Date.now() - p.warhornAt < cd) {
-      const mins = Math.ceil((cd - (Date.now() - p.warhornAt)) / 60000);
-      return { ok: false, msg: `The warhorn echoes are still settling (${mins} min).` };
-    }
-    const room = roomById(p.room);
-    if (!room || !room.spawns || !room.spawns.length) {
-      return { ok: false, msg: 'The warhorn bellows uselessly — no beasts stir here.' };
-    }
-    p.warhornAt = Date.now();
-    const insts = this.roomCreatures.get(p.room) || [];
-    for (const defId of room.spawns.slice(0, 2)) {
-      const def = creatureById(defId);
-      if (def) insts.push(this.makeCreature(def));
-    }
-    return { ok: true, msg: 'You raise the warhorn — a deep, hungry bellow rolls across the land, and beasts answer it!' };
-  }
-
-  startRest(p) {    if (p.combatId) return { ok: false, msg: 'You cannot rest in the middle of a fight!' };
-    if (p.restTimer) return { ok: false, msg: 'You are already resting.' };
-    let ticks = 0;
-    p.resting = true;
-    p.restTimer = setInterval(() => {
-      ticks += 1;
-      if (p.combatId || p.room !== p.restRoom) { this.stopRest(p); return; }
-      const hpGain = Math.max(2, Math.floor(p.maxHp * 0.025));
-      p.hp = Math.min(p.maxHp, p.hp + hpGain);
-      if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * 0.04)));
-      gainSkillExp(p, 'athletics', 2);
-      if (ticks % 10 === 0) p.rexp = Math.min(120, (p.rexp || 0) + 1);
-      p.ws.send(JSON.stringify({ t: 'msg', msg: `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}` }));
-      if (p.hp >= p.maxHp && (!p.guild.magic || p.mana >= p.maxMana)) this.stopRest(p);
-      if (ticks >= 20) this.stopRest(p);
-    }, 2000);
-    p.restTimer.unref();
-    p.restRoom = p.room;
-    return { ok: true, msg: 'You settle down to rest and recover.' };
-  }
-
-  stopRest(p) {
-    if (p.restTimer) { clearInterval(p.restTimer); p.restTimer = null; }
-    if (p.resting) { p.resting = false; p.ws.send(JSON.stringify({ t: 'msg', msg: 'You rise, feeling more yourself.' })); }
-  }
-
-  lookDirection(p, dir) {
-    const room = roomById(p.room);
-    const target = room && resolveExit(room, dir);
-    if (!target) return { ok: false, msg: 'You cannot see that way.' };
-    const tr = roomById(target);
-    const creatures = this.creaturesIn(target);
-    const players = [...this.players.values()].filter((o) => o !== p && o.room === target);
-    const bits = [];
-    if (creatures.length) bits.push(`${creatures.map((c) => cap(c.def.name)).join(' and ')} ${creatures.length === 1 ? 'is' : 'are'} there`);
-    if (players.length) bits.push(`${players.map((o) => o.name).join(', ')} ${players.length === 1 ? 'is' : 'are'} there`);
-    const suffix = bits.length ? ` — ${bits.join('; ')}.` : '';
-    return { ok: true, msg: `You peer ${DIRS[dir]} into ${tr.name}: ${tr.desc}${suffix}` };
-  }
-
-  // ---------- Quests ----------
-  hasCrier(p) {
-    const room = roomById(p.room);
-    return Boolean(room && room.npcs && room.npcs.includes('towncrier'));
-  }
-
-  questCreatureFor(p) {
-    const tiers = [
-      { upTo: 2, pool: ['rat', 'kobold'] },
-      { upTo: 4, pool: ['goblin', 'wolf'] },
-      { upTo: 99, pool: ['wisp', 'bandit', 'troll'] },
-    ];
-    const tier = tiers.find((t) => p.circle <= t.upTo);
-    const pool = tier ? tier.pool : ['rat'];
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-
-  assignQuest(p, source = 'crier') {
-    const id = this.questCreatureFor(p);
-    p.quest = { creatureId: id, count: Math.min(3 + p.circle, 8), done: false, source };
-    this.persistPlayer(p);
-    return p.quest;
-  }
-
-  questKill(p, creatureId) {
-    if (!p.quest || p.quest.done || p.quest.creatureId !== creatureId) return;
-    p.quest.count -= 1;
-    if (p.quest.count <= 0) {
-      p.quest.count = 0;
-      p.quest.done = true;
-      gainSkillExp(p, 'perception', 10);
-      gainSkillExp(p, 'fitness', 10);
-      this.persistPlayer(p);
-      p.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1mQuest complete!\x1b[0m Return to the town crier and say "claim" to collect your reward.` }));
-    } else {
-      this.persistPlayer(p);
-    }
-  }
-
-  questClaim(p) {
-    if (!p.quest) return { ok: false, msg: 'You have no quest. Ask the crier or your guild leader for work.' };
-    if (!p.quest.done) {
-      return { ok: false, msg: `Your quest is not finished. Slay ${p.quest.count} more to complete it.` };
-    }
-    const def = creatureById(p.quest.creatureId);
-    const silver = 40 + (def ? def.circle * 35 : 40);
-    p.silver += silver;
-    const fromLeader = p.quest.source === 'leader';
-    if (fromLeader && p.guild.guildSkill && SKILLS[p.guild.guildSkill]) gainSkillExp(p, p.guild.guildSkill, 20);
-    p.quest = null;
-    this.persistPlayer(p);
-    return fromLeader
-      ? { ok: true, msg: `Your guild leader nods. "Work well done." You pocket ${silver} silvers and your ${SKILLS[p.guild.guildSkill].name} sharpens.` }
-      : { ok: true, msg: `The crier hands you ${silver} silvers. "Good hunting," he says with a grin.` };
-  }
-
-  // ---------- Commodity pits ----------
-  commodityBoard(p) {
-    const rows = [];
-    for (const id of ['grain', 'wool', 'silk', 'spices']) {
-      const price = commodityPrice(id);
-      const held = commodityHoldings(p)[id];
-      rows.push(`  ${pad(id, 8)} ${price} silvers/unit${held && held.qty ? `  (you hold ${held.qty} @ ~${Math.round(held.avgCost)})` : ''}`);
-    }
-    return `\nThe board flickers with the hour:\n${rows.join('\n')}\nBuy and sell with "buy <commodity> <qty>" and "sell <commodity> <qty>".`;
-  }
-
-  commodityTrade(p, side, name, qty) {
-    if (p.room !== 'commodity_pit') return { ok: false, msg: 'The board only moves at the Grain Pit, west of Market Way.' };
-    const def = commodityById(name);
-    if (!def) return { ok: false, msg: 'No such commodity. The pit trades grain, wool, silk, and spices.' };
-    qty = Math.max(1, Math.min(200, Math.floor(qty) || 1));
-    const price = commodityPrice(def.id);
-    const holdings = commodityHoldings(p);
-
-    if (side === 'buy') {
-      const cost = price * qty;
-      if (p.silver < cost) return { ok: false, msg: `That costs ${cost} silvers; you have ${p.silver}.` };
-      p.silver -= cost;
-      const cur = holdings[def.id] || { qty: 0, avgCost: 0 };
-      cur.avgCost = cur.qty ? (cur.avgCost * cur.qty + cost) / (cur.qty + qty) : price;
-      cur.qty += qty;
-      holdings[def.id] = cur;
-      gainSkillExp(p, 'trading', 6);
-      return { ok: true, msg: `You buy ${qty} unit(s) of ${def.name} at ${price} silvers each.` };
-    }
-
-    const cur = holdings[def.id];
-    if (!cur || cur.qty < qty) return { ok: false, msg: `You hold ${cur ? cur.qty : 0} unit(s) of ${def.name}.` };
-    const trader = p.guild.id === 'trader' ? 1.1 : 1;
-    const proceeds = Math.floor(price * qty * trader);
-    const profit = proceeds - Math.floor(cur.avgCost * qty);
-    cur.qty -= qty;
-    if (cur.qty <= 0) delete holdings[def.id];
-    p.silver += proceeds;
-    gainSkillExp(p, 'trading', 8);
-    return { ok: true, msg: `You sell ${qty} unit(s) of ${def.name} for ${proceeds} silvers${trader > 1 ? ' (Golden Touch!)' : ''} — ${profit >= 0 ? 'a profit' : 'a loss'} of ${Math.abs(profit)}.` };
-  }
-
   // ---------- Justice ----------
   guardInRoom(p) {
     const room = roomById(p.room);
@@ -768,47 +436,37 @@ export class Game {
     return Math.max(0, Math.ceil((p.jailUntil - Date.now()) / 1000));
   }
 
-  // ---------- Status / prompt ----------
-  guildTrainer(p) {
-    const room = roomById(p.room);
-    if (!room) return null;
-    for (const npcId of room.npcs || []) {
-      const npc = npcById(npcId);
-      if (npc && npc.role === 'guild' && npc.guild === p.guild.id) return npc;
-    }
-    return null;
-  }
+  // ---------- Domain delegates (economy / wilds / quests / status) ----------
+  shopNpcsIn(p) { return economy.shopNpcsIn(p); }
+  listShop(p) { return economy.listShop(p); }
+  buy(p, itemName, qty) { return economy.buy(p, itemName, qty); }
+  sell(p, itemName, qty) { return economy.sell(p, itemName, qty); }
+  bankerIn(p) { return economy.bankerIn(p); }
+  deposit(p, amt) { return economy.deposit(p, amt); }
+  withdraw(p, amt) { return economy.withdraw(p, amt); }
+  healerIn(p) { return economy.healerIn(p); }
+  heal(p) { return economy.heal(p); }
+  commodityBoard(p) { return economy.commodityBoard(p); }
+  commodityTrade(p, side, name, qty) { return economy.commodityTrade(p, side, name, qty); }
 
-  status(p) {
-    const hp = p.hp > 0 ? p.hp : 0;
-    const inCombat = this.combat.getFor(p) ? '[COMBAT]' : '';
-    const prep = p.prepared ? `  [prepared: ${p.prepared.spellId} @ ${p.prepared.pct}%]` : '';
-    const res = p.guild.magic
-      ? `\x1b[33mMana: ${p.mana}/${p.maxMana}\x1b[0m`
-      : p.guild.id === 'barbarian'
-        ? `\x1b[31mFire: ${p.innerFire}/${p.maxInnerFire}\x1b[0m`
-        : '';
-    p.ws.send(JSON.stringify({
-      t: 'prompt',
-      msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${prep}\n> `,
-    }));
-  }
+  isWild(roomId) { return wilds.isWild(roomId); }
+  zoneName(roomId) { return wilds.zoneName(roomId); }
+  forage(p) { return wilds.forage(p); }
+  track(p) { return wilds.track(this, p); }
+  hunt(p) { return wilds.hunt(this, p); }
+  ladder() { return wilds.ladder(); }
+  warhorn(p) { return wilds.warhorn(this, p); }
+  startRest(p) { return wilds.startRest(this, p); }
+  stopRest(p) { wilds.stopRest(p); }
+  lookDirection(p, dir) { return wilds.lookDirection(this, p, dir); }
 
-  // ---------- Misc ----------
-  who() {
-    return [...this.players.values()].map((p) => `${p.name} (${p.race.name} ${guildTitle(p.guild, p.circle)}, circle ${p.circle})`);
-  }}
+  hasCrier(p) { return quests.hasCrier(p); }
+  questCreatureFor(p) { return quests.questCreatureFor(p); }
+  assignQuest(p, source) { return quests.assignQuest(this, p, source); }
+  questKill(p, creatureId) { return quests.questKill(this, p, creatureId); }
+  questClaim(p) { return quests.questClaim(this, p); }
 
-function pad(s, n) {
-  s = String(s);
-  return s.length >= n ? s : s + ' '.repeat(n - s.length);
-}
-
-function weaponString(item) {
-  if (item.type !== 'weapon') return '';
-  return `${item.dmg[0]}-${item.dmg[1]}`;
-}
-
-function cap(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  guildTrainer(p) { return statusView.guildTrainer(p); }
+  status(p) { statusView.status(this, p); }
+  who() { return statusView.who(this); }
 }

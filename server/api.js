@@ -172,7 +172,7 @@ export async function apiRequest(req, res, game) {
     case 'POST /api/characters': {
       let charId;
       try {
-        charId = createCharacter(s.accountId, { name: body.name, race: body.race, guild: body.guild });
+        charId = createCharacter(s.accountId, { name: body.name, race: body.race, guild: body.guild, city: body.city });
       } catch (e) {
         return json(res, 200, { ok: false, error: e.message });
       }

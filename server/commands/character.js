@@ -5,7 +5,7 @@ import { manaTypeFor } from '../../data/mana.js';
 import { roomById } from '../../data/world.js';
 import { db } from '../db.js';
 import {
-  skillRank, gainSkillExp, weaponOf, totalArmor, STAT_NAMES, MAX_STAT,
+  skillRank, gainSkillExp, applyExpToSkill, weaponOf, totalArmor, STAT_NAMES, MAX_STAT,
   statRaiseCost, tdpTrainCost, tdpAwardFor,
 } from '../player.js';
 import { pad, matchSkill, recalcDerived, rankExp, SLOT_RATES, STAT_FULL } from './util.js';
@@ -72,7 +72,7 @@ export const commands = {
     const cost = tdpTrainCost(rank);
     if (p.tdp < cost) return emit(`Training ${SKILLS[skillId].name} costs ${cost} TDPs; you have ${p.tdp}.`);
     p.tdp -= cost;
-    gainSkillExp(p, skillId, expToNextRank(rank));
+    applyExpToSkill(p, p.skills[skillId], expToNextRank(rank));
     emit(`You invest ${cost} TDPs in ${SKILLS[skillId].name} — it now sits at rank ${skillRank(p, skillId)}.`);
   },
 
@@ -110,7 +110,7 @@ export const commands = {
     const cost = 40 + rank * 20;
     if (p.silver < cost) return emit(`Training ${SKILLS[skillId].name} costs ${cost} silvers, and you have ${p.silver}. Go hunt!`);
     p.silver -= cost;
-    gainSkillExp(p, skillId, Math.floor(expToNextRank(rank) * 0.4));
+    applyExpToSkill(p, p.skills[skillId], Math.floor(expToNextRank(rank) * 0.4));
     emit(`${trainer.name} drills you in ${SKILLS[skillId].name}. You make progress toward rank ${skillRank(p, skillId) + 1} (${cost} silvers).`);
   },
 
@@ -191,9 +191,10 @@ function showExp(ctx) {
   for (const [id, s] of Object.entries(p.skills)) {
     const def = SKILLS[id];
     const need = rankExp(s.rank);
-    const pct = Math.floor((s.exp / need) * 100);
-    if (s.rank > 0 || s.exp > 0) {
-      lines.push(`  ${pad(def.name, 24)} rank ${s.rank}  ${pad(`${pct}%`, 4)} ${mindstate(pct)}`);
+    const pool = (p.expPools && p.expPools[id]) || 0;
+    const pct = Math.floor(((s.exp + pool) / need) * 100);
+    if (s.rank > 0 || s.exp > 0 || pool > 0) {
+      lines.push(`  ${pad(def.name, 24)} rank ${s.rank}  ${pad(`${pct}%`, 4)} ${mindstate(pct)}${pool > 0 ? `  [${Math.floor(pool)} held]` : ''}`);
     }
   }
   lines.push(`\nGuild circle progress (next: ${p.circle + 1}):`);
@@ -206,7 +207,7 @@ function showExp(ctx) {
 function circleUp(ctx) {
   const { game, p, say, emit } = ctx;
   const room = roomById(p.room);
-  const isOwnHall = room.id === `hall_${p.guild.id}`;
+  const isOwnHall = room.id === `hall_${p.guild.id}` || room.id === 'rh_guilds';
   if (!isOwnHall) return emit('You must stand in your own guild hall to circle. (Look for your guild\'s hall in the Guild District.)');
   if (p.guild.id === 'paladin' && (p.soul ?? 50) < 20) {
     return emit(`Your soul is too dim to advance (${p.soul}). Pray at the temple, or restore your honor by slaying the undead.`);

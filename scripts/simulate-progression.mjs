@@ -9,7 +9,7 @@ process.env.DR_DB_PATH = join(tmp, 'sim.db');
 
 const { migrate, closeDb } = await import('../server/db.js');
 const auth = await import('../server/auth.js');
-const { createCharacter, loadPlayer, gainSkillExp, tdpTrainCost, skillRank } = await import('../server/player.js');
+const { createCharacter, loadPlayer, gainSkillExp, tdpTrainCost, skillRank, pulseExp } = await import('../server/player.js');
 const { Game } = await import('../server/game.js');
 const { handleCommand } = await import('../server/commands/index.js');
 const { circleRequirements, circleRequirementNeeds } = await import('../data/guilds.js');
@@ -199,6 +199,7 @@ while (p.circle < 10 && safety++ < 30000) {
     continue;
   }
   kills += 1;
+  pulseExp(p); // field pools pulse between hunts
   // Skin + sell
   const corpse = (p.corpses || []).slice();
   for (const c of corpse) handleCommand(game, p, `skin ${c.def.id}`);

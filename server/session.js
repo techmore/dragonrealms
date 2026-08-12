@@ -69,7 +69,7 @@ function route(session, msg) {
       doCharSelect(session, msg.id);
       break;
     case 'charcreate':
-      doCharCreate(session, msg.name, msg.race, msg.guild);
+      doCharCreate(session, msg.name, msg.race, msg.guild, msg.city);
       break;
     case 'alloc':
       doAlloc(session, msg.stat, msg.amt);

@@ -25,7 +25,7 @@ function doCharSelect(session, id) {
   enterWorld(session, row.id);
 }
 
-function doCharCreate(session, name, race, guild) {
+function doCharCreate(session, name, race, guild, city = 'crossing') {
   if (session.state !== 'charcreate') return;
   const g = guildById(guild);
   const r = raceById(race);
@@ -34,7 +34,7 @@ function doCharCreate(session, name, race, guild) {
 
   let charId;
   try {
-    charId = createCharacter(session.accountId, { name, race, guild });
+    charId = createCharacter(session.accountId, { name, race, guild, city });
   } catch (e) {
     return session.send({ t: 'error', msg: e.message });
   }

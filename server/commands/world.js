@@ -61,8 +61,11 @@ export const commands = {
       game.look(p);
     } else {
       if (remaining > 60) return emit('The judge has already heard you once. Wait out your sentence.');
-      p.jailUntil = Date.now() + 60 * 1000;
-      emit('You plead innocent. Jailer Grum shrugs: "The judge will see you in a minute. Sit tight."');
+      const heat = p.crimeHeat || 0;
+      p.jailUntil = Date.now() + (30 + heat * 10) * 1000;
+      emit(heat > 2
+        ? `You plead innocent. A hard-eyed judge reviews your file — a long one. "Thirty days' reflection, and the town's costs." The sentence will cost you.`
+        : `You plead innocent. The judge nods once: "The town's costs, then." Your sentence will carry a small fine.`);
     }
   },
 

@@ -533,7 +533,9 @@ test('TDPs: earned from rank-ups, spent on stats and any skill', async () => {
   // A big flood of rank-ups crosses the 200 threshold (cap = circle*4).
   p.circle = 10;
   p.skills.war_magic = { rank: 0, exp: 0 };
-  gainSkillExp(p, 'war_magic', 200 * 20);
+  gainSkillExp(p, 'war_magic', 200 * 100);
+  const { pulseExp } = await import('../server/player.js');
+  pulseExp(p); // drain the banked 30% into ranks
   assert.ok(p.tdp > 600, 'pool conversions grant TDPs');
   assert.ok(p.tdpPool < 200, 'pool remainder kept after conversion');
 
@@ -967,7 +969,7 @@ test('organic exp sources for DR requirement skills', async () => {
   // perform trains performance (bards faster).
   handleCommand(game, p, 'perform');
   assert.ok(exp('performance') > 0, 'perform trains performance');
-  assert.ok(exp('performance') >= 5, 'perform grants base exp');
+  assert.ok(exp('performance') >= 3, 'perform grants base exp (70% immediate)');
 
   // appraise trains appraisal on items and creatures.
   game.move(p, 'n');
@@ -1838,13 +1840,20 @@ test('REXP banks offline and doubles learning', async () => {
   assert.equal(gained, 5);
   assert.equal(p.rexp, 5);
 
-  // REXP doubles exp gain and drains.
+  // REXP doubles exp gain and drains (70% lands now, 30% banks in the pool).
   const before = p.skills.war_magic.exp;
   const { gainSkillExp, learningMultiplier } = await import('../server/player.js');
   gainSkillExp(p, 'war_magic', 10);
-  const expected = Math.floor(10 * learningMultiplier(p)) * 2;
-  assert.equal(p.skills.war_magic.exp - before, expected, 'doubled learning');
+  const doubled = Math.floor(10 * learningMultiplier(p)) * 2;
+  assert.equal(p.skills.war_magic.exp - before, Math.floor(doubled * 0.7), 'immediate 70% lands');
+  assert.equal(p.expPools.war_magic, doubled - Math.floor(doubled * 0.7), '30% banks in the field pool');
   assert.equal(p.rexp, 4, 'one REXP drained');
+
+  // The pulse converts banked pool into ranks.
+  const { pulseExp } = await import('../server/player.js');
+  const pulsed = pulseExp(p);
+  assert.ok(pulsed > 0, 'pool drains on pulse');
+  assert.equal(p.expPools.war_magic, undefined, 'pool emptied by the pulse');
 
   game.removePlayer(p);
 });
@@ -2184,6 +2193,61 @@ test('trader commodity pits: buy and sell on the board', async () => {
   assert.equal(p.commodities.grain, undefined, 'holdings cleared');
   const sellMsgs = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).at(-1) || '';
   assert.match(sellMsgs, /profit/, 'profit reported');
+
+  game.removePlayer(p);
+});
+
+test('riverhaven: second starting city, circling at the shared hall row', async () => {
+  const acc = await auth.registerAccount('Rivtest', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Riverman', race: 'human', guild: 'warmage', city: 'riverhaven' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  assert.equal(p.room, 'rh_square', 'riverhaven spawn');
+  assert.equal(p.homeCity, 'riverhaven');
+
+  // The ferry road reaches the wilds (topology check — the woods are deadly).
+  const world = await import('../data/world.js');
+  assert.equal(world.ROOMS.rh_ferry.exits.e, 'woods_1', 'ferry reaches the woods');
+  assert.equal(world.ROOMS.woods_1.exits.w, 'rh_ferry', 'and the road returns');
+
+  // Walk only within town, then circle at the shared hall row.
+  game.move(p, 'w'); // rh_guilds
+  assert.equal(p.room, 'rh_guilds');
+
+  // Circle at the shared hall row.
+  for (const id of Object.keys(p.skills)) p.skills[id] = { rank: 10, exp: 0 };
+  handleCommand(game, p, 'circle');
+  assert.equal(p.circle, 2, 'circled at the riverhaven hall row');
+
+  game.removePlayer(p);
+});
+
+test('justice: judge verdict fines on release after plead innocent', async () => {
+  const acc = await auth.registerAccount('Judge', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Defendant', race: 'human', guild: 'thief' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  p.room = 'jail';
+  p.crimeHeat = 2;
+  p.silver = 100;
+  handleCommand(game, p, 'plead innocent');
+  assert.ok(p.jailUntil > Date.now(), 'sentence imposed');
+  const jailMsg = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
+  assert.match(jailMsg, /judge|costs/, 'judge speaks');
+
+  // Serve the time, then move out: the verdict's fine is deducted.
+  p.jailUntil = Date.now() - 1000;
+  const silverBefore = p.silver;
+  game.move(p, 'u');
+  assert.equal(p.room, 'square', 'released after sentence');
+  assert.ok(p.silver < silverBefore, 'verdict fine deducted');
+  assert.equal(p.crimeHeat, 0, 'heat cleared');
 
   game.removePlayer(p);
 });

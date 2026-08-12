@@ -141,6 +141,7 @@ function submitChargen() {
     name: $('cg-name').value.trim(),
     race: $('cg-race').value,
     guild: $('cg-guild').value,
+    city: ($('cg-city') && $('cg-city').value) || 'crossing',
   });
 }
 

@@ -56,6 +56,8 @@ export function migrate() {
       soul INTEGER NOT NULL DEFAULT 50,
       empathic_stain INTEGER NOT NULL DEFAULT 0,
       devotion INTEGER NOT NULL DEFAULT 30,
+      exp_pools TEXT NOT NULL DEFAULT '{}',
+      home_city TEXT NOT NULL DEFAULT 'crossing',
       silver INTEGER NOT NULL DEFAULT 0,
       bank INTEGER NOT NULL DEFAULT 0,
       room TEXT NOT NULL,
@@ -110,6 +112,8 @@ export function migrate() {
     ['soul', 'INTEGER NOT NULL DEFAULT 50'],
     ['empathic_stain', 'INTEGER NOT NULL DEFAULT 0'],
     ['devotion', 'INTEGER NOT NULL DEFAULT 30'],
+    ['exp_pools', 'TEXT NOT NULL DEFAULT \'{}\''],
+    ['home_city', "TEXT NOT NULL DEFAULT 'crossing'"],
   ]) {
     try {
       db.exec(`ALTER TABLE characters ADD COLUMN ${col} ${def}`);

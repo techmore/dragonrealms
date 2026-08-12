@@ -26,7 +26,9 @@ export function baseStatsFor(raceId) {
   return stats;
 }
 
-export function createCharacter(accountId, { name, race, guild }) {
+export const CITIES = { crossing: 'square', riverhaven: 'rh_square' };
+
+export function createCharacter(accountId, { name, race, guild, city = 'crossing' }) {
   const clean = String(name || '').trim();
   if (!validName(clean)) throw new Error('Name must be 2-16 letters.');
   const existing = db.prepare('SELECT COUNT(*) AS c FROM characters WHERE account_id = ?').get(accountId).c;
@@ -38,17 +40,18 @@ export function createCharacter(accountId, { name, race, guild }) {
   const statsObj = { ...stats, unspent: STAT_POOL };
   const maxHp = 40 + stats.con * 2 + stats.str;
   const startMana = g.magic ? Math.floor(20 + stats.wis * 2 + stats.int + stats.dis) : 0;
-  const startRoom = 'square';
+  const startRoom = CITIES[city] || CITIES.crossing;
+  const homeCity = Object.keys(CITIES).find((k) => CITIES[k] === startRoom) || 'crossing';
   const info = db.prepare(`
     INSERT INTO characters
       (account_id, name, race, guild, circle, str, con, ref, agi, cha, dis, wis, int,
-       unspent_stat, mana, tdp, silver, bank, room, hp, max_hp, created_at)
-    VALUES (?,?,?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       unspent_stat, mana, tdp, silver, bank, room, home_city, hp, max_hp, created_at)
+    VALUES (?,?,?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     accountId, clean, race, guild,
     statsObj.str, statsObj.con, statsObj.ref, statsObj.agi, statsObj.cha,
     statsObj.dis, statsObj.wis, statsObj.int,
-    statsObj.unspent, startMana, 600, 150, 0, startRoom, maxHp, maxHp, Date.now()
+    statsObj.unspent, startMana, 600, 150, 0, startRoom, homeCity, maxHp, maxHp, Date.now()
   );
   const charId = Number(info.lastInsertRowid);
 
@@ -84,6 +87,8 @@ export function loadPlayer(charId) {
     soul: row.soul ?? 50,
     empathicStain: row.empathic_stain || 0,
     devotion: row.devotion ?? 30,
+    homeCity: row.home_city || 'crossing',
+    expPools: (() => { try { return JSON.parse(row.exp_pools || '{}'); } catch { return {}; } })(),
     maxMana: guildById(row.guild).magic ? 20 + row.wis * 2 + row.int + row.dis : 0,
     silver: row.silver,
     bank: row.bank,
@@ -139,13 +144,15 @@ export function savePlayer(p) {
     UPDATE characters SET
       circle=?, str=?, con=?, ref=?, agi=?, cha=?, dis=?, wis=?, int=?,
       unspent_stat=?, mana=?, tdp=?, tdp_pool=?, stance=?, pvp_stance=?, rexp=?,
-      soul=?, empathic_stain=?, devotion=?, silver=?, bank=?, room=?, hp=?, max_hp=?
+      soul=?, empathic_stain=?, devotion=?, exp_pools=?, home_city=?, silver=?, bank=?, room=?, hp=?, max_hp=?
     WHERE id=?
   `).run(
     p.circle, p.stats.str, p.stats.con, p.stats.ref, p.stats.agi, p.stats.cha,
     p.stats.dis, p.stats.wis, p.stats.int, p.unspentStat, p.mana, p.tdp || 0,
     p.tdpPool || 0, p.stance || 'balanced', p.pvpStance || 'guarded', p.rexp || 0,
-    p.soul ?? 50, p.empathicStain || 0, p.devotion ?? 30, p.silver, p.bank, p.room, p.hp, p.maxHp, p.charId
+    p.soul ?? 50, p.empathicStain || 0, p.devotion ?? 30,
+    JSON.stringify(p.expPools || {}), p.homeCity || 'crossing',
+    p.silver, p.bank, p.room, p.hp, p.maxHp, p.charId
   );
   const ins = db.prepare(`
     INSERT INTO skills (character_id, skill_id, rank, exp) VALUES (?,?,?,?)
@@ -226,16 +233,30 @@ export function bankRexp(p, offlineMs) {
 }
 
 // Gain experience in a skill; auto-rank-up when enough accumulates.
-// Rank-ups feed the TDP pool (mirrors the source game).
+// DR-authentic field model: ~70% converts at once, ~30% banks in a field
+// pool that pulses into ranks on the server ticker (retention feel).
 export function gainSkillExp(p, skillId, amount) {
   if (!SKILLS[skillId]) return 0;
   const s = p.skills[skillId] || (p.skills[skillId] = { rank: 0, exp: 0 });
-  let base = Math.max(0, Math.floor(amount * learningMultiplier(p)));
+  let gained = Math.max(0, Math.floor(amount * learningMultiplier(p)));
   if (p.rexp > 0) {
-    base *= 2;
+    gained *= 2;
     p.rexp -= 1;
   }
-  s.exp += base;
+  const immediate = Math.max(gained > 0 ? 1 : 0, Math.floor(gained * 0.7));
+  const banked = gained - immediate;
+  let leveled = applyExpToSkill(p, s, immediate);
+  if (banked > 0) {
+    p.expPools = p.expPools || {};
+    const cap = expToNextRank(s.rank) * 2;
+    p.expPools[skillId] = Math.min(cap, (p.expPools[skillId] || 0) + banked);
+  }
+  return leveled;
+}
+
+// Apply raw exp to a skill's rank ladder (with circle caps + TDP pool).
+export function applyExpToSkill(p, s, amount) {
+  s.exp += Math.max(0, Math.floor(amount));
   let leveled = 0;
   const cap = maxRankFor(p.circle);
   while (s.exp >= expToNextRank(s.rank) && s.rank < cap) {
@@ -249,6 +270,23 @@ export function gainSkillExp(p, skillId, amount) {
     }
   }
   return leveled;
+}
+
+// The server pulse: drains every field pool into ranks.
+export function pulseExp(p) {
+  if (!p.expPools) return 0;
+  let pulsed = 0;
+  for (const [skillId, pool] of Object.entries(p.expPools)) {
+    if (pool <= 0) { delete p.expPools[skillId]; continue; }
+    const s = p.skills[skillId];
+    if (!s) { delete p.expPools[skillId]; continue; }
+    const drain = Math.min(pool, expToNextRank(s.rank) * 2);
+    p.expPools[skillId] = pool - drain;
+    if (p.expPools[skillId] <= 0) delete p.expPools[skillId];
+    pulsed += drain;
+    applyExpToSkill(p, s, drain);
+  }
+  return pulsed;
 }
 
 export function setAlias(p, name, command) {

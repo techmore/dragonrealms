@@ -381,7 +381,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Depth-tiered hunting grounds: difficulty bands gated by room depth inside one area (e.g. Crossing Sewers with 3 tiers of silverfish/thugs) | ⬜ |
 | Crossing fidelity: districts and landmarks (High Temple of the Thirteen, Asemath Academy, The Middens, docks, Amusement Pier), inns/taverns (Half Pint, Sand Spit, Tenderfoot…), hangouts | ⬜ |
 | Task givers: per-guild leader kill tasks (ask <leader> task) + crier pest-control | 🚧 kill tasks live; delivery/recovery/skins + street task givers pending |
-| Second starting city: Riverhaven; province travel (Zoluren, Therengia, Ilithi, Qi'Reshalia, Forfedhdar) | ⬜ |
+| Second starting city: Riverhaven (square, market, temple, shared hall row, ferry road to the woods); province travel | 🚧 Riverhaven live; provinces pending |
 | Loot flags per creature (gems, coin, boxes, skins) driving ladder choice | ⬜ |
 | Specialized ladders: undead, constructs, skinning, locksmith | ⬜ |
 
@@ -396,7 +396,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | 11 guild skills: Empathy, Astrology, Expertise, Scouting, Backstab, Summoning, Bardic Lore, Conviction, Theurgy, Thanatology, Trading (guild-only training) | 🚧 in skill list; guild-only training gates pending |
 | Hard/soft/restricted requirement semantics in the circle engine | ⬜ |
 | Skill-level messaging tiers (Novice → Practitioner → … → Avatar, 16 tiers with degree modifiers) in `skills` output | ✅ |
-| Learning model: field exp → pools → pulses (10 groups, 200s); mindstate ladder (clear → … → mind lock); retention by skillset rate (primary 40–60 min, tertiary 70–100) | ⬜ |
+| Learning model: field-exp pools (70% now / 30% banks), 30s pulses, mindstate ladder, REXP (2:1, 2× drain) | ✅ pool/pulse timing live (single pulse group; DR's 10-group offset model noted) |
 | Rank cap 1750 (DR) vs our anti-grind cap (circle × 4, 40 @ circle 10) | ✅ curve 200 + n exact; cap is an intentional divergence |
 
 ---

@@ -11,6 +11,7 @@ export const ZONES = {
   camp: { name: 'Bandit Camp', desc: 'A lawless camp of cutthroats.' },
   cinder: { name: 'Cinder Cavern', desc: 'A smoke-choked cavern of hot stone.' },
   blackwood: { name: 'Blackwood Ruins', desc: 'A dead keep where the dark gathers.' },
+  riverhaven: { name: 'Riverhaven', desc: 'A river town of piers and red roofs.' },
 };
 
 export const ROOMS = {
@@ -135,8 +136,8 @@ export const ROOMS = {
   },
   woods_1: {
     id: 'woods_1', zone: 'woods', name: 'Clearing', spawns: ['goblin', 'goblin', 'wolf'],
-    desc: 'A mossy clearing ringed by ancient oaks. The canopy cuts the light into dapples.',
-    exits: { s: 'woods_path', n: 'deep_1' },
+    desc: 'A mossy clearing ringed by ancient oaks. The canopy cuts the light into dapples. A cart track heads west toward the river town.',
+    exits: { s: 'woods_path', n: 'deep_1', w: 'rh_ferry' },
   },
   woods_2: {
     id: 'woods_2', zone: 'woods', name: 'Wolf Dens', spawns: ['wolf', 'wolf'],
@@ -203,6 +204,37 @@ export const ROOMS = {
     id: 'black_2', zone: 'blackwood', name: 'Crypt of the Dread Knight', spawns: ['dread_knight', 'revenant'],
     desc: 'A cold crypt ringed by standing stones. At the center waits the Dread Knight, its sword of shadow resting point-down.',
     exits: { up: 'black_1' },
+  },
+
+  // ================ RIVERHAVEN (second starting city) ================
+  rh_square: {
+    id: 'rh_square', zone: 'riverhaven', name: 'Riverhaven Town Square', npcs: ['towncrier'],
+    desc: 'A broad square of red cobbles by the river. Fishing boats bob at the piers, gulls wheel overhead, and the smells of river mud and woodsmoke fill the air. Streets lead off in every direction.',
+    exits: { e: 'rh_market', s: 'rh_temple', w: 'rh_guilds', n: 'rh_ferry' },
+  },
+  rh_market: {
+    id: 'rh_market', zone: 'riverhaven', name: 'Riverside Market', npcs: ['shopkeeper', 'weaponsmith', 'armorer', 'quartermaster', 'banker'],
+    desc: 'A lively market along the waterfront. Carts of fish, cloth, and iron crowd the cobbles, and the bank stands behind a bronze door.',
+    exits: { w: 'rh_square' },
+  },
+  rh_temple: {
+    id: 'rh_temple', zone: 'riverhaven', name: 'Harbor Shrine', npcs: ['healer'],
+    desc: 'A small shrine where sailors light candles before sailing. Sister Cora tends the wounded under a painted sky.',
+    exits: { n: 'rh_square' },
+  },
+  rh_guilds: {
+    id: 'rh_guilds', zone: 'riverhaven', name: 'Guild Hall Row',
+    desc: 'Eleven guildhalls face the river, their banners snapping in the wind. Trainers of every order hold court on the steps.',
+    npcs: [
+      'leader_barbarian', 'leader_bard', 'leader_cleric', 'leader_empath', 'leader_moonmage',
+      'leader_necromancer', 'leader_paladin', 'leader_ranger', 'leader_thief', 'leader_trader', 'leader_warmage',
+    ],
+    exits: { e: 'rh_square' },
+  },
+  rh_ferry: {
+    id: 'rh_ferry', zone: 'riverhaven', name: 'The River Ferry',
+    desc: 'A stout ferry moors here, its bell ringing across the water. A dirt road winds east from the landing into the wild woods.',
+    exits: { s: 'rh_square', e: 'woods_1' },
   },
 };
 
