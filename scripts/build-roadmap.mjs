@@ -106,6 +106,13 @@ const html = `<!DOCTYPE html>
   .feat.partial .label { color:var(--amber); }
   .feat.partial .label::after { content:" ~"; }
   .feat .detail { color:var(--dim); font-size:12px; margin-top:2px; }
+  .feat .notebtn { background:none; border:none; color:var(--dim); cursor:pointer; font-size:11px; padding:0 4px; margin-left:8px; }
+  .feat .notebtn:hover { color:var(--amber); }
+  .feat .note {
+    width:100%; margin-top:6px; background:#1a1a12; color:var(--text);
+    border:1px solid var(--line); border-radius:4px; padding:4px 6px;
+    font-family:inherit; font-size:12px; resize:vertical; min-height:28px;
+  }
   .matrix { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:20px; }
   .matrix table { width:100%; border-collapse:collapse; font-size:12px; }
   .matrix th, .matrix td { text-align:left; padding:5px 8px; border-bottom:1px solid #1f1f14; vertical-align:top; }
@@ -184,8 +191,9 @@ function render() {
         <div class="feat \${state(f) ? "done" : f.status === "partial" ? "partial" : ""}" data-id="\${f.id}">
           <input type="checkbox" \${state(f) ? "checked" : ""}>
           <div class="body">
-            <div class="label">\${f.label}</div>
+            <div class="label">\${f.label}<button class="notebtn" title="work log">&#9998;</button></div>
             <div class="detail">\${f.detail}</div>
+            <textarea class="note" data-note="\${f.id}" placeholder="work log \u2014 why this status, what\u2019s next...">\${localStorage.getItem("dr_note_" + f.id) || ""}</textarea>
           </div>
         </div>\`).join("")}
       </div>\`;
@@ -194,7 +202,15 @@ function render() {
       const cb = row.querySelector("input");
       const toggle = () => { saved[id] = !saved[id]; persist(); render(); };
       cb.addEventListener("change", toggle);
-      row.querySelector(".label").addEventListener("click", () => { cb.checked = !cb.checked; toggle(); });
+      row.querySelector(".label").addEventListener("click", (e) => {
+        if (e.target.classList.contains("notebtn")) return;
+        cb.checked = !cb.checked;
+        toggle();
+      });
+      const note = row.querySelector(".note");
+      note.addEventListener("input", () => { try { localStorage.setItem("dr_note_" + id, note.value); } catch {} });
+      row.querySelector(".notebtn").addEventListener("click", () => { note.hidden = !note.hidden; });
+      if (!note.value) note.hidden = true;
     });
     main.appendChild(details);
   }
