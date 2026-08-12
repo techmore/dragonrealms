@@ -15,7 +15,11 @@ Open `http://localhost:3000` in a browser. You'll be greeted with a terminal;
 `register <user> <pass>` to make an account, create a character, and enter the
 Crossing.
 
-`npm test` runs the headless smoke suite (auth, chargen, combat, circling, death).
+`npm test` runs the headless suites (auth, chargen, combat, circling, death,
+economy, magic — see `test/`). `node scripts/client-corpus.mjs replay
+<captured.json>` diffs a scripted session against the server build, and
+`node scripts/client-regression.mjs` drives the web client in headless
+Chromium.
 `DR_ENABLE_API=1 npm start` exposes a secure JSON test API for automated
 testing and analysis — see `docs/api.md`.
 

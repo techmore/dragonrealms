@@ -32,8 +32,13 @@ public/
                        input, panels, status, automation, settings, welcome,
                        state, util
 test/
-  smoke.test.mjs       game systems (large; grows with each fidelity pass)
-  api.test.mjs         HTTP API tests
+  helpers.mjs          shared scaffolding: temp DB, Game setup, fakeWs
+  character.test.mjs   auth, chargen, circles, TDPs, training, justice, khri
+  combat.test.mjs      attacks, duels, maneuvers, death, barbarian/thief arts
+  magic.test.mjs       spells, mana, cambrinth, guild abilities (mend/smite/...)
+  economy.test.mjs     shops, bank, healer, forging, crafting, commodity pits
+  world.test.mjs       movement, wilds, quests, social, aliases, NPCs
+  api.test.mjs         HTTP API tests (includes a deliberate ~32s real-combat wait)
   static.test.mjs      static handler tests
 scripts/
   client-corpus.mjs    capture/replay/diff harness for behavior preservation
