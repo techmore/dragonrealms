@@ -9,6 +9,31 @@ ship.
 - **Parity bar:** every guild must be able to reach circle 10 through a fair,
   fun, self-directed loop (hunt → skill up → train → circle → new spells/gear).
 
+**Status snapshot (2026-08):** circle-10 parity for all 11 guilds is
+sim-verified; the authentic exp/TDP/circle economy is live; both starting
+cities exist; scripting, interface, and native controls are done; every guild
+has a fidelity v1. The remaining work is breadth — deeper passes inside each
+pillar (marked ⬜) and the large-lift items in the *Next Up* section at the
+bottom.
+
+---
+
+**Guild fidelity at a glance (all v1s live, deeper trees pending):**
+
+| Guild | v1 | Signature mechanics live |
+|---|---|---|
+| Barbarian | 🚧 | Inner Fire, Berserk/Wildfire, Dragon Form, Tenacity, Roars, Whirlwind, War Stomp, Choke, Dual Load, masteries, ANALYZE combos |
+| Bard | 🚧 | Enchantes (war/bravery/regen), Performance |
+| Cleric | 🚧 | Devotion rituals, holy damage scaling |
+| Empath | 🚧 | Mend / take wounds, empathic stain on living kills |
+| Moon Mage | 🚧 | Prediction (omen buff), lunar mana |
+| Necromancer | 🚧 | Risen minions from corpses, Thanatology |
+| Paladin | 🚧 | Soul, Smite, code of honor, undead-soul |
+| Ranger | 🚧 | Wolf companions, beseech wind/sun |
+| Thief | 🚧 | Khri (5), ambush from hiding, crime/justice |
+| Trader | 🚧 | Commodity pits, Trading |
+| Warrior Mage | 🚧 | Familiars, overchanneling, cambrinth |
+
 ---
 
 ## Pillar 1 — Characters & Races
@@ -36,9 +61,10 @@ without it, a misallocated build is painful at circle 10.
 | 83 skills across 8 categories (six DR skillsets + Combat Manipulation + Defense) | ✅ |
 | EXP earned through use (combat, magic, crafting, world skills) | ✅ |
 | Automatic rank-up when exp threshold reached (200 + n per rank, matching DR) | ✅ |
+| Field-exp pools & pulses: 70% lands now, 30% banks and pulses into ranks every 30s; mindstate ladder reads the pool | ✅ |
 | `skills`, `exp`, `score` reporting (exp shows mindstate ladder) | ✅ |
 | Skill-gated world actions: `forage`, `track`, `skin`, `hunt`, `hide`, `study`, `steal`, `pick` | ✅ |
-| Balanced exp curve so each guild can reach rank 10 primaries | ✅ sim-validated (all 11 guilds, 10–23 sim-min) |
+| Balanced exp curve so each guild can reach rank 10 primaries | ✅ sim-validated (all 11 guilds, 4–12 sim-min) |
 | **TDPs** — authentic model: 600 starting, 50+circle base on circling, hidden pool (every 200 rank-points → 1 TDP), death can cost pool | ✅ |
 | Spend TDPs to permanently raise stats — at the **Fane of Training** (DR: TRAIN twice to confirm) | ✅ |
 | Spend TDPs to train any skill (`tdptrain <skill>`) | ✅ |
@@ -92,7 +118,7 @@ Nth-of-skillset pools, 1–10 bands scaled per circle). See the matrix below.
 | Death/respawn + exp penalty | ✅ |
 | Retreat / flee (spell + physical) | ✅ |
 | Powers: Berserk (Barbarian), Backstab (Thief) | ✅ |
-| 15 creature types across 7 zones (+ named rares) | ✅ |
+| 16 creature types across 7 zones (+ 3 named rares) | ✅ |
 | Creature auto-engage on aggressive spawns | ✅ |
 | **Combat stances** (aggressive / defensive / guarded) with **stance points** (Barbarian +1/60 Defending, Ranger +defense scaling) | ✅ |
 | **PvP duels** (challenge/accept, wilds only, concede/defeat) | ✅ |
@@ -128,7 +154,7 @@ armor skill, defense skill, and either spells or powers that reward mastery.
 
 | Feature | Status |
 |---|---|
-| Town: square, market, bank, temple, brewery, guild district, east road | ✅ |
+| Towns: The Crossing (square, market, bank, temple, brewery, forge, fane, jail, pit, guild district) + Riverhaven (square, market, shrine, hall row, ferry) | ✅ |
 | 7 hunting zones (Sewers, Old Woods, Marsh, Deep Wilds, Bandit Camp, Cinder Cavern, Blackwood Ruins) | ✅ |
 | Shops: buy/sell with stock + prices | ✅ |
 | Bank deposit/withdraw | ✅ |
@@ -213,10 +239,10 @@ Magic tertiary).
 | Choke | 🚧 live (circle 5 gate, single-target grip, halved foe damage for 5 ticks) |
 | Dual Load: fire two arrows (201 Bows + 30 agi/ref + Eagle form) | 🚧 live (learnable at circle 7, bow only, 2× ammo per shot, 1.5× damage) |
 | Magic Resistance: premier anti-magic edge (Serenity, Dispel, Mage's Lash) | 🚧 innate −40% damage from magic-weapon creatures; Serenity/Dispel/Mage's Lash abilities pending |
-| Bonus stance points: +1 per 60 Defending ranks | ⬜ (waits on a stance-points model) |
+| Bonus stance points: +1 per 60 Defending ranks | ✅ (stance-points model live) |
 | Expertise skill + Barbarian combos: ANALYZE FLAME/ACCURACY/DAMAGE…, ACM Expertise checks | 🚧 `analyze <flame\|accuracy\|damage>` live (trains Expertise, 3-part combo grants an advantage); ACM check cooldown reduction pending |
 | Barbarian items: chakrel, warhorns (15-min spawn boost), warpaint, roar helms | 🚧 warhorn live (spawns beasts, 15-min timer), chakrel live (neck slot, −5 meditation cost); warpaint and roar helms pending |
-| Faithful circle requirements: Weapon primary / Survival+Armor secondary / Lore+Magic tertiary (real DR table: 4 weapons, 2 armors, Evasion, 4 survival, Tactics + 2nd lore, Inner Fire + 2 supernatural) | ⬜ |
+| Faithful circle requirements: the authentic DR band table (Weapon primary; Survival+Armor secondary; Lore+Magic tertiary) | ✅ (live in the band-table engine) |
 | Weaponsmithing affinity: 3 free technique slots in Forging | ⬜ |
 | Flavor verbs (BELCH, SHAKE HAND) + guild registers/titles | 🚧 belch + barbarian handshake live; registers/titles in `score` pending |
 
@@ -231,7 +257,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Feature | Status |
 |---|---|
 | Full DR skill set (~83 skills): Empathy, Thanatology, Summoning, Tactics, Scholarship, Performance, Defending, Parry Ability, Offhand Weapon, Melee/Missile Mastery, Inner Fire, Augmentation, Debilitation, Warding, Targeted Magic, Arcana, Sorcery, Outdoorsmanship, Thievery, Athletics, forging/enchanting/alchemy/outfitting/engineering | ✅ list live (83 skills); mastery mechanics live; guild-skill training gates live |
-| Mana-type system: Elemental (Bard, Warrior Mage), Holy (Cleric, Paladin), Life (Empath, Ranger), Lunar (Moon Mage, Trader), Necromantic (Necromancer), none (Barbarian, Thief) | 🚧 types + ambient cycles live (`perceive`, `harness`, held mana empowers casts); attunement-pulse regen and cambrinth pending |
+| Mana-type system: Elemental (Bard, Warrior Mage), Holy (Cleric, Paladin), Life (Empath, Ranger), Lunar (Moon Mage, Trader), Necromantic (Necromancer), none (Barbarian, Thief) | 🚧 types + cycles + cambrinth live; attunement-pulse regen nuances pending |
 | Spell-slot progressions per guild: primary magic 89–91 slots @150 (Cleric, Moon Mage, Warrior Mage), secondary magic 55–76 (Bard, Empath, Necromancer), tertiary magic 60–61 (Paladin, Ranger, Trader); free magical feats at circle 2 | 🚧 `slots` display live; slot-constrained learning + free feats pending |
 | Nth-skill + hard/soft requirement engine: real DR circle tables (hard skills can't count toward Nth skills; mastery skills excluded; Sorcery/Thievery exclusions per guild) | 🚧 engine live with all 11 guild tables (1–10 band, scaled per circle); organic exp sources live for tactics, scholarship, performance, appraisal, outdoorsmanship (foraging), athletics, hunting, scouting, backstab, defending, parry, thievery (steal), locksmithing (strongboxes), empathy, arcana; no outstanding requirement-skill gaps |
 | Crafting skills + disciplines: Forging (Weaponsmithing/Armorsmithing/Blacksmithing), Enchanting (Artificing/Binding/Invoking), Alchemy (Remedies/Poison/Cooking), Outfitting (Tailoring/Artistry), Engineering (Tinkering/Shaping/Carving) | 🚧 Alchemy + Forging v1 live (ore → quality steel); full disciplines pending |
@@ -247,7 +273,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 |---|---|
 | Enchantes: cyclic songs (war / bravery / regen) with mana upkeep, one at a time | 🚧 v1 live; Segue + true area effect pending |
 | Spell tree: 55 slots to master (76 @150); free feat Raw Channeling at circle 2 | ⬜ |
-| Performance-centric circle table (1–10): Performance 4 hard, Tactics 2, Parry Ability 2, 1st/2nd weapon 3/2, 1st armor 2, 1st–3rd lore 3/3/2, 1st–4th magic 3/2/2/1, 1st–4th survival 1/1/1/1 | ⬜ |
+| Performance-centric circle table (1–10): Performance 4 hard, Tactics 2, Parry Ability 2, 1st/2nd weapon 3/2, 1st armor 2, 1st–3rd lore 3/3/2, 1st–4th magic 3/2/2/1, 1st–4th survival 1/1/1/1 | ✅ (live in the band-table engine) |
 | Vocals & instruments: PRACTICE VOICE <range>, percussion/string/wind disciplines, inspirational state | ⬜ |
 | Recall, Playact, Showmanship (BLUFF options), SLIP at circle 5, song scrolls, whistling | ⬜ |
 | Crafting affiliation: Engineering — Tinkering, Shaping, Carving | ⬜ |
@@ -261,7 +287,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Align: choose one of 39 Immortals — +2 of five magic skills, −3 others | ⬜ |
 | Devotion: `pray` rituals deepen it; holy damage scales with devotion; dim devotion costs more mana | 🚧 v1 live; ritual sequences/communes pending |
 | Communes (gods, favor-spending), Infusion (Attunement-powered matrices), Resurrection ritual | ⬜ |
-| Faithful circle table (1–10): Theurgy 3 hard, Attunement 2 soft, Shield Usage 1 hard, Parry Ability 2, 1st/2nd weapon 3/0, 1st armor 2, 1st–4th lore 2/2/1/0, 1st–5th magic 4/4/3/0/0, 1st–4th survival 1/1/1/1 | ⬜ |
+| Faithful circle table (1–10): Theurgy 3 hard, Attunement 2 soft, Shield Usage 1 hard, Parry Ability 2, 1st/2nd weapon 3/0, 1st armor 2, 1st–4th lore 2/2/1/0, 1st–5th magic 4/4/3/0/0, 1st–4th survival 1/1/1/1 | ✅ (live in the band-table engine) |
 | Holy quests, visions, altar network, undead-fearing presence | ⬜ |
 | Crafting affiliation: Enchanting — Artificing, Binding, Invoking | ⬜ |
 
@@ -274,7 +300,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Take wounds (`mend <player>` — the wound passes into the empath); empathic shock — living kills permanently stain max healing | 🚧 v1 live; links/shift/scars pending |
 | Link, Persistent Link, Unity Link, Manipulate, Shift; Hand of Hodierna at 80 | ⬜ |
 | 5 spellbooks (Healing, Protection, Purification, Mental Prep, Life Force); 63 slots to master (76 @150); free feat Injured Casting | ⬜ |
-| Faithful circle table (1–10): Empathy 4 hard, Scholarship 3, First Aid 2 hard, Outdoorsmanship 1, 1st–3rd lore 3/2/2, 1st–5th magic 3/2/2/0/0, 1st–3rd survival 1/1/1 | ⬜ |
+| Faithful circle table (1–10): Empathy 4 hard, Scholarship 3, First Aid 2 hard, Outdoorsmanship 1, 1st–3rd lore 3/2/2, 1st–5th magic 3/2/2/0/0, 1st–3rd survival 1/1/1 | ✅ (live in the band-table engine) |
 | Scar tax, TOUCH diagnostics, Khalaen leadership | ⬜ |
 | Crafting affiliation: Alchemy — 2× Remedies, 1× Cooking | ⬜ |
 
@@ -286,9 +312,9 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 |---|---|
 | Lunar mana gated by the moons (Xibar, Yavash, Katamba); OBSERVE SKY, telescope | ⬜ |
 | 6 spellbooks (Stellar Magic, Perception, Geometry, Projection, Moonlight, Teleologic Sorcery); 89 slots @150; free feats Basic Preparation Recognition + Utility Mastery | ⬜ |
-| Prediction: ALIGN + PREDICT FUTURE, divining tools per sect, Event Prediction at 10 | ⬜ |
+| Prediction: `predict` reads the moons for an omen buff (Astrology/Scholarship exp) | 🚧 v1 live; ALIGN/tools/sects/Event Prediction pending |
 | Teleport / Moon Gate (25), astral travel via Grazhir shards, 100th-circle quest | ⬜ |
-| Faithful circle table (1–10): Astrology 3 hard, Scholarship 3, 1st–6th magic 4/4/3/2/0/0, 1st–3rd lore 2/2/1, 1st–5th survival 2/2/2/2/0 | ⬜ |
+| Faithful circle table (1–10): Astrology 3 hard, Scholarship 3, 1st–6th magic 4/4/3/2/0/0, 1st–3rd lore 2/2/1, 1st–5th survival 2/2/2/2/0 | ✅ (live in the band-table engine) |
 | Crafting affiliation: Enchanting — Artificing, Binding, Invoking | ⬜ |
 
 ---
@@ -301,7 +327,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | States of Being (Unsullied/Forsaken/Redeemed/Lichdom) + Divine/Social Outrage meters, drain-time limits | ⬜ |
 | 5 spellbooks + Anabasis (Holy sorcery); 77 slots @150; free feat Alternate Preparation | ⬜ |
 | Thanatology rituals (Arise, Butchery, Consume, Dissection, Preserve…), Slip 30–70 (stealth) | ⬜ |
-| Faithful circle table (1–10): Thanatology 3 hard, Targeted Magic 2 soft, Small Edged 1, 1st–7th survival 4/4/3/3/3/3/2, 1st–5th magic 3/3/2/2/0, 1st–2nd lore 2/2, 1st armor 1 | ⬜ |
+| Faithful circle table (1–10): Thanatology 3 hard, Targeted Magic 2 soft, Small Edged 1, 1st–7th survival 4/4/3/3/3/3/2, 1st–5th magic 3/3/2/2/0, 1st–2nd lore 2/2, 1st armor 1 | ✅ (live in the band-table engine) |
 | Crafting affiliation: Alchemy 2× Poison + Engineering 1× Carving | ⬜ |
 
 ---
@@ -315,7 +341,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Armor Proficiency: negate mixing penalties — all four armor types by circle 30 | ⬜ |
 | Lead (circle 2), Protect (self/money/party interception), Glyphs (soul/charisma-gated, holy quests) | ⬜ |
 | Spellbooks Justice/Inspiration/Sacrifice; 61 slots @150; free feat at circle 2 | ⬜ |
-| Faithful circle table (1–10): Conviction 3 hard, Defending 3 hard, Shield Usage 2 soft, Parry Ability 3 hard, Evasion 2 hard, Tactics 1, Scholarship 1, 1st/2nd armor 4/2, 1st/2nd weapon 3/0, 1st–3rd lore 2/1/1, 1st–3rd magic 1/1/1, 1st–4th survival 1/1/1/1 | ⬜ |
+| Faithful circle table (1–10): Conviction 3 hard, Defending 3 hard, Shield Usage 2 soft, Parry Ability 3 hard, Evasion 2 hard, Tactics 1, Scholarship 1, 1st/2nd armor 4/2, 1st/2nd weapon 3/0, 1st–3rd lore 2/1/1, 1st–3rd magic 1/1/1, 1st–4th survival 1/1/1/1 | ✅ (live in the band-table engine) |
 | Crafting affiliation: Forging — 3× Armorsmithing | ⬜ |
 
 ---
@@ -324,11 +350,10 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| Beseeches: soul-pool rituals that coax nature (wind, sun) — spurned on overuse | ⬜ |
-| Animal companions (wolf bonding on kill), Beseeches (wind/sun buffs, spurned on overuse) | 🚧 v1 live; raccoons/horses/snipe/slip pending |
+| Animal companions (wolf bonding on kill, fight alongside) + Beseeches (wind/sun buffs, spurned on overuse) | 🚧 v1 live; raccoons/horses/snipe/slip pending |
 | Spellbooks Animal Abilities / Nature Manipulation / Wilderness Survival; 60 slots to master (68 @150) | ⬜ |
 | Scouting + TRACK, trailmarkers, bonus stance points (+1/60 ranks defense) | ⬜ |
-| Faithful circle table (1–10): Instinct 2 soft, 1st–8th survival 4/4/3/3/3/2/2/2, 1st/2nd weapon 3/1, Parry Ability 2, Defending 1, 1st armor 2, 1st–3rd magic 1/1/1, 1st/2nd lore 1/0 | ⬜ |
+| Faithful circle table (1–10): Instinct 2 soft, 1st–8th survival 4/4/3/3/3/2/2/2, 1st/2nd weapon 3/1, Parry Ability 2, Defending 1, 1st armor 2, 1st–3rd magic 1/1/1, 1st/2nd lore 1/0 | ✅ (live in the band-table engine) |
 | Crafting affiliation: Outfitting 2× Tailoring + Engineering 1× Carving | ⬜ |
 
 ---
@@ -341,7 +366,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Blindside (surprise attack from hiding), Ambush Moves (Stun, Choke, Ignite, Clout, Screen), Poison Resistance, Mark/Glance | ⬜ |
 | Passages (city shortcuts), Contacts (+1/20 circles), Lockpick carving (12+), Slip, Voice throw | ⬜ |
 | Urban bonus / Reputation (heat → guild punishment) / Confidence mechanics | ⬜ |
-| Faithful circle table (1–10): Thievery 2 soft, Stealth 2 soft, Inner Magic 1, 1st–8th survival 4/4/3/3/3/2/2/1, 1st/2nd weapon 3/1, Parry Ability 1, 1st armor 2, 1st–3rd lore 1/1/1, 1st/2nd magic 1/0 | ⬜ |
+| Faithful circle table (1–10): Thievery 2 soft, Stealth 2 soft, Inner Magic 1, 1st–8th survival 4/4/3/3/3/2/2/1, 1st/2nd weapon 3/1, Parry Ability 1, 1st armor 2, 1st–3rd lore 1/1/1, 1st/2nd magic 1/0 | ✅ (live in the band-table engine) |
 | Crafting affiliation: Engineering 2× Carving + Alchemy 1× Poison | ⬜ |
 
 ---
@@ -354,7 +379,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Commodity trading pits: fluctuating board, buy low / sell high, Trader bonus | 🚧 v1 live; market advantages/gem pouches/auctions pending |
 | Hirelings (attendant/crier/messenger/delivery at 8), Speculate Coin (12), Chaffer (45), tessera remote spell learning | ⬜ |
 | Starlight Aura confound; lunar spellbooks Fabrication / Illusion / Noematics | ⬜ |
-| Faithful circle table (1–10): Trading 4 hard, Appraisal 3 hard, 1st weapon 1, 1st/2nd armor 2/1, 1st–3rd lore 3/2/2, 1st–6th survival 3/2/2/1/1/1 | ⬜ |
+| Faithful circle table (1–10): Trading 4 hard, Appraisal 3 hard, 1st weapon 1, 1st/2nd armor 2/1, 1st–3rd lore 3/2/2, 1st–6th survival 3/2/2/1/1/1 | ✅ (live in the band-table engine) |
 | Trade Route Justice (ACCUSE), rumors, ledgers, abacus, banquet halls | ⬜ |
 | Crafting affiliation: Forging 2× Blacksmithing + Outfitting 1× Artistry | ⬜ |
 
@@ -366,9 +391,9 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 |---|---|
 | Elemental alignment + charge: SUMMON ADMITTANCE/IMPEDANCE/WEAPON; opposing-element penalties before ~500 Summoning | ⬜ |
 | Aethereal Pathways: aligned paths that aid Targeted Magic, consume charge (half/double cost) | ⬜ |
-| Familiars: talisman-summoned aether spirits (Small/Large/Dark/Fir), see through their eyes, move/pick-up items | ⬜ |
+| Familiars: `summon familiar` at the hall — a combat ally that fights alongside, trains Summoning | 🚧 v1 live; talismans/sizes/scrying pending |
 | Spellbooks Aether/Air/Earth/Electricity/Fire/Water; 89 slots to master (91 @150); free feats Faster Targeting + Targeted Mastery | ⬜ |
-| Faithful circle table (1–10): Summoning 3 hard, Targeted Magic 4, Scholarship 1, Parry Ability 2, Defending 1, 1st–5th magic 4/4/3/0/0, 1st–3rd weapon 3/0/0, 1st–3rd lore 2/2/1, 1st armor 2, 1st–4th survival 1/1/1/1 | ⬜ |
+| Faithful circle table (1–10): Summoning 3 hard, Targeted Magic 4, Scholarship 1, Parry Ability 2, Defending 1, 1st–5th magic 4/4/3/0/0, 1st–3rd weapon 3/0/0, 1st–3rd lore 2/2/1, 1st armor 2, 1st–4th survival 1/1/1/1 | ✅ (live in the band-table engine) |
 | Crafting affiliation: Enchanting — 3× (Artificing, Binding, Invoking) | ⬜ |
 
 ---
@@ -391,10 +416,10 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| Full skillset structure: Weapon (19: incl. Offhand Weapon, Parry Ability, Melee/Missile Mastery, Expertise), Armor (7: incl. Defending, Conviction), Magic (8 + guild), Survival (10 + guild), Lore (9 + guild) | 🚧 skills live; mastery skill mechanics pending |
-| Mastery skills (Melee Mastery, Missile Mastery, Primary Magic): boost any same-class skill ranked below them | ⬜ |
-| 11 guild skills: Empathy, Astrology, Expertise, Scouting, Backstab, Summoning, Bardic Lore, Conviction, Theurgy, Thanatology, Trading (guild-only training) | 🚧 in skill list; guild-only training gates pending |
-| Hard/soft/restricted requirement semantics in the circle engine | ⬜ |
+| Full skillset structure: Weapon (19: incl. Offhand Weapon, Parry Ability, Melee/Missile Mastery, Expertise), Armor (7: incl. Defending, Conviction), Magic (8 + guild), Survival (10 + guild), Lore (9 + guild) | ✅ live |
+| Mastery skills (Melee Mastery, Missile Mastery, Primary Magic): boost any same-class skill ranked below them | ✅ |
+| 11 guild skills: Empathy, Astrology, Expertise, Scouting, Backstab, Summoning, Bardic Lore, Conviction, Theurgy, Thanatology, Trading (guild-only training) | ✅ trainer-gated + activity sources live |
+| Hard/soft/restricted requirement semantics in the circle engine | ✅ (hard flags, mastery/Sorcery/Thievery exclusions live) |
 | Skill-level messaging tiers (Novice → Practitioner → … → Avatar, 16 tiers with degree modifiers) in `skills` output | ✅ |
 | Learning model: field-exp pools (70% now / 30% banks), 30s pulses, mindstate ladder, REXP (2:1, 2× drain) | ✅ pool/pulse timing live (single pulse group; DR's 10-group offset model noted) |
 | Rank cap 1750 (DR) vs our anti-grind cap (circle × 4, 40 @ circle 10) | ✅ curve 200 + n exact; cap is an intentional divergence |
@@ -423,8 +448,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | 5 crafting skills × 3 disciplines (~25 techniques each): Forging (Blacksmithing/Armorsmithing/Weaponsmithing), Engineering (Carving/Shaping/Tinkering), Outfitting (Tailoring/Artistry/Jewelry), Alchemy (Remedies/Reactants/Cooking), Enchanting (Artificing/Binding/Invoking) | ⬜ |
 | Technique slots: 13 general per skill (rank-gated 25–1200), careers (12) + hobbies (6), 3 guild bonus slots | ⬜ |
 | Guild bonus disciplines (e.g. Empath Remedies×2+Cooking, Paladin Armorsmithing×3, Thief Carving×2+Reactants) | ⬜ |
-| Workflow: gather materials → craft → quality roll (practically worthless → masterfully-crafted, quality scales damage) | 🚧 v1 live; tools/instructions/ANALYZE pending |
-| Quality ladder: practically worthless → mediocre → about average → well-crafted → masterfully-crafted (99); durability bonus at masterful | ⬜ |
+| Workflow: gather materials → craft → quality roll; quality ladder (practically worthless → masterfully-crafted, quality scales damage) | 🚧 v1 live; tools/instructions/ANALYZE + masterful durability pending |
 | Work orders + prestige → maker's mark; unmarked items recognized only by their maker | ⬜ |
 | Crafted gear strictly superior to store-bought at high skill; magic buffs apply at half strength to crafting checks | ⬜ |
 
@@ -464,13 +488,39 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 
 - **Stage 1 — Foundation ✅** — accounts, slots, chargen, world, movement, client.
 - **Stage 2 — Growth Loop ✅** — skills, exp, trainers, circle 1–3, rest, forage/track.
-- **Stage 3 — Combat & Magic 🚧** — async combat, stances, PvP duels, maneuvers, and tiered grounds live; fourth spells + loot scaling pending.
+- **Stage 3 — Combat & Magic 🚧** — async combat, stances, PvP duels, maneuvers, ambush, tiered grounds, and fourth spells live; loot scaling pending.
 - **Stage 4 — Economy & Content 🚧** — tiers, alchemy, dungeon, named rares live; balance pass pending.
 - **Stage 5 — TDPs & Advanced Growth 🚧** — TDP economy, titles, and circle-10 capstones live.
 - **Stage 6 — Scripting ✅** — aliases, chaining, macro bar, timers, triggers all live.
 - **Stage 7 — Custom Interface 🚧** — themes, fonts, and palette live; channel styling pending.
 - **Stage 8 — Native Controls 🚧** — D-pad + gamepad live; haptics pending.
 - **Stage 9 — Circle-10 Parity 🚧** — all guilds verified by simulator; capstones live; playtest pending.
+
+
+## Next Up (prioritized backlog)
+
+**P1 — growth-loop depth**
+- Debts/locks to temper runaway grinding (P2)
+- Spell-slot-constrained learning + free magical feats at circle 2 (P12/P25)
+- Exp: DR's 10-group pulse offsets + retention by skillset rate (P24)
+
+**P2 — combat & world**
+- Loot scaling with creature circle + loot flags (P5/P23)
+- Battlefield healing / potion chug timers (P5)
+- Provinces + depth-tiered hunting grounds (P23)
+- Full crime set (murder, forbidden practices) + provincial debts (P27)
+- Duel reasons, justice zones, warrants (P27)
+
+**P3 — breadth & polish**
+- Crafting disciplines (Engineering/Outfitting/Enchanting) + technique slots (P26)
+- Reroll/respec of spent stats (P1)
+- Say/emote channel styling in the client (P9); haptics (P10)
+- Masterful-craft durability, work orders + maker's mark (P26)
+- Deeper per-guild trees: full khri family, enchante segue + area effects,
+  cleric communes/infusion, empath links/shift, moongates, risen states,
+  paladin glyphs/protect, ranger snipe/slip, trader hirelings/caravans (P13–22)
+
+---
 
 ## Tooling
 
@@ -480,25 +530,25 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
   10** and reports pacing, TDPs, silver economy, and per-circle milestones.
 - `node scripts/build-skills-doc.mjs` — regenerates `public/SKILLS.html` (the
   full skill reference) from the live game data.
-- `npm test` — 55 headless tests including a full HTTP API suite
+- `npm test` — 82 headless tests including a full HTTP API suite
   (`server/api.js`, enable with `DR_ENABLE_API=1`).
 
 **Sim-validated circle-10 times (simulated active minutes):**
 
 | Guild | Minutes | | Guild | Minutes |
 |---|---|---|---|---|
-| Moon Mage | 4 | | Ranger | 11 |
-| Bard | 4 | | Thief | 11 |
+| Moon Mage | 5 | | Ranger | 5 |
+| Bard | 4 | | Thief | 9 |
 | Cleric | 4 | | Trader | 10 |
-| Necromancer | 3 | | Warmage | 4 |
-| Barbarian | 8 | | Paladin | 4 |
-| | | | Empath | 9 |
+| Necromancer | 4 | | Warmage | 4 |
+| Barbarian | 9 | | Paladin | 4 |
+| | | | Empath | 12 |
 
 All eleven guilds verified to circle 10 through the authentic band-based
 requirement tables (named skills + Nth-of-skillset pools). TDP totals at
-circle 10 land in the DR-authentic hundreds-to-thousands range (≈900–1040
+circle 10 land in the DR-authentic hundreds-to-thousands range (≈910–1040
 with the 600-start + circle awards + pool conversions).
-- **Stage 10 — Barbarian Fidelity ⬜** — inner fire, four ability classes, paths, masteries, Expertise combos, faithful circle table (see Pillar 11).
-- **Stage 11 — Cross-Guild Systems ⬜** — full DR skill set, mana types, spell-slot progressions, Nth-skill requirement engine, crafting disciplines (see Pillar 12).
-- **Stage 12 — Guild Fidelity ⬜** — faithful passes for all remaining guilds (see Pillars 13–22).
-- **Stage 13 — World & Systems Fidelity ⬜** — hunting ladders, Crossing/Riverhaven depth, skill-system structure, magic mechanics, crafting, PvP & justice (see Pillars 23–27).
+- **Stage 10 — Barbarian Fidelity 🚧** — inner fire, four ability classes, paths, masteries, Expertise combos live; the full berserk/form/roar families, warpaint, roar helms, and registers pending (Pillar 11).
+- **Stage 11 — Cross-Guild Systems 🚧** — full DR skill set, mana types + cambrinth, spell-slot display, Nth-skill engine, alchemy + forging live; crafting disciplines and slot-constrained learning pending (Pillar 12).
+- **Stage 12 — Guild Fidelity 🚧** — every guild has a live fidelity v1 (enchantes, devotion, wound-taking, prediction, risen, soul, companions/beseeches, khri, commodity pits, familiars); deeper per-guild trees pending (Pillars 13–22).
+- **Stage 13 — World & Systems Fidelity 🚧** — Riverhaven, hunting ladder, task quests, justice loop live; provinces, depth-tiered grounds, the full crime set, and crafting disciplines pending (Pillars 23–27).
