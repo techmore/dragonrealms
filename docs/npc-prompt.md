@@ -9,7 +9,7 @@ Files you may read: `data/npcs.js` (NPC registry), `data/world.js` (rooms +
 placement), `data/items.js` (shop stock ids), `data/guilds.js` (guild ids),
 `server/commands.js` (`ask`/`look`/`train`/`steal`/`craft` handlers),
 `server/game.js` (`list`/`buy`/`sell`/`heal`/`deposit`/`withdraw`/trainer
-lookups), `test/smoke.test.mjs` (NPC assertions), `README.md` (command list).
+lookups), `test/world.test.mjs` (NPC assertions), `README.md` (command list).
 
 # How the NPC system works (non-negotiable facts)
 
@@ -91,6 +91,6 @@ lookups), `test/smoke.test.mjs` (NPC assertions), `README.md` (command list).
 - All ids resolve; no orphan NPCs in `NPCS`, no dangling references in room
   `npcs` arrays, no phantom stock items.
 - `npm test` passes; no `server/` changes unless strictly required for a new
-  role, and any such change is minimal and covered by a smoke test.
+  role, and any such change is minimal and covered by the domain suites in `test/`.
 - New content matches the existing clean-room dark-fantasy voice and the
   Crossing's established cast.

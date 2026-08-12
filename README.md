@@ -198,7 +198,7 @@ Misc:      help | save | quit | deletechar <name>
 data/        game content (races, guilds, skills, items, creatures, npcs, world)
 server/      db, auth, player, world runtime, combat engine, commands, session, entry
 public/      web terminal client (HTML/CSS/JS)
-test/        headless smoke tests
+test/        domain test suites + shared helpers
 ```
 
 Everything persists to `data/store/dragonrealms.db` (SQLite via `node:sqlite`,
