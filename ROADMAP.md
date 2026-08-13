@@ -416,9 +416,9 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| Full skillset structure: Weapon (19: incl. Offhand Weapon, Parry Ability, Melee/Missile Mastery, Expertise), Armor (7: incl. Defending, Conviction), Magic (8 + guild), Survival (10 + guild), Lore (9 + guild) | ✅ live |
+| Full skillset structure: Weapon (18: incl. Offhand Weapon, Parry Ability, Melee/Missile Mastery), Armor (6: incl. Defending), Magic (21: incl. Astrology/Summoning/Theurgy), Survival (14), Lore (12), Combat Manipulation (2: Martial Arts, Warding), Defense (2: Fitness, Endurance), Guild (8) | ✅ live |
 | Mastery skills (Melee Mastery, Missile Mastery, Primary Magic): boost any same-class skill ranked below them | ✅ |
-| 11 guild skills: Empathy, Astrology, Expertise, Scouting, Backstab, Summoning, Bardic Lore, Conviction, Theurgy, Thanatology, Trading (guild-only training) | ✅ trainer-gated + activity sources live |
+| 11 guild skills: Empathy, Astrology, Expertise, Scouting, Backstab, Summoning, Bardic Lore, Conviction, Theurgy, Thanatology, Trading (guild-only training) | ✅ trainer-gated + activity sources live (8 in the Guild category; Astrology/Summoning/Theurgy live in the Magic skillset) |
 | Hard/soft/restricted requirement semantics in the circle engine | ✅ (hard flags, mastery/Sorcery/Thievery exclusions live) |
 | Skill-level messaging tiers (Novice → Practitioner → … → Avatar, 16 tiers with degree modifiers) in `skills` output | ✅ |
 | Learning model: field-exp pools (70% now / 30% banks), 30s pulses, mindstate ladder, REXP (2:1, 2× drain) | ✅ pool/pulse timing live (single pulse group; DR's 10-group offset model noted) |
@@ -431,7 +431,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Feature | Status |
 |---|---|
 | Mana spectrum: Elemental / Holy / Life / Lunar / Necromantic / none with per-type cycles (holy days, seasons, weather, moon phases) | 🚧 six types + deterministic cycles live (lunar 12h, holy 72h, life monthly, elemental diurnal, necromantic amalgam); storms charge mana, fog dims it (weather live) |
-| HARNESS + PERCEIVE verbs; attunement pool regenerates in pulses (2.5% per 6s), regen speed by guild rate (primary > secondary > tertiary) | 🚧 `perceive`/`harness` + held-mana cast bonus live; 6s pulse regen live (guild-rate + attunement-scaled) |
+| HARNESS + PERCEIVE verbs; attunement pool regenerates in pulses (4/3/2.5% of max per 6s base by guild rate — primary > secondary > tertiary — ×0.5–2.5 attunement scaling) | 🚧 `perceive`/`harness` + held-mana cast bonus live; 6s pulse regen live (guild-rate + attunement-scaled) |
 | Cambrinth storage: CHARGE / INVOKE / RELEASE / FOCUS; type-locked (wrong type explodes), 1/8 leakage per 500s, Arcana-gated efficiency (~200 ranks), capacity by item shape | 🚧 cambrinth items + charge/invoke/focus live (type-lock explosion, 500s leakage, Arcana efficiency, capacity by device); multi-device tracking and partial-invoke pending |
 | Casting model: PREPARE <spell> # → CAST <target>; TARGET verb; spell slots (primary ~89–92, secondary ~55–77, tertiary ~60–68 @150) | 🚧 `prepare` + `target` + `slots` live; slot-constrained prep pending |
 | Spell types: standard, battle, ritual (foci cut mana), cyclic (one at a time, pulsing upkeep), metaspell | ⬜ |
