@@ -26,6 +26,24 @@ for (const f of FEATURES) {
   if (!stageIds.has(f.s)) err(`feature ${f.id} references unknown stage ${f.s}`);
   if (!['done', 'partial', 'todo'].includes(f.status)) err(`feature ${f.id} has bad status ${f.status}`);
 }
+// 1b. STAGES must be real stage objects (this catches features accidentally
+//     appended to the STAGES array, e.g. the f164 case).
+for (const s of STAGES) {
+  if (typeof s.id !== 'number' || !s.title || !s.desc) {
+    err(`STAGES entry is not a valid stage: ${JSON.stringify(s).slice(0, 90)}`);
+    continue;
+  }
+  if (!['done', 'partial', 'todo'].includes(s.badge)) err(`stage ${s.id} has bad badge ${JSON.stringify(s.badge)}`);
+  if (seen.has(String(s.id)) || FEATURES.some((f) => f.id === String(s.id))) {
+    err(`stage ${s.id} shares an id with a feature`);
+  }
+}
+// 1c. Feature ids must not collide with stage ids as rendered strings.
+for (const f of FEATURES) {
+  if (STAGES.some((s) => typeof s.id === 'number' && String(s.id) === f.id)) {
+    err(`feature ${f.id} collides with stage id`);
+  }
+}
 
 // 2. ROADMAP.md rows vs tracker features (word-overlap matching)
 const rows = [...md.matchAll(/^\| ([^|]+) \| ([^\n|]+) \|$/gm)]
@@ -50,6 +68,40 @@ for (const r of rows) {
   }
 }
 
+// 2b. Status marker cross-check: if the tracker marks the best-matching
+//     feature as fully done, the ROADMAP.md row must not read as
+//     planned/partial (stale-doc detection). The allowlist holds rows whose
+//     prose deliberately tracks a partially-shipped subsystem that shares
+//     words with a done tracker feature.
+const STATUS_ALLOW = [
+  'Scouting + TRACK, trailmarkers', // trailmarkers still pending; f112 only covers stance points
+];
+const markers = (row) => (row.startsWith('✅') ? 'done' : row.startsWith('🚧') ? 'partial' : row.startsWith('⬜') ? 'todo' : null);
+let statusDrift = 0;
+for (const r of rows) {
+  const mdStatus = markers(r.status);
+  if (!mdStatus) continue;
+  if (STATUS_ALLOW.some((p) => r.text.startsWith(p))) continue;
+  const words = [...new Set(sig(r.text))];
+  if (!words.length) continue;
+  let best = null, bestScore = 0;
+  for (const f of FEATURES) {
+    const c = (f.label + ' ' + f.detail).toLowerCase();
+    const hit = words.filter((w) => c.includes(w)).length;
+    const sc = hit / words.length;
+    if (sc > bestScore) { bestScore = sc; best = f; }
+  }
+  if (!best || bestScore < 0.5) continue;
+  if (best.status === 'done' && mdStatus !== 'done') {
+    statusDrift++;
+    console.log(`STALE (${Math.round(bestScore * 100)}% match to ${best.id} "${best.label}"): ${r.text.slice(0, 80)}  [md=${mdStatus}]`);
+  } else if (best.status === 'todo' && mdStatus !== 'todo') {
+    statusDrift++;
+    console.log(`OVERCLAIM (matches untracked ${best.id} "${best.label}"): ${r.text.slice(0, 80)}  [md=${mdStatus}]`);
+  }
+}
+if (statusDrift) errors += statusDrift;
+
 // 3. Generators reproducible (scoped to the files they own, so other
 //    in-flight work never trips this check)
 console.log('\nVerifying generators are current...');
@@ -72,5 +124,5 @@ if (dirty.length) {
   console.log('generators reproducible: ok');
 }
 
-console.log(`\nResult: ${errors} errors, ${missing} unmatched roadmap rows (potential gaps).`);
+console.log(`\nResult: ${errors} errors, ${missing} unmatched roadmap rows (potential gaps), ${statusDrift} stale status markers.`);
 process.exit(errors ? 1 : 0);
