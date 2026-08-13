@@ -9,7 +9,7 @@ import { guildById } from '../data/guilds.js';
 import { db } from './db.js';
 import { handleCommand } from './commands/index.js';
 import { sendChargenMenu, doCharSelect, doCharCreate, doAlloc, doEnter } from './chargen.js';
-import { subscribe, unsubscribe, forward } from './spectate.js';
+import { subscribe, unsubscribe, forward, forwardCommand } from './spectate.js';
 
 const INPUT_MAX = 20; // commands per second
 
@@ -105,6 +105,7 @@ function route(session, msg) {
     case 'input':
       rateLimit(session);
       if (session.state === 'playing' && session.player) {
+        forwardCommand(session.player, msg.line);
         handleCommand(session.game, session.player, msg.line);
       }
       break;

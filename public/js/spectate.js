@@ -76,6 +76,9 @@ function connect() {
       case 'error':
         append(msg.msg, 'ch-error');
         break;
+      case 'command':
+        append(`> ${msg.line}`, 'ch-echo');
+        break;
       case 'prompt':
         append(msg.msg, 'ch-prompt');
         break;

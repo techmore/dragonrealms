@@ -48,6 +48,16 @@ export function handleLocalCommand(line) {
   if (handleAutomation(line)) return;
   const parts = line.split(/\s+/);
 
+  // Spectate another player's live stream (works from any state).
+  if (parts[0].toLowerCase() === 'spectate' && parts[1]) {
+    import('./spectate-mode.js').then((m) => m.enterSpectate(parts[1]));
+    return;
+  }
+  if (parts[0].toLowerCase() === 'unspectate') {
+    import('./spectate-mode.js').then((m) => m.leaveSpectate());
+    return;
+  }
+
   if (parts[0].toLowerCase() === 'search' && parts[1]) {
     searchWith(parts.slice(1).join(' '));
     return;

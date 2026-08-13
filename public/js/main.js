@@ -66,7 +66,12 @@ function onMessage(msg) {
       status.parsePrompt(msg.msg);
       input.blockInput(false);
       break;
+    case 'command':
+      // The watched player typed a command: echo it like their own typing.
+      terminal.append(`> ${msg.line}`, 'ch-echo');
+      break;
     case 'login_prompt':
+      if (gameState.spectating) break;
       terminal.append('(type: login <username> <password>  or  register <username> <password>)', 'ch-msg');
       welcome.showWelcome('login');
       break;
@@ -76,12 +81,14 @@ function onMessage(msg) {
       gameState.value = 'logged';
       break;
     case 'charselect':
+      if (gameState.spectating) break;
       gameState.value = 'charselect';
       terminal.append(msg.msg, 'ch-notice');
       welcome.showWelcome('charselect', msg.msg);
       input.blockInput(false);
       break;
     case 'charcreate':
+      if (gameState.spectating) break;
       gameState.value = 'charcreate';
       gameState.inChargen = true;
       welcome.enterChargen(msg.msg);

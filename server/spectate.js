@@ -37,6 +37,17 @@ export function forward(player, obj) {
   }
 }
 
+// Called when the player types a command: watchers see it as `> line`,
+// exactly as if they were watching over the player's shoulder.
+export function forwardCommand(player, line) {
+  const set = watchers.get(player.charId);
+  if (!set || set.size === 0) return;
+  const out = JSON.stringify({ t: 'command', line: String(line || '') });
+  for (const s of set) {
+    if (s.socket.readyState === s.socket.OPEN) s.socket.send(out);
+  }
+}
+
 export function watcherCount(player) {
   const set = watchers.get(player.charId);
   return set ? set.size : 0;

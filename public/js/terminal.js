@@ -55,6 +55,10 @@ export function appendRoom(text) {
   scrollToBottom();
 }
 
+export function clear() {
+  terminal.innerHTML = '';
+}
+
 function renderRoomHeader(div, text) {
   const parts = String(text).split('\n');
   const header = stripAnsi(parts[1] || '');

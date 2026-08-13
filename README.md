@@ -156,8 +156,13 @@ testing and analysis — see `docs/api.md`.
 - **Barbarian bot + spectator** — `node scripts/barbarian-bot.mjs` (or
   `npm run bot`) plays a real gortog barbarian: it shops, gears up, hunts,
   skins, hauls to market, trains, learns abilities, and circles. Watch it
-  live at `/spectate.html?name=<bot>` — the spectator page streams the bot's
-  room, fights, and prompts through the wire relay (`server/spectate.js`).
+  two ways: open `/spectate.html?name=<bot>` for a dedicated live viewer, or
+  type `spectate <bot>` straight into the main client (`http://localhost:3000/`)
+  — the full interface renders the bot's rooms, combat, prompts, and its
+  typed commands (`> attack sewer rat`) with the status strip tracking its
+  vitals. `unspectate` returns you to normal play. The relay is
+  `server/spectate.js`; head-starts for fast demo arcs: `--silver N`,
+  `--start-ranks N` (needs `DR_ENABLE_API=1`).
   Options: `--minutes N` (cap), `--circle N` (target), `--name <n>`,
   `--silver N` and `--start-ranks N` (head-starts via the test API,
   `DR_ENABLE_API=1`, for watchable demos that circle within minutes).
