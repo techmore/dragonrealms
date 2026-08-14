@@ -10,6 +10,7 @@ import * as input from './input.js';
 import { settings, applySettings, onSettingsChange } from './settings.js';
 import { gameState } from './state.js';
 import { feedScripts } from './scripts.js';
+import { bindHighlightPanel } from './highlights.js';
 
 // Cross-module wiring.
 automation.setRunner(input.pressEnter);
@@ -142,4 +143,5 @@ onServerMessage(onMessage);
 
 applySettings();
 automation.renderMacros();
+bindHighlightPanel();
 connect();

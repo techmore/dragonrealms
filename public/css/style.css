@@ -497,6 +497,7 @@ body[data-theme="green"] #terminal b { color: #8aff8a; }
 .script-name-row button:hover { background: var(--green); color: #1a1505; }
 .script-block { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
 .script-block .script-kind { color: var(--dim); font-size: 10px; letter-spacing: 2px; display: flex; justify-content: space-between; align-items: center; }
+.hl-bold { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
 .script-row .script-kind { color: var(--dim); font-weight: bold; width: 52px; flex-shrink: 0; }
 .script-row .script-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .script-row button {

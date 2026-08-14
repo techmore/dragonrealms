@@ -1,6 +1,7 @@
 // Terminal scrollback: rendering, ANSI, channels, scroll controls, search.
 import { $, escapeHtml, stripAnsi } from './util.js';
 import { settings } from './settings.js';
+import { applyHighlights } from './highlights.js';
 
 const terminal = $('terminal');
 let autoScroll = true;
@@ -42,7 +43,7 @@ function scrollToBottom() {
 export function append(text, cls = '') {
   const div = document.createElement('div');
   div.className = 'block' + (cls ? ' ' + cls : '');
-  div.innerHTML = ansiToHtml(text);
+  div.innerHTML = ansiToHtml(applyHighlights(text));
   terminal.appendChild(div);
   scrollToBottom();
 }

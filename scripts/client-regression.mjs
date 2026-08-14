@@ -126,6 +126,19 @@ try {
   await cmd('script stop');
   await sleep(200);
 
+  // 13d. Highlight engine: add a rule, emit matching text, check the color span.
+  await evalJs(`(function(){
+    const b=document.getElementById('settings-btn'); if(b) b.click();
+    const p=document.getElementById('hl-pattern'); if(p) p.value='GreetingsHighlight';
+    const c=document.getElementById('hl-color'); if(c) c.value='red';
+    const add=document.getElementById('hl-add'); if(add) add.click();
+    const s=document.getElementById('settings-btn'); if(s) s.click();
+    return true;
+  })();true`);
+  await cmd('say GreetingsHighlight from the engine');
+  await sleep(500);
+  check('highlight colors matched text', await evalJs(`[...document.querySelectorAll('#terminal .block')].some(b => b.innerHTML.includes('c31'))`));
+
   // 13c. Conversations pane: say routes to the chat window with channel styling.
   await cmd('say Greetings from the test');
   await sleep(500);

@@ -197,6 +197,23 @@
       <label><input id="set-autoscroll" type="checkbox" checked> Auto-scroll output</label>
       <label><input id="set-condensed" type="checkbox" checked> Condense combat rounds</label>
     </details>
+    <details>
+      <summary>Highlights</summary>
+      <div id="highlight-rules" class="script-rows"></div>
+      <div class="script-add">
+        <input id="hl-pattern" placeholder="text or regex, e.g. emerald" autocomplete="off">
+        <select id="hl-color">
+          <option value="green">Green</option>
+          <option value="amber">Gold</option>
+          <option value="red">Red</option>
+          <option value="cyan">Cyan</option>
+          <option value="magenta">Magenta</option>
+          <option value="dim">Muted</option>
+        </select>
+        <label class="hl-bold"><input id="hl-bold" type="checkbox"> bold</label>
+        <button id="hl-add">Add</button>
+      </div>
+    </details>
   </div>
 
   <script type="module" src="/js/main.js"></script>
