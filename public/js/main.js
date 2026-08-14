@@ -27,6 +27,7 @@ onSettingsChange(() => {
 onDisconnect(() => {
   input.blockInput(true);
   status.hideRoomPanel();
+  status.hideHands();
 });
 
 document.addEventListener('keydown', (e) => {
@@ -73,6 +74,9 @@ function onMessage(msg) {
       status.parsePrompt(msg.msg);
       feedScripts(msg.msg, true);
       input.blockInput(false);
+      break;
+    case 'hands':
+      status.renderHands(msg);
       break;
     case 'command':
       // The watched player typed a command: echo it like their own typing.

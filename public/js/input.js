@@ -115,9 +115,9 @@ const COMMANDS = [
   'wear', 'wield', 'remove', 'use', 'list', 'buy', 'sell', 'deposit', 'withdraw',
   'train', 'circle', 'tdp', 'raise', 'tdptrain', 'quest', 'claim', 'craft',
   'alias', 'macro', 'timer', 'trigger', 'macros', 'timers', 'triggers',
-  'ask', 'score', 'skills', 'exp', 'alloc', 'say', 'emote', 'shout', 'who', 'time',
+  'ask', 'score', 'skills', 'exp', 'info', 'health', 'alloc', 'say', 'emote', 'shout', 'who', 'time',
   'help', 'save', 'quit', 'rest', 'forage', 'hunt', 'track', 'steal', 'pick',
-  'perform', 'appraise', 'duel', 'accept', 'decline',
+  'perform', 'appraise', 'duel', 'accept', 'decline', 'script', 'scripts',
 ];
 const CONTEXT_ARGS = {
   alloc: STATS, raise: STATS,

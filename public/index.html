@@ -13,11 +13,13 @@
       <span id="conn-status" class="conn-off">disconnected</span>
       <nav id="toolbar" aria-label="Tools">
         <button id="btn-exits" class="tool" title="Exits panel">Exits</button>
+        <button id="btn-exp" class="tool" title="Experience">Exp</button>
+        <button id="btn-info" class="tool" title="Vital statistics (info)">Info</button>
         <button id="btn-inv" class="tool" title="Inventory">Inventory</button>
         <button id="btn-score" class="tool" title="Score">Score</button>
         <button id="btn-skills" class="tool" title="Skills">Skills</button>
         <button id="btn-spells" class="tool" title="Spells">Spells</button>
-        <button id="btn-scripts" class="tool" title="Macros, timers, triggers">Scripts</button>
+        <button id="btn-scripts" class="tool" title="Macros, timers, triggers, DR scripts">Scripts</button>
         <button id="settings-btn" class="tool" title="Settings">&#9881;</button>
       </nav>
     </span>
@@ -35,6 +37,13 @@
     <button id="strip-close" class="strip-close" title="Hide status bar">&#215;</button>
   </div>
 
+  <div id="hands-bar" hidden>
+    <span class="hands-title">HANDS</span>
+    <span id="hands-hand" class="hands-item">Hand: &#8212;</span>
+    <span id="hands-worn" class="hands-item"></span>
+    <span id="hands-carried" class="hands-item"></span>
+  </div>
+
   <main id="app">
     <div id="story">
       <div id="room-panel" hidden>
@@ -44,6 +53,7 @@
           <div id="rp-exits" class="room-panel-exits"></div>
           <div id="rp-compass"></div>
         </div>
+        <div id="rp-hint" class="room-panel-hint">move: n s e w ne nw se sw u d (or click the compass) &middot; type <b>help</b> for every command</div>
       </div>
       <div id="terminal" aria-live="polite"></div>
     </div>

@@ -63,6 +63,9 @@ try {
   check('room panel pinned', (await evalJs(`document.getElementById('rp-title').textContent`)) === 'Town Square, Crossing');
   check('room panel compass', (await evalJs(`document.querySelectorAll('#rp-compass .compass-btn:not(.off)').length`)) === 6);
   check('room panel exits', (await evalJs(`document.getElementById('rp-exits').textContent`)).startsWith('Obvious paths:'));
+  check('nav hint present', (await evalJs(`document.getElementById('rp-hint').textContent`)).includes('help'));
+  check('hands bar shows hand', (await evalJs(`document.getElementById('hands-hand').textContent`)).startsWith('Hand:'));
+  check('exp + info buttons', await evalJs(`!!document.getElementById('btn-exp') && !!document.getElementById('btn-info')`));
 
   // 5. Status strip
   await waitFor(`!document.getElementById('status-strip').hidden`);

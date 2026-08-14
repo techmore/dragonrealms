@@ -43,6 +43,22 @@ export function hideRoomPanel() {
   if (panel) panel.hidden = true;
 }
 
+// Persistent hands bar: what you hold, wear, and carry (DR hands window).
+export function renderHands(msg) {
+  const bar = $('hands-bar');
+  if (!bar) return;
+  const hand = msg.hand || 'empty hands';
+  $('hands-hand').textContent = `Hand: ${hand}`;
+  $('hands-worn').textContent = msg.worn && msg.worn.length ? `Worn: ${msg.worn.join(', ')}` : '';
+  $('hands-carried').textContent = `Carried: ${msg.carried || 0}`;
+  bar.hidden = false;
+}
+
+export function hideHands() {
+  const bar = $('hands-bar');
+  if (bar) bar.hidden = true;
+}
+
 export function roomNameOf(text) {
   const plain = stripAnsi(text).replace(/^\n+/, '');
   const first = plain.split('\n')[0] || '';

@@ -12,6 +12,8 @@ import { listScripts, saveScript, runScript, stopScript, isScriptRunning } from 
 const PANELS = {
   inv: { title: 'INVENTORY', cmd: 'inventory' },
   score: { title: 'SCORE', cmd: 'score' },
+  exp: { title: 'EXPERIENCE', cmd: 'exp' },
+  info: { title: 'INFO', cmd: 'info' },
   skills: { title: 'SKILLS', cmd: 'skills' },
   spells: { title: 'SPELLS', cmd: 'spells' },
   scripts: { title: 'SCRIPTS', cmd: null },
@@ -162,6 +164,8 @@ $('btn-exits').addEventListener('click', () => {
 });
 $('btn-inv').addEventListener('click', () => openPanel('inv'));
 $('btn-score').addEventListener('click', () => openPanel('score'));
+$('btn-exp').addEventListener('click', () => openPanel('exp'));
+$('btn-info').addEventListener('click', () => openPanel('info'));
 $('btn-skills').addEventListener('click', () => openPanel('skills'));
 $('btn-spells').addEventListener('click', () => openPanel('spells'));
 $('btn-scripts').addEventListener('click', () => openPanel('scripts', false));

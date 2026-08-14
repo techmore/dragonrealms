@@ -75,6 +75,7 @@ export function loadPlayer(charId) {
     race: raceById(row.race),
     guild: guildById(row.guild),
     circle: row.circle,
+    handsDirty: true,
     stats: {
       str: row.str, con: row.con, ref: row.ref, agi: row.agi,
       cha: row.cha, dis: row.dis, wis: row.wis, int: row.int,
@@ -410,6 +411,7 @@ export function removeAlias(p, name) {
 export function addItem(p, itemId, qty = 1) {
   const item = itemById(itemId);
   if (!item) return false;
+  if (p) p.handsDirty = true;
   const existing = p.inventory.find((i) => i.item.id === itemId);
   if (existing) {
     existing.qty += qty;
@@ -425,6 +427,7 @@ export function addItem(p, itemId, qty = 1) {
 export function removeItem(p, itemId, qty = 1) {
   const inv = p.inventory.find((i) => i.item.id === itemId);
   if (!inv) return false;
+  p.handsDirty = true;
   inv.qty -= qty;
   if (inv.qty <= 0) {
     db.prepare('DELETE FROM inventory WHERE id=?').run(inv.id);
@@ -456,6 +459,7 @@ export function equipItem(p, invEntry) {
   }
   p.equipment[slot] = { ...item, condition: 100 };
   removeItem(p, item.id, 1);
+  p.handsDirty = true;
   db.prepare('INSERT INTO equipment (character_id, slot, item_id, condition) VALUES (?,?,?,100)')
     .run(p.charId, slot, item.id);
   return { ok: true, slot };

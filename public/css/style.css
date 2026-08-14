@@ -147,6 +147,27 @@ button { font-family: inherit; }
   padding: 0 6px;
   white-space: nowrap;
 }
+/* Hands bar (DR hands window) */
+#hands-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 5px 14px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+  font-size: 12px;
+  flex-wrap: wrap;
+  white-space: nowrap;
+}
+@supports not (background: color-mix(in srgb, red, transparent)) {
+  #hands-bar { background: var(--panel); }
+}
+#hands-bar .hands-title { color: var(--dim); font-size: 10px; letter-spacing: 2px; }
+#hands-bar .hands-item { color: var(--text); }
+#hands-bar #hands-hand { color: var(--amber); font-weight: bold; }
+/* Navigation hint inside the room panel */
+#room-panel .room-panel-hint { margin-top: 6px; color: var(--dim); font-size: 11px; }
+#room-panel .room-panel-hint b { color: var(--amber); }
 .strip-combat {
   color: var(--red);
   font-weight: bold;

@@ -2,7 +2,7 @@
 import { roomById } from '../data/world.js';
 import { npcById } from '../data/npcs.js';
 import { guildTitle } from '../data/guilds.js';
-import { roundtimeLeft } from './player.js';
+import { roundtimeLeft, weaponOf } from './player.js';
 
 export const status = {
   guildTrainer(p) {
@@ -27,6 +27,22 @@ export const status = {
     const stam = `\x1b[32mStamina: ${p.stamina}/${p.maxStaminaEff}\x1b[0m`;
     const rt = roundtimeLeft(p);
     const rtTxt = rt > 0 ? `  \x1b[31mRT: ${rt}\x1b[0m` : '';
+    // Hands (DR client window): push a structured inventory snapshot whenever
+    // gear changed — the client keeps a persistent "hands" bar.
+    if (p.handsDirty) {
+      p.handsDirty = false;
+      const w = weaponOf(p);
+      const worn = Object.entries(p.equipment)
+        .filter(([slot]) => slot !== 'hand')
+        .map(([, i]) => i.name);
+      const carried = p.inventory.reduce((s, e) => s + e.qty, 0);
+      p.ws.send(JSON.stringify({
+        t: 'hands',
+        hand: w ? w.name : null,
+        worn,
+        carried,
+      }));
+    }
     p.ws.send(JSON.stringify({
       t: 'prompt',
       msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${prep}\n> `,
