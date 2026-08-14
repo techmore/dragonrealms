@@ -5,6 +5,7 @@ import { ansiToHtml } from './terminal.js';
 import { pressEnter, isPlaying, focusInput } from './input.js';
 import { settings, isMobile } from './settings.js';
 import { getLastRoom } from './status.js';
+import { buildCompassRose } from './compass.js';
 import { macros, timers, triggers, onScriptsChange, removeScript } from './automation.js';
 import { listScripts, saveScript, runScript, stopScript, isScriptRunning } from './scripts.js';
 
@@ -81,45 +82,12 @@ function syncToolbar() {
   $('btn-exits').classList.toggle('on', !$('dock').hidden);
 }
 
-// DR exits compass: worded exits (north, northeast...) map back to the
-// compass codes the server uses.
-const WORD_TO_DIR = {
-  north: 'n', south: 's', east: 'e', west: 'w',
-  northeast: 'ne', northwest: 'nw', southeast: 'se', southwest: 'sw',
-  up: 'u', down: 'd',
-};
-
 export function renderExitsWidget() {
   const row = $('exits-row');
   row.innerHTML = '';
   const exits = getLastRoom().exits;
-  const dirs = new Set(exits.map((e) => WORD_TO_DIR[e] || e));
 
-  const compass = document.createElement('div');
-  compass.className = 'compass';
-  const layout = [
-    ['nw', 'n', 'ne'],
-    ['w', '_', 'e'],
-    ['sw', 's', 'se'],
-    ['_', 'u', 'd'],
-  ];
-  for (const trio of layout) {
-    const r = document.createElement('div');
-    r.className = 'compass-row';
-    for (const dir of trio) {
-      if (dir === '_') { r.appendChild(document.createElement('span')); continue; }
-      const b = document.createElement('button');
-      b.className = 'compass-btn' + (dirs.has(dir) ? '' : ' off');
-      b.dataset.dir = dir;
-      b.textContent = dir.toUpperCase();
-      b.title = `go ${dir}`;
-      b.disabled = !dirs.has(dir);
-      b.addEventListener('click', () => pressEnter(`go ${dir}`));
-      r.appendChild(b);
-    }
-    compass.appendChild(r);
-  }
-  row.appendChild(compass);
+  row.appendChild(buildCompassRose(exits));
 
   const list = document.createElement('div');
   list.className = 'exits-list';

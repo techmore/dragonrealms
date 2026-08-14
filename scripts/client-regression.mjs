@@ -60,6 +60,9 @@ try {
   await evalJs(`document.getElementById('cg-enter').click();true`);
   await waitFor(`!!document.querySelector('.room-title')`);
   check('room title', await evalJs(`${lastTitle}.textContent`) === 'Town Square, Crossing');
+  check('room panel pinned', (await evalJs(`document.getElementById('rp-title').textContent`)) === 'Town Square, Crossing');
+  check('room panel compass', (await evalJs(`document.querySelectorAll('#rp-compass .compass-btn:not(.off)').length`)) === 6);
+  check('room panel exits', (await evalJs(`document.getElementById('rp-exits').textContent`)).startsWith('Obvious paths:'));
 
   // 5. Status strip
   await waitFor(`!document.getElementById('status-strip').hidden`);

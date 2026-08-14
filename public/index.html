@@ -36,7 +36,17 @@
   </div>
 
   <main id="app">
-    <div id="terminal" aria-live="polite"></div>
+    <div id="story">
+      <div id="room-panel" hidden>
+        <div id="rp-title" class="room-panel-title"></div>
+        <div id="rp-desc" class="room-panel-desc"></div>
+        <div class="room-panel-foot">
+          <div id="rp-exits" class="room-panel-exits"></div>
+          <div id="rp-compass"></div>
+        </div>
+      </div>
+      <div id="terminal" aria-live="polite"></div>
+    </div>
     <aside id="dock" hidden>
       <section id="exits-widget" aria-label="Exits">
         <div id="exits-title" class="dock-kicker">EXITS</div>

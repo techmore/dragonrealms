@@ -24,7 +24,10 @@ onSettingsChange(() => {
   status.renderStatusStrip();
 });
 
-onDisconnect(() => input.blockInput(true));
+onDisconnect(() => {
+  input.blockInput(true);
+  status.hideRoomPanel();
+});
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
@@ -43,6 +46,7 @@ function onMessage(msg) {
     case 'room': {
       terminal.appendRoom(msg.msg);
       status.setLastRoom({ name: status.roomNameOf(msg.msg), area: status.roomAreaOf(msg.msg), exits: msg.exits || [] });
+      status.renderRoomPanel(msg);
       panels.renderExitsWidget();
       status.renderStatusStrip();
       if (msg.exits && msg.exits.length) terminal.appendExitBar(msg.exits);
@@ -76,6 +80,7 @@ function onMessage(msg) {
       break;
     case 'login_prompt':
       if (gameState.spectating) break;
+      status.hideRoomPanel();
       terminal.append('(type: login <username> <password>  or  register <username> <password>)', 'ch-msg');
       welcome.showWelcome('login');
       break;

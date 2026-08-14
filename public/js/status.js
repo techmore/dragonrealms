@@ -1,12 +1,47 @@
 // Status strip + room/prompt state, all derived from server output.
 import { $, stripAnsi } from './util.js';
 import { settings, stripEffective, saveSettings } from './settings.js';
+import { buildCompassRose } from './compass.js';
 
 let lastRoom = { name: null, exits: [] };
 let promptState = null;
 
 export function getLastRoom() { return lastRoom; }
 export function setLastRoom(r) { lastRoom = r; }
+
+// Persistent room panel (DR room window): name/area, description, worded
+// exits, and the compass — pinned above the story so you always know where
+// you are, even after the terminal scrolls.
+export function renderRoomPanel(msg) {
+  const panel = $('room-panel');
+  if (!panel) return;
+  const plain = String(msg.msg || '').replace(/^\n+/, '');
+  const lines = plain.split('\n');
+  const header = stripAnsi(lines[0] || '');
+  const dr = /^\[\[(.*?)\]\]$/.exec(header);
+  const title = $('rp-title');
+  if (dr) {
+    const nameArea = dr[1].split(/,\s*/);
+    title.textContent = nameArea[0] + (nameArea.length > 1 ? `, ${nameArea.slice(1).join(', ')}` : '');
+  } else {
+    title.textContent = stripAnsi(header).replace(/^\[\[/, '').replace(/\]\]$/, '');
+  }
+  // Description = everything between the header and the exits line.
+  const exitIdx = lines.findIndex((l) => /^Obvious (paths|exits):/i.test(stripAnsi(l).trim()));
+  const descLines = exitIdx >= 0 ? lines.slice(1, exitIdx) : lines.slice(1);
+  $('rp-desc').textContent = descLines.map((l) => stripAnsi(l)).filter((l) => l.trim()).join('\n').trim();
+  const exits = msg.exits || [];
+  $('rp-exits').textContent = exits.length ? `Obvious paths: ${exits.join(', ')}.` : 'Obvious paths: none.';
+  const compass = $('rp-compass');
+  compass.innerHTML = '';
+  compass.appendChild(buildCompassRose(exits));
+  panel.hidden = false;
+}
+
+export function hideRoomPanel() {
+  const panel = $('room-panel');
+  if (panel) panel.hidden = true;
+}
 
 export function roomNameOf(text) {
   const plain = stripAnsi(text).replace(/^\n+/, '');
