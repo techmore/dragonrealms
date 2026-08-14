@@ -78,6 +78,17 @@ const TOWN_TO_SQUARE = {
   east_road: ['w', 's', 's'], tenderfoot: ['s', 'w', 's', 's'], middens: ['n', 'w', 's', 's'],
   docks: ['s', 's', 's'], pier: ['s', 's', 's', 's'], academy: ['w', 'w'],
 };
+// Routes from the square to each wilds room the bot can fight/die in
+// (mirrors data/world.js). Used to reclaim gear left on a corpse.
+const ROOM_ROUTES = {
+  sewers_1: ['s', 'd'], sewers_2: ['s', 'd', 'n'], sewers_3: ['s', 'd', 'n', 'n'],
+  woods_path: ['w', 'w', 'w'], woods_1: ['w', 'w', 'w', 'n'], woods_2: ['w', 'w', 'w', 's'],
+  marsh_1: ['n', 'n', 'e', 'e', 'e'], marsh_2: ['n', 'n', 'e', 'e', 'e', 's'],
+  camp_den: ['w', 'n', 'n', 'e'],
+  cinder_1: ['w', 'n', 'n', 'e', 'd'], cinder_2: ['w', 'n', 'n', 'e', 'd', 'n'],
+  deep_1: ['w', 'w', 'w', 'n', 'n'], deep_2: ['w', 'w', 'w', 'n', 'n', 'e'],
+  black_1: ['w', 'w', 'w', 'n', 'n', 'e', 'e'], black_2: ['w', 'w', 'w', 'n', 'n', 'e', 'e', 'd'],
+};
 const ARRIVES = {
   sewers: 'sewers_1', woods: 'woods_path', marsh: 'marsh_1',
   cinder: 'cinder_2', blackwood: 'black_2',
@@ -148,6 +159,7 @@ const state = {
   inCombat: false,
   resting: false,
   restLookAt: 0,
+  reclaim: null, // { room, items, step, equipped } — corpse recovery after death
   queue: [],               // navigation directions
   destination: null,
   kills: 0,
@@ -264,6 +276,29 @@ function decide(trigger) {
   if (state.room === 'temple') {
     log('died — returning to the square');
     navigate('square', ROUTES.temple);
+    return;
+  }
+
+  // Re-equip gear just reclaimed from a corpse (one piece per prompt).
+  if (state.reequip && state.reequip.length) {
+    sendCmd(`wear ${state.reequip.shift()}`);
+    return;
+  }
+
+  // Corpse recovery: head back to where we fell and reclaim the gear.
+  if (state.reclaim) {
+    if (state.room !== state.reclaim.room) {
+      const route = ROOM_ROUTES[state.reclaim.room];
+      if (!route) {
+        log(`no route back to ${state.reclaim.room} — leaving the corpse`);
+        state.reclaim = null;
+      } else {
+        log(`reclaiming gear in ${state.reclaim.room}`);
+        navigate(state.reclaim.room, route);
+      }
+      return;
+    }
+    reclaimGear();
     return;
   }
 
@@ -405,6 +440,44 @@ function combatTactics() {
     return;
   }
   state.tactics = t;
+}
+
+// Parse a corpse search: "carried: a short sword, arrows (x10)" and
+// "worn: leather, shield wood" -> item names (articles and counts stripped).
+function parseCorpse(msg) {
+  const clean = (raw) => raw.replace(/\(x\d+\)/g, '').replace(/^an?\s+|^the\s+/, '').trim();
+  const all = [];
+  const equipped = [];
+  const carried = /carried:\s*(.+)/.exec(msg);
+  if (carried) for (const r of carried[1].split(',')) { const n = clean(r); if (n) all.push(n); }
+  const worn = /worn:\s*(.+)/.exec(msg);
+  if (worn) for (const r of worn[1].split(',')) { const n = clean(r); if (n) { all.push(n); equipped.push(n); } }
+  return { all, equipped };
+}
+
+// Work through corpse recovery one command per prompt: search the body, get
+// each item back, then re-wear what was on the corpse.
+function reclaimGear() {
+  const r = state.reclaim;
+  if (r.step === 0) { r.step = 1; sendCmd('search'); return; }
+  if (r.step === 1) {
+    if (!r.items.length) { log('the corpse holds nothing worth reclaiming'); state.reclaim = null; sendCmd('look'); return; }
+    r.step = 2;
+  }
+  const idx = r.step - 2;
+  if (idx >= r.items.length) {
+    state.reclaim = null;
+    if (r.equipped.length) {
+      state.reequip = [...r.equipped];
+      sendCmd(`wear ${state.reequip.shift()}`);
+      return;
+    }
+    log('reclaimed the gear from my corpse');
+    sendCmd('look');
+    return;
+  }
+  r.step += 1;
+  sendCmd(`get ${r.items[idx]} from corpse`);
 }
 
 function gearUp() {
@@ -639,6 +712,13 @@ async function handle(msg) {
       decide('prompt');
       break;
     case 'combat':
+      if (/awaken in the Temple/.test(msg.msg)) {
+        // Death: everything dropped at the death spot. Remember it so we can
+        // reclaim the gear after respawning.
+        state.reclaim = { room: state.room, items: [], step: 0, equipped: [] };
+        log(`died in ${state.room} — gear left on the corpse`);
+        break;
+      }
       if (/fell |fall |defeated/.test(msg.msg)) {
         state.kills += 1;
         state.killsSinceVisit += 1;
@@ -650,6 +730,14 @@ async function handle(msg) {
       if (/Hmm\?|do not know/.test(msg.msg)) state.failedMoves += 1;
       break;
     case 'msg':
+      // Corpse search output: remember what the body held so we can get it back.
+      if (state.reclaim && state.reclaim.step === 1 && /and search it/.test(msg.msg)) {
+        const parsed = parseCorpse(msg.msg);
+        state.reclaim.items = parsed.all;
+        state.reclaim.equipped = parsed.equipped;
+        state.reclaim.step = 2;
+        break;
+      }
       // Rest ticks come as plain messages (no prompt): keep the loop alive by
       // peeking for new spawns, and resume hunting when the rest finishes.
       if (/You rest/.test(msg.msg)) {
