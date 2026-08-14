@@ -16,6 +16,10 @@ automation.setRunner(input.pressEnter);
 terminal.setExitRunner(input.pressEnter);
 terminal.setFocusRunner(input.focusInput);
 
+// URL deep-link: "?spectate=Name" drops straight into watching that player
+// with the full interface (no login needed).
+const autoSpectate = new URLSearchParams(location.search).get('spectate') || '';
+
 onSettingsChange(() => {
   terminal.setAutoScroll(settings.autoscroll);
   input.setDpadVisible(settings.dpad);
@@ -84,6 +88,10 @@ function onMessage(msg) {
       break;
     case 'login_prompt':
       if (gameState.spectating) break;
+      if (autoSpectate) {
+        import('./spectate-mode.js').then((m) => m.enterSpectate(autoSpectate));
+        break;
+      }
       status.hideRoomPanel();
       terminal.append('(type: login <username> <password>  or  register <username> <password>)', 'ch-msg');
       welcome.showWelcome('login');
