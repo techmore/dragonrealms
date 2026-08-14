@@ -106,7 +106,7 @@ function route(session, msg) {
       rateLimit(session);
       if (session.state === 'playing' && session.player) {
         forwardCommand(session.player, msg.line);
-        handleCommand(session.game, session.player, msg.line);
+        handleCommand(session.game, session.player, msg.line, 0, { applyRT: true });
       }
       break;
     case 'ping':

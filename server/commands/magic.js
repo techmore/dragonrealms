@@ -3,7 +3,7 @@ import { roomById } from '../../data/world.js';
 import { spellsFor, spellById, spellTierFor, SPELL_TIER_RANKS } from '../../data/guilds.js';
 import { SKILLS } from '../../data/skills.js';
 import { manaTypeFor, manaCycle, roomManaLevel, manaDescriptor, safeOverchannelPct, backfireChance } from '../../data/mana.js';
-import { gainSkillExp, skillRank, removeItem, addItem, unlockAchievement } from '../player.js';
+import { gainSkillExp, skillRank, removeItem, addItem, unlockAchievement, setRoundtime } from '../player.js';
 import { db } from '../db.js';
 import { findInventoryItem } from './util.js';
 
@@ -106,6 +106,8 @@ export const commands = {
     }
     if (prepared) p.prepared = null;
     const mult = pct / 100;
+    // Casting takes roundtime (DR): a few seconds scaled by the spell's size.
+    setRoundtime(p, Math.min(8, 2 + Math.floor(spell.mana / 5)));
 
     // Self-cast spells work without a target.
     if (['heal', 'flee', 'teleport', 'buff'].includes(spell.kind)) {

@@ -4,7 +4,7 @@ import { ITEMS, itemById } from '../../data/items.js';
 import { RECIPES, recipeById } from '../../data/recipes.js';
 import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll } from '../../data/forging.js';
 import { npcById } from '../../data/npcs.js';
-import { skillRank, gainSkillExp, addItem, removeItem, equipItem, unequipItem, countItems, unlockAchievement } from '../player.js';
+import { skillRank, gainSkillExp, addItem, removeItem, equipItem, unequipItem, countItems, unlockAchievement, setRoundtime } from '../player.js';
 import { pad, findInventoryItem, findSlotByItem, findNpcByName } from './util.js';
 
 // Guild crafting affiliations (DR: free technique slots per discipline).
@@ -65,6 +65,7 @@ export const commands = {
     p.silver -= cost;
     item.condition = 100;
     gainSkillExp(p, slot === 'hand' ? 'forging' : 'outfitting', 8);
+    setRoundtime(p, 6);
     emit(`The ${slot === 'hand' ? 'hammer' : 'needle'} works over ${item.name} — it is as good as new (${cost} silvers).`);
   },
 
@@ -88,6 +89,7 @@ export const commands = {
     const risky = npc.id === 'guard';
     const skill = skillRank(p, 'thievery');
     const chance = Math.max(0.05, Math.min(0.85, 0.35 + skill * 0.02 + p.stats.agi * 0.005 - (risky ? 0.2 : 0)));
+    setRoundtime(p, 4);
     if (Math.random() < chance) {
       const coins = 5 + Math.floor(Math.random() * (5 + p.circle * 3));
       p.silver += coins;
@@ -170,6 +172,7 @@ export const commands = {
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
+    setRoundtime(p, 6);
     emit(`You work the metal at the anvil and produce ${q.name} ${base.name}.${leveled ? ' Your Forging improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
   },
 
@@ -196,6 +199,7 @@ export const commands = {
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
+    setRoundtime(p, 6);
     emit(`You shape the materials into ${q.name} ${base.name}.${leveled ? ' Your Engineering improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
   },
 
@@ -222,6 +226,7 @@ export const commands = {
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
+    setRoundtime(p, 6);
     emit(`You cut and stitch ${q.name} ${base.name}.${leveled ? ' Your Outfitting improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
   },
 
@@ -244,6 +249,7 @@ export const commands = {
     const skill = skillRank(p, 'alchemy');
     const chance = Math.min(0.95, 0.5 + (skill + craftAffinity(p.guild.id, 'craft')) * 0.03 + p.stats.wis * 0.003);
     const leveled = gainSkillExp(p, 'alchemy', 10);
+    setRoundtime(p, 6);
     if (Math.random() < chance) {
       addItem(p, recipe.item, 1);
       emit(`You carefully combine the ingredients and produce ${itemById(recipe.item).name}!${leveled ? ' Your Alchemy improved!' : ''}`);
@@ -304,6 +310,7 @@ function unlock(ctx) {
   removeItem(p, 'strongbox', 1);
   const skill = skillRank(p, 'lockpicking');
   const chance = Math.max(0.1, Math.min(0.9, 0.4 + skill * 0.03 + p.stats.agi * 0.005));
+  setRoundtime(p, 5);
   if (Math.random() < chance) {
     const coins = 20 + p.circle * 5 + Math.floor(Math.random() * 20);
     p.silver += coins;
@@ -335,6 +342,7 @@ function consume(ctx) {
     return emit(`Your stomach is still settling from the last draught (${secs}s).`);
   }
   p.potionAt = Date.now();
+  setRoundtime(p, 3);
   removeItem(p, entry.item.id, 1);
   if (entry.item.buff) {
     for (const [k, v] of Object.entries(entry.item.buff)) p.buffs[k] = v;

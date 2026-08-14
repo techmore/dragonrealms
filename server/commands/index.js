@@ -11,7 +11,22 @@ import { commands as world } from './world.js';
 const COMMAND_MODULES = [combat, magic, items, shops, character, world];
 const REGISTRY = Object.assign({}, ...COMMAND_MODULES);
 
-export function handleCommand(game, p, input, depth = 0) {
+import { setRoundtime, roundtimeLeft } from '../player.js';
+
+// Commands that take roundtime (DR): each sets its own RT when it runs, and
+// is refused while RT is still counting down. Movement, passive reads, and
+// everything not in this set stay free during RT. `applyRT` is only enabled
+// from the real WS session (session.js) — tests and the simulator drive the
+// engine directly and are unaffected.
+export const RT_BLOCK = new Set([
+  'attack', 'cast', 'berserk', 'roar', 'meditate', 'form', 'whirlwind', 'stomp', 'choke',
+  'mageslash', 'dispel', 'backstab', 'snipe', 'slip', 'smite', 'impede', 'ambush', 'hide',
+  'forage', 'scavenge', 'track', 'hunt', 'skin', 'steal', 'pick', 'study', 'perform', 'appraise',
+  'repair', 'use', 'drink', 'eat', 'khri', 'predict', 'harness', 'perceive', 'charge', 'invoke',
+  'focus', 'animate', 'ritual', 'devotion', 'beseech', 'enchante', 'glyph', 'summon', 'sacrifice',
+]);
+
+export function handleCommand(game, p, input, depth = 0, opts = {}) {
   if (depth > 4) return;
   let line = String(input || '').trim();
   if (!line) return;
@@ -20,7 +35,7 @@ export function handleCommand(game, p, input, depth = 0) {
   if (line.includes(';')) {
     const parts = line.split(';').map((s) => s.trim()).filter(Boolean);
     if (parts.length > 1) {
-      for (const part of parts) handleCommand(game, p, part, depth + 1);
+      for (const part of parts) handleCommand(game, p, part, depth + 1, opts);
       return;
     }
   }
@@ -38,7 +53,7 @@ export function handleCommand(game, p, input, depth = 0) {
       cmd = next;
     }
     if (!usedArg && rest) cmd = `${cmd} ${rest}`;
-    handleCommand(game, p, cmd, depth + 1);
+    handleCommand(game, p, cmd, depth + 1, opts);
     return;
   }
 
@@ -69,6 +84,11 @@ export function handleCommand(game, p, input, depth = 0) {
 
   const handler = REGISTRY[cmd];
   if (handler) {
+    // Roundtime gate (real sessions only): RT actions are refused while the
+    // timer runs. Movement was already handled above and stays free.
+    if (opts.applyRT && RT_BLOCK.has(cmd) && roundtimeLeft(p) > 0) {
+      return emit(`You must wait ${roundtimeLeft(p)} second${roundtimeLeft(p) === 1 ? '' : 's'} before you can do that.`);
+    }
     handler(ctx);
     return;
   }

@@ -61,6 +61,23 @@ const ROUTES = {
   temple: ['n', 'n'],            // from temple to square
 };
 // Room ids each route arrives at (used to detect arrival).
+// Return-to-square routes for town rooms the bot can resume or wander into
+// (mirrors data/world.js). Used when the bot finds itself off its normal loop.
+const TOWN_TO_SQUARE = {
+  square: [],
+  west_gate: ['e', 'e'], west_road: ['e'], half_pint: ['se'], tailor_shop: ['n', 'e'],
+  temple_row: ['n'], temple: ['n', 'n'], high_temple: ['n', 'n', 'n'], fane: ['w', 'n'], jail: ['up'],
+  guild_district: ['w'], guild_halls_n: ['s', 'w'], guild_halls_s: ['n', 'w'],
+  hall_barbarian: ['s', 's', 'w'], hall_bard: ['s', 's', 's', 'w'], hall_cleric: ['s', 's', 's', 's', 'w'],
+  hall_empath: ['s', 's', 's', 's', 's', 'w'], hall_moonmage: ['s', 's', 's', 's', 's', 's', 'w'],
+  hall_necromancer: ['s', 's', 's', 's', 's', 's', 's', 'w'],
+  hall_paladin: ['n', 'n', 'w'], hall_ranger: ['n', 'n', 'n', 'w'], hall_thief: ['n', 'n', 'n', 'n', 'w'],
+  hall_trader: ['n', 'n', 'n', 'n', 'n', 'w'], hall_warmage: ['n', 'n', 'n', 'n', 'n', 'n', 'w'],
+  market_way: ['s'], market_end: ['s', 's'],
+  commodity_pit: ['e', 's'], auction_house: ['s', 'e', 's'], brewery: ['w', 's'], forge: ['w', 'w', 's'],
+  east_road: ['w', 's', 's'], tenderfoot: ['s', 'w', 's', 's'], middens: ['n', 'w', 's', 's'],
+  docks: ['s', 's', 's'], pier: ['s', 's', 's', 's'], academy: ['w', 'w'],
+};
 const ARRIVES = {
   sewers: 'sewers_1', woods: 'woods_path', marsh: 'marsh_1',
   cinder: 'cinder_2', blackwood: 'black_2',
@@ -207,6 +224,8 @@ function parsePrompt(msg) {
   state.inCombat = /\[COMBAT\]/.test(plain);
   state.lastPromptAt = Date.now();
   state.silverKnown = true;
+  const rt = /RT:\s*(\d+)/.exec(plain);
+  state.rt = rt ? Number(rt[1]) : 0;
 }
 
 // ---------------- navigation ----------------
@@ -306,6 +325,14 @@ function decide(trigger) {
       hallBusiness();
       return;
     }
+    if (state.room !== 'square') {
+      const route = TOWN_TO_SQUARE[state.room];
+      if (route) {
+        log(`strayed into ${state.room} — heading back to the square`);
+        navigate('square', route);
+        return;
+      }
+    }
     return;
   }
 
@@ -317,10 +344,12 @@ function decide(trigger) {
     return;
   }
   if (state.creatures.length) {
+    if (state.rt > 0) return;
     sendCmd(`attack ${state.creatures[0]}`);
     return;
   }
   if (state.corpses.length) {
+    if (state.rt > 0) return;
     sendCmd(`skin ${state.corpses[0]}`);
     return;
   }
@@ -329,6 +358,7 @@ function decide(trigger) {
 }
 
 function combatTactics() {
+  if (state.rt > 0) return; // roundtime: wait it out before the next art
   const t = state.tactics || {};
   if (state.hp < state.maxHp * 0.3) {
     if (!t.retreated) { t.retreated = true; sendCmd('retreat'); }

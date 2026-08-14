@@ -2,6 +2,7 @@
 import { roomById } from '../data/world.js';
 import { npcById } from '../data/npcs.js';
 import { guildTitle } from '../data/guilds.js';
+import { roundtimeLeft } from './player.js';
 
 export const status = {
   guildTrainer(p) {
@@ -24,9 +25,11 @@ export const status = {
         ? `\x1b[31mFire: ${p.innerFire}/${p.maxInnerFire}\x1b[0m`
         : '';
     const stam = `\x1b[32mStamina: ${p.stamina}/${p.maxStaminaEff}\x1b[0m`;
+    const rt = roundtimeLeft(p);
+    const rtTxt = rt > 0 ? `  \x1b[31mRT: ${rt}\x1b[0m` : '';
     p.ws.send(JSON.stringify({
       t: 'prompt',
-      msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${prep}\n> `,
+      msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${prep}\n> `,
     }));
   },
 

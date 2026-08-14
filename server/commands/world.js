@@ -6,7 +6,7 @@ import { creatureById } from '../../data/creatures.js';
 import { npcById } from '../../data/npcs.js';
 import { barbarianAbilityById, FORGET_COOLDOWN_MS } from '../../data/abilities.js';
 import { gainSkillExp } from '../player.js';
-import { setAlias, removeAlias } from '../player.js';
+import { setAlias, removeAlias, setRoundtime } from '../player.js';
 import { pad, matchSkill, findNpcByName, findInventoryItem, broadcastRoom, gameTime } from './util.js';
 
 const HELP = `
@@ -81,12 +81,14 @@ export const commands = {
   forage(ctx) {
     const { game, p, emit } = ctx;
     const res = game.forage(p);
+    setRoundtime(p, 5);
     emit(res.msg);
   },
 
   scavenge(ctx) {
     const { game, p, emit } = ctx;
     const res = game.scavenge(p);
+    setRoundtime(p, 5);
     emit(res.msg);
   },
 
@@ -108,12 +110,14 @@ export const commands = {
   track(ctx) {
     const { game, p, emit } = ctx;
     const res = game.track(p);
+    setRoundtime(p, 4);
     emit(res.msg);
   },
 
   hunt(ctx) {
     const { game, p, emit } = ctx;
     const res = game.hunt(p);
+    setRoundtime(p, 5);
     emit(res.msg);
   },
 
@@ -138,6 +142,7 @@ export const commands = {
     if (p.room !== 'temple' && p.room !== 'temple_row' && !atAcademy) return emit('You need books. The Temple of the Pantheon keeps a library, and Asemath Academy keeps a better one.');
     const leveled = gainSkillExp(p, 'scholarship', 10);
     const leveled2 = gainSkillExp(p, 'appraisal', atAcademy ? 6 : 2);
+    setRoundtime(p, 4);
     emit(`${atAcademy ? 'You pore over the Academy\'s scrolls of appraisal and trade.' : 'You pore over a dusty tome of lore.'}${leveled ? ' Your Scholarship improved!' : ''}${leveled2 ? ' Your Appraisal improved!' : ''}`);
   },
 
@@ -300,6 +305,7 @@ function perform(ctx) {
   const { p, emit } = ctx;
   const n = p.guild.id === 'bard' ? 2 : 1;
   const leveled = gainSkillExp(p, 'performance', 5 * n);
+  setRoundtime(p, 5);
   const flavor = ['a somber dirge', 'a bawdy tavern tune', 'an old war ballad', 'a wordless hum'][Math.floor(Math.random() * 4)];
   emit(`You perform ${flavor} for a moment, filling the air with your voice.${leveled ? ' Your Performance improved!' : ''}`);
 }
@@ -317,6 +323,7 @@ function appraise(ctx) {
   else if (eq) target = `${eq.name} (worth about ${eq.value} silvers)`;
   else if (creature) target = `${creature.def.name.charAt(0).toUpperCase() + creature.def.name.slice(1)} — looks like it could be skinned for a few silvers`;
   else return emit('You cannot appraise that.');
+  setRoundtime(p, 4);
   emit(`You appraise ${target}.${leveled ? ' Your Appraisal improved!' : ''}`);
 }
 

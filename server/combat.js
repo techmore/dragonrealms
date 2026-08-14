@@ -8,7 +8,7 @@ import { SKILLS, CATEGORIES } from '../data/skills.js';
 import {
   weaponOf, skillRank, effectiveRank, totalArmor, gainSkillExp, defenseSkillOf,
   countItems, removeItem, addItem, totalBurden, maxStaminaEff, conditionMult,
-  wearCondition, MASTERY_SETS,
+  wearCondition, setRoundtime, MASTERY_SETS,
 } from './player.js';
 import { itemById } from '../data/items.js';
 
@@ -1178,6 +1178,7 @@ export class Combat {
     if (this.playerTimer <= 0) {
       this.playerAttack();
       this.playerTimer = this.attackSpeed();
+      setRoundtime(this.player, this.attackSpeed());
     }
     if (this._ended) return;
 

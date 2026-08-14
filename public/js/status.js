@@ -31,6 +31,7 @@ export function parsePrompt(text) {
   const hp = /HP:\s*(\d+)\s*\/\s*(\d+)/i.exec(plain);
   const mana = /Mana:\s*(\d+)\s*\/\s*(\d+)/i.exec(plain);
   const stamina = /Stamina:\s*(\d+)\s*\/\s*(\d+)/i.exec(plain);
+  const rt = /RT:\s*(\d+)/i.exec(plain);
   const circle = /Circle\s*(\d+)/i.exec(plain);
   const silver = /(\d+)\s+silvers?/i.exec(plain);
   if (!hp && !circle) { $('status-strip').hidden = true; return; }
@@ -41,6 +42,7 @@ export function parsePrompt(text) {
     circle: circle ? Number(circle[1]) : null,
     silver: silver ? Number(silver[1]) : null,
     combat: /\[COMBAT\]/.test(plain),
+    rt: rt ? Number(rt[1]) : 0,
   };
   renderStatusStrip();
 }
@@ -75,6 +77,9 @@ export function renderStatusStrip() {
   $('strip-circle').textContent = `Circle ${promptState.circle ?? '--'}`;
   $('strip-silver').textContent = `${promptState.silver ?? '--'} silvers`;
   $('strip-combat').hidden = !promptState.combat;
+  const rt = promptState.rt || 0;
+  $('strip-rt').hidden = rt <= 0;
+  if (rt > 0) $('strip-rt').textContent = `RT: ${rt}`;
 }
 
 $('strip-close').addEventListener('click', () => {

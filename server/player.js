@@ -341,6 +341,17 @@ export function gainSkillExp(p, skillId, amount) {
   return leveled;
 }
 
+// Roundtime (DR): the seconds you must wait after an action before you may
+// act again. rtUntil is epoch ms; movement and passive reads stay free.
+export function setRoundtime(p, secs) {
+  p.rtUntil = Date.now() + Math.max(0, Math.round(secs) || 0) * 1000;
+}
+
+export function roundtimeLeft(p) {
+  const left = Math.ceil(((p.rtUntil || 0) - Date.now()) / 1000);
+  return left > 0 ? left : 0;
+}
+
 // Apply raw exp to a skill's rank ladder (with circle caps + TDP pool).
 export function applyExpToSkill(p, s, amount) {
   s.exp += Math.max(0, Math.floor(amount));

@@ -2,7 +2,7 @@
 import { KHRI, khriById, concentrationPool, khriConcentrationUsed, KHRI_TICKS } from '../../data/khri.js';
 import { barbarianAbilityById, barbarianAbilitiesFor, barbarianSlots, ABILITY_PATHS, VOICE_POOL } from '../../data/abilities.js';
 import { roomById } from '../../data/world.js';
-import { gainSkillExp, skillRank, stancePoints, STANCES, STANCE_COSTS } from '../player.js';
+import { gainSkillExp, skillRank, stancePoints, STANCES, STANCE_COSTS, setRoundtime } from '../player.js';
 import { pad } from './util.js';
 import { skinCreature } from './skin.js';
 
@@ -66,6 +66,7 @@ function hide(ctx) {
   const leveled = gainSkillExp(p, 'hiding', 5 * thief);
   const leveled2 = gainSkillExp(p, 'stealth', 5 * thief);
   p.hidden = true;
+  setRoundtime(p, 3);
   emit(`You melt into the shadows of the ${game.zoneName(p.room)}.${p.combatId ? ' Your foes lose sight of you...' : ''}${leveled ? ' Your Hiding improved!' : ''}${leveled2 ? ' Your Stealth improved!' : ''}`);
 }
 
@@ -86,6 +87,7 @@ function ambush(ctx) {
     }
   }
   combat.ambushAttack(uid);
+  setRoundtime(p, 4);
   game.status(p);
 }
 
@@ -107,6 +109,7 @@ function snipe(ctx) {
     }
   }
   combat.snipeAttack(uid);
+  setRoundtime(p, 5);
   game.status(p);
 }
 
@@ -121,6 +124,7 @@ function slip(ctx) {
   }
   const combat = game.combat.getFor(p);
   if (combat && combat.defender === p) return emit('You are locked in an automatic duel.');
+  setRoundtime(p, 4);
   const chance = 0.5 + skillRank(p, 'hiding') * 0.01 + skillRank(p, 'evasion') * 0.01;
   if (combat) {
     if (Math.random() >= chance) {
@@ -228,6 +232,7 @@ function berserk(ctx) {
   const combat = game.combat.getFor(p);
   if (!combat) return emit('The fury stirs only in battle.');
   combat.toggleBerserk();
+  setRoundtime(p, 3);
   gainSkillExp(p, 'expertise', 4);
 }
 
@@ -281,6 +286,7 @@ function barbarianAbility(ctx, kind) {
     e.def.id === targetName || e.def.name.includes(targetName) || e.def.plural.includes(targetName)
   )?.uid;
   const res = combat.useAbility(def, target);
+  setRoundtime(p, kind === 'meditation' ? 8 : kind === 'form' ? 5 : 3);
   if (!res.ok) emit(res.msg);
 }
 
@@ -293,6 +299,7 @@ function barbarianTech(ctx, abilityId) {
   if (!(p.abilities || []).includes(def.id)) return emit(`You have not learned ${def.name}.`);
   if (p.circle < def.minCircle) return emit(`${def.name} unlocks at circle ${def.minCircle}.`);
   const res = abilityId === 'whirlwind' ? combat.whirlwind() : abilityId === 'war_stomp' ? combat.warStomp() : combat.choke();
+  setRoundtime(p, 6);
   if (!res.ok) emit(res.msg);
 }
 
@@ -314,6 +321,7 @@ function barbarianUse(ctx, abilityId) {
     else return emit(`There is no such foe engaged to target.`);
   }
   const res = combat.useAbility(def, uid);
+  setRoundtime(p, 4);
   if (!res.ok) emit(res.msg);
 }
 
@@ -354,6 +362,7 @@ function backstab(ctx) {
   const combat = game.combat.getFor(p);
   if (!combat) return emit('You need a target in combat.');
   combat.backstab();
+  setRoundtime(p, 4);
 }
 
 function smite(ctx) {
@@ -382,6 +391,7 @@ function smite(ctx) {
   p.soul = Math.max(0, soul - 15);
   target.hp -= dmg;
   combat.say(`\x1b[1mYou smite ${target.def.name} with radiant fury for ${dmg} damage!\x1b[0m`);
+  setRoundtime(p, 4);
   gainSkillExp(p, 'holy_magic', 10);
   gainSkillExp(p, 'conviction', 6);
   if (target.hp <= 0) {
@@ -408,6 +418,7 @@ function impede(ctx) {
     }
   }
   const res = combat.impede(uid);
+  setRoundtime(p, 4);
   if (!res.ok) emit(res.msg);
   game.status(p);
 }

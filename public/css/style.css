@@ -139,6 +139,14 @@ button { font-family: inherit; }
   flex: 1;
 }
 .strip-dim { color: var(--dim); white-space: nowrap; }
+.strip-rt {
+  color: var(--amber);
+  font-weight: bold;
+  border: 1px solid var(--amber);
+  border-radius: 4px;
+  padding: 0 6px;
+  white-space: nowrap;
+}
 .strip-combat {
   color: var(--red);
   font-weight: bold;
