@@ -62,6 +62,29 @@ export function clear() {
 function renderRoomHeader(div, text) {
   const parts = String(text).split('\n');
   const header = stripAnsi(parts[1] || '');
+  const dr = /^\[\[(.*?)\]\]$/.exec(header);
+  if (dr) {
+    // DR format: [[Room Name, Area]]
+    const nameArea = dr[1].split(/,\s*/);
+    const title = document.createElement('span');
+    title.className = 'room-title';
+    title.textContent = nameArea[0];
+    if (nameArea.length > 1) {
+      const area = document.createElement('span');
+      area.className = 'room-area';
+      area.textContent = ', ' + nameArea.slice(1).join(', ');
+      title.appendChild(area);
+    }
+    div.appendChild(title);
+    const rest = parts.slice(2).join('\n');
+    if (rest) {
+      div.appendChild(document.createTextNode('\n'));
+      const span = document.createElement('span');
+      span.innerHTML = ansiToHtml(rest);
+      div.appendChild(span);
+    }
+    return;
+  }
   const m = /^(.*?)\s*[—\-–]\s*(.*)$/.exec(header);
   if (m) {
     const title = document.createElement('span');

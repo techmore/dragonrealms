@@ -59,16 +59,16 @@ try {
   await sleep(300);
   await evalJs(`document.getElementById('cg-enter').click();true`);
   await waitFor(`!!document.querySelector('.room-title')`);
-  check('room title', await evalJs(`${lastTitle}.textContent`) === 'Town Square');
+  check('room title', await evalJs(`${lastTitle}.textContent`) === 'Town Square, Crossing');
 
   // 5. Status strip
   await waitFor(`!document.getElementById('status-strip').hidden`);
   const strip = await evalJs(`document.getElementById('strip-hp-label').textContent + '|' + document.getElementById('strip-mana-label').textContent + '|' + document.getElementById('strip-circle').textContent + '|' + document.getElementById('strip-silver').textContent`);
   check('status strip', /^HP \d+\/\d+\|Mana \d+\/\d+\|Circle \d+\|\d+ silvers$/.test(strip), strip);
 
-  // 6. Exits widget
-  const exits = await evalJs(`[...document.querySelectorAll('#exits-row .exbtn')].map(b => b.textContent).join(',')`);
-  check('exits widget', exits === 'NORTH,SOUTH,EAST,WEST,DOWN,NORTHWEST', exits);
+  // 6. Exits widget (DR compass rose)
+  const exits = await evalJs(`[...document.querySelectorAll('#exits-row .compass-btn:not(.off)')].map(b => b.textContent).join(',')`);
+  check('exits widget', exits === 'NW,N,W,E,S,D', exits);
 
   // 7. Inventory panel
   await evalJs(`document.getElementById('btn-inv').click();true`);
@@ -91,10 +91,10 @@ try {
   check('search highlight', (await evalJs(`document.getElementById('search-count').textContent`)).match(/^\d+ matches$/) !== null);
   await evalJs(`document.getElementById('search-close').click();true`);
 
-  // 11. Move via exits widget
-  await evalJs(`document.querySelector('#exits-row .exbtn')?.click();true`);
+  // 11. Move via compass widget
+  await evalJs(`document.querySelector('#exits-row .compass-btn[data-dir="n"]')?.click();true`);
   await sleep(1500);
-  check('move via widget', (await evalJs(`${lastTitle}.textContent`)) === 'Market Way');
+  check('move via widget', (await evalJs(`${lastTitle}.textContent`)) === 'Market Way, Crossing');
 
   // 12. Scripts panel + macro
   await evalJs(`document.getElementById('btn-scripts').click();true`);

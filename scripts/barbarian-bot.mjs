@@ -185,7 +185,8 @@ function parseRoom(msg) {
   state.zone = ZONES[msg.roomId] || 'town';
   state.creatures = [];
   state.corpses = [];
-  for (const line of String(msg.msg).split('\n')) {
+  for (const raw of String(msg.msg).split('\n')) {
+    const line = raw.replace(/\x1b\[\d+m/g, '');
     const c = /^\s*(?:A|An|The)\s+([a-z]+(?: [a-z]+)*?) is here/.exec(line.trim());
     if (c) state.creatures.push(c[1]);
     const corpse = /the corpse of ([a-z]+(?: [a-z]+)*)/.exec(line.trim());

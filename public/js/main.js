@@ -40,7 +40,7 @@ function onMessage(msg) {
   switch (msg.t) {
     case 'room': {
       terminal.appendRoom(msg.msg);
-      status.setLastRoom({ name: status.roomNameOf(msg.msg), exits: msg.exits || [] });
+      status.setLastRoom({ name: status.roomNameOf(msg.msg), area: status.roomAreaOf(msg.msg), exits: msg.exits || [] });
       panels.renderExitsWidget();
       status.renderStatusStrip();
       if (msg.exits && msg.exits.length) terminal.appendExitBar(msg.exits);
@@ -62,7 +62,8 @@ function onMessage(msg) {
       terminal.append(msg.msg, 'ch-error');
       break;
     case 'prompt':
-      terminal.append(msg.msg, 'ch-prompt');
+      // DR clients never echo the raw vitals line into the story window —
+      // the gauges in the status strip carry it. Keep parsing, skip printing.
       status.parsePrompt(msg.msg);
       input.blockInput(false);
       break;
@@ -101,7 +102,9 @@ function onMessage(msg) {
       gameState.value = 'playing';
       gameState.inChargen = false;
       welcome.hideAll();
-      terminal.append(msg.msg, 'ch-notice');
+      // Fresh session: start the story at the room you wake in.
+      terminal.clear();
+      panels.applyVisibility();
       break;
     case 'pong':
       break;

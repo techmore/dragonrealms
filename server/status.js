@@ -23,9 +23,10 @@ export const status = {
       : p.guild.id === 'barbarian'
         ? `\x1b[31mFire: ${p.innerFire}/${p.maxInnerFire}\x1b[0m`
         : '';
+    const stam = `\x1b[32mStamina: ${p.stamina}/${p.maxStaminaEff}\x1b[0m`;
     p.ws.send(JSON.stringify({
       t: 'prompt',
-      msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${prep}\n> `,
+      msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${prep}\n> `,
     }));
   },
 

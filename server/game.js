@@ -567,7 +567,9 @@ export class Game {
   look(p, target) {
     const room = roomById(p.room);
     const zone = ZONES[room.zone];
-    let out = `\n\x1b[1m${room.name}\x1b[0m — ${zone.name}\n${room.desc}`;
+    const indoor = room.zone === 'town' || room.zone === 'riverhaven';
+    // DR room header: [[Room Name, Area]] — the area rides in the header.
+    let out = `\n\x1b[1m[[${room.name}, ${zone.name}]]\x1b[0m\n${room.desc}`;
 
     const npcs = (room.npcs || []).map(npcById).filter(Boolean);
     if (npcs.length) out += `\nHere: ${npcs.map((n) => n.name).join(', ')}.`;
@@ -577,7 +579,8 @@ export class Game {
       const lines = creatures.map((c) => {
         const pct = c.hp / c.maxHp;
         const state = pct > 0.66 ? '' : pct > 0.33 ? ' — wounded' : ' — badly hurt';
-        return `${cap(c.def.name)} is here${state}.`;
+        // Monsterbold: creature names stand out in the room (webclient feature).
+        return `\x1b[1m${cap(c.def.name)}\x1b[0m is here${state}.`;
       });
       out += `\n${lines.join('\n')}`;
     }
@@ -596,7 +599,7 @@ export class Game {
     if (others.length) out += `\n${others.map((o) => o.name).join(', ')} ${others.length === 1 ? 'is' : 'are'} here.`;
 
     const exits = Object.entries(room.exits).map(([d]) => DIRS[d]).filter(Boolean);
-    if (exits.length) out += `\nObvious exits: ${exits.join(', ')}.`;
+    if (exits.length) out += `\n${indoor ? 'Obvious exits' : 'Obvious paths'}: ${exits.join(', ')}.`;
 
     p.ws.send(JSON.stringify({ t: 'room', msg: out, exits, roomId: p.room }));
   }

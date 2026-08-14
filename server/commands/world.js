@@ -32,7 +32,7 @@ const HELP = `
   Crime:     steal <npc>  (lift coin, town)  |  pick <strongbox>  |  plead guilty|innocent  (if jailed)
   Scripting: alias <name> <command>  |  use ";" to chain commands  (client: macro / timer)
   NPCs:      ask <npc> <topic>  (try "ask crier help")
-  Character: score  |  skills  |  exp  |  alloc <stat> <amount>  |  rexp  |  achievements  |  respec (Fane)
+  Character: score  |  skills  |  exp  |  health  |  info  |  alloc <stat> <amount>  |  rexp  |  achievements  |  respec (Fane)
   Party:     party <player>  (invite)  |  party join  |  party leave  |  party  (status)
   Social:    say <text>  |  emote <text>  |  shout <text>  |  who  |  time
   Misc:      help  |  save  |  report <what happened>  |  quit

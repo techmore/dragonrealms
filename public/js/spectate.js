@@ -80,7 +80,7 @@ function connect() {
         append(`> ${msg.line}`, 'ch-echo');
         break;
       case 'prompt':
-        append(msg.msg, 'ch-prompt');
+        // Vitals aren't echoed into the story window (DR clients show gauges).
         break;
       default:
         append(`[${msg.t}] ${msg.msg || ''}`, 'ch-notice');

@@ -179,6 +179,7 @@ button { font-family: inherit; }
   transition: width 0.4s ease;
 }
 .gauge-mana .gauge-fill { background: var(--cyan); }
+.gauge-stamina .gauge-fill { background: var(--amber); }
 .gauge-label {
   position: absolute;
   inset: 0;
@@ -220,6 +221,7 @@ button { font-family: inherit; }
 
 /* ---------------- Channels ---------------- */
 #terminal .room-title { display: block; color: var(--amber); font-weight: bold; }
+#terminal .room-area { color: var(--dim); font-weight: normal; font-size: 0.92em; }
 #terminal .ch-room { color: var(--text); }
 #terminal .ch-combat { color: var(--dim); }
 #terminal .ch-notice { color: var(--amber); }
@@ -287,7 +289,38 @@ body[data-theme="green"] #terminal b { color: #8aff8a; }
 }
 #exits-title { font-size: 11px; margin-bottom: 8px; }
 
-#exits-row { display: flex; flex-wrap: wrap; gap: 6px; }
+#exits-row { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+#exits-row .compass { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+#exits-row .compass-row { display: flex; gap: 4px; }
+#exits-row .compass-btn {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 6px;
+  background: var(--bg);
+  color: var(--amber);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+}
+#exits-row .compass-btn:hover, #exits-row .compass-btn:focus-visible {
+  background: var(--amber);
+  color: #1a1505;
+  outline: none;
+}
+#exits-row .compass-btn.off {
+  opacity: 0.22;
+  cursor: default;
+  pointer-events: none;
+}
+#exits-row .exits-list {
+  color: var(--dim);
+  font-size: 11px;
+  text-align: center;
+  text-transform: lowercase;
+}
 #exits-row .exbtn {
   min-width: 34px;
   padding: 5px 8px;

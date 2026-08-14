@@ -17,6 +17,9 @@ export const commands = {
   skills(ctx) { showSkills(ctx); },
 
   exp(ctx) { showExp(ctx); },
+  experience: showExp,
+  info: showScore,
+  health(ctx) { showHealth(ctx); },
 
   alloc(ctx) {
     const { p, arg1, arg2, emit } = ctx;
@@ -168,6 +171,23 @@ export const commands = {
     emit(`Character "${target.name}" has been deleted forever. You have ${rows.length - 1} character slot(s) free.`);
   },
 };
+
+// DR HEALTH: wounds and afflictions. We track a single HP pool, so the
+// condition reads off its fraction (DR-flavored wording).
+function showHealth(ctx) {
+  const { p, say } = ctx;
+  const pct = p.hp / Math.max(1, p.maxHp);
+  const cond = pct >= 0.95 ? 'You are in good shape.'
+    : pct >= 0.7 ? 'You have some minor wounds.'
+      : pct >= 0.4 ? 'You are quite wounded.'
+        : pct >= 0.2 ? 'You are badly hurt.'
+          : 'You are near death.';
+  const stam = p.maxStaminaEff ? (p.stamina / p.maxStaminaEff >= 0.5 ? 'Your wind holds steady.' : 'You are winded and short of breath.') : '';
+  const res = p.guild.magic
+    ? `Mana ${p.mana}/${p.maxMana}`
+    : p.guild.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : '';
+  say(`\n${cond}\nHealth ${p.hp}/${p.maxHp}  ${res ? res + '  ' : ''}Stamina ${p.stamina}/${p.maxStaminaEff}\n${stam}`);
+}
 
 function showScore(ctx) {
   const { p, say } = ctx;
