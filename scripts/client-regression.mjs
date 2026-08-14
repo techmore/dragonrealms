@@ -126,6 +126,12 @@ try {
   await cmd('script stop');
   await sleep(200);
 
+  // 13c. Conversations pane: say routes to the chat window with channel styling.
+  await cmd('say Greetings from the test');
+  await sleep(500);
+  check('chat pane captures say', (await evalJs(`!document.getElementById('chat-widget').hidden && document.getElementById('chat-row').textContent.includes('Greetings from the test')`)));
+  check('say styled in terminal', (await evalJs(`[...document.querySelectorAll('#terminal .block')].some(b => b.classList.contains('ch-say'))`)));
+
   // 14. Combat: sewers, attack, chip on, clear after end
   await cmd('s');
   await sleep(600);

@@ -24,6 +24,25 @@ const panelCapture = { active: false, timer: null };
 
 export function isPanelOpen() { return activePanel !== null; }
 
+// Conversations pane (DR local chat): say/emote/shout route here.
+let chatOpen = false;
+export function toggleChat() {
+  chatOpen = !chatOpen;
+  $('chat-widget').hidden = !chatOpen;
+  $('btn-chat').classList.toggle('on', chatOpen);
+  return chatOpen;
+}
+export function appendChat(msg) {
+  if (!chatOpen) toggleChat();
+  const row = $('chat-row');
+  const div = document.createElement('div');
+  div.className = 'block chat-line ch-' + (msg.channel || 'say');
+  div.textContent = msg.msg;
+  row.appendChild(div);
+  while (row.children.length > 80) row.removeChild(row.firstChild);
+  row.scrollTop = row.scrollHeight;
+}
+
 export function openPanel(key, sendCmd = true) {
   const panel = PANELS[key];
   if (!panel) return;
@@ -161,6 +180,13 @@ $('btn-exits').addEventListener('click', () => {
   else closePanel();
   syncToolbar();
   if (show) focusInput();
+});
+$('btn-chat').addEventListener('click', () => {
+  const show = $('dock').hidden;
+  if (show) $('dock').hidden = false;
+  toggleChat();
+  syncToolbar();
+  focusInput();
 });
 $('btn-inv').addEventListener('click', () => openPanel('inv'));
 $('btn-score').addEventListener('click', () => openPanel('score'));

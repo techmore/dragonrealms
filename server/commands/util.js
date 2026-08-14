@@ -48,10 +48,10 @@ export function findSlotByItem(p, name) {
   return Object.entries(p.equipment).find(([slot, item]) => item.id === n || item.name.includes(n))?.[0];
 }
 
-export function broadcastRoom(game, p, selfMsg, otherMsg) {
+export function broadcastRoom(game, p, selfMsg, otherMsg, channel) {
   for (const o of game.players.values()) {
     if (o.room === p.room) {
-      o.ws.send(JSON.stringify({ t: 'msg', msg: o === p ? selfMsg : otherMsg }));
+      o.ws.send(JSON.stringify({ t: 'msg', msg: o === p ? selfMsg : otherMsg, channel }));
     }
   }
   game.status(p);

@@ -239,20 +239,20 @@ export const commands = {
   say(ctx) {
     const { game, p, rest, emit } = ctx;
     if (!rest) return emit('Say what?');
-    broadcastRoom(game, p, `You say, "${rest}"`, `${p.name} says, "${rest}"`);
+    broadcastRoom(game, p, `You say, "${rest}"`, `${p.name} says, "${rest}"`, 'say');
   },
 
   emote(ctx) {
     const { game, p, rest, emit } = ctx;
     if (!rest) return emit('Emote what?');
-    broadcastRoom(game, p, `You ${rest}`, `${p.name} ${rest}`);
+    broadcastRoom(game, p, `You ${rest}`, `${p.name} ${rest}`, 'emote');
   },
 
   shout(ctx) {
     const { game, p, rest, emit } = ctx;
     if (!rest) return emit('Shout what?');
     for (const o of game.players.values()) {
-      o.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} shouts, "${rest.toUpperCase()}!"` }));
+      o.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} shouts, "${rest.toUpperCase()}!"`, channel: 'shout' }));
     }
   },
 

@@ -60,7 +60,8 @@ function onMessage(msg) {
     }
     case 'msg':
       if (panels.capture(msg.msg)) break;
-      terminal.append(msg.msg, 'ch-msg');
+      if (msg.channel) panels.appendChat(msg);
+      terminal.append(msg.msg, msg.channel ? 'ch-' + msg.channel : 'ch-msg');
       break;
     case 'combat':
       terminal.appendCombat(msg.msg);

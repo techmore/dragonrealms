@@ -185,6 +185,20 @@ button { font-family: inherit; }
   color: var(--dim);
   font-size: 11.5px;
 }
+
+/* Conversations pane (DR local chat) */
+#chat-widget { margin-top: 12px; display: flex; flex-direction: column; min-height: 90px; }
+#chat-row {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 180px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+#chat-row .chat-line { margin-bottom: 2px; padding: 2px 4px; border-radius: 3px; }
+#chat-row .ch-say { color: var(--text); }
+#chat-row .ch-emote { color: var(--magenta); font-style: italic; }
+#chat-row .ch-shout { color: var(--amber); font-weight: bold; }
 /* Hands bar (DR hands window) */
 #hands-bar {
   display: flex;
@@ -333,6 +347,9 @@ button { font-family: inherit; }
 #terminal .room-title { display: block; color: var(--amber); font-weight: bold; }
 #terminal .room-area { color: var(--dim); font-weight: normal; font-size: 0.92em; }
 #terminal .ch-room { color: var(--text); }
+#terminal .ch-say { color: var(--text); }
+#terminal .ch-emote { color: var(--magenta); font-style: italic; }
+#terminal .ch-shout { color: var(--amber); font-weight: bold; }
 #terminal .ch-combat { color: var(--dim); }
 #terminal .ch-notice { color: var(--amber); }
 #terminal .ch-error { color: var(--red); }
