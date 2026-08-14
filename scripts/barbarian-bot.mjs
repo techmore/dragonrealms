@@ -146,6 +146,8 @@ const state = {
   corpses: [],
   hp: 0, maxHp: 1, fire: 0, circle: 1, silver: 0,
   inCombat: false,
+  resting: false,
+  restLookAt: 0,
   queue: [],               // navigation directions
   destination: null,
   kills: 0,
@@ -283,16 +285,21 @@ function decide(trigger) {
     }
   }
 
-  // Low health: retreat to town and rest.
-  if (state.hp > 0 && state.hp < state.maxHp * 0.4) {
-    if (state.zone !== 'town') {
-      log(`wounded (${state.hp}/${state.maxHp}) — retreating to the square to rest`);
+  // Recover before anything else: retreat to town if badly hurt, else rest
+  // to fighting strength (85%). Rest sends its own ticks — never re-issue it
+  // while already resting, and the watchdog skips resting players so it can
+  // finish. "You rise" clears the flag via the msg handler.
+  if (state.hp > 0 && state.hp < state.maxHp * 0.85) {
+    if (state.hp < state.maxHp * 0.4 && state.zone !== 'town') {
+      log(`badly hurt (${state.hp}/${state.maxHp}) — retreating to the square`);
       goTown();
-    } else {
+    } else if (!state.resting) {
+      state.resting = true;
       sendCmd('rest');
     }
     return;
   }
+  state.resting = false;
 
   // Town errands.
   if (state.zone === 'town') {
@@ -345,16 +352,22 @@ function decide(trigger) {
   }
   if (state.creatures.length) {
     if (state.rt > 0) return;
+    state.resting = false;
     sendCmd(`attack ${state.creatures[0]}`);
     return;
   }
   if (state.corpses.length) {
     if (state.rt > 0) return;
+    state.resting = false;
     sendCmd(`skin ${state.corpses[0]}`);
     return;
   }
-  if (state.hp < state.maxHp) sendCmd('rest');
-  else patrol();
+  if (state.hp < state.maxHp * 0.85) {
+    if (!state.resting) { state.resting = true; sendCmd('rest'); }
+    return;
+  }
+  state.resting = false;
+  patrol();
 }
 
 function combatTactics() {
@@ -637,6 +650,20 @@ async function handle(msg) {
       if (/Hmm\?|do not know/.test(msg.msg)) state.failedMoves += 1;
       break;
     case 'msg':
+      // Rest ticks come as plain messages (no prompt): keep the loop alive by
+      // peeking for new spawns, and resume hunting when the rest finishes.
+      if (/You rest/.test(msg.msg)) {
+        if (Date.now() - state.restLookAt > 4000) {
+          state.restLookAt = Date.now();
+          sendCmd('look');
+        }
+        break;
+      }
+      if (/You rise/.test(msg.msg)) {
+        state.resting = false;
+        sendCmd('look');
+        break;
+      }
       // Circle verdicts arrive as plain messages.
       if (/not yet ready/.test(msg.msg)) {
         log('circle not ready — will grow more first');
@@ -691,9 +718,11 @@ ws.on('open', () => log(`bot ${BOT_NAME} connecting...`));
 ws.on('close', () => { log('disconnected — exiting'); process.exit(0); });
 ws.on('error', (e) => { log('ws error: ' + e.message); process.exit(1); });
 
-// Watchdog: if no prompt arrived for a while (rest idles), nudge the loop.
+// Watchdog: if no prompt arrived for a while and we are NOT resting (rest
+// sends its own ticks and must not be interrupted), nudge the loop.
 setInterval(() => {
   if (state.phase !== 'playing') return;
+  if (state.resting) return;
   if (Date.now() - state.lastPromptAt > 12000) {
     sendCmd('wake');
   }
