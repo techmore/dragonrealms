@@ -2,9 +2,15 @@
 // abilities, and circles — visible in-game and via /spectate.html?name=<bot>.
 //
 //   node scripts/barbarian-bot.mjs [--name BarbX] [--minutes 5] [--circle 3]
+//   node scripts/barbarian-bot.mjs --name Gor10 --minutes 20 --circle 10 --silver 1500 --start-ranks 8
 //   npm run bot
 //
-// The bot plays through the real WebSocket protocol as a normal adventurer.
+// The bot plays through the real WebSocket protocol as a normal adventurer:
+// shops for gear (basic kit, then circle-gated quartermaster tiers), hunts
+// every zone through Blackwood Ruins, learns barbarian arts, spends TDPs on
+// the exact skills the circle command reports as missing, and circles up.
+// --start-ranks/<skill> and --silver head-start the API so demos can skip the
+// early grind.
 import WebSocket from 'ws';
 
 const args = process.argv.slice(2);
@@ -25,7 +31,15 @@ const log = (msg) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---- world knowledge (mirrors data/world.js routes) ----
-const ZONES = { sewers_1: 'sewers', sewers_2: 'sewers', sewers_3: 'sewers', woods_path: 'woods', woods_1: 'woods', woods_2: 'woods', marsh_1: 'marsh', marsh_2: 'marsh' };
+const ZONES = {
+  sewers_1: 'sewers', sewers_2: 'sewers', sewers_3: 'sewers',
+  woods_path: 'woods', woods_1: 'woods', woods_2: 'woods',
+  marsh_1: 'marsh', marsh_2: 'marsh',
+  deep_1: 'deepwoods', deep_2: 'deepwoods',
+  camp_path: 'camp', camp_hollow: 'camp', camp_den: 'camp',
+  cinder_1: 'cinder', cinder_2: 'cinder',
+  black_1: 'blackwood', black_2: 'blackwood',
+};
 const ROUTES = {
   sewers: ['s', 'd'],            // from square
   fromSewers: ['up', 'n'],
@@ -33,18 +47,26 @@ const ROUTES = {
   fromWoods: ['e', 'e', 'e'],
   marsh: ['n', 'n', 'e', 'e', 'e'],
   fromMarsh: ['w', 'w', 'w', 's', 's'],
+  cinder: ['w', 'n', 'n', 'e', 'd', 'n'],              // square -> cinder_2
+  fromCinder: ['s', 'up', 'w', 's', 's', 'e'],         // cinder_2 -> square
+  blackwood: ['w', 'w', 'w', 'n', 'n', 'e', 'e', 'd'], // square -> black_2
+  fromBlackwood: ['up', 'w', 'w', 's', 's', 'e', 'e', 'e'], // black_2 -> square
+  fromDeepWoods: ['w', 's', 's', 'e', 'e', 'e'],       // deep_2 -> square (emergency)
+  fromCamp: ['s', 's', 'e'],     // camp_path -> square (emergency)
   hall: ['e', 'n', 'n'],         // from square
   fromHall: ['s', 's', 'w'],
   market: ['n'],
   fromMarket: ['s'],
+  fromMarketEnd: ['s', 's'],
   temple: ['n', 'n'],            // from temple to square
 };
 // Room ids each route arrives at (used to detect arrival).
 const ARRIVES = {
   sewers: 'sewers_1', woods: 'woods_path', marsh: 'marsh_1',
+  cinder: 'cinder_2', blackwood: 'black_2',
   hall: 'hall_barbarian', market: 'market_way', square: 'square',
 };
-const SKINS = ['rat pelt', 'kobold hide', 'goblin hide', 'wolf pelt', 'wisp mote', 'troll hide', 'cinder scale'];
+const SKINS = ['rat pelt', 'kobold hide', 'goblin hide', 'wolf pelt', 'wisp mote', 'troll hide', 'cinder scale', 'wraith essence', 'silver signet ring', 'iron ore', 'dread knight sigil', 'blood garnet', 'deep sapphire', 'forest emerald', 'cut diamond'];
 const TRAIN_PRIORITY = ['large_edged', 'twohanded_edged', 'twohanded_blunt', 'light_armor', 'fitness', 'evasion', 'blunt', 'thrown', 'perception', 'foraging'];
 // Circle-gated abilities: learn them when the circle allows.
 const ABILITY_MIN_CIRCLE = { whirlwind: 6, war_stomp: 8, choke: 5, dual_load: 7 };
@@ -54,6 +76,49 @@ const RANK_BOOST_SKILLS = [...TRAIN_PRIORITY, 'medium_edged', 'small_edged', 'ch
   'parry', 'expertise', 'inner_fire', 'tactics', 'stealth', 'hiding', 'skinning', 'appraisal',
   'tracking', 'swimming', 'climbing', 'scholarship'];
 const ABILITY_PLAN = ['dragon', 'tenacity', 'serenity', 'everilds_rage', 'screech', 'choke', 'dispel', 'mageslash', 'whirlwind', 'war_stomp', 'dual_load', 'juggernaut', 'duelist', 'titan', 'exemplar'];
+
+// When the circle command says "Nth <skillset>" is short, the bot can't know
+// which pool member to raise — so it cycles this candidate list. The lists
+// mirror NTH_POOLS in data/guilds.js exactly (hunting/tracking are survival
+// *category* skills but never count toward the Nth pools).
+const SET_CANDIDATES = {
+  survival: ['athletics', 'stealth', 'lockpicking', 'first_aid', 'skinning', 'perception', 'foraging', 'evasion'],
+  weapon: ['small_edged', 'large_edged', 'twohanded_edged', 'twohanded_blunt', 'blunt', 'thrown', 'brawling'],
+  armor: ['chain_armor', 'shield_usage', 'brigandine'],
+  lore: ['scholarship', 'tactics', 'performance', 'appraisal'],
+};
+
+// Skills to raise with TDPs at the hall when the circle feedback queue is
+// empty. Every entry is a real member of an Nth pool (data/guilds.js
+// NTH_POOLS) — skills like hunting/tracking never count toward the pools.
+const TDP_PRIORITY = [
+  // hard band-table skills (combat grows evasion/parry/inner_fire, but slowly)
+  'expertise', 'inner_fire', 'parry',
+  // weapon pool: the bot fights with one blade — rank the rest for the Nth pool
+  'small_edged', 'large_edged', 'twohanded_edged', 'twohanded_blunt', 'blunt', 'thrown', 'brawling',
+  // armor pool: a second armor type for the Nth pool
+  'chain_armor', 'shield_usage',
+  // survival pool (combat grows evasion)
+  'athletics', 'stealth', 'lockpicking', 'first_aid', 'skinning', 'perception', 'foraging',
+  // lore pool
+  'scholarship', 'tactics', 'performance', 'appraisal',
+];
+
+// Tiered gear from the quartermaster (Market Way North), circle-gated like
+// the simulator's gear ladder. Basic kit comes from the market stalls.
+const BASIC_KIT = ['buy short_sword', 'buy leather', 'buy shield_wood', 'wield short_sword', 'wear leather', 'wear shield_wood'];
+const GEAR_BRACKETS = [
+  { min: 3, steps: ['buy steel_sword', 'wield steel_sword', 'buy studded', 'wear studded'] },
+  { min: 4, steps: ['buy chainmail', 'wear chainmail'] },
+  { min: 6, steps: ['buy ring_mail', 'wear ring_mail', 'buy steel_shield', 'wear steel_shield'] },
+  { min: 7, steps: ['buy mithril_blade', 'wield mithril_blade'] },
+  { min: 10, steps: ['buy dragonsteel_greatsword', 'wield dragonsteel_greatsword'] },
+];
+function tierSteps() {
+  return GEAR_BRACKETS
+    .filter((b) => b.min <= state.circle && state.gearTier < b.min)
+    .map((b) => b.steps).flat();
+}
 
 const state = {
   phase: 'connect',        // connect -> login -> chargen -> alloc -> playing
@@ -72,7 +137,14 @@ const state = {
   lastPromptAt: 0,
   trainIdx: 0,
   learnIdx: 0,
+  tdpIdx: 0,
+  marketStep: 0,
   hasMagesLash: false,
+  silverKnown: false,
+  boughtGear: false,
+  gearTier: 0,
+  tdpTrainedThisVisit: 0,
+  missingTrains: [],
   circleAttempts: 0,
   circleTriedThisVisit: false,
   learnTriedThisVisit: false,
@@ -133,6 +205,7 @@ function parsePrompt(msg) {
   if (silver) state.silver = Number(silver[1]);
   state.inCombat = /\[COMBAT\]/.test(plain);
   state.lastPromptAt = Date.now();
+  state.silverKnown = true;
 }
 
 // ---------------- navigation ----------------
@@ -162,6 +235,8 @@ function decide(trigger) {
   if (state.phase !== 'playing') return;
   if (Date.now() - state.start > MAX_MINUTES * 60 * 1000) return finish('time cap reached');
   if (state.circle >= TARGET_CIRCLE) return finish(`reached circle ${TARGET_CIRCLE}`);
+  // Wait for the first prompt before choosing: silver/HP are unknown until then.
+  if (!state.silverKnown) return;
 
   // Dead at the temple: reclaim and resume.
   if (state.room === 'temple') {
@@ -289,19 +364,19 @@ function combatTactics() {
 }
 
 function gearUp() {
-  // One action per prompt; advance through the market errand list.
+  // market_way: sell everything, then the basic kit (once), then head north
+  // to the quartermaster for tier gear if a bracket has opened.
   if (state.room === 'market_way') {
-    const steps = state.boughtGear
-      ? [...SKINS.map((s) => `sell ${s}`)]
-      : [
-          ...SKINS.map((s) => `sell ${s}`),
-          'buy short_sword', 'buy leather', 'buy shield_wood',
-          'wield short_sword', 'wear leather', 'wear shield_wood',
-        ];
+    const steps = [...SKINS.map((s) => `sell ${s}`), ...(!state.boughtGear ? BASIC_KIT : [])];
     const step = steps[state.marketStep] || null;
     if (!step) {
       state.marketStep = 0;
       state.boughtGear = true;
+      if (tierSteps().length) {
+        log('market errands done — heading to the quartermaster');
+        sendCmd('n');
+        return;
+      }
       log('market errands done — back to the square');
       navigate('square', ROUTES.fromMarket);
       return;
@@ -310,7 +385,23 @@ function gearUp() {
     sendCmd(step);
     return;
   }
-  navigate('square', ROUTES.fromMarket);
+  // market_end: the quartermaster's circle-gated tier kit.
+  if (state.room === 'market_end') {
+    const steps = tierSteps();
+    const step = steps[state.marketStep] || null;
+    if (!step) {
+      state.marketStep = 0;
+      const opened = GEAR_BRACKETS.filter((b) => b.min <= state.circle).map((b) => b.min);
+      state.gearTier = Math.max(state.gearTier, ...opened);
+      log('quartermaster errands done — back to the square');
+      navigate('square', ROUTES.fromMarketEnd);
+      return;
+    }
+    state.marketStep += 1;
+    sendCmd(step);
+    return;
+  }
+  navigate('square', ROUTES.fromMarketEnd);
 }
 
 function hallBusiness() {
@@ -334,6 +425,16 @@ function hallBusiness() {
       return;
     }
   }
+  if ((state.tdpTrainedThisVisit || 0) < 3) {
+    state.tdpTrainedThisVisit = (state.tdpTrainedThisVisit || 0) + 1;
+    const skill = state.missingTrains && state.missingTrains.length
+      ? state.missingTrains.shift()
+      : TDP_PRIORITY[state.tdpIdx % TDP_PRIORITY.length];
+    if (!skill) { state.tdpTrainedThisVisit = 3; return; }
+    state.tdpIdx += 1;
+    sendCmd(`tdptrain ${skill}`);
+    return;
+  }
   if (!state.circleTriedThisVisit) {
     state.circleTriedThisVisit = true;
     log('circling...');
@@ -342,10 +443,15 @@ function hallBusiness() {
   }
   // Done here: go earn more and grow.
   log('hall business done — back to hunting');
+  state.tdpTrainedThisVisit = 0;
+  state.learnTriedThisVisit = false;
+  state.circleTriedThisVisit = false;
   navigate('square', ROUTES.fromHall);
 }
 
 function huntZone() {
+  if (state.circle >= 8) return 'blackwood';
+  if (state.circle >= 6) return 'cinder';
   if (state.circle >= 5) return 'marsh';
   if (state.circle >= 3) return 'woods';
   return 'sewers';
@@ -357,6 +463,8 @@ const PATROL = {
   sewers_1: 'n', sewers_2: 'n', sewers_3: 's',
   woods_path: 's', woods_2: 'n',
   marsh_1: 's', marsh_2: 'n',
+  cinder_1: 'n', cinder_2: 's',
+  black_1: 'd', black_2: 'up',
 };
 function patrol() {
   const dir = PATROL[state.room];
@@ -476,8 +584,10 @@ async function handle(msg) {
       if (state.phase === 'alloc') { state.phase = 'playing'; log(`entered the world. watch live: http://localhost:3000/spectate.html?name=${BOT_NAME}`); }
       if (!state.inCombat) state.tactics = {}; // fresh fight, fresh tactics
       if (state.wasInCombat && !state.inCombat) {
-        // Combat ended: the room picture is stale — refresh before deciding.
+        // Combat ended: the room picture is stale — resume the interrupted
+        // route (a fight during navigation) or refresh before deciding.
         state.wasInCombat = false;
+        if (state.queue.length) { sendCmd(state.queue[0]); return; }
         sendCmd('look');
         return;
       }
@@ -499,13 +609,39 @@ async function handle(msg) {
       // Circle verdicts arrive as plain messages.
       if (/not yet ready/.test(msg.msg)) {
         log('circle not ready — will grow more first');
+        // Build the training queue only when empty (don't re-queue every
+        // visit, or survival hogging starves the weapon/armor pools). Named
+        // hard skills first, then one candidate per mentioned skillset,
+        // interleaved, so every pool advances together.
+        if (!state.missingTrains || state.missingTrains.length === 0) {
+          const m = /Missing:([\s\S]*)/.exec(msg.msg);
+          if (m) {
+            const body = m[1];
+            const named = [...body.matchAll(/^\s+([a-z_]+) at least rank \d+ \(you have \d+\)/gm)].map((x) => x[1]);
+            const sets = [...new Set([...body.matchAll(/^\s+\d+(?:st|nd|rd|th) (\w+) at least rank \d+/gm)].map((x) => x[1]))];
+            const cands = sets.map((s) => [...(SET_CANDIDATES[s] || [])]);
+            const queued = [...named];
+            let guard = 0;
+            while (cands.some((c) => c.length) && guard++ < 80) {
+              for (const c of cands) if (c.length) queued.push(c.shift());
+            }
+            state.missingTrains = [...new Set(queued)];
+            log('short skills: ' + state.missingTrains.join(', '));
+          }
+        }
       } else if (/Rise,|are now a|circle/i.test(msg.msg) && /Rise,/.test(msg.msg)) {
         log(`CIRCLED UP — now circle ${state.circle + 1}`);
         state.circleTriedThisVisit = false;
+        state.missingTrains = [];
       }
       if (/master Mage's Lash/.test(msg.msg)) state.hasMagesLash = true;
       break;
     case 'error':
+      if (/already taken/.test(msg.msg)) {
+        log('account exists — logging in instead');
+        send({ t: 'login', u: ACCOUNT, p: 'botpass123' });
+        break;
+      }
       if (state.queue.length && /cannot go that way/.test(msg.msg)) {
         state.queue = [];
         state.destination = null;

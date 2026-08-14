@@ -1191,6 +1191,10 @@ export class Combat {
         e.timer = e.def.weapon.speed;
       }
     }
+    if (this._ended || !this.player.online || !this.player.ws) return;
+    // Status prompt each tick so the client's gauges stay live mid-fight and
+    // scripted players can react to their own wounds between swings.
+    this.game.status(this.player);
   }
 }
 
