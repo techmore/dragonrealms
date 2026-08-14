@@ -48,6 +48,25 @@ export function handleLocalCommand(line) {
   if (handleAutomation(line)) return;
   const parts = line.split(/\s+/);
 
+  // DR run prefix: ".scriptname arg1 arg2" starts a saved script.
+  if (/^\.[A-Za-z]/.test(line)) {
+    const name = line.slice(1).split(/\s+/)[0].toLowerCase();
+    const args = line.split(/\s+/).slice(1);
+    import('./scripts.js').then((s) => s.runScript(name, args));
+    return;
+  }
+  // Script control: `script <name> [args]` runs, `script stop` halts.
+  if (parts[0].toLowerCase() === 'script') {
+    import('./scripts.js').then((s) => {
+      const sub = parts[1] ? parts[1].toLowerCase() : '';
+      if (sub === 'stop') { s.stopScript(); return; }
+      if (sub === 'list') { append(`Scripts: ${s.listScripts().join(', ')}`, 'ch-msg'); return; }
+      if (sub) s.runScript(sub, parts.slice(2));
+      else append('Use: .name [args]  or  script <name> [args]  |  script stop', 'ch-msg');
+    });
+    return;
+  }
+
   // Spectate another player's live stream (works from any state).
   if (parts[0].toLowerCase() === 'spectate' && parts[1]) {
     import('./spectate-mode.js').then((m) => m.enterSpectate(parts[1]));

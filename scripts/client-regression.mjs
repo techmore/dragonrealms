@@ -109,7 +109,16 @@ try {
   await cmd('trigger wounded heal');
   await sleep(300);
   check('scripts panel rows', (await evalJs(`document.querySelectorAll('#panel-body .script-row').length`)) === 2);
+  check('scripts panel lists DR scripts', (await evalJs(`document.querySelectorAll('#panel-body .script-name-row').length`)) >= 3);
   await evalJs(`document.getElementById('panel-close').click();true`);
+
+  // 13b. DR script runs (.demo): echoes fire, `put look` sends, `wait` resumes.
+  await cmd('.demo');
+  await sleep(1200);
+  const scriptEcho = await evalJs(`document.querySelector('#terminal').textContent`);
+  check('DR script .demo runs', scriptEcho.includes('A DragonRealms script is running') && scriptEcho.includes('And the world answered'), scriptEcho.slice(-120));
+  await cmd('script stop');
+  await sleep(200);
 
   // 14. Combat: sewers, attack, chip on, clear after end
   await cmd('s');

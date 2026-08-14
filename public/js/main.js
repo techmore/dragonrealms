@@ -9,6 +9,7 @@ import * as welcome from './welcome.js';
 import * as input from './input.js';
 import { settings, applySettings, onSettingsChange } from './settings.js';
 import { gameState } from './state.js';
+import { feedScripts } from './scripts.js';
 
 // Cross-module wiring.
 automation.setRunner(input.pressEnter);
@@ -36,6 +37,7 @@ document.addEventListener('keydown', (e) => {
 function onMessage(msg) {
   if (['room', 'msg', 'combat', 'notice', 'error'].includes(msg.t) && msg.msg) {
     automation.runTriggers(msg.msg);
+    feedScripts(msg.msg, msg.t);
   }
   switch (msg.t) {
     case 'room': {
@@ -65,6 +67,7 @@ function onMessage(msg) {
       // DR clients never echo the raw vitals line into the story window —
       // the gauges in the status strip carry it. Keep parsing, skip printing.
       status.parsePrompt(msg.msg);
+      feedScripts(msg.msg, true);
       input.blockInput(false);
       break;
     case 'command':

@@ -387,6 +387,27 @@ body[data-theme="green"] #terminal b { color: #8aff8a; }
   border-bottom: 1px dashed var(--line);
   font-size: 12px;
 }
+.script-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+.script-name-row .script-kind { color: var(--green); font-weight: bold; width: 52px; flex-shrink: 0; }
+.script-name-row .script-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.script-name-row button {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--green);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.script-name-row button:hover { background: var(--green); color: #1a1505; }
+.script-block { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+.script-block .script-kind { color: var(--dim); font-size: 10px; letter-spacing: 2px; display: flex; justify-content: space-between; align-items: center; }
 .script-row .script-kind { color: var(--dim); font-weight: bold; width: 52px; flex-shrink: 0; }
 .script-row .script-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .script-row button {

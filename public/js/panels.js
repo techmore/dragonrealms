@@ -6,6 +6,7 @@ import { pressEnter, isPlaying, focusInput } from './input.js';
 import { settings, isMobile } from './settings.js';
 import { getLastRoom } from './status.js';
 import { macros, timers, triggers, onScriptsChange, removeScript } from './automation.js';
+import { listScripts, saveScript, runScript, stopScript, isScriptRunning } from './scripts.js';
 
 const PANELS = {
   inv: { title: 'INVENTORY', cmd: 'inventory' },
@@ -151,15 +152,24 @@ function renderScriptsPanel() {
       <option value="macro">Macro (label + command)</option>
       <option value="timer">Timer (every Ns + command)</option>
       <option value="trigger">Trigger (text + command)</option>
+      <option value="script">DR script (run with .name)</option>
     </select>
-    <input id="script-a" placeholder="label / seconds / trigger text" autocomplete="off">
-    <input id="script-b" placeholder="command" autocomplete="off">
+    <input id="script-a" placeholder="label / seconds / trigger text / script name" autocomplete="off">
+    <input id="script-b" placeholder="command / script body (one command per line)" autocomplete="off">
     <button id="script-addbtn">Add script</button>
+  </div>`;
+  html += `<div class="script-block">
+    <div class="script-kind">DR SCRIPTS <button id="scripts-stop" class="dock-btn">stop</button></div>
+    <div class="script-rows">${listScripts().map((n) => `<div class="script-name-row"><span class="script-kind">SCRIPT</span><span class="script-text">.${n}</span><button data-run="${n}">run</button></div>`).join('')}</div>
   </div>`;
   body.innerHTML = html;
   body.querySelectorAll('[data-remove]').forEach((btn) => {
     btn.addEventListener('click', () => removeScript(btn.dataset.remove));
   });
+  body.querySelectorAll('[data-run]').forEach((btn) => {
+    btn.addEventListener('click', () => runScript(btn.dataset.run));
+  });
+  $('scripts-stop').addEventListener('click', stopScript);
   $('script-addbtn').addEventListener('click', () => {
     const kind = $('script-kind').value;
     const a = $('script-a').value.trim();
@@ -167,8 +177,9 @@ function renderScriptsPanel() {
     if (!a || !b) return;
     if (kind === 'macro') pressEnter(`macro ${a} ${b}`);
     else if (kind === 'timer') pressEnter(`timer ${a} ${b}`);
-    else pressEnter(`trigger ${a} ${b}`);
-    renderScriptsPanel();
+    else if (kind === 'trigger') pressEnter(`trigger ${a} ${b}`);
+    else { saveScript(a.toLowerCase(), b); renderScriptsPanel(); }
+    if (kind !== 'script') renderScriptsPanel();
   });
 }
 
