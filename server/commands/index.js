@@ -24,6 +24,7 @@ export const RT_BLOCK = new Set([
   'forage', 'scavenge', 'track', 'hunt', 'skin', 'steal', 'pick', 'study', 'perform', 'appraise',
   'repair', 'use', 'drink', 'eat', 'khri', 'predict', 'harness', 'perceive', 'charge', 'invoke',
   'focus', 'animate', 'ritual', 'devotion', 'beseech', 'enchante', 'glyph', 'summon', 'sacrifice',
+  'advance', 'retreat', 'flee',
 ]);
 
 export function handleCommand(game, p, input, depth = 0, opts = {}) {

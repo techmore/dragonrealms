@@ -44,6 +44,8 @@ const DIRS = {
   u: 'up', d: 'down', up: 'up', down: 'down',
 };
 
+import { vitalityLabel } from './combat.js';
+
 function resolveExit(room, dir) {
   if (room.exits[dir]) return room.exits[dir];
   const canonical = { u: 'up', d: 'down' }[dir];
@@ -343,7 +345,14 @@ export class Game {
     const room = roomById(p.room);
     const target = room && resolveExit(room, dir);
     if (!target) return { ok: false, msg: 'You cannot go that way.' };
-    if (p.combatId) return { ok: false, msg: 'You are in combat! Try "retreat" to flee.' };
+    if (p.combatId) {
+      // DR: you may leave a room while foes are only at missile range; a
+      // creature at pole or melee blocks the way.
+      const combat = this.combat.getFor(p);
+      const blocked = combat && combat.aliveEnemies.some((e) => e.range !== 'missile');
+      if (blocked) return { ok: false, msg: 'Creatures block your path — flee, fall back, or fight on.' };
+      if (combat) combat.end(false, false, true, null);
+    }
     if (p.stocksUntil && Date.now() < p.stocksUntil) {
       const secs = Math.ceil((p.stocksUntil - Date.now()) / 1000);
       return { ok: false, msg: `You are in the stocks! A crowd pelts you with soft fruit (${secs}s).` };
@@ -577,8 +586,8 @@ export class Game {
     const creatures = this.creaturesIn(p.room);
     if (creatures.length) {
       const lines = creatures.map((c) => {
-        const pct = c.hp / c.maxHp;
-        const state = pct > 0.66 ? '' : pct > 0.33 ? ' — wounded' : ' — badly hurt';
+        const v = vitalityLabel(c.hp, c.maxHp);
+        const state = v === 'in good shape' ? '' : `, ${v}`;
         // Monsterbold: creature names stand out in the room (webclient feature).
         return `\x1b[1m${cap(c.def.name)}\x1b[0m is here${state}.`;
       });

@@ -66,10 +66,10 @@ test('combat swing grants roundtime matching weapon speed', async () => {
   p.abilities = ['dual_load'];
   const { addItem } = await import('../server/player.js');
   addItem(p, 'hunting_bow', 1);
-  addItem(p, 'arrows', 10);
+  addItem(p, 'arrows', 40); // dual-load burns 2/shot; enough that misses can't starve it
   handleCommand(game, p, 'wield bow');
   game.move(p, 's'); game.move(p, 'd'); // sewers
-  const rat = game.creaturesIn(p.room)[0];
+  const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   game.startCombat(p, [rat.def]);
   const combat = game.combat.getFor(p);
   combat.tick();

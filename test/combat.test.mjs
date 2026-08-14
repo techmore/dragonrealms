@@ -118,7 +118,7 @@ test('ranged weapons consume ammo', async () => {
   assert.equal(countItems(p, 'arrows'), 10);
 
   game.move(p, 's'); game.move(p, 's'); game.move(p, 'd');
-  const creature = game.creaturesIn(p.room)[0];
+  const creature = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   handleCommand(game, p, `attack ${creature.def.id}`);
   let combat = game.combat.getFor(p);
   let safety = 0;
@@ -500,7 +500,7 @@ test('barbarian kit: dual load, warhorn, chakrel, magic resistance, flavor verbs
   addItem(p, 'arrows', 20);
   handleCommand(game, p, 'wield bow');
   game.move(p, 's'); game.move(p, 'd'); // sewers
-  const rat = game.creaturesIn(p.room)[0];
+  const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   game.startCombat(p, [rat.def]);
   let combat = game.combat.getFor(p);
   const arrowsBefore = countItems(p, 'arrows');
@@ -524,6 +524,7 @@ test('barbarian kit: dual load, warhorn, chakrel, magic resistance, flavor verbs
   handleCommand(game, p, 'wear chakrel_1');
   assert.equal(p.equipment.neck.id, 'chakrel_1', 'chakrel wears on the neck');
   p.circle = 8;
+  addItem(p, 'arrows', 20); // the first fight may have burned most of them
   game.startCombat(p, [game.creaturesIn(p.room)[0].def]);
   combat = game.combat.getFor(p);
   p.innerFire = 100;

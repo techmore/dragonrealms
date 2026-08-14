@@ -2,8 +2,16 @@
 // The per-fight state machine lives in Combat (server/combat.js).
 import { Combat } from './combat.js';
 import { weaponOf, totalArmor, defenseSkillOf } from './player.js';
+import { roomById } from '../data/world.js';
 
 const TICK_MS = 1000;
+// DR combat ranges: indoors fights start at pole range, outdoors at missile.
+const INDOOR_ZONES = new Set(['sewers', 'cinder', 'blackwood']);
+function initialRange(zone) {
+  if (INDOOR_ZONES.has(zone)) return 'pole';
+  if (zone === 'town' || zone === 'riverhaven') return 'melee';
+  return 'missile';
+}
 
 export class CombatManager {
   constructor(game) {
@@ -21,6 +29,7 @@ export class CombatManager {
       name: def.name,
       hp: def.circle * 14 + def.stats.con * 3 + 20,
       timer: def.weapon.speed,
+      range: initialRange(roomById(player.room)?.zone),
       dead: false,
     }));
     const combat = new Combat(`combat_${player.charId}_${Date.now()}`, player, enemies, {
@@ -64,6 +73,7 @@ export class CombatManager {
       hp: defender.hp,
       maxHp: defender.maxHp,
       timer: def.weapon.speed,
+      range: 'melee',
       dead: false,
     }];
     const combat = new Combat(`duel_${player.charId}_${Date.now()}`, player, enemies, {

@@ -32,11 +32,66 @@ const CREATURE_HIT = [
   'slams into your',
 ];
 
+// DR weapon classes -> roundtime table (minimums from Elanthipedia Roundtime,
+// base a touch higher, reduced by Effective Strength toward the minimum).
+const WEAPON_CLASS = {
+  small_edged: 'light', blunt: 'light', offhand: 'light', brawling: 'brawling',
+  medium_edged: 'medium',
+  large_edged: 'heavy',
+  twohanded_edged: 'twohanded', twohanded_blunt: 'twohanded', polearm: 'twohanded', staff: 'twohanded',
+  thrown: 'thrown', heavy_thrown: 'thrown',
+  bow: 'ranged', crossbow: 'ranged', slings: 'ranged',
+};
+// DR roundtime minimums (Elanthipedia) — base a touch higher so Effective
+// Strength can shave toward the table value.
+const RT_TABLE = {
+  light: { base: 3, min: 2 },
+  medium: { base: 3, min: 3 },
+  heavy: { base: 4, min: 4 },
+  twohanded: { base: 4, min: 4 },
+  brawling: { base: 3, min: 2 },
+  thrown: { base: 3, min: 2 },
+  ranged: { base: 4, min: 3 },
+};
+// DR combat ranges; a weapon's reach decides which it can engage.
+const RANGES = ['missile', 'pole', 'melee'];
+export function weaponRT(p) {
+  const w = weaponOf(p);
+  const cls = w ? (WEAPON_CLASS[w.skill] || 'brawling') : 'brawling';
+  const { base, min } = RT_TABLE[cls] || RT_TABLE.brawling;
+  const effStr = (p.stats.str + p.stats.agi) / 2;
+  const reduce = Math.floor(effStr / 45);
+  return Math.max(min, base - reduce);
+}
+export function weaponReach(p) {
+  const w = weaponOf(p);
+  const cls = w ? (WEAPON_CLASS[w.skill] || 'brawling') : 'brawling';
+  if (cls === 'ranged') return ['missile', 'pole'];
+  if (w && (w.skill === 'polearm' || w.skill === 'staff')) return ['pole', 'melee'];
+  return ['melee'];
+}
+// DR vitality ladder (Elanthipedia Combat page).
+export function vitalityLabel(hp, max) {
+  const pct = hp / Math.max(1, max);
+  if (pct >= 0.99) return 'in good shape';
+  if (pct >= 0.9) return 'bruised';
+  if (pct >= 0.8) return 'hurt';
+  if (pct >= 0.7) return 'battered';
+  if (pct >= 0.6) return 'beat up';
+  if (pct >= 0.5) return 'very beat up';
+  if (pct >= 0.4) return 'badly hurt';
+  if (pct >= 0.3) return 'very badly hurt';
+  if (pct >= 0.2) return 'smashed up';
+  if (pct >= 0.1) return 'terribly wounded';
+  if (pct >= 0.01) return 'near death';
+  return "in death's grasp";
+}
+
 export class Combat {
   constructor(id, player, enemies, opts = {}) {
     this.id = id;
     this.player = player;
-    this.enemies = enemies;
+    this.enemies = enemies.map((e) => ({ range: 'melee', ...e }));
     this.playerTimer = 0;
     this.berserk = false;
     this.backstabCooldown = 0;
@@ -115,35 +170,36 @@ export class Combat {
   }
 
   attackSpeed() {
-    const w = weaponOf(this.player);
-    const base = w ? w.speed : 4;
-    const agiBonus = Math.floor(this.player.stats.agi / 20);
     const nimble = this.player.khri && this.player.khri.nimbleness > 0 ? 1 : 0;
     const swift = this.player.khri && this.player.khri.swiftness > 0 ? 1 : 0;
     const wind = this.player.buffs && this.player.buffs.wind > 0 ? 1 : 0;
-    return Math.max(2, base - agiBonus - nimble - swift - wind);
+    return Math.max(2, weaponRT(this.player) - nimble - swift - wind);
   }
 
   playerAttack() {
-    const target = this.enemies.find((e) => e.uid === this.playerTarget && !e.dead);
+    const target = this.enemies.find((e) => e.uid === this.playerTarget && !e.dead) || this.aliveEnemies[0];
     if (!target) return;
+    this.playerTarget = target.uid; // retarget if the mark fell
 
-    const w = weaponOf(this.player);
-    const skillId = w ? w.skill : 'brawling';
+    // Ranged weapons require ammunition; out of arrows, you fall back to your
+    // fists rather than standing helpless (DR: switch weapons).
+    let w = weaponOf(this.player);
+    const skillIdRaw = w ? w.skill : 'brawling';
     const dualLoad = w && w.skill === 'bow' && this.player.guild.id === 'barbarian' && (this.player.abilities || []).includes('dual_load');
-
-    // Ranged weapons require ammunition.
     if (w) {
       const ammoId = AMMO[w.skill];
       if (ammoId) {
         const need = dualLoad ? 2 : 1;
         if (countItems(this.player, ammoId) < need) {
-          this.say(`You draw your ${w.name.replace(/^a /, '')}, but you have no ${ammoId}!`);
-          return;
+          this.say(`Your ${ammoId} run out — you fall back to your fists!`);
+          w = null;
+        } else {
+          removeItem(this.player, ammoId, need);
         }
-        removeItem(this.player, ammoId, need);
       }
     }
+    const skillId = w ? w.skill : 'brawling';
+    const weaponNameFor = w ? w.name.replace(/^a /, '') : 'fists';
 
     const skill = effectiveRank(this.player, skillId);
     const focus = this.player.khri && this.player.khri.focus > 0 ? 4 : 0;
@@ -157,9 +213,8 @@ export class Combat {
     if (masterySkill) gainSkillExp(this.player, masterySkill, 2);
 
     if (!hit) {
-      const weaponName = w ? w.name.replace(/^a /, '') : 'fists';
       this.announce(
-        `You swing your ${weaponName} at ${target.def.name}, but ${missVerb(target.def)}.`,
+        `You swing your ${weaponNameFor} at ${target.def.name}, but ${missVerb(target.def)}.`,
         `${this.player.name} swings at you, but you slip the blow.`
       );
       gainSkillExp(this.player, skillId, Math.floor(target.def.circle * 5 * teachingFactor(effectiveRank(this.player, skillId), target.def)));
@@ -997,8 +1052,35 @@ export class Combat {
     if (target.hp <= 0) this.killCreature(target);
   }
 
-  // --- Retreat ---
+  // --- Combat ranges (DR): missile -> pole -> melee ---
+  advanceCreature(e) {
+    if (e.range === 'melee' || e.dead) return;
+    const order = ['missile', 'pole', 'melee'];
+    e.range = order[order.indexOf(e.range) + 1] || 'melee';
+    this.say(`${cap(e.def.name)} closes to ${e.range} range!`);
+  }
+
+  advance() {
+    const e = this.aliveEnemies.find((x) => x.uid === this.playerTarget) || this.aliveEnemies[0];
+    if (!e) return { ok: false, msg: 'There is nothing to advance on.' };
+    if (e.range === 'melee') return { ok: false, msg: `You are already at melee range with ${e.def.name}.` };
+    this.advanceCreature(e);
+    setRoundtime(this.player, 2);
+    return { ok: true, msg: '' };
+  }
+
   retreat() {
+    const e = this.aliveEnemies.find((x) => x.uid === this.playerTarget) || this.aliveEnemies[0];
+    if (!e) return { ok: false, msg: 'There is nothing to retreat from.' };
+    if (e.range === 'missile') return this.disengage();
+    const order = ['melee', 'pole', 'missile'];
+    e.range = order[order.indexOf(e.range) + 1] || 'missile';
+    this.say(`You fall back — ${e.def.name} is now at ${e.range} range.`);
+    setRoundtime(this.player, 2);
+    return { ok: true, msg: '' };
+  }
+
+  disengage() {
     const evade = skillRank(this.player, 'evasion') + this.player.stats.agi * 0.05;
     const swift = this.player.khri && this.player.khri.swiftness > 0 ? 15 : 0;
     const pursuit = this.aliveEnemies.reduce((s, e) => s + e.def.circle * 2, 0);
@@ -1006,11 +1088,24 @@ export class Combat {
     if (Math.random() < chance) {
       this.say('You break away and sprint for safety!');
       this.end(false, false, true);
-      return true;
+      return { ok: true, msg: '' };
     }
     this.say('You try to flee, but your foes block your path!');
     gainSkillExp(this.player, 'evasion', 3);
-    return false;
+    return { ok: false, msg: '' };
+  }
+
+  assess() {
+    const rows = this.aliveEnemies.map((e) => {
+      const bal = e.def.aggressive ? 'solidly balanced' : 'slightly off balance';
+      return `  ${cap(e.def.name)} is facing you at ${e.range} range (${bal}).`;
+    });
+    const w = weaponOf(this.player);
+    const reach = weaponReach(this.player);
+    return {
+      ok: true,
+      msg: `\nYou assess your combat situation...\n${rows.join('\n')}\nYour ${w ? w.name : 'fists'} can reach: ${reach.join(', ')}.`,
+    };
   }
 
   defenderRetreat() {
@@ -1173,19 +1268,44 @@ export class Combat {
     this.player.stamina = Math.min(staminaCap, (this.player.stamina ?? staminaCap) + (burd >= 2 ? 1 : 2));
     if (this.player.hp <= 0) return;
 
-    // Player action
+    // Player action: swing only when the target is within weapon reach
+    // (DR ranges). Out of range, pressing in closes the gap one range.
     this.playerTimer -= 1;
     if (this.playerTimer <= 0) {
-      this.playerAttack();
-      this.playerTimer = this.attackSpeed();
-      setRoundtime(this.player, this.attackSpeed());
+      const target = this.enemies.find((e) => e.uid === this.playerTarget && !e.dead) || this.aliveEnemies[0];
+      const reach = weaponReach(this.player);
+      if (target && !reach.includes(target.range)) {
+        const ranged = reach.includes('missile');
+        if (ranged && target.range === 'melee') {
+          // Bows need room: back up a range to gain line of fire.
+          target.range = 'pole';
+          this.say(`You back up to gain range for your ${weaponOf(this.player) ? weaponOf(this.player).name.replace(/^a /, '') : 'weapon'}.`);
+        } else if (target.range !== 'melee') {
+          target.range = RANGES[RANGES.indexOf(target.range) + 1] || 'melee';
+          this.say(`You press in on ${target.def.name} — ${target.range} range.`);
+        } else {
+          this.say(`You cannot reach ${target.def.name} at point-blank range.`);
+        }
+        this.playerTimer = 1;
+      } else {
+        this.playerAttack();
+        this.playerTimer = this.attackSpeed();
+        setRoundtime(this.player, this.attackSpeed());
+      }
     }
     if (this._ended) return;
 
-    // Enemy actions
+    // Enemy actions: melee creatures must be at melee range to strike; magic
+    // attackers reach across the field. Only aggressive creatures close in on
+    // their own — docile ones hold ground until the player advances.
     for (const e of this.aliveEnemies) {
       if (e.dead || this._ended) continue;
       if (e.impededTicks > 0) continue; // bound by clinging earth
+      const magicAtk = SKILLS[e.def.weapon.skill] && SKILLS[e.def.weapon.skill].cat === CATEGORIES.MAGIC;
+      if (e.range !== 'melee' && !magicAtk) {
+        if (e.def.aggressive) this.advanceCreature(e);
+        continue;
+      }
       e.timer -= 1;
       if (e.timer <= 0) {
         this.creatureAttack(e);

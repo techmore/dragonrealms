@@ -3,6 +3,7 @@ import { KHRI, khriById, concentrationPool, khriConcentrationUsed, KHRI_TICKS } 
 import { barbarianAbilityById, barbarianAbilitiesFor, barbarianSlots, ABILITY_PATHS, VOICE_POOL } from '../../data/abilities.js';
 import { roomById } from '../../data/world.js';
 import { gainSkillExp, skillRank, stancePoints, STANCES, STANCE_COSTS, setRoundtime } from '../player.js';
+import { weaponReach } from '../combat.js';
 import { pad } from './util.js';
 import { skinCreature } from './skin.js';
 
@@ -167,14 +168,21 @@ function attack(ctx) {
       if (p.hidden) {
         combat.ambushAttack(creature.uid);
       } else {
+        // Commit to closing: melee weapons advance to the target's range so
+        // the swing can land (DR no longer auto-charges, but ATTACK implies
+        // pressing in; the retreat/advance dance still governs spacing).
+        const enemy = combat.aliveEnemies.find((e) => e.uid === creature.uid);
+        if (enemy && !weaponReach(p).includes(enemy.range)) combat.advanceCreature(enemy);
         emit(`You focus your attack on ${creature.def.name}.`);
       }
     }
   } else {
     game.startCombat(p, [creature.def]);
-    if (p.hidden) {
-      const c2 = game.combat.getFor(p);
-      if (c2) c2.ambushAttack(c2.playerTarget);
+    const c2 = game.combat.getFor(p);
+    if (c2) {
+      const enemy = c2.aliveEnemies.find((e) => e.uid === c2.playerTarget);
+      if (enemy && !weaponReach(p).includes(enemy.range)) c2.advanceCreature(enemy);
+      if (p.hidden) c2.ambushAttack(c2.playerTarget);
     }
   }
 }
@@ -183,8 +191,35 @@ function retreat(ctx) {
   const { game, p, emit } = ctx;
   const combat = game.combat.getFor(p);
   if (!combat) return emit('You are not in combat.');
-  if (combat.defender === p) combat.defenderRetreat();
-  else combat.retreat();
+  if (combat.defender === p) { combat.defenderRetreat(); return; }
+  const res = combat.retreat();
+  if (res && res.msg) emit(res.msg);
+}
+
+function flee(ctx) {
+  const { game, p, emit } = ctx;
+  const combat = game.combat.getFor(p);
+  if (!combat) return emit('You are not in combat.');
+  if (combat.defender === p) { combat.defenderRetreat(); return; }
+  const res = combat.disengage();
+  if (res && res.msg) emit(res.msg);
+}
+
+function advance(ctx) {
+  const { game, p, emit } = ctx;
+  const combat = game.combat.getFor(p);
+  if (!combat) return emit('There is nothing to advance on.');
+  if (combat.defender === p) return emit('You are locked in an automatic duel.');
+  const res = combat.advance();
+  if (res && res.msg) emit(res.msg);
+}
+
+function assess(ctx) {
+  const { game, p, emit } = ctx;
+  const combat = game.combat.getFor(p);
+  if (!combat) return emit('You assess your situation... and nothing is here to fight.');
+  const res = combat.assess();
+  emit(res.msg);
 }
 
 function stance(ctx) {
@@ -495,7 +530,9 @@ export const commands = {
   attack,
   kill: attack,
   retreat,
-  flee: retreat,
+  flee,
+  advance,
+  assess,
   stance,
   disarm: (ctx) => maneuver(ctx, 'disarm'),
   trip: (ctx) => maneuver(ctx, 'trip'),

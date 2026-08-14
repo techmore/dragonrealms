@@ -173,20 +173,16 @@ export const commands = {
 };
 
 // DR HEALTH: wounds and afflictions. We track a single HP pool, so the
-// condition reads off its fraction (DR-flavored wording).
+// condition reads off its fraction with DR's vitality ladder.
+import { vitalityLabel } from '../combat.js';
 function showHealth(ctx) {
   const { p, say } = ctx;
-  const pct = p.hp / Math.max(1, p.maxHp);
-  const cond = pct >= 0.95 ? 'You are in good shape.'
-    : pct >= 0.7 ? 'You have some minor wounds.'
-      : pct >= 0.4 ? 'You are quite wounded.'
-        : pct >= 0.2 ? 'You are badly hurt.'
-          : 'You are near death.';
+  const cond = vitalityLabel(p.hp, p.maxHp);
   const stam = p.maxStaminaEff ? (p.stamina / p.maxStaminaEff >= 0.5 ? 'Your wind holds steady.' : 'You are winded and short of breath.') : '';
   const res = p.guild.magic
     ? `Mana ${p.mana}/${p.maxMana}`
     : p.guild.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : '';
-  say(`\n${cond}\nHealth ${p.hp}/${p.maxHp}  ${res ? res + '  ' : ''}Stamina ${p.stamina}/${p.maxStaminaEff}\n${stam}`);
+  say(`\nYou are ${cond}.\nHealth ${p.hp}/${p.maxHp}  ${res ? res + '  ' : ''}Stamina ${p.stamina}/${p.maxStaminaEff}\n${stam}`);
 }
 
 function showScore(ctx) {

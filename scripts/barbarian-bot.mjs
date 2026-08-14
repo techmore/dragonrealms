@@ -409,7 +409,7 @@ function combatTactics() {
   if (state.rt > 0) return; // roundtime: wait it out before the next art
   const t = state.tactics || {};
   if (state.hp < state.maxHp * 0.3) {
-    if (!t.retreated) { t.retreated = true; sendCmd('retreat'); }
+    if (!t.retreated) { t.retreated = true; sendCmd('flee'); }
     state.tactics = t;
     return;
   }
