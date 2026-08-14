@@ -1,11 +1,10 @@
-// Right dock: exits widget, info panels (inventory/score/skills/spells), scripts panel.
+// Right dock: room/target/chat panes, info panels (inventory/score/skills/
+// spells/exp/info), scripts panel.
 import { $, escapeHtml } from './util.js';
 import { send } from './net.js';
 import { ansiToHtml } from './terminal.js';
 import { pressEnter, isPlaying, focusInput } from './input.js';
 import { settings, isMobile } from './settings.js';
-import { getLastRoom } from './status.js';
-import { buildCompassRose } from './compass.js';
 import { macros, timers, triggers, onScriptsChange, removeScript } from './automation.js';
 import { listScripts, saveScript, runScript, stopScript, isScriptRunning } from './scripts.js';
 
@@ -101,19 +100,6 @@ function syncToolbar() {
     $('btn-' + key).classList.toggle('on', activePanel === key);
   }
   $('btn-exits').classList.toggle('on', !$('dock').hidden);
-}
-
-export function renderExitsWidget() {
-  const row = $('exits-row');
-  row.innerHTML = '';
-  const exits = getLastRoom().exits;
-
-  row.appendChild(buildCompassRose(exits));
-
-  const list = document.createElement('div');
-  list.className = 'exits-list';
-  list.textContent = exits.length ? exits.join(', ') : 'No obvious paths.';
-  row.appendChild(list);
 }
 
 export function applyVisibility() {

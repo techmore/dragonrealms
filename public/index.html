@@ -26,30 +26,41 @@
     </span>
   </header>
 
-  <div id="status-strip" hidden>
-    <span id="strip-room" class="strip-room" title="Room">&#8212;</span>
-    <span class="gauge" title="Health"><span class="gauge-fill" id="strip-hp-fill"></span><span class="gauge-label" id="strip-hp-label">HP --</span></span>
-    <span class="gauge gauge-mana" id="strip-mana-wrap" title="Mana" hidden><span class="gauge-fill" id="strip-mana-fill"></span><span class="gauge-label" id="strip-mana-label">Mana --</span></span>
-    <span class="gauge gauge-stamina" id="strip-stamina-wrap" title="Stamina" hidden><span class="gauge-fill" id="strip-stamina-fill"></span><span class="gauge-label" id="strip-stamina-label">Stamina --</span></span>
-    <span id="strip-circle" class="strip-dim">Circle --</span>
-    <span id="strip-silver" class="strip-dim">-- silvers</span>
-    <span id="strip-combat" class="strip-combat" hidden>[COMBAT]</span>
-    <span id="strip-rt" class="strip-rt" hidden>RT: --</span>
-    <span id="strip-hidden" class="strip-chip strip-hidden-chip" hidden>&#128064; Hidden</span>
-    <span id="strip-resting" class="strip-chip strip-resting-chip" hidden>&#128164; Resting</span>
-    <button id="strip-close" class="strip-close" title="Hide status bar">&#215;</button>
-  </div>
-
-  <div id="hands-bar" hidden>
-    <span class="hands-title">HANDS</span>
-    <span id="hands-hand" class="hands-item">Hand: &#8212;</span>
-    <span id="hands-worn" class="hands-item"></span>
-    <span id="hands-carried" class="hands-item"></span>
-  </div>
-
   <main id="app">
+    <aside id="leftrail">
+      <section id="status-strip" aria-label="Vitals">
+        <div class="rail-kicker">VITALS</div>
+        <div id="strip-room" class="rail-room" title="Room">&#8212;</div>
+        <div class="gauge" title="Health"><span class="gauge-fill" id="strip-hp-fill"></span><span class="gauge-label" id="strip-hp-label">HP --</span></div>
+        <div class="gauge gauge-mana" id="strip-mana-wrap" title="Mana" hidden><span class="gauge-fill" id="strip-mana-fill"></span><span class="gauge-label" id="strip-mana-label">Mana --</span></div>
+        <div class="gauge gauge-stamina" id="strip-stamina-wrap" title="Stamina" hidden><span class="gauge-fill" id="strip-stamina-fill"></span><span class="gauge-label" id="strip-stamina-label">Stamina --</span></div>
+        <div class="rail-meta">
+          <span id="strip-circle" class="strip-dim">Circle --</span>
+          <span id="strip-silver" class="strip-dim">-- silvers</span>
+        </div>
+        <div class="rail-chips">
+          <span id="strip-combat" class="strip-combat" hidden>[COMBAT]</span>
+          <span id="strip-rt" class="strip-rt" hidden>RT: --</span>
+          <span id="strip-hidden" class="strip-chip strip-hidden-chip" hidden>&#128064; Hidden</span>
+          <span id="strip-resting" class="strip-chip strip-resting-chip" hidden>&#128164; Resting</span>
+        </div>
+      </section>
+      <section id="hands-bar" aria-label="Hands" hidden>
+        <div class="rail-kicker">HANDS</div>
+        <div id="hands-hand" class="hands-item">Hand: &#8212;</div>
+        <div id="hands-worn" class="hands-item"></div>
+        <div id="hands-carried" class="hands-item"></div>
+      </section>
+      <section id="fe-tracker" aria-label="Field experience">
+        <div class="rail-kicker">FIELD EXPERIENCE</div>
+        <div id="fe-row"></div>
+      </section>
+    </aside>
     <div id="story">
-      <div id="room-panel" hidden>
+      <div id="terminal" aria-live="polite"></div>
+    </div>
+    <aside id="dock" hidden>
+      <section id="room-panel" aria-label="Room" hidden>
         <div id="rp-title" class="room-panel-title"></div>
         <div id="rp-desc" class="room-panel-desc"></div>
         <div id="rp-contents" class="room-panel-contents"></div>
@@ -58,13 +69,6 @@
           <div id="rp-compass"></div>
         </div>
         <div id="rp-hint" class="room-panel-hint">move: n s e w ne nw se sw u d (or click the compass) &middot; type <b>help</b> for every command</div>
-      </div>
-      <div id="terminal" aria-live="polite"></div>
-    </div>
-    <aside id="dock" hidden>
-      <section id="exits-widget" aria-label="Exits">
-        <div id="exits-title" class="dock-kicker">EXITS</div>
-        <div id="exits-row"></div>
       </section>
       <section id="target-widget" aria-label="Targets" hidden>
         <div class="dock-kicker">TARGET</div>

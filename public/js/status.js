@@ -181,8 +181,30 @@ export function renderRoomContents(contents) {
   el.textContent = parts.length ? `Here: ${parts.join(' · ')}` : '';
 }
 
-$('strip-close').addEventListener('click', () => {
-  settings.statusstrip = false;
-  saveSettings();
-  renderStatusStrip();
-});
+// FE tracker (DR field-experience pane): skills currently learning.
+export function renderFe(msg) {
+  const row = $('fe-row');
+  if (!row) return;
+  const skills = (msg && msg.skills) || [];
+  row.innerHTML = '';
+  if (!skills.length) {
+    const empty = document.createElement('div');
+    empty.className = 'fe-empty';
+    empty.textContent = 'clear';
+    row.appendChild(empty);
+    return;
+  }
+  for (const s of skills) {
+    const div = document.createElement('div');
+    div.className = 'fe-line';
+    const name = document.createElement('span');
+    name.className = 'fe-name';
+    name.textContent = s.name;
+    const ms = document.createElement('span');
+    ms.className = 'fe-ms';
+    ms.textContent = s.mindstate;
+    div.appendChild(name);
+    div.appendChild(ms);
+    row.appendChild(div);
+  }
+}

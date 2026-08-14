@@ -72,8 +72,8 @@ try {
   const strip = await evalJs(`document.getElementById('strip-hp-label').textContent + '|' + document.getElementById('strip-mana-label').textContent + '|' + document.getElementById('strip-circle').textContent + '|' + document.getElementById('strip-silver').textContent`);
   check('status strip', /^HP \d+\/\d+\|Mana \d+\/\d+\|Circle \d+\|\d+ silvers$/.test(strip), strip);
 
-  // 6. Exits widget (DR compass rose)
-  const exits = await evalJs(`[...document.querySelectorAll('#exits-row .compass-btn:not(.off)')].map(b => b.textContent).join(',')`);
+  // 6. Exits widget (DR compass rose, in the room panel)
+  const exits = await evalJs(`[...document.querySelectorAll('#rp-compass .compass-btn:not(.off)')].map(b => b.textContent).join(',')`);
   check('exits widget', exits === 'NW,N,W,E,S,D', exits);
 
   // 7. Inventory panel
@@ -98,7 +98,7 @@ try {
   await evalJs(`document.getElementById('search-close').click();true`);
 
   // 11. Move via compass widget
-  await evalJs(`document.querySelector('#exits-row .compass-btn[data-dir="n"]')?.click();true`);
+  await evalJs(`document.querySelector('#rp-compass .compass-btn[data-dir="n"]')?.click();true`);
   await sleep(1500);
   check('move via widget', (await evalJs(`${lastTitle}.textContent`)) === 'Market Way, Crossing');
 
@@ -152,6 +152,7 @@ try {
     await waitFor(`!document.getElementById('strip-combat').hidden`, 10000);
     check('combat chip appears', true);
     check('target window shows the foe', await waitFor(`!document.getElementById('target-widget').hidden && document.querySelectorAll('#target-row .target').length >= 1`, 8000));
+    check('FE tracker lists a learning skill', await waitFor(`document.querySelectorAll('#fe-row .fe-line').length >= 1`, 8000));
     check('room contents lists the foe', (await evalJs(`document.getElementById('rp-contents').textContent`)).includes('sewer rat'));
     await waitFor(`document.querySelectorAll('#terminal .ch-combat').length > 1`, 10000);
     const combatDim = await evalJs(`getComputedStyle(document.querySelector('#terminal .ch-combat')).color`);

@@ -53,7 +53,6 @@ function onMessage(msg) {
       status.setLastRoom({ name: status.roomNameOf(msg.msg), area: status.roomAreaOf(msg.msg), exits: msg.exits || [] });
       status.renderRoomPanel(msg);
       status.renderRoomContents(msg.contents);
-      panels.renderExitsWidget();
       status.renderStatusStrip();
       if (msg.exits && msg.exits.length) terminal.appendExitBar(msg.exits);
       break;
@@ -86,6 +85,9 @@ function onMessage(msg) {
       break;
     case 'targets':
       status.renderTargets(msg);
+      break;
+    case 'mindstate':
+      status.renderFe(msg);
       break;
     case 'command':
       // The watched player typed a command: echo it like their own typing.
