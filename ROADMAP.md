@@ -113,6 +113,9 @@ Nth-of-skillset pools, 1–10 bands scaled per circle). See the matrix below.
 |---|---|
 | Server-ticked async combat | ✅ |
 | Weapon speed, initiative, hit/miss/crit narrative | ✅ |
+| **Combat ranges** (missile/pole/melee) with `advance`/`retreat`/`flee`/`assess`; indoor fights start at pole, outdoors at missile; movement blocked while a foe is at melee/pole | ✅ |
+| **Roundtime** (DR weapon-class table: light 2–3s, medium 3, heavy 4, twohanded 4, brawling 2–3), `RT: n` in the prompt, RT actions gated | ✅ |
+| **DR vitality words** (`bruised` → `near death`) in `health` + creature room display | ✅ |
 | Armor mitigation, evasion, parry, shield usage | ✅ |
 | Ranged weapons consume ammo | ✅ |
 | Death/respawn + exp penalty | ✅ |
@@ -184,6 +187,7 @@ The web client is the surface for automation. All scripting is **client-side**
 | Timed scripts / loops (`timer <sec> <command>`) | ✅ (client) |
 | Triggered actions (react to room text) | ✅ (client: `trigger <text> <command>`) |
 | Persistent per-character scripts (server-stored) | ✅ aliases; full scripts ⬜ |
+| **DR-style scripts** (`.script` prefix, `put`/`move`/`wait`/`waitfor`/`match`/`matchwait`/`goto`/`pause`, `%1..%9` args, `%var`, `if_n`; `.hunt`, `.rest`, `.heal` ship built-in) | ✅ (client-side interpreter, roundtime-aware) |
 | Script safety: rate limits, no eval of server state | ✅ |
 
 ---
@@ -201,7 +205,12 @@ The web client is the surface for automation. All scripting is **client-side**
 | Mobile-friendly layout | ✅ (bottom-sheet dock, safe-area insets, thumb-reachable exits) |
 | Text search within scrollback | ✅ (Ctrl-F or /search, match highlight + navigation) |
 | Tab completion from command dictionary | ✅ |
-| Status bar parsed from server prompt | ✅ (HP/mana gauges, circle, silvers, combat flag) |
+| Status bar parsed from server prompt | ✅ (HP/mana/stamina/RT gauges, circle, silvers, combat flag) |
+| **Pinned room panel** (DR room window: `[[Room, Area]]`, description, `Obvious paths`, compass) | ✅ |
+| **Hands bar** (Hand / Worn / Carried from the `hands` message) | ✅ |
+| **EXP + INFO toolbar buttons** (docked exp/info panels) | ✅ |
+| **Watch any player live** (`/?spectate=Name` deep-link; room/hands snapshot on subscribe) | ✅ |
+| Navigation help in the room panel | ✅ |
 | Incoming/outgoing text styles (say/emote/combat) | 🚧 room/notice/error/echo/prompt styled; say/emote/combat lines not channel-tagged on the wire yet |
 
 ---

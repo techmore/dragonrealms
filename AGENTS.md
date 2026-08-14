@@ -65,13 +65,33 @@ Game domain logic follows the same split: `Game` holds state and delegates to
 the economy/wilds/quests/status modules (functions take `game` first when they
 need world state).
 
+Combat lives in `server/combat.js` (the per-fight `Combat` state machine) and
+`server/combat-manager.js` (lifecycle/ticker/duels). It models the DR range
+system: enemies sit at `missile | pole | melee`, weapons have a reach
+(`weaponReach`), aggressive creatures close on their own, and the player uses
+`advance`/`retreat`/`flee`/`assess`. Roundtime follows the DR weapon-class
+table (`weaponRT`); RT actions are gated in `handleCommand` via `RT_BLOCK`
+when the WS session passes `{ applyRT: true }` (tests/sim call the engine
+directly and skip the gate). `setRoundtime`/`roundtimeLeft` live in
+`server/player.js`.
+
+Client scripting is a DR-script interpreter: `public/js/script-engine.js`
+(pure engine, unit-tested) + `public/js/scripts.js` (runner, storage, `.name`
+prefix, `script <name>`/`script stop`). The compass rose is shared via
+`public/js/compass.js` (room panel + exits dock).
+
 ## Wire protocol (server → client)
 
-`room` (msg + exits + roomId), `msg`, `combat`, `notice`, `error`, `prompt`
-(`HP: n/n  Mana: n/n  Circle n  n silvers [COMBAT]`), `login_prompt`,
+`room` (msg in `[[Name, Area]]` form + exits + roomId), `msg`, `combat`,
+`notice`, `error`, `prompt` (`HP: n/n  Mana: n/n  Stamina: n/n  RT: n  Circle
+n  n silvers [COMBAT]`), `hands` (equipment snapshot, sent on gear changes),
+`command` (spectator echo of the watched player's typing), `login_prompt`,
 `authed`, `charselect`, `charcreate`, `charalloc`, `enter`, `pong`. Text is
 plain with ANSI codes (`\x1b[NNm`); the client parses ANSI and derives its
-status strip / exits widget from `prompt` and `room` messages.
+status strip / hands bar / room panel / compass from `prompt`, `room`, and
+`hands` messages. The spectator relay (`server/spectate.js`) mirrors a
+player's full stream to watchers; `/?spectate=Name` deep-links the main
+client straight into watch mode.
 
 ## Conventions
 

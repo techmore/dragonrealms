@@ -46,25 +46,30 @@ game stream and drives the gauges from them.
 | `[[Room Name, Area]]` header | `server/game.js` `look()` — header, description, then exits |
 | `Obvious paths:` / `Obvious exits:` | wilds vs town/riverhaven zones, lowercase words |
 | Monsterbold | creature names wrapped in `\x1b[1m` in `look()`; client renders bold |
+| Creature vitality | `vitalityLabel` — bruised → battered → badly hurt → near death |
 | `LOOK`/`L`/`l` re-display room | `l: look` alias, case-insensitive dispatch |
-| Compass rose | `public/js/panels.js` — 3×3 + U/D clickable compass in the dock, lit by available exits |
-| Vitals bars | `#status-strip` — HP / Mana / Stamina gauges parsed from the prompt |
-| Stamina in the prompt | `server/status.js` adds `Stamina: n/n` |
+| Compass rose | `public/js/compass.js` — 3×3 + U/D clickable compass, lit by available exits |
+| Pinned room window | `#room-panel` — title, description, `Obvious paths`, compass (always visible) |
+| Hands window | `#hands-bar` — Hand / Worn / Carried from the `hands` push message |
+| Vitals bars | `#status-strip` — HP / Mana / Stamina / RT gauges parsed from the prompt |
+| EXP + INFO buttons | toolbar buttons open docked `exp` / `info` panels |
+| Combat ranges | missile/pole/melee with `advance`/`retreat`/`flee`/`assess`; weapon reach |
+| Roundtime | DR weapon-class RT table; `RT: n` in the prompt; actions gated |
+| Scripts | DR-script interpreter: `.script` prefix, `put`/`wait`/`match`/`matchwait`/`goto` |
 | Clickable exits | exits list under the compass + inline exit bar in the terminal |
 | Channel colors | `ch-room/combat/notice/error/echo/prompt` + themes |
-| Scripts/macros/triggers | client automation panel (aliases, macro bar, timers, triggers) |
+| Scripts/macros/triggers | client automation panel (aliases, macro bar, timers, triggers, DR scripts) |
+| Watch any player | `/?spectate=Name` auto-enters watch mode; room/hands snapshots on subscribe |
 
 ## Still pending (nice-to-have, per the research)
 
-- **Room window** — a docked panel listing current players / creatures / items
-  (the webclient's room tab). We have the compass dock + status strip; a full
-  room panel would need a structured per-room snapshot (mostly available via
-  the API snapshot).
 - **`You also see ...` objects line** — room output lists floor items as
   `On the ground: ...`; DR's phrasing differs per container.
+- **Balance & position** — the full balance/position ladder and maneuver
+  chart (jab/draw/slice/chop per attack type) beyond the DR combat ranges.
 - **Room numbers** — shown only with a flag; we omit.
 - **Map / mapper** — out of scope.
-- **EXP window** — the webclient shows an experience panel; our `skills`
+- **EXP window** — the webclient shows an experience panel; our `exp`
   docked panel covers it.
 
 ## Verification
