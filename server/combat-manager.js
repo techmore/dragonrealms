@@ -28,6 +28,7 @@ export class CombatManager {
       def,
       name: def.name,
       hp: def.circle * 14 + def.stats.con * 3 + 20,
+      maxHp: def.circle * 14 + def.stats.con * 3 + 20,
       timer: def.weapon.speed,
       range: initialRange(roomById(player.room)?.zone),
       dead: false,
@@ -48,6 +49,8 @@ export class CombatManager {
   end(player, combat, result) {
     this.combats.delete(player.charId);
     player.combatId = null;
+    // Clear the client's target window.
+    if (player.ws) player.ws.send(JSON.stringify({ t: 'targets', enemies: [] }));
     if (result.win) {
       player.ws.send(JSON.stringify({ t: 'combat', msg: '\nVictory! You stand over your fallen foes.' }));
       this.game.status(player);

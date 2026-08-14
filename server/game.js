@@ -610,7 +610,14 @@ export class Game {
     const exits = Object.entries(room.exits).map(([d]) => DIRS[d]).filter(Boolean);
     if (exits.length) out += `\n${indoor ? 'Obvious exits' : 'Obvious paths'}: ${exits.join(', ')}.`;
 
-    p.ws.send(JSON.stringify({ t: 'room', msg: out, exits, roomId: p.room }));
+    const contents = {
+      npcs: (room.npcs || []).map(npcById).filter(Boolean).map((n) => n.name),
+      creatures: creatures.map((c) => ({ name: cap(c.def.name), state: vitalityLabel(c.hp, c.maxHp) })),
+      items: loose.map((f) => (f.qty > 1 ? `${f.qty}x ${f.item.name}` : f.item.name)),
+      players: others.map((o) => o.name),
+    };
+
+    p.ws.send(JSON.stringify({ t: 'room', msg: out, exits, roomId: p.room, contents }));
   }
 
   // ---------- Justice ----------

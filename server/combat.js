@@ -1316,6 +1316,19 @@ export class Combat {
     // Status prompt each tick so the client's gauges stay live mid-fight and
     // scripted players can react to their own wounds between swings.
     this.game.status(this.player);
+    this.sendTargets();
+  }
+
+  // Structured combat snapshot for the client's Target window (DR combat pane).
+  sendTargets() {
+    const enemies = this.aliveEnemies.map((e) => ({
+      name: cap(e.def.name),
+      hp: e.hp,
+      maxHp: e.maxHp || e.hp,
+      range: e.range,
+      circle: e.def.circle,
+    }));
+    this.player.ws.send(JSON.stringify({ t: 'targets', enemies }));
   }
 }
 

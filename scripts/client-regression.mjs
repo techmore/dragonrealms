@@ -145,6 +145,8 @@ try {
     await cmd('attack ' + creature);
     await waitFor(`!document.getElementById('strip-combat').hidden`, 10000);
     check('combat chip appears', true);
+    check('target window shows the foe', await waitFor(`!document.getElementById('target-widget').hidden && document.querySelectorAll('#target-row .target').length >= 1`, 8000));
+    check('room contents lists the foe', (await evalJs(`document.getElementById('rp-contents').textContent`)).includes('sewer rat'));
     await waitFor(`document.querySelectorAll('#terminal .ch-combat').length > 1`, 10000);
     const combatDim = await evalJs(`getComputedStyle(document.querySelector('#terminal .ch-combat')).color`);
     check('combat dimmed', combatDim === 'rgb(107, 103, 84)', combatDim);

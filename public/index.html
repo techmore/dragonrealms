@@ -34,6 +34,8 @@
     <span id="strip-silver" class="strip-dim">-- silvers</span>
     <span id="strip-combat" class="strip-combat" hidden>[COMBAT]</span>
     <span id="strip-rt" class="strip-rt" hidden>RT: --</span>
+    <span id="strip-hidden" class="strip-chip strip-hidden-chip" hidden>&#128064; Hidden</span>
+    <span id="strip-resting" class="strip-chip strip-resting-chip" hidden>&#128164; Resting</span>
     <button id="strip-close" class="strip-close" title="Hide status bar">&#215;</button>
   </div>
 
@@ -49,6 +51,7 @@
       <div id="room-panel" hidden>
         <div id="rp-title" class="room-panel-title"></div>
         <div id="rp-desc" class="room-panel-desc"></div>
+        <div id="rp-contents" class="room-panel-contents"></div>
         <div class="room-panel-foot">
           <div id="rp-exits" class="room-panel-exits"></div>
           <div id="rp-compass"></div>
@@ -61,6 +64,10 @@
       <section id="exits-widget" aria-label="Exits">
         <div id="exits-title" class="dock-kicker">EXITS</div>
         <div id="exits-row"></div>
+      </section>
+      <section id="target-widget" aria-label="Targets" hidden>
+        <div class="dock-kicker">TARGET</div>
+        <div id="target-row"></div>
       </section>
       <section id="panel-wrap" hidden>
         <div id="panel-head">

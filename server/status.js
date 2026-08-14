@@ -27,6 +27,8 @@ export const status = {
     const stam = `\x1b[32mStamina: ${p.stamina}/${p.maxStaminaEff}\x1b[0m`;
     const rt = roundtimeLeft(p);
     const rtTxt = rt > 0 ? `  \x1b[31mRT: ${rt}\x1b[0m` : '';
+    const hidden = p.hidden ? '  \x1b[1m[Hidden]\x1b[0m' : '';
+    const resting = p.resting ? '  [Resting]' : '';
     // Hands (DR client window): push a structured inventory snapshot whenever
     // gear changed — the client keeps a persistent "hands" bar.
     if (p.handsDirty) {
@@ -45,7 +47,7 @@ export const status = {
     }
     p.ws.send(JSON.stringify({
       t: 'prompt',
-      msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${prep}\n> `,
+      msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${hidden}${resting}${prep}\n> `,
     }));
   },
 

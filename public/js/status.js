@@ -94,6 +94,8 @@ export function parsePrompt(text) {
     silver: silver ? Number(silver[1]) : null,
     combat: /\[COMBAT\]/.test(plain),
     rt: rt ? Number(rt[1]) : 0,
+    hidden: /\[Hidden\]/.test(plain),
+    resting: /\[Resting\]/.test(plain),
   };
   renderStatusStrip();
 }
@@ -131,6 +133,52 @@ export function renderStatusStrip() {
   const rt = promptState.rt || 0;
   $('strip-rt').hidden = rt <= 0;
   if (rt > 0) $('strip-rt').textContent = `RT: ${rt}`;
+  $('strip-hidden').hidden = !promptState.hidden;
+  $('strip-resting').hidden = !promptState.resting;
+}
+
+// Target window (DR combat pane): per-foe HP/range while you fight.
+let targets = [];
+export function renderTargets(msg) {
+  const wrap = $('target-widget');
+  if (!wrap) return;
+  targets = (msg && msg.enemies) || [];
+  if (!targets.length) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  const row = $('target-row');
+  row.innerHTML = '';
+  for (const t of targets) {
+    const bar = document.createElement('div');
+    bar.className = 'target';
+    const name = document.createElement('div');
+    name.className = 'target-name';
+    name.textContent = t.name + (t.range ? ` (${t.range})` : '');
+    const fill = document.createElement('div');
+    fill.className = 'target-fill';
+    const pct = Math.max(0, Math.min(100, (t.hp / t.maxHp) * 100));
+    fill.style.width = pct + '%';
+    const hp = document.createElement('div');
+    hp.className = 'target-hp';
+    hp.textContent = `${Math.max(0, t.hp)}/${t.maxHp}`;
+    bar.appendChild(name);
+    bar.appendChild(fill);
+    bar.appendChild(hp);
+    row.appendChild(bar);
+  }
+}
+
+// Room contents line in the pinned room panel (who/what is here).
+export function renderRoomContents(contents) {
+  const el = $('rp-contents');
+  if (!el) return;
+  const parts = [];
+  if (contents && contents.creatures && contents.creatures.length) {
+    parts.push(contents.creatures.map((c) => `${c.name}${c.state && c.state !== 'in good shape' ? ` (${c.state})` : ''}`).join(', '));
+  }
+  if (contents && contents.npcs && contents.npcs.length) parts.push(contents.npcs.join(', '));
+  if (contents && contents.players && contents.players.length) parts.push(contents.players.join(', '));
+  if (contents && contents.items && contents.items.length) parts.push(`on the ground: ${contents.items.join(', ')}`);
+  el.textContent = parts.length ? `Here: ${parts.join(' · ')}` : '';
 }
 
 $('strip-close').addEventListener('click', () => {
