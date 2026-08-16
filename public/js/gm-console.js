@@ -5,9 +5,20 @@
 import { $ } from './util.js';
 
 const API = '/api/gm';
+const LS_TOKEN = 'dr_gm_token';
+
+function token() { try { return localStorage.getItem(LS_TOKEN) || ''; } catch { return ''; } }
+function saveToken(t) { try { localStorage.setItem(LS_TOKEN, t); } catch {} }
 
 async function api(path) {
-  const r = await fetch(API + path, { headers: { 'Content-Type': 'application/json' } });
+  const r = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: 'Bearer ' + token() } : {}) },
+  });
+  if (r.status === 401) {
+    const el = $('gm-token');
+    if (el) { el.style.borderColor = 'var(--red)'; }
+    throw new Error('unauthorized — set a GM token or login (DR_GM_TOKEN or a game session)');
+  }
   return r.json();
 }
 
@@ -128,8 +139,54 @@ function appendStream(text, cls) {
   out.scrollTop = out.scrollHeight;
 }
 
-$('gm-refresh')?.addEventListener('click', () => { loadSummary(); loadWorld(); loadCharacters(); if (selectedPlayer) loadPlayerView(); });
+async function loadDb() {
+  const tablesEl = $('gm-db-tables');
+  const out = $('gm-db-out');
+  try {
+    const d = await api('/db');
+    if (!d.ok || !tablesEl) return;
+    tablesEl.innerHTML = d.tables.map((t) => `<button class="gm-ch" data-tbl="${t}">${t}</button>`).join('');
+    tablesEl.querySelectorAll('[data-tbl]').forEach((b) => b.addEventListener('click', async () => {
+      const r = await api('/db/' + b.dataset.tbl);
+      renderDbRows(out, r);
+    }));
+    const q = $('gm-db-q');
+    q.addEventListener('keydown', async (e) => {
+      if (e.key !== 'Enter') return;
+      const r = await api('/db?q=' + encodeURIComponent(q.value.trim()));
+      renderDbRows(out, r);
+    });
+  } catch (e) { if (out) out.innerHTML = '<div class="gm-dim">' + e.message + '</div>'; }
+}
 
-loadSummary();
-loadWorld();
-loadCharacters();
+function renderDbRows(out, r) {
+  if (!out) return;
+  if (!r.ok) { out.innerHTML = '<div class="gm-dim">' + (r.error || 'error') + '</div>'; return; }
+  const rows = r.rows || [];
+  if (!rows.length) { out.innerHTML = '<div class="gm-dim">0 rows</div>'; return; }
+  const cols = Object.keys(rows[0]);
+  const html = `<table class="gm-table"><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>` +
+    rows.map((row) => `<tr>${cols.map((c) => `<td>${JSON.stringify(row[c]) ?? ''}</td>`).join('')}</tr>`).join('') + '</table>';
+  out.innerHTML = html;
+}
+
+const goBtn = $('gm-token-go');
+const tokIn = $('gm-token');
+if (tokIn) tokIn.value = token();
+if (goBtn) {
+  goBtn.addEventListener('click', () => { saveToken(tokIn.value.trim()); loadAll(); });
+  tokIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') goBtn.click(); });
+}
+
+async function loadAll() {
+  const results = await Promise.allSettled([loadSummary(), loadWorld(), loadCharacters(), loadDb()]);
+  if (results.some((r) => r.status === 'rejected')) {
+    const el = $('gm-summary');
+    if (el && !el.innerHTML) el.innerHTML = '<div class="gm-dim">Enter a GM token above (DR_GM_TOKEN or a game session token).</div>';
+  }
+}
+
+$('gm-refresh')?.addEventListener('click', loadAll);
+
+loadAll();
+

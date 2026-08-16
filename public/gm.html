@@ -37,12 +37,19 @@
     #gm-player-stream .gm-dim { color: var(--dim); }
     #gm-refresh { margin-bottom: 12px; }
     #gm-online { display: flex; flex-direction: column; gap: 4px; }
+    .gm-table { border-collapse: collapse; font-size: 10px; width: 100%; }
+    .gm-table th, .gm-table td { border: 1px solid var(--line); padding: 2px 5px; text-align: left; }
+    .gm-table th { color: var(--amber); }
   </style>
 </head>
 <body>
   <header id="topbar">
     <span class="brand"><span class="brand-mark">&#128009;</span> DRAGON REALMS <span class="gm-dim">· GM Console (read-only)</span></span>
-    <span class="topbar-right"><span id="conn-status" class="conn-off">GM console</span></span>
+    <span class="topbar-right">
+      <span id="conn-status" class="conn-off">GM console</span>
+      <input id="gm-token" type="password" placeholder="GM token or login" autocomplete="off" style="width:140px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--text)">
+      <button id="gm-token-go" class="tool">&#128274;</button>
+    </span>
   </header>
   <button id="gm-refresh" class="tool">↻ Refresh</button>
   <main id="gm-app">
@@ -50,6 +57,11 @@
       <div class="gm-card"><h2>Summary</h2><div id="gm-summary"></div></div>
       <div class="gm-card"><h2>Online / Live Streams</h2><div id="gm-online"></div></div>
       <div class="gm-card"><h2>Characters</h2><div id="gm-chars"></div></div>
+      <div class="gm-card"><h2>Database</h2>
+        <input id="gm-db-q" placeholder="SELECT ... LIMIT 100" autocomplete="off" style="width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--text);margin-bottom:6px">
+        <div id="gm-db-tables" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+        <div id="gm-db-out"></div>
+      </div>
     </aside>
     <section>
       <div class="gm-card"><h2>World</h2><div id="gm-world"></div><div id="gm-room-detail"></div></div>

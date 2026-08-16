@@ -14,13 +14,25 @@ import { SKILLS } from '../data/skills.js';
 import { KHRI } from '../data/khri.js';
 import { db } from './db.js';
 import { loadPlayer } from './player.js';
+import { validateSession } from './auth.js';
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(obj));
 }
 
+// GM access: a bearer token that is either the DR_GM_TOKEN secret or any
+// valid game account session. Without it the console is closed.
+function authorized(req) {
+  const m = /^Bearer\s+(\S+)$/i.exec(req.headers.authorization || '');
+  if (!m) return false;
+  const token = m[1];
+  if (process.env.DR_GM_TOKEN && token === process.env.DR_GM_TOKEN) return true;
+  return Boolean(validateSession(token));
+}
+
 export function gmRequest(req, res, game) {
+  if (!authorized(req)) return json(res, 401, { ok: false, error: 'Unauthorized — set a GM token (DR_GM_TOKEN) or log in.' });
   const url = new URL(req.url, `http://${req.headers.host}`);
   const parts = url.pathname.replace(/^\/api\/gm\/?/, '').split('/').filter(Boolean);
   const which = parts[0];
@@ -38,6 +50,7 @@ export function gmRequest(req, res, game) {
     case 'characters': return gmCharacters(res);
     case 'player': return gmPlayer(res, game, parts[1]);
     case 'players-online': return json(res, 200, { ok: true, players: onlineView(game) });
+    case 'db': return gmDb(res, game, parts[1], url.searchParams.get('q'));
     default:
       return json(res, 404, { ok: false, error: 'Unknown GM endpoint. Try /api/gm/summary' });
   }
@@ -124,6 +137,32 @@ function gmRaces(res) {
 
 function gmSkills(res) {
   return json(res, 200, { ok: true, skills: Object.entries(SKILLS).map(([id, s]) => ({ id, name: s.name, cat: s.cat, guildSkill: s.guildSkill || null })) });
+}
+
+// Read-only DB browser: list tables, dump a table, or run a sandboxed SELECT
+// (single statement, must have LIMIT, no write keywords).
+function gmDb(res, game, table, q) {
+  const known = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((r) => r.name);
+  if (!table && !q) return json(res, 200, { ok: true, tables: known });
+  if (q) {
+    const stmt = String(q).trim();
+    if (!/^select\b/i.test(stmt)) return json(res, 400, { ok: false, error: 'Only SELECT queries are allowed.' });
+    if (/;?\s*(insert|update|delete|drop|alter|attach|pragma|vacuum)\b/i.test(stmt)) {
+      return json(res, 400, { ok: false, error: 'Write/DDL keywords are not allowed.' });
+    }
+    if (!/\blimit\s+\d+/i.test(stmt)) return json(res, 400, { ok: false, error: 'Queries must include a LIMIT.' });
+    try {
+      return json(res, 200, { ok: true, rows: db.prepare(stmt).all() });
+    } catch (e) {
+      return json(res, 400, { ok: false, error: String(e.message) });
+    }
+  }
+  if (!known.includes(table)) return json(res, 400, { ok: false, error: `Unknown table "${table}".` });
+  try {
+    return json(res, 200, { ok: true, table, rows: db.prepare(`SELECT * FROM ${table} LIMIT 200`).all() });
+  } catch (e) {
+    return json(res, 400, { ok: false, error: String(e.message) });
+  }
 }
 
 function gmCharacters(res) {

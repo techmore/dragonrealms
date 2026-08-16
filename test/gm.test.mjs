@@ -1,10 +1,23 @@
-// GM console read-only API suite: summary/world/room/player inspection and
-// live-stream snapshot. Uses the real HTTP server on :3000 (DR_ENABLE_API=1).
+// GM console read-only API suite: summary/world/room/player inspection,
+// DB browser, and the auth guard. Uses the real HTTP server on :3000
+// (DR_ENABLE_API=1); authorization via a freshly registered account session.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const BASE = 'http://localhost:3000/api/gm';
-const g = async (p) => (await fetch(BASE + p)).json();
+const reg = await fetch('http://localhost:3000/api/register', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ user: 'gmsuite' + Date.now(), pass: 'probepass1' }),
+}).then((r) => r.json());
+assert.ok(reg.token, 'registered a GM test session');
+const TOKEN = reg.token;
+const g = async (p) => (await fetch(BASE + p, { headers: { Authorization: 'Bearer ' + TOKEN } })).json();
+
+test('GM endpoints reject unauthenticated requests', async () => {
+  const r = await fetch(BASE + '/summary');
+  assert.equal(r.status, 401, 'no token -> 401');
+});
 
 test('GM summary reports world/DB/live counts', async () => {
   const s = await g('/summary');
@@ -65,4 +78,18 @@ test('GM unknown endpoint fails cleanly', async () => {
   const x = await g('/definitely-not-real');
   assert.equal(x.ok, false);
   assert.ok(x.error);
+});
+
+test('GM DB browser lists tables and runs sandboxed SELECTs', async () => {
+  const d = await g('/db');
+  assert.ok(d.ok && Array.isArray(d.tables), 'tables listed');
+  assert.ok(d.tables.includes('characters'), 'characters table present');
+  const t = await g('/db/characters');
+  assert.ok(t.ok && Array.isArray(t.rows), 'table dump works');
+  const q = await g('/db?q=' + encodeURIComponent('SELECT name, circle FROM characters ORDER BY circle DESC LIMIT 5'));
+  assert.ok(q.ok && q.rows.length <= 5, 'sandboxed SELECT works');
+  const bad = await g('/db?q=' + encodeURIComponent('DROP TABLE characters'));
+  assert.equal(bad.ok, false, 'write statements rejected');
+  const nolimit = await g('/db?q=' + encodeURIComponent('SELECT * FROM characters'));
+  assert.equal(nolimit.ok, false, 'queries must include LIMIT');
 });
