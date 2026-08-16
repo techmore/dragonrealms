@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dragon Realms — GM Console</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    #gm-app { display: grid; grid-template-columns: 340px 1fr; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
+    #gm-app h2 { color: var(--amber); margin: 0 0 8px; font-size: 16px; }
+    .gm-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .gm-dim { color: var(--dim); font-size: 11px; }
+    .gm-zone { margin-bottom: 8px; }
+    .gm-zone-name { color: var(--amber); font-weight: bold; margin-bottom: 4px; }
+    .gm-rooms { display: flex; flex-wrap: wrap; gap: 4px; }
+    .gm-room, .gm-ch, .gm-pip {
+      background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 5px;
+      padding: 3px 7px; font-size: 11px; cursor: pointer;
+    }
+    .gm-room:hover, .gm-ch:hover, .gm-pip:hover { background: var(--amber); color: #1a1505; }
+    .gm-t { color: var(--amber); font-weight: bold; }
+    .gm-desc { font-size: 12px; margin: 4px 0; }
+    .gm-meta { font-size: 11px; color: var(--text); margin: 2px 0; }
+    .gm-skills { font-size: 10px; color: var(--dim); margin-top: 4px; }
+    #gm-room-detail, #gm-player-detail { min-height: 60px; }
+    #gm-player-stream {
+      background: #0c0c0a; border: 1px solid var(--line); border-radius: 6px;
+      max-height: 400px; overflow-y: auto; padding: 8px; font-size: 11px; white-space: pre-wrap;
+      word-break: break-word;
+    }
+    #gm-player-stream .gm-line { margin-bottom: 2px; }
+    #gm-player-stream .gm-combat { color: var(--dim); }
+    #gm-player-stream .gm-command, #gm-player-stream .gm-cmd { color: var(--green); }
+    #gm-player-stream .gm-room { color: var(--amber); font-weight: bold; }
+    #gm-player-stream .gm-error { color: var(--red); }
+    #gm-player-stream .gm-notice { color: var(--amber); }
+    #gm-player-stream .gm-dim { color: var(--dim); }
+    #gm-refresh { margin-bottom: 12px; }
+    #gm-online { display: flex; flex-direction: column; gap: 4px; }
+  </style>
+</head>
+<body>
+  <header id="topbar">
+    <span class="brand"><span class="brand-mark">&#128009;</span> DRAGON REALMS <span class="gm-dim">· GM Console (read-only)</span></span>
+    <span class="topbar-right"><span id="conn-status" class="conn-off">GM console</span></span>
+  </header>
+  <button id="gm-refresh" class="tool">↻ Refresh</button>
+  <main id="gm-app">
+    <aside>
+      <div class="gm-card"><h2>Summary</h2><div id="gm-summary"></div></div>
+      <div class="gm-card"><h2>Online / Live Streams</h2><div id="gm-online"></div></div>
+      <div class="gm-card"><h2>Characters</h2><div id="gm-chars"></div></div>
+    </aside>
+    <section>
+      <div class="gm-card"><h2>World</h2><div id="gm-world"></div><div id="gm-room-detail"></div></div>
+      <div class="gm-card"><h2>Player Inspector</h2><div id="gm-player-detail"></div><div id="gm-player-stream"></div></div>
+    </section>
+  </main>
+  <script type="module" src="/js/gm-console.js"></script>
+</body>
+</html>

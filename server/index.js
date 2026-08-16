@@ -6,6 +6,7 @@ import { migrate, closeDb } from './db.js';
 import { Game } from './game.js';
 import { attachWebSocket } from './session.js';
 import { apiRequest } from './api.js';
+import { gmRequest } from './gm.js';
 import { createStaticHandler } from './static.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -22,6 +23,15 @@ const staticHandler = createStaticHandler(PUBLIC_DIR);
 const server = createServer((req, res) => {
   try {
     const path = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
+    if (path === '/api/gm' || path.startsWith('/api/gm/')) {
+      if (!API_ENABLED) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not found');
+        return;
+      }
+      gmRequest(req, res, game);
+      return;
+    }
     if (path === '/api' || path.startsWith('/api/')) {
       if (!API_ENABLED) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
