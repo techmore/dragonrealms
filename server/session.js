@@ -9,7 +9,7 @@ import { guildById } from '../data/guilds.js';
 import { db } from './db.js';
 import { handleCommand } from './commands/index.js';
 import { sendChargenMenu, doCharSelect, doCharCreate, doAlloc, doEnter } from './chargen.js';
-import { subscribe, unsubscribe, forward, forwardCommand } from './spectate.js';
+import { subscribe, unsubscribe, subscribeWorld, forward, forwardCommand } from './spectate.js';
 
 const INPUT_MAX = 20; // commands per second
 
@@ -93,6 +93,12 @@ function route(session, msg) {
     case 'spectate': {
       const res = subscribe(session, msg.name);
       if (!res.ok) return session.send({ t: 'error', msg: res.msg });
+      session.state = 'spectating';
+      session.send({ t: 'notice', msg: res.msg });
+      break;
+    }
+    case 'worldwatch': {
+      const res = subscribeWorld(session);
       session.state = 'spectating';
       session.send({ t: 'notice', msg: res.msg });
       break;

@@ -6,12 +6,27 @@ import { weaponOf } from './player.js';
 import { roomById, ZONES } from '../data/world.js';
 
 const watchers = new Map(); // charId -> Set<session>
+const worldWatchers = new Set(); // sessions watching the entire world feed
 
 const DIRS = {
   n: 'north', s: 'south', e: 'east', w: 'west',
   ne: 'northeast', nw: 'northwest', se: 'southeast', sw: 'southwest',
   u: 'up', d: 'down',
 };
+
+// GM world feed: every online player's messages, tagged with the source.
+export function subscribeWorld(session) {
+  worldWatchers.add(session);
+  session.spectating = '*world*';
+  return { ok: true, msg: 'You are now watching the entire world feed.' };
+}
+
+function mirror(obj) {
+  const out = JSON.stringify(obj);
+  for (const s of worldWatchers) {
+    if (s.socket.readyState === s.socket.OPEN) s.socket.send(out);
+  }
+}
 
 export function subscribe(session, playerName) {
   const n = String(playerName || '').trim();
@@ -49,16 +64,24 @@ export function subscribe(session, playerName) {
 
 export function unsubscribe(session) {
   for (const set of watchers.values()) set.delete(session);
+  worldWatchers.delete(session);
   session.spectating = null;
 }
 
 // Called by the player's own session.send: mirrors the message to watchers.
 export function forward(player, obj) {
   const set = watchers.get(player.charId);
-  if (!set || set.size === 0) return;
-  const out = JSON.stringify(obj);
-  for (const s of set) {
-    if (s.socket.readyState === s.socket.OPEN) s.socket.send(out);
+  if (set && set.size > 0) {
+    const out = JSON.stringify(obj);
+    for (const s of set) {
+      if (s.socket.readyState === s.socket.OPEN) s.socket.send(out);
+    }
+  }
+  if (worldWatchers.size > 0) {
+    const out = JSON.stringify({ ...obj, _player: player.name });
+    for (const s of worldWatchers) {
+      if (s.socket.readyState === s.socket.OPEN) s.socket.send(out);
+    }
   }
 }
 
@@ -66,10 +89,17 @@ export function forward(player, obj) {
 // exactly as if they were watching over the player's shoulder.
 export function forwardCommand(player, line) {
   const set = watchers.get(player.charId);
-  if (!set || set.size === 0) return;
-  const out = JSON.stringify({ t: 'command', line: String(line || '') });
-  for (const s of set) {
-    if (s.socket.readyState === s.socket.OPEN) s.socket.send(out);
+  if (set && set.size > 0) {
+    const out = JSON.stringify({ t: 'command', line: String(line || '') });
+    for (const s of set) {
+      if (s.socket.readyState === s.socket.OPEN) s.socket.send(out);
+    }
+  }
+  if (worldWatchers.size > 0) {
+    const out = JSON.stringify({ t: 'command', line: String(line || ''), _player: player.name });
+    for (const s of worldWatchers) {
+      if (s.socket.readyState === s.socket.OPEN) s.socket.send(out);
+    }
   }
 }
 

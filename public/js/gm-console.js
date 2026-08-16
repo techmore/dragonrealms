@@ -130,6 +130,33 @@ function watchLive(name) {
   ws.onclose = () => appendStream('— stream closed —', 'gm-dim');
 }
 
+// GM world feed: every online player's messages, tagged by source.
+let worldWs = null;
+function toggleWorldFeed() {
+  const btn = $('gm-world-btn');
+  const out = $('gm-world-stream');
+  if (!btn || !out) return;
+  if (worldWs) { worldWs.close(); worldWs = null; btn.textContent = 'start'; out.innerHTML = ''; return; }
+  btn.textContent = 'stop';
+  out.innerHTML = '<div class="gm-dim">— world feed —</div>';
+  worldWs = new WebSocket((location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws');
+  worldWs.onopen = () => worldWs.send(JSON.stringify({ t: 'worldwatch' }));
+  worldWs.onmessage = (ev) => {
+    let m; try { m = JSON.parse(ev.data); } catch { return; }
+    if (m.t === 'notice') return;
+    const who = m._player ? `[${m._player}] ` : '';
+    const txt = m.t === 'command' ? `> ${m.line}` : (m.msg || m.t);
+    const div = document.createElement('div');
+    div.className = 'gm-line gm-wf';
+    div.textContent = who + String(txt).replace(/\x1b\[\d+m/g, '');
+    out.appendChild(div);
+    while (out.children.length > 400) out.removeChild(out.firstChild);
+    out.scrollTop = out.scrollHeight;
+  };
+  worldWs.onclose = () => { worldWs = null; if (btn) btn.textContent = 'start'; };
+}
+$('gm-world-btn')?.addEventListener('click', toggleWorldFeed);
+
 function appendStream(text, cls) {
   const out = $('gm-player-stream');
   const div = document.createElement('div');
