@@ -50,6 +50,7 @@ export function gmRequest(req, res, game) {
     case 'characters': return gmCharacters(res);
     case 'player': return gmPlayer(res, game, parts[1]);
     case 'players-online': return json(res, 200, { ok: true, players: onlineView(game) });
+    case 'admin': return gmAdmin(res, game, parts[1]);
     case 'db': return gmDb(res, game, parts[1], url.searchParams.get('q'));
     default:
       return json(res, 404, { ok: false, error: 'Unknown GM endpoint. Try /api/gm/summary' });
@@ -207,4 +208,38 @@ function onlineView(game) {
     name: p.name, race: p.race.id, guild: p.guild.id, circle: p.circle,
     room: p.room, hp: p.hp, inCombat: Boolean(p.combatId),
   }));
+}
+
+// Admin ops surface: health/status now, plus a controlled world reload that
+// persists all live players first. Mutations are intentionally minimal and
+// still behind the same GM auth.
+function gmAdmin(res, game, action) {
+  switch (action) {
+    case 'status': {
+      return json(res, 200, {
+        ok: true, online: true,
+        players: game.players.size,
+        rooms: Object.keys(ROOMS).length,
+        uptimeMs: (game.uptimeAt ? Date.now() - game.uptimeAt : null),
+        gmTokenConfigured: Boolean(process.env.DR_GM_TOKEN),
+      });
+    }
+    case 'reload': {
+      for (const p of [...game.players.values()]) {
+        try { game.persistPlayer(p); } catch {}
+      }
+      let reloaded = 0;
+      for (const [id, r] of Object.entries(ROOMS)) {
+        game.roomCreatures.set(id, (r.spawns || []).map((sid) => {
+          const def = CREATURES[sid];
+          if (!def) return null;
+          return { def, hp: def.circle * 14 + def.stats.con * 3 + 20, maxHp: def.circle * 14 + def.stats.con * 3 + 20, alive: true };
+        }).filter(Boolean));
+        reloaded += 1;
+      }
+      return json(res, 200, { ok: true, reloaded });
+    }
+    default:
+      return json(res, 400, { ok: false, error: 'Unknown admin action: use status or reload.' });
+  }
 }

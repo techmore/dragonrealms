@@ -80,6 +80,28 @@ Client scripting is a DR-script interpreter: `public/js/script-engine.js`
 prefix, `script <name>`/`script stop`). The compass rose is shared via
 `public/js/compass.js` (room panel + exits dock).
 
+## Game Master / admin surfaces
+
+Read-only inspection and inspection-driven ops live behind the auth-gated
+GM API (`server/gm.js`, mounted at `/api/gm/*`, bearer = `DR_GM_TOKEN` or a
+valid game session):
+
+- `GET /api/gm/summary | world | room/<id> | creatures | npcs | items |
+  guilds | races | skills | characters | player/<name> | players-online |
+  admin/status | admin/reload | db` (DB browser: table list/dump or a
+  sandboxed `SELECT … LIMIT n`, write/DDL keywords rejected).
+
+Clients: `public/gm.html` + `gm-console.js` (GM console: world map, player
+inspector, live per-player + world-wide streams) and `public/admin.html`
+(the admin dash landing page). A native macOS menu-bar/Dock app
+(`admin/main.swift`, built by `scripts/build-admin-app.sh`) starts/stops the
+world and opens these pages: `open bin/admin/dragonrealms-admin`.
+
+Live watch relay: `server/spectate.js` mirrors a player's full stream to
+watchers; `/?spectate=Name` deep-links the main client straight into watch
+mode, and `{t:'worldwatch'}` subscribes a GM session to every online player's
+tagged messages. All spectator paths are read-only.
+
 ## Wire protocol (server → client)
 
 `room` (msg in `[[Name, Area]]` form + exits + roomId), `msg`, `combat`,

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dragon Realms — Admin</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-monospace, Menlo, monospace; }
+    .admin { max-width: 780px; margin: 0 auto; padding: 24px 20px; }
+    h1 { color: var(--amber); }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 16px; }
+    a.card {
+      display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+      padding: 14px; text-decoration: none; color: var(--text);
+    }
+    a.card:hover { border-color: var(--amber); }
+    a.card .t { color: var(--amber); font-weight: bold; display: block; margin-bottom: 4px; }
+    a.card .d { color: var(--dim); font-size: 11px; }
+    #status { margin-top: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 12px; }
+    #status .ok { color: var(--green); }
+    #status .down { color: var(--red); }
+  </style>
+</head>
+<body>
+  <main class="admin">
+    <h1>&#128009; Dragon Realms — Admin</h1>
+    <p class="sub">World control and monitoring. Read-only inspection lives in the <b>GM Console</b>.</p>
+
+    <div class="cards">
+      <a class="card" href="/gm.html"><span class="t">&#128269; GM Console</span><span class="d">Read-only inspector: world, DB, live streams, world feed</span></a>
+      <a class="card" href="/"><span class="t">&#127918; Play</span><span class="d">Launch the game client / spectator</span></a>
+      <a class="card" href="/ROADMAP.html"><span class="t">&#128200; Roadmap</span><span class="d">Feature tracker and status</span></a>
+      <a class="card" href="/SKILLS.html"><span class="t">&#128220; Skills reference</span><span class="d">All 83 skills, categories, training</span></a>
+    </div>
+
+    <div id="status"><span class="sub">checking server…</span></div>
+  </main>
+  <script>
+    (async () => {
+      const el = document.getElementById('status');
+      try {
+        const r = await fetch('/api/health');
+        const h = await r.json();
+        el.innerHTML = `<span class="ok">&#9679; World online</span> — ${h.players || 0} player(s) connected`;
+      } catch {
+        el.innerHTML = `<span class="down">&#9679; World offline</span> — start it with the menu-bar app or npm start`;
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -4,3 +4,6 @@ data/store/
 *.db-wal
 *.db-shm
 .DS_Store
+
+bin/
+bins/
