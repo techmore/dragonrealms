@@ -118,6 +118,29 @@ button { font-family: inherit; }
 .tool.on { background: var(--amber); color: #1a1505; border-color: var(--amber); }
 
 /* ---------------- Left rail (vitals / hands / field experience) ---------------- */
+/* DR-style windows: each pane is a collapsible, showable window. */
+.dwin { display: flex; flex-direction: column; }
+.dwin-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+}
+.dwin-head .rail-kicker { flex: 1; margin: 0; }
+.dwin-head .dwin-collapse {
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+.dwin-head .dwin-collapse:hover { color: var(--amber); }
+.dwin.collapsed .dwin-body { display: none; }
+.dwin[data-whidden] { display: none !important; }
+.dwin-status { color: var(--amber); font-weight: bold; font-size: 10px; letter-spacing: 1px; }
+
 #leftrail {
   width: 216px;
   flex-shrink: 0;
@@ -136,6 +159,7 @@ button { font-family: inherit; }
   color: var(--dim);
   margin-bottom: 6px;
 }
+.dwin-head .rail-kicker { margin-bottom: 0; }
 #status-strip {
   display: flex;
   flex-direction: column;
@@ -209,6 +233,7 @@ button { font-family: inherit; }
   margin-top: 4px;
   color: var(--dim);
   font-size: 11.5px;
+  white-space: pre-line;
 }
 
 /* Conversations pane (DR local chat) */
@@ -304,6 +329,16 @@ button { font-family: inherit; }
   background: var(--panel);
   padding: 12px;
 }
+#room-panel .dwin-head { padding-bottom: 8px; }
+#dock .dwin { border-bottom: 1px solid var(--line); }
+#dock .dwin-head {
+  padding: 10px 12px 2px;
+}
+#dock .dwin-head .rail-kicker { margin: 0; }
+#dock .dwin-body { padding: 4px 12px 12px; }
+#dock #room-panel .dwin-body { padding: 0 12px 12px; }
+#dock #room-panel .dwin-body > div { margin-bottom: 6px; }
+#dock #room-panel .room-panel-foot { margin-top: 6px; }
 #room-panel .room-panel-title {
   color: var(--amber);
   font-weight: bold;
@@ -870,7 +905,48 @@ body[data-theme="green"] #terminal b { color: #8aff8a; }
   max-width: 40vw;
 }
 
-/* ---------------- Settings panel ---------------- */
+/* ---------------- Windows menu ---------------- */
+.windows-wrap { position: relative; }
+.windows-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 200px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px;
+  z-index: 45;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+.wmenu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.wmenu-row:hover { background: var(--bg); }
+.wmenu-row input { accent-color: var(--amber); }
+.wmenu-col {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 4px;
+}
+.wmenu-col:hover { color: var(--amber); }
+
+/* FE window count line */
+.fe-count { color: var(--dim); font-size: 10px; letter-spacing: 1px; margin-bottom: 4px; }
+
 #settings-panel {
   position: absolute;
   top: calc(var(--topbar-h) + 4px);
@@ -979,7 +1055,7 @@ body[data-theme="green"] #terminal b { color: #8aff8a; }
     border-bottom: 1px solid var(--line);
     overflow-x: auto;
   }
-  #leftrail > section { flex: 0 0 auto; min-width: 150px; }
+  #leftrail > .dwin { flex: 0 0 auto; min-width: 150px; }
   #dock {
     position: fixed;
     left: 8px;

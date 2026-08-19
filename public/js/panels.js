@@ -7,6 +7,7 @@ import { pressEnter, isPlaying, focusInput } from './input.js';
 import { settings, isMobile } from './settings.js';
 import { macros, timers, triggers, onScriptsChange, removeScript } from './automation.js';
 import { listScripts, saveScript, runScript, stopScript, isScriptRunning } from './scripts.js';
+import { revealWindow, setWindowVisible } from './windows.js';
 
 const PANELS = {
   inv: { title: 'INVENTORY', cmd: 'inventory' },
@@ -27,12 +28,14 @@ export function isPanelOpen() { return activePanel !== null; }
 let chatOpen = false;
 export function toggleChat() {
   chatOpen = !chatOpen;
-  $('chat-widget').hidden = !chatOpen;
-  $('btn-chat').classList.toggle('on', chatOpen);
+  setWindowVisible('chat-widget', chatOpen, true);
+  syncToolbar();
   return chatOpen;
 }
 export function appendChat(msg) {
-  if (!chatOpen) toggleChat();
+  setWindowVisible('chat-widget', true, false);
+  chatOpen = true;
+  revealWindow('chat-widget');
   const row = $('chat-row');
   const div = document.createElement('div');
   div.className = 'block chat-line ch-' + (msg.channel || 'say');
@@ -103,8 +106,28 @@ function syncToolbar() {
 }
 
 export function applyVisibility() {
-  if (!settings.exits && !activePanel) $('dock').hidden = true;
-  else if (settings.exits && !activePanel) $('dock').hidden = false;
+  syncDock();
+}
+
+// Recompute whether the right dock is visible based on the Exits setting, an
+// open panel, or any dock window that's currently showing. Called by the
+// window manager when a dock pane is hidden/shown.
+export function syncDock() {
+  const dock = $('dock');
+  if (!dock) return;
+  let anyDockVisible = false;
+  document.querySelectorAll('#dock .dwin').forEach((el) => {
+    if (!el.hasAttribute('data-whidden')) anyDockVisible = true;
+  });
+  if (activePanel && !$('panel-wrap').hidden) {
+    dock.hidden = false;
+  } else if (settings.exits && anyDockVisible) {
+    dock.hidden = false;
+  } else if (anyDockVisible) {
+    dock.hidden = false;
+  } else {
+    dock.hidden = true;
+  }
   syncToolbar();
 }
 

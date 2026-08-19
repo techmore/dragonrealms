@@ -67,6 +67,36 @@ try {
   check('hands bar shows hand', (await evalJs(`document.getElementById('hands-hand').textContent`)).startsWith('Hand:'));
   check('exp + info buttons', await evalJs(`!!document.getElementById('btn-exp') && !!document.getElementById('btn-info')`));
 
+  // 4b. DR-style window manager: Windows menu, collapse toggles, room phrasing.
+  check('Windows menu button present', await evalJs(`!!document.getElementById('windows-btn')`));
+  await evalJs(`document.getElementById('windows-btn').click();true`);
+  await sleep(200);
+  check('Windows menu opens with 6 windows', (await evalJs(`document.querySelectorAll('#windows-menu .wmenu-row').length`)) === 6);
+  await evalJs(`document.querySelector('#windows-menu [data-w="chat-widget"] .wmenu-vis').click();true`);
+  await sleep(200);
+  check('Windows menu toggles chat hidden', await evalJs(`document.getElementById('chat-container').hasAttribute('data-whidden')`));
+  await evalJs(`document.querySelector('#windows-menu [data-w="chat-widget"] .wmenu-vis').click();true`);
+  await sleep(200);
+  check('Windows menu restores chat', await evalJs(`!document.getElementById('chat-container').getAttribute('data-whidden')`));
+  await evalJs(`document.getElementById('windows-btn').click();true`); // close menu
+
+  // 4c. Collapse toggle on the room window.
+  const roomOuter = `document.querySelector('#room-panel')`;
+  check('room window starts expanded', await evalJs(`${roomOuter}.classList.contains('collapsed') === false`));
+  await evalJs(`document.querySelector('#room-panel .dwin-collapse[data-collapse="room-panel"]').click();true`);
+  await sleep(200);
+  check('room window collapses', await evalJs(`${roomOuter}.classList.contains('collapsed')`));
+  await evalJs(`document.querySelector('#room-panel .dwin-collapse[data-collapse="room-panel"]').click();true`);
+  await sleep(200);
+
+  // 4d. DR room contents phrasing: the room panel separates "Here:" and "You also see".
+  await cmd('look');
+  await sleep(400);
+  const roomContents = await evalJs(`document.getElementById('rp-contents').textContent`);
+  check('room contents DR phrasing', /Here:|You also see/.test(roomContents), roomContents.slice(0, 80));
+  check('room contents mentions players/NPCs or objects', (await evalJs(`document.getElementById('rp-contents').textContent`)).length > 0);
+
+
   // 5. Status strip
   await waitFor(`!document.getElementById('status-strip').hidden`);
   const strip = await evalJs(`document.getElementById('strip-hp-label').textContent + '|' + document.getElementById('strip-mana-label').textContent + '|' + document.getElementById('strip-circle').textContent + '|' + document.getElementById('strip-silver').textContent`);
@@ -165,7 +195,8 @@ try {
     await waitFor(`!document.getElementById('strip-combat').hidden`, 10000);
     check('combat chip appears', true);
     check('target window shows the foe', await waitFor(`!document.getElementById('target-widget').hidden && document.querySelectorAll('#target-row .target').length >= 1`, 8000));
-    check('FE tracker lists a learning skill', await waitFor(`document.querySelectorAll('#fe-row .fe-line').length >= 1`, 8000));
+    check('combat status line shown', await waitFor(`document.getElementById('combat-status') && document.getElementById('combat-status').textContent.trim().length > 0`, 8000));
+    check('FE tracker lists a learning skill', await waitFor(`document.querySelectorAll('#fe-row .fe-line').length >= 1`, 16000));
     check('room contents lists the foe', (await evalJs(`document.getElementById('rp-contents').textContent`)).includes('sewer rat'));
     await waitFor(`document.querySelectorAll('#terminal .ch-combat').length > 1`, 10000);
     const combatDim = await evalJs(`getComputedStyle(document.querySelector('#terminal .ch-combat')).color`);

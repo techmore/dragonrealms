@@ -1,11 +1,17 @@
-// World rooms and spawns (clean-room).
+// World rooms and spawns (clean-room; grounded in Elanthipedia references).
 // Rooms form the playable map. `npc` lists npc ids present, `spawns` lists
 // creature ids that may be found here (with a per-room chance).
+//
+// The town of Crossing is laid out authentically around the Town Green hub,
+// with roads fanning to the gates (West, East, Northeast, North), the
+// Mongers' Bazaar and bank to the east, the Guild District, the riverside
+// Strand along the Segoltha, and residential courts (Tatting Street, Crofton
+// Walk, Elmod Close) beyond the walls.
 
 export const ZONES = {
   town: { name: 'Crossing', desc: 'The bustling heart of the Crossing.' },
-  sewers: { name: 'Old Sewers', desc: 'Dank tunnels beneath the town.' },
-  woods: { name: 'Old Woods', desc: 'Thick, shadowy forest.' },
+  sewers: { name: 'Crossing Sewers', desc: 'Dank tunnels beneath the town.' },
+  woods: { name: 'Siergelde Ruins Road', desc: 'Thick, shadowy forest.' },
   marsh: { name: 'Whispering Marsh', desc: 'Soggy lowlands wreathed in mist.' },
   deepwoods: { name: 'Deep Wilds', desc: 'Dark woods where big things prowl.' },
   camp: { name: 'Bandit Camp', desc: 'A lawless camp of cutthroats.' },
@@ -15,106 +21,320 @@ export const ZONES = {
 };
 
 export const ROOMS = {
-  // ================= TOWN =================
+  // ================= TOWN: THE TOWN GREEN =================
+  // The green is the heart of the city. Compass spokes reach every district.
   square: {
-    id: 'square', zone: 'town', name: 'Town Square', npcs: ['towncrier'],
-    desc: 'The broad flagstones of the Crossing town square bustle with merchants, guards, and travelers. A weathered fountain burbles at the center. Streets lead off in every direction, and a barred grate in the flags opens onto the town cells below.',
-    exits: { n: 'market_way', s: 'temple_row', e: 'guild_district', w: 'west_road', d: 'jail', nw: 'half_pint' },
+    id: 'square', zone: 'town', name: 'Town Green', npcs: ['towncrier'],
+    desc: 'A broad grassy green at the center of the Crossing, ringed by flagstone walks and old shade trees. Townsfolk gather here around a weathered fountain, and a tiny pond glints to the north. Streets and lane-mouths fan out in every direction, and a caretaker keeps the green tidy.',
+    exits: { n: 'tg_n', ne: 'tg_ne', e: 'tg_e', se: 'tg_se', s: 'tg_s', sw: 'tg_sw', w: 'tg_w', nw: 'tg_nw', d: 'tg_pond' },
   },
-  half_pint: {
-    id: 'half_pint', zone: 'town', name: 'The Half Pint', tavern: true,
-    desc: 'A smoky, low-beamed tavern packed to the rafters. A scarred bar runs the length of the room, and benches groan under hunters and merchants alike. The ale is cheap and the rest comes easy.',
-    exits: { se: 'square' },
+  tg_pond: {
+    id: 'tg_pond', zone: 'town', name: 'Town Green Pond',
+    desc: 'You stand on the bank of a tiny pond in the middle of the green. Cool water laps against soft, velvety silt, and in the distance you can hear the bustle of the town. A massive domesticated gelapod lounges in the pond, content and not the least bit aggressive.',
+    exits: { up: 'square' },
   },
-  east_road: {
-    id: 'east_road', zone: 'town', name: 'East Road',
-    desc: 'A wide road heading east past the market. The cold mist of the marsh hangs low over the fields ahead.',
-    exits: { w: 'market_end', e: 'east_gate', n: 'tenderfoot', s: 'middens' },
+
+  // ---------- West district (West Road toward the gate) ----------
+  tg_w: {
+    id: 'tg_w', zone: 'town', name: 'Town Green West',
+    desc: 'The western walk of the green gives onto the West Road, which runs out to the West Gate, and to the Guild District, whose banners rise over the avenue to the west.',
+    exits: { e: 'square', n: 'west_road', w: 'guild_district' },
+  },
+
+  // ---------- North district (toward the North Gate) ----------
+  tg_n: {
+    id: 'tg_n', zone: 'town', name: 'Town Green North',
+    desc: 'The northern edge of the green gives way to a broad avenue of shops and inns. Lanterns sway over the heads of the crowd, and the great North Gate looms in the distance.',
+    exits: { s: 'square', nw: 'square', ne: 'tg_ne', n: 'carousel_way' },
+  },
+  carousel_way: {
+    id: 'carousel_way', zone: 'town', name: 'North Avenue',
+    desc: 'A wide, well-kept avenue running north. A brightly painted carousel turns to the north, its music drifting on the air, and the town hall stands beyond to the east.',
+    exits: { s: 'tg_n', n: 'carousel' },
+  },
+  carousel: {
+    id: 'carousel', zone: 'town', name: 'The Carousel',
+    desc: 'A gaily painted carousel turns in the middle of the avenue, carrying painted wooden beasts for a few coppers a ride. Children shriek with delight. To the east the road climbs toward the Town Hall.',
+    exits: { s: 'carousel_way', n: 'hall_street' },
+  },
+  hall_street: {
+    id: 'hall_street', zone: 'town', name: 'Hall Street',
+    desc: 'A short street climbing gently east. The sturdy facade of the Town Hall rises ahead, its clock ticking solemnly over the lintel.',
+    exits: { s: 'carousel', e: 'town_hall', w: 'carousel' },
+  },
+  town_hall: {
+    id: 'town_hall', zone: 'town', name: 'Town Hall',
+    desc: 'The seat of the Crossing\'s civic offices — citizenship, registration, genealogy and the lottery. Clerks hurry past with ledgers, and a long noticeboard lists the day\'s business.',
+    exits: { w: 'hall_street' },
+  },
+  north_road: {
+    id: 'north_road', zone: 'town', name: 'North Road',
+    desc: 'A broad road leading to the North Gate. Fine manors line the way, and carts roll steadily toward the wall.',
+    exits: { s: 'tg_n', n: 'north_gate', e: 'jadewater_way' },
+  },
+  north_gate: {
+    id: 'north_gate', zone: 'town', name: 'North Gate', npcs: ['guard'],
+    desc: 'The North Gate stands sentinel at the top of the North Road. Jadewater Mansion lies two rooms east of the gate, and the wilds roll away beyond the wall.',
+    exits: { s: 'north_road', e: 'jadewater_way' },
+  },
+  jadewater_way: {
+    id: 'jadewater_way', zone: 'town', name: 'Jadewater Way',
+    desc: 'Two rooms east of the North Gate stands a grand manor set back from the road, its wrought-iron gates standing open.',
+    exits: { w: 'north_road', e: 'jadewater' },
+  },
+  jadewater: {
+    id: 'jadewater', zone: 'town', name: 'Jadewater Mansion',
+    desc: 'A stately manor, the headquarters of the Lorethew Mentor Society. New arrivals find their bearings here, and a snug inn — the Tenderfoot — sits within its grounds, where fresh adventurers sleep three to a bunk.',
+    exits: { w: 'jadewater_way', e: 'tenderfoot' },
   },
   tenderfoot: {
-    id: 'tenderfoot', zone: 'town', name: 'The Tenderfoot', tavern: true,
-    desc: 'A board-and-timber inn where new arrivals sleep three to a bunk. The common room smells of woodsmoke and hot stew, and the pallets are dry. A good place to get your wind back.',
-    exits: { s: 'east_road' },
+    id: 'tenderfoot', zone: 'town', name: 'The Tenderfoot Inn', tavern: true,
+    desc: 'A board-and-timber inn on the Jadewater grounds where new arrivals sleep three to a bunk. The common room smells of woodsmoke and hot stew, and the pallets are dry — a good place to get your wind back.',
+    exits: { w: 'jadewater' },
   },
-  middens: {
-    id: 'middens', zone: 'town', name: 'The Middens',
-    desc: 'A sprawling junkyard where the town throws what it cannot sell. Rusted pikes, cracked amphorae, and heaps of nameless scrap lie in drifts. Scavengers pick through the refuse for anything worth a copper.',
-    exits: { n: 'east_road' },
+
+  // ---------- Northeast district (NE Gate, Herald St, craft societies) ----------
+  tg_ne: {
+    id: 'tg_ne', zone: 'town', name: 'Town Green Northeast',
+    desc: 'The northeast corner of the green, where footpaths converge toward the mistshrouded fields beyond the Northeast Gate. Eveners and merchants share the way.',
+    exits: { sw: 'square', nw: 'tg_n', e: 'ne_road' },
   },
-  docks: {
-    id: 'docks', zone: 'town', name: 'The Docks', npcs: ['dockmaster'],
-    desc: 'Planked piers crowd the riverbank, where barges and fishing skiffs creak at their moorings. Stevedores haul crates down the gangplanks, and the river smells of wet rope and fish. A barge at the far pier takes passengers upriver.',
-    exits: { s: 'market_end', n: 'pier' },
+  ne_road: {
+    id: 'ne_road', zone: 'town', name: 'Northeast Road',
+    desc: 'A busy road climbing toward the Northeast Gate. Guild masters and peddlers crowd the margins, and the air smells of resin and hot steel.',
+    exits: { w: 'tg_ne', e: 'ne_gate', s: 'herald_st' },
   },
-  pier: {
-    id: 'pier', zone: 'town', name: 'Amusement Pier', npcs: ['pier_master'],
-    desc: 'A gaily painted pier of stalls and games. Lanterns bob overhead, and a crowd gathers around a coin-toss table where a grinning fellow wins more than he loses. A barge moors at the end of the pier.',
-    exits: { s: 'docks', w: 'rh_square' },
+  ne_gate: {
+    id: 'ne_gate', zone: 'town', name: 'Northeast Gate', npcs: ['guard'],
+    desc: 'The great Northeast Gate, where invasions are thrown back and hunting parties sally forth. The Paladins keep a trail just inside the wall, and the Warrior Mage guild lies beyond the gate.',
+    exits: { w: 'ne_road' },
   },
-  academy: {
-    id: 'academy', zone: 'town', name: 'Asemath Academy',
-    desc: 'A quiet cloister of the College of Asemath, its walls lined with scrolls and star charts. Scholars murmur over desks, and the air smells of old parchment and ink.',
-    exits: { w: 'guild_district' },
+  herald_st: {
+    id: 'herald_st', zone: 'town', name: 'Herald Street',
+    desc: 'A trim street running south from the Northeast Road, lined with the doorways of the city\'s craft societies.',
+    exits: { n: 'ne_road', s: 'enchanting_soc' },
   },
-  high_temple: {
-    id: 'high_temple', zone: 'town', name: 'The High Temple',
-    desc: 'The great temple of the Crossing, its vaulted ceiling painted with the deeds of the gods. Candle flames float in ranks before a towering altar, and the air itself feels heavier with faith.',
-    exits: { n: 'temple' },
+  enchanting_soc: {
+    id: 'enchanting_soc', zone: 'town', name: 'Enchanting Society',
+    desc: 'Four rooms west of the Northeast Gate stands the Enchanting Society. Racks of tools and bundled reagents crowd the entry, and the air shimmers faintly with latent magic.',
+    exits: { n: 'herald_st' },
+  },
+
+  // ---------- East district (Mongers' Bazaar, bank, Market Plaza) ----------
+  tg_e: {
+    id: 'tg_e', zone: 'town', name: 'Town Green East',
+    desc: 'The eastern walk of the green spills onto a broad market that stretches away to the bank and the gates.',
+    exits: { w: 'square', e: 'bazaar' },
+  },
+  bazaar: {
+    id: 'bazaar', zone: 'town', name: 'Mongers\' Bazaar', npcs: ['mags', 'shopkeeper', 'weaponsmith', 'armorer'],
+    desc: 'The Mongers\' Bazaar is a crowded warren of canvas stalls and awnings. Vendors hawk herbs, hot glass, blades and leathers, and the firewood peddler Mags sits at a bin of sticks near the heart of it. A shuttered pit hall stands to the west.',
+    exits: { w: 'tg_e', e: 'market_way', s: 'market_plaza' },
+  },
+  market_plaza: {
+    id: 'market_plaza', zone: 'town', name: 'Market Plaza',
+    desc: 'A broad plaza of stepped terraces reached by a ramp rising to the southeast of the bazaar, just over from the bank. Player-owned shops fill its halls and galleries, with guards at the doors keeping the peace.',
+    exits: { n: 'bazaar' },
   },
   market_way: {
-    id: 'market_way', zone: 'town', name: 'Market Way', npcs: ['shopkeeper', 'weaponsmith', 'armorer'],
-    desc: 'A crowded market lane lined with stalls. Canvas awnings flap overhead while vendors hawk their wares. The scent of herbs and hot glass drifts from the east; a shuttered pit hall stands to the west.',
-    exits: { s: 'square', n: 'market_end', e: 'brewery', w: 'commodity_pit' },
-  },
-  commodity_pit: {
-    id: 'commodity_pit', zone: 'town', name: 'The Grain Pit', npcs: ['pit_master'],
-    desc: 'A long hall of ledger counters and grain chutes. Slaves to the market scrawl prices on a great board as they change. Merchants whisper, gamble, and watch the board. A door at the back opens onto the auction hall.',
-    exits: { e: 'market_way', n: 'auction_house' },
-  },
-  auction_house: {
-    id: 'auction_house', zone: 'town', name: 'The Merchants\' Auction Hall',
-    desc: 'A panelled hall where the Crossing does its real trading. Lots are chalked on a great board as they come in — gear, salvage, and stranger goods, each with an asking price. The hall takes no cut on the first sales.',
-    exits: { s: 'commodity_pit' },
+    id: 'market_way', zone: 'town', name: 'Market Way', npcs: ['towncrier'],
+    desc: 'The market lanes funnel east through the wall. Canvas awnings flap overhead while crowds of buyers and porters surge past, toward the bank and the eastern gate.',
+    exits: { w: 'bazaar', e: 'bank_plaza', n: 'brewery', s: 'forge_row' },
   },
   brewery: {
     id: 'brewery', zone: 'town', name: 'The Tilted Retort', npcs: ['alchemist'],
     desc: 'A warm little workshop thick with steam and the smell of crushed roots. Mortars, alembics, and jars of floating light crowd every shelf. A hammer rings from the workshop beyond.',
-    exits: { w: 'market_way', e: 'forge' },
+    exits: { s: 'market_way', e: 'forge' },
   },
   forge: {
     id: 'forge', zone: 'town', name: 'The Ember Forge', npcs: ['forge_master'],
     desc: 'The air shimmers over a great anvil. Bellow-fires roar in a hearth of black stone, and racks of finished steel line the walls. Ore waits in bins, patient for the hammer.',
     exits: { w: 'brewery' },
   },
-  market_end: {
-    id: 'market_end', zone: 'town', name: 'Market Way North', npcs: ['banker', 'quartermaster'],
-    desc: 'The market lane ends at the low, iron-doored facade of the bank. Guards clatter by with wagons of bound steel — the quartermaster\'s stock. A road continues east toward the gate, and the docks lie downriver to the north.',
-    exits: { s: 'market_way', e: 'east_road', n: 'docks' },
+  forge_row: {
+    id: 'forge_row', zone: 'town', name: 'Smiths Row',
+    desc: 'A short lane of smithies and workshops running south of Market Way toward the river.',
+    exits: { n: 'market_way', s: 'auction_house' },
   },
-  temple_row: {
-    id: 'temple_row', zone: 'town', name: 'Temple Row', npcs: ['healer'],
-    desc: 'A quiet street of shrines and prayer houses. The soft murmur of chanting drifts from open doors. The healer\'s sanctuary is here, and an iron grate in the cobbles leads down into the old sewers. An austere hall stands to the east.',
-    exits: { n: 'square', s: 'temple', d: 'sewers_1', e: 'fane' },
+  auction_house: {
+    id: 'auction_house', zone: 'town', name: 'The Merchants\' Auction Hall',
+    desc: 'A panelled hall where the Crossing does its real trading. Lots are chalked on a great board as they come in — gear, salvage, and stranger goods, each with an asking price. The hall takes no cut on the first sales.',
+    exits: { n: 'forge_row', e: 'commodity_pit' },
   },
-  fane: {
-    id: 'fane', zone: 'town', name: 'Fane of Training', npcs: ['fane_keeper'],
-    desc: 'A vaulted training hall hung with the banners of a hundred pilgrims. Eight alcoves ring the walls, each devoted to a single attribute. Novices squat in meditation, steeling body and mind.',
-    exits: { w: 'temple_row' },
+  commodity_pit: {
+    id: 'commodity_pit', zone: 'town', name: 'The Grain Pit', npcs: ['pit_master'],
+    desc: 'A long hall of ledger counters and grain chutes. Slaves to the market scrawl prices on a great board as they change. Merchants whisper, gamble, and watch the board.',
+    exits: { w: 'auction_house' },
+  },
+  bank_plaza: {
+    id: 'bank_plaza', zone: 'town', name: 'Court of the Bank', npcs: ['banker', 'quartermaster'],
+    desc: 'A cobbled court before the low, iron-doored facade of the First Provincial Bank. Guards clatter by with wagons of bound steel. A ramp on the bank\'s east side climbs to the Market Plaza, and the road continues east toward the East Gate.',
+    exits: { w: 'market_way', e: 'east_road', n: 'order_hq' },
+  },
+  order_hq: {
+    id: 'order_hq', zone: 'town', name: 'Order Headquarters',
+    desc: 'One room east of the bank stands the Order Headquarters, where the recruiting offices of the town\'s orders ply their trade among banners and mustering lists.',
+    exits: { s: 'bank_plaza' },
+  },
+
+  // ---------- Southeast / south (East Road, gate, Longbow Bridge) ----------
+  tg_se: {
+    id: 'tg_se', zone: 'town', name: 'Town Green Southeast',
+    desc: 'The southeastern walk of the green opens onto the East Road, by which travelers reach the East Gate and the marsh beyond.',
+    exits: { nw: 'square', e: 'east_road', s: 'east_road' },
+  },
+  east_road: {
+    id: 'east_road', zone: 'town', name: 'East Road',
+    desc: 'A wide road heading east past the market. The cold mist of the marsh hangs low over the fields ahead, and to the south a bridge spans the river toward the Tatting Street homes.',
+    exits: { w: 'bank_plaza', e: 'east_gate', s: 'longbow' },
+  },
+  east_gate: {
+    id: 'east_gate', zone: 'town', name: 'East Gate', npcs: ['guard'],
+    desc: 'The East Gate opens onto farmlands, and a cold mist rises from a low marsh beyond the fields. The Middens junkyard sprawls just inside the wall.',
+    exits: { w: 'east_road', e: 'marsh_1', s: 'middens' },
+  },
+  longbow: {
+    id: 'longbow', zone: 'town', name: 'Longbow Bridge',
+    desc: 'A broad timber bridge arcing over the water. One room north of here the fine homes of Tatting Street and Riverlace Lane begin.',
+    exits: { n: 'east_road', s: 'tatting_st' },
+  },
+  tatting_st: {
+    id: 'tatting_st', zone: 'town', name: 'Tatting Street',
+    desc: 'An upper-class street of stately homes running south from the Longbow Bridge before it becomes Riverlace Lane. West from room one the way returns to the bustle of the Crossing streets.',
+    exits: { n: 'longbow', s: 'riverlace', w: 'crofton_walk' },
+  },
+  riverlace: {
+    id: 'riverlace', zone: 'town', name: 'Riverlace Lane',
+    desc: 'The quiet southern turn of the housing district, where fine manors stand behind hedges and fountains. The river glints beyond the rooftops.',
+    exits: { n: 'tatting_st' },
+  },
+  crofton_walk: {
+    id: 'crofton_walk', zone: 'town', name: 'Crofton Walk',
+    desc: 'A middle-class residential lane of tidy cottages that curls into Smithy Lane. Garden tools wait by doors and laundry snaps on lines overhead.',
+    exits: { e: 'tatting_st', w: 'smithy_lane' },
+  },
+  smithy_lane: {
+    id: 'smithy_lane', zone: 'town', name: 'Smithy Lane',
+    desc: 'A lane of trim red-brick and stone-block homes named for the old smithy at its head.',
+    exits: { e: 'crofton_walk' },
+  },
+
+  // ---------- South (toward the marsh / barracks) ----------
+  tg_s: {
+    id: 'tg_s', zone: 'town', name: 'Town Green South',
+    desc: 'The southern walk of the green gives onto a quieter quarter of shrines, guard offices and the town\'s dockward roads.',
+    exits: { n: 'square', s: 'stockyard' },
+  },
+  stockyard: {
+    id: 'stockyard', zone: 'town', name: 'Stockyard',
+    desc: 'A guarded yard of pens and muster points. The Crossing Guardhouse stands here, its cells reached down a stair from the yard.',
+    exits: { n: 'tg_s', s: 'south_road', d: 'jail' },
   },
   jail: {
     id: 'jail', zone: 'town', name: 'The Town Cells', npcs: ['jailer'],
     desc: 'A low stone cell with a heavy door of iron bars. A narrow slit of daylight falls from the street above. Scratched into the wall: a list of names, and a warning.',
-    exits: { up: 'square' },
+    exits: { up: 'stockyard' },
+  },
+  south_road: {
+    id: 'south_road', zone: 'town', name: 'South Road',
+    desc: 'A road winding south toward the wharfs and the western reaches of town.',
+    exits: { n: 'stockyard', s: 'strand', w: 'sw_road' },
+  },
+
+  // ---------- Southwest / west (West Road, gate, Segoltha, strands) ----------
+  tg_sw: {
+    id: 'tg_sw', zone: 'town', name: 'Town Green Southwest',
+    desc: 'The southwestern walk of the green gives onto a lane that winds down to the riverside Strand below the bank.',
+    exits: { ne: 'square', s: 'strand' },
+  },
+  west_road: {
+    id: 'west_road', zone: 'town', name: 'West Road', npcs: ['tanner'],
+    desc: 'A dusty road heading north and west from the green. A rough track splits north toward the hills, and the West Gate stands at the road\'s end. The Needle & Thread sits at its eastern turn.',
+    exits: { s: 'tg_w', w: 'west_gate', n: 'camp_path', e: 'tailor_shop' },
+  },
+  tailor_shop: {
+    id: 'tailor_shop', zone: 'town', name: 'The Needle & Thread', npcs: ['tailor'],
+    desc: 'A warm shop crowded with stretched hides and half-stitched leathers. A long workbench runs the length of the wall, needles and awls standing ready in their racks.',
+    exits: { w: 'west_road' },
+  },
+  west_gate: {
+    id: 'west_gate', zone: 'town', name: 'West Gate', npcs: ['guard'],
+    desc: 'The massive west gate stands open. Guards watch the road that vanishes toward the Siergelde Ruins, and a caravan barn stands two rooms back inside the wall.',
+    exits: { e: 'west_road', w: 'woods_path', s: 'aldoran_barn' },
+  },
+  aldoran_barn: {
+    id: 'aldoran_barn', zone: 'town', name: 'Haldofurd\'s Barn', npcs: ['stablehand'],
+    desc: 'A great covered stable two rooms inside the West Gate, where caravans water their teams before the long haul to the ruins and the north.',
+    exits: { n: 'west_gate' },
+  },
+  strand: {
+    id: 'strand', zone: 'town', name: 'The Strand',
+    desc: 'A tree-lined river walk along the banks of the Segoltha. Boats bob at the piers and gulls wheel overhead. The Strand Communal Center stands among the trees to the south, and a bank stair climbs toward the far southwestern reaches.',
+    exits: { n: 'south_road', s: 'strand_communal', e: 'sw_road' },
+  },
+  strand_communal: {
+    id: 'strand_communal', zone: 'town', name: 'Strand Communal Center',
+    desc: 'A sheltered community hall on the Strand, its doors open to the riverside breeze. Travellers rest under the veranda and watch the ferries ply the water.',
+    exits: { n: 'strand' },
+  },
+  sw_road: {
+    id: 'sw_road', zone: 'town', name: 'Southwest Road',
+    desc: 'A riverside road skirting the far southwestern corner of town, past the bank\'s water-stair to the Segoltha and the old riverfront portage.',
+    exits: { e: 'south_road', w: 'strand', s: 'segoltha_stair' },
+  },
+  segoltha_stair: {
+    id: 'segoltha_stair', zone: 'town', name: 'Bank Stair',
+    desc: 'A stair descends from the far southwest corner of town to a landing where the bank moors boats on the Segoltha, and the Shardstar shipping office keeps the riverfront portage.',
+    exits: { n: 'sw_road' },
+  },
+
+  // ---------- Northwest (the temple quarter) ----------
+  tg_nw: {
+    id: 'tg_nw', zone: 'town', name: 'Town Green Northwest',
+    desc: 'The northwestern corner of the green, where a quiet, tree-lined road curves toward the temple quarter of the city.',
+    exits: { se: 'square', n: 'tg_n', w: 'nw_road' },
+  },
+  nw_road: {
+    id: 'nw_road', zone: 'town', name: 'Northwest Road',
+    desc: 'A quiet, tree-lined road climbing northwest out of the green. The walk grows hushed and grave as it nears the temples, and incense drifts on the air.',
+    exits: { e: 'tg_nw', w: 'temple_row' },
+  },
+  temple_row: {
+    id: 'temple_row', zone: 'town', name: 'Temple Row', npcs: ['healer'],
+    desc: 'A quiet street of shrines and prayer houses at the foot of the temple hill. The healer\'s sanctuary is here, and an iron grate in the cobbles leads down into the old sewers. An austere training hall stands to the south.',
+    exits: { n: 'temple', s: 'fane', e: 'nw_road', d: 'sewers_1' },
+  },
+  fane: {
+    id: 'fane', zone: 'town', name: 'Fane of Training', npcs: ['fane_keeper'],
+    desc: 'A vaulted training hall hung with the banners of a hundred pilgrims. Eight alcoves ring the walls, each devoted to a single attribute. Novices squat in meditation, steeling body and mind.',
+    exits: { n: 'temple_row' },
   },
   temple: {
     id: 'temple', zone: 'town', name: 'Temple of the Pantheon', npcs: ['healer'],
-    desc: 'A vaulted hall lit by candles and shafts of stained light. Priests tend the wounded on low cots. A great door at the back opens onto the High Temple.',
-    exits: { n: 'temple_row', s: 'high_temple' },
+    desc: 'A vaulted hall lit by candles and shafts of stained light. Priests tend the wounded on low cots, and a great library shelves the scrolls of the faith. A door at the back leads into the High Temple.',
+    exits: { n: 'high_temple', s: 'temple_row' },
   },
+  high_temple: {
+    id: 'high_temple', zone: 'town', name: 'The High Temple',
+    desc: 'The great temple of the Crossing, its vaulted ceiling painted with the deeds of the gods. Altars to the Thirteen ring the sanctum, each crowned by a blazing Eye, and the air itself weighs heavy with faith.',
+    exits: { n: 'immortals_approach', s: 'temple' },
+  },
+  immortals_approach: {
+    id: 'immortals_approach', zone: 'town', name: 'Immortals\' Approach',
+    desc: 'A paved approach leading from the northwest quarter to the great spherical mass of the Crossing High Temple. Priests and pilgrims pass here on their way to the gates of the sanctuary.',
+    exits: { s: 'high_temple' },
+  },
+
+  // ---------- The Guild District (west of the green) ----------
   guild_district: {
     id: 'guild_district', zone: 'town', name: 'Guild District', npcs: ['towncrier'],
-    desc: 'An avenue of grand guildhalls, each flying a banner of its order. Stone faces watch the street. North and south run long rows of guild halls; a quiet cloister stands to the east.',
-    exits: { w: 'square', n: 'guild_halls_n', s: 'guild_halls_s', e: 'academy' },
+    desc: 'An avenue of grand guildhalls, each flying a banner of its order. Stone faces watch the street. Rows of halls run north and south, and the quiet cloister of Asemath Academy stands to the east.',
+    exits: { n: 'guild_halls_n', s: 'guild_halls_s', e: 'academy', w: 'tg_w' },
+  },
+  academy: {
+    id: 'academy', zone: 'town', name: 'Asemath Academy',
+    desc: 'A quiet cloister of the College of Asemath, its walls lined with scrolls and star charts. Scholars murmur over desks, and the air smells of old parchment and ink.',
+    exits: { w: 'guild_district' },
   },
   guild_halls_n: {
     id: 'guild_halls_n', zone: 'town', name: 'North Guild Row',
@@ -123,7 +343,7 @@ export const ROOMS = {
   },
   hall_barbarian: { id: 'hall_barbarian', zone: 'town', name: 'Barbarian Guildhall', npcs: ['leader_barbarian'], desc: 'Raw timbers, rough stone, and the smell of woodsmoke. Trophies of tooth and claw hang from the walls.', exits: { s: 'guild_halls_n', n: 'hall_bard' } },
   hall_bard: { id: 'hall_bard', zone: 'town', name: 'Bard Guildhall', npcs: ['leader_bard'], desc: 'Velvet drapes muffle the warm glow of lanterns. A lone lute rests on a stand, still humming.', exits: { s: 'hall_barbarian', n: 'hall_cleric' } },
-  hall_cleric: { id: 'hall_cleric', zone: 'town', name: 'Cleric Guildhall', npcs: ['leader_cleric'], desc: 'Incense smoke curls beneath painted arches. Altars line the walls, each to a different god.', exits: { s: 'hall_bard', n: 'hall_empath' } },
+  hall_cleric: { id: 'hall_cleric', zone: 'town', name: 'Cleric Guildhall', npcs: ['leader_cleric'], desc: 'A hall of incense and candlelight, its walls painted with the stories of the gods. Soft hymns echo from a chapel beyond.', exits: { s: 'hall_bard', n: 'hall_empath' } },
   hall_empath: { id: 'hall_empath', zone: 'town', name: 'Empath Guildhall', npcs: ['leader_empath'], desc: 'A sunlit garden room of soft cushions and trickling water. The air feels warm and alive.', exits: { s: 'hall_cleric', n: 'hall_moonmage' } },
   hall_moonmage: { id: 'hall_moonmage', zone: 'town', name: 'Moon Mage Guildhall', npcs: ['leader_moonmage'], desc: 'A domed observatory open to the sky. Constellations are charted across the ceiling in silver.', exits: { s: 'hall_empath', n: 'hall_necromancer' } },
   hall_necromancer: { id: 'hall_necromancer', zone: 'town', name: 'Necromancer Guildhall', npcs: ['leader_necromancer'], desc: 'A cold, quiet hall of dark marble. Candle flames burn with an odd, steady stillness.', exits: { s: 'hall_moonmage' } },
@@ -137,25 +357,32 @@ export const ROOMS = {
   hall_thief: { id: 'hall_thief', zone: 'town', name: 'Thief Guildhall', npcs: ['leader_thief'], desc: 'An unremarkable tenement door opens onto a den of quiet shadows and muffled counting.', exits: { n: 'hall_ranger', s: 'hall_trader' } },
   hall_trader: { id: 'hall_trader', zone: 'town', name: 'Trader Guildhall', npcs: ['leader_trader'], desc: 'A ledger room of polished wood and locked chests. Scale models of ships and wagons sit on shelves.', exits: { n: 'hall_thief', s: 'hall_warmage' } },
   hall_warmage: { id: 'hall_warmage', zone: 'town', name: 'Warrior Mage Guildhall', npcs: ['leader_warmage'], desc: 'Scorch marks ring the dueling circle at the center. Elemental runes pulse along the stone columns.', exits: { n: 'hall_trader' } },
-  west_road: {
-    id: 'west_road', zone: 'town', name: 'West Road', npcs: ['tanner'],
-    desc: 'A dusty road heading west past shops and toward the town gate. The smell of the forest begins to creep in, and a rough track splits north toward the hills.',
-    exits: { e: 'square', w: 'west_gate', n: 'camp_path', s: 'tailor_shop' },
+
+  // ---------- East Gate & docks ----------
+  middens: {
+    id: 'middens', zone: 'town', name: 'The Middens',
+    desc: 'A sprawling junkyard where the town throws what it cannot sell. Rusted pikes, cracked amphorae, and heaps of nameless scrap lie in drifts. Scavengers pick through the refuse for anything worth a copper.',
+    exits: { n: 'east_road' },
   },
-  tailor_shop: {
-    id: 'tailor_shop', zone: 'town', name: 'The Needle & Thread', npcs: ['tailor'],
-    desc: 'A warm shop crowded with stretched hides and half-stitched leathers. A long workbench runs the length of the wall, needles and awls standing ready in their racks.',
-    exits: { n: 'west_road' },
+  docks: {
+    id: 'docks', zone: 'town', name: 'The Docks', npcs: ['dockmaster'],
+    desc: 'Planked piers crowd the riverbank, where barges and fishing skiffs creak at their moorings. Stevedores haul crates down the gangplanks, and the river smells of wet rope and fish. A barge at the far pier takes passengers upriver, and an inn door stands open to the west.',
+    exits: { s: 'market_end', n: 'pier', w: 'half_pint' },
   },
-  west_gate: {
-    id: 'west_gate', zone: 'town', name: 'West Gate', npcs: ['guard'],
-    desc: 'The massive west gate stands open. Guards watch the road that vanishes into the Old Woods.',
-    exits: { e: 'west_road', w: 'woods_path' },
+  half_pint: {
+    id: 'half_pint', zone: 'town', name: 'The Half Pint Inn', tavern: true,
+    desc: 'A dockside inn of creaking timber and salt haze. Bards and stevedores crowd the taproom, and a balcony over the river lets customers watch the gulls and the ferries. The bunks are dry and the ale is brisk — a good place to rest.',
+    exits: { e: 'docks' },
   },
-  east_gate: {
-    id: 'east_gate', zone: 'town', name: 'East Gate', npcs: ['guard'],
-    desc: 'The east gate opens onto farmlands. A cold mist rises from a low marsh beyond the fields.',
-    exits: { w: 'east_road', e: 'marsh_1' },
+  pier: {
+    id: 'pier', zone: 'town', name: 'Amusement Pier', npcs: ['pier_master'],
+    desc: 'A gaily painted pier of stalls and games. Lanterns bob overhead, and a crowd gathers around a coin-toss table where a grinning fellow wins more than he loses. A barge moors at the end of the pier.',
+    exits: { s: 'docks', w: 'rh_square' },
+  },
+  market_end: {
+    id: 'market_end', zone: 'town', name: 'Bank Landing', npcs: ['banker', 'quartermaster'],
+    desc: 'The water-gate to the bank\'s riverfront, where crates of coin and ledger-scrolls are landed. The docks lie upriver, and the market court climbs away south.',
+    exits: { n: 'docks', s: 'bank_plaza' },
   },
 
   // ================ HUNTING GROUNDS ================
@@ -185,8 +412,8 @@ export const ROOMS = {
     exits: { up: 'sewers_4' },
   },
   woods_path: {
-    id: 'woods_path', zone: 'woods', name: 'Forest Trail', spawns: ['goblin'],
-    desc: 'A rutted trail winds between towering pines. Shadows flicker between the trunks.',
+    id: 'woods_path', zone: 'woods', name: 'Siergelde Road', spawns: ['goblin'],
+    desc: 'A rutted trail winds between towering pines toward the Siergelde Ruins. Shadows flicker between the trunks.',
     exits: { e: 'west_gate', n: 'woods_1', s: 'woods_2' },
   },
   woods_1: {

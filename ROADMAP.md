@@ -207,6 +207,10 @@ The web client is the surface for automation. All scripting is **client-side**
 | Tab completion from command dictionary | ✅ |
 | Status bar parsed from server prompt | ✅ (HP/mana/stamina/RT gauges, circle, silvers, combat flag) |
 | **Pinned room panel** (DR room window: `[[Room, Area]]`, description, `Obvious paths`, compass) | ✅ |
+| **DR-style window manager** (each pane collapsible + show/hideable, `Windows` menu, persisted) | ✅ |
+| **Room contents DR phrasing** (`Here:` creatures/players · `You also see <objects>.`) | ✅ |
+| **Combat window with live status line** (target HP/range + `COMBAT · RT ns`) | ✅ |
+| **EXP (Thoughts) window** with `N skills learning` count | ✅ |
 | **Hands bar** (Hand / Worn / Carried from the `hands` message) | ✅ |
 | **EXP + INFO toolbar buttons** (docked exp/info panels) | ✅ |
 | **Watch any player live** (`/?spectate=Name` deep-link; room/hands snapshot on subscribe) | ✅ |

@@ -50,8 +50,12 @@ game stream and drives the gauges from them.
 | `LOOK`/`L`/`l` re-display room | `l: look` alias, case-insensitive dispatch |
 | Compass rose | `public/js/compass.js` — 3×3 + U/D clickable compass, lit by available exits |
 | Pinned room window | `#room-panel` — title, description, `Obvious paths`, compass (always visible) |
+| **DR-style window manager** | each dock/rail pane is an independent, collapsible, show/hideable window; `Windows` menu toggles visibility + collapse, persisted per-browser (`dr_windows_v1`) |
+| Room contents DR phrasing | the pinned room panel separates `Here: <creatures/players>` from `You also see <objects>.` (webclient object-line feel) |
 | Hands window | `#hands-bar` — Hand / Worn / Carried from the `hands` push message |
 | Vitals bars | `#status-strip` — HP / Mana / Stamina / RT gauges parsed from the prompt |
+| Combat window | `#target-widget` promoted to a live combat window with a header status line (`COMBAT · RT ns`) plus per-foe HP/range bars |
+| EXP (Thoughts) window | the field-experience pane is a live window: every skill learning with rank + mindstate, plus an `N skills learning` count |
 | EXP + INFO buttons | toolbar buttons open docked `exp` / `info` panels |
 | Combat ranges | missile/pole/melee with `advance`/`retreat`/`flee`/`assess`; weapon reach |
 | Roundtime | DR weapon-class RT table; `RT: n` in the prompt; actions gated |

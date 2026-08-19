@@ -2,6 +2,7 @@
 import { $, stripAnsi } from './util.js';
 import { settings, stripEffective, saveSettings } from './settings.js';
 import { buildCompassRose } from './compass.js';
+import { revealWindow, clearWindowSeen, applyWindow } from './windows.js';
 
 let lastRoom = { name: null, exits: [] };
 let promptState = null;
@@ -35,12 +36,11 @@ export function renderRoomPanel(msg) {
   const compass = $('rp-compass');
   compass.innerHTML = '';
   compass.appendChild(buildCompassRose(exits));
-  panel.hidden = false;
+  revealWindow('room-panel');
 }
 
 export function hideRoomPanel() {
-  const panel = $('room-panel');
-  if (panel) panel.hidden = true;
+  clearWindowSeen('room-panel');
 }
 
 // Persistent hands bar: what you hold, wear, and carry (DR hands window).
@@ -51,12 +51,11 @@ export function renderHands(msg) {
   $('hands-hand').textContent = `Hand: ${hand}`;
   $('hands-worn').textContent = msg.worn && msg.worn.length ? `Worn: ${msg.worn.join(', ')}` : '';
   $('hands-carried').textContent = `Carried: ${msg.carried || 0}`;
-  bar.hidden = false;
+  revealWindow('hands-bar');
 }
 
 export function hideHands() {
-  const bar = $('hands-bar');
-  if (bar) bar.hidden = true;
+  clearWindowSeen('hands-bar');
 }
 
 export function roomNameOf(text) {
@@ -96,8 +95,10 @@ export function parsePrompt(text) {
     rt: rt ? Number(rt[1]) : 0,
     hidden: /\[Hidden\]/.test(plain),
     resting: /\[Resting\]/.test(plain),
+    stance: /\b(aggressive|defensive|guarded) stance\b/i.test(plain) || null,
   };
   renderStatusStrip();
+  renderCombatStatus();
 }
 
 export function renderStatusStrip() {
@@ -135,16 +136,18 @@ export function renderStatusStrip() {
   if (rt > 0) $('strip-rt').textContent = `RT: ${rt}`;
   $('strip-hidden').hidden = !promptState.hidden;
   $('strip-resting').hidden = !promptState.resting;
+  renderCombatStatus();
 }
 
-// Target window (DR combat pane): per-foe HP/range while you fight.
+// Target window (DR combat pane): per-foe HP/range while you fight, plus a
+// live status line (roundtime / stance) derived from the prompt.
 let targets = [];
 export function renderTargets(msg) {
   const wrap = $('target-widget');
   if (!wrap) return;
   targets = (msg && msg.enemies) || [];
-  if (!targets.length) { wrap.hidden = true; return; }
-  wrap.hidden = false;
+  if (!targets.length) { clearWindowSeen('target-widget'); return; }
+  revealWindow('target-widget');
   const row = $('target-row');
   row.innerHTML = '';
   for (const t of targets) {
@@ -165,20 +168,41 @@ export function renderTargets(msg) {
     bar.appendChild(hp);
     row.appendChild(bar);
   }
+  renderCombatStatus();
 }
 
-// Room contents line in the pinned room panel (who/what is here).
+// Live combat header line: roundtime + stance, parsed from the prompt state.
+function renderCombatStatus() {
+  const pill = $('combat-status');
+  if (!pill) return;
+  const bits = [];
+  const st = promptState;
+  if (st && st.combat) bits.push('COMBAT');
+  if (st && st.rt > 0) bits.push(`RT ${st.rt}s`);
+  if (st && st.stance) bits.push(st.stance);
+  pill.textContent = bits.length ? bits.join(' \u00b7 ') : '';
+  pill.hidden = !bits.length;
+}
+
+// Room contents line in the pinned room panel (who/what is here), using DR
+// phrasing: creatures/players on a "Here:" line, floor objects on a separate
+// "You also see ..." line (matching the webclient's object list).
 export function renderRoomContents(contents) {
   const el = $('rp-contents');
   if (!el) return;
-  const parts = [];
+  const blocks = [];
+  const here = [];
   if (contents && contents.creatures && contents.creatures.length) {
-    parts.push(contents.creatures.map((c) => `${c.name}${c.state && c.state !== 'in good shape' ? ` (${c.state})` : ''}`).join(', '));
+    here.push(contents.creatures.map((c) => `${c.name}${c.state && c.state !== 'in good shape' ? ` (${c.state})` : ''}`).join(', '));
   }
-  if (contents && contents.npcs && contents.npcs.length) parts.push(contents.npcs.join(', '));
-  if (contents && contents.players && contents.players.length) parts.push(contents.players.join(', '));
-  if (contents && contents.items && contents.items.length) parts.push(`on the ground: ${contents.items.join(', ')}`);
-  el.textContent = parts.length ? `Here: ${parts.join(' · ')}` : '';
+  if (contents && contents.npcs && contents.npcs.length) here.push(contents.npcs.join(', '));
+  if (contents && contents.players && contents.players.length) here.push(contents.players.join(', '));
+  if (here.length) blocks.push(`Here: ${here.join(' · ')}`);
+  if (contents && contents.items && contents.items.length) {
+    blocks.push(`You also see ${contents.items.join(', ')}.`);
+  }
+  el.textContent = blocks.join('\n');
+  // Give the "You also see" line DR flavor (amber like gem drops are caught by highlights elsewhere).
 }
 
 // FE tracker (DR field-experience pane): skills currently learning.
@@ -187,13 +211,23 @@ export function renderFe(msg) {
   if (!row) return;
   const skills = (msg && msg.skills) || [];
   row.innerHTML = '';
+  const count = $('fe-count');
+  if (count) {
+    if (!skills.length) count.hidden = true;
+    else {
+      count.hidden = false;
+      count.textContent = `${skills.length} skill${skills.length === 1 ? '' : 's'} learning`;
+    }
+  }
   if (!skills.length) {
     const empty = document.createElement('div');
     empty.className = 'fe-empty';
     empty.textContent = 'clear';
     row.appendChild(empty);
+    revealWindow('fe-tracker');
     return;
   }
+  revealWindow('fe-tracker');
   for (const s of skills) {
     const div = document.createElement('div');
     div.className = 'fe-line';

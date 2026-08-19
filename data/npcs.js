@@ -100,6 +100,18 @@ export const NPCS = {
     desc: 'A razor-thin woman in grey, chalk in hand, watching the board with hungry eyes.',
     greeting: 'The board moves every hour. Buy low, sell high, and don\'t blink. Say "pit" to read the prices.',
   },
+  mags: {
+    id: 'mags', name: 'Mags, the firewood peddler', role: 'shop',
+    desc: 'Short and round, Mags is a motherly peddler in bright, oft-patched garments and a merry blue scarf. A bin half full of sticks and branches rests beside her.',
+    greeting: 'Sell me sticks and branches for a few coppers, dearie. Say "sell branch" or "sell stick" — I pay fair for kindling.',
+    stock: {},
+    buys: ['stick', 'branch'],
+  },
+  stablehand: {
+    id: 'stablehand', name: 'Nance, the stablehand', role: 'info',
+    desc: 'A cheerful woman in a leather vest, forking hay and chatting with caravan drivers.',
+    greeting: 'The caravans water their teams here on the way to the ruins and the north. Ask me about the town with "ask Nance help".',
+  },
 
   // Guild leaders (trainers)
   leader_barbarian: { id: 'leader_barbarian', name: 'Warchief Ulfgar', role: 'guild', guild: 'barbarian', desc: 'A mountain of a man with a beard braided with trophies.', greeting: 'The wild calls to those with fury in their blood. Say "circle" when you are ready to advance.' },

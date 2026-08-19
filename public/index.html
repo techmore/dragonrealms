@@ -21,6 +21,10 @@
         <button id="btn-skills" class="tool" title="Skills">Skills</button>
         <button id="btn-spells" class="tool" title="Spells">Spells</button>
         <button id="btn-scripts" class="tool" title="Macros, timers, triggers, DR scripts">Scripts</button>
+        <div id="btn-windows" class="windows-wrap">
+          <button id="windows-btn" class="tool" title="Windows: show or hide each Docked window">Windows</button>
+          <div id="windows-menu" class="windows-menu" hidden></div>
+        </div>
         <button id="settings-btn" class="tool" title="Settings">&#9881;</button>
       </nav>
     </span>
@@ -28,55 +32,69 @@
 
   <main id="app">
     <aside id="leftrail">
-      <section id="status-strip" aria-label="Vitals">
-        <div class="rail-kicker">VITALS</div>
-        <div id="strip-room" class="rail-room" title="Room">&#8212;</div>
-        <div class="gauge" title="Health"><span class="gauge-fill" id="strip-hp-fill"></span><span class="gauge-label" id="strip-hp-label">HP --</span></div>
-        <div class="gauge gauge-mana" id="strip-mana-wrap" title="Mana" hidden><span class="gauge-fill" id="strip-mana-fill"></span><span class="gauge-label" id="strip-mana-label">Mana --</span></div>
-        <div class="gauge gauge-stamina" id="strip-stamina-wrap" title="Stamina" hidden><span class="gauge-fill" id="strip-stamina-fill"></span><span class="gauge-label" id="strip-stamina-label">Stamina --</span></div>
-        <div class="rail-meta">
-          <span id="strip-circle" class="strip-dim">Circle --</span>
-          <span id="strip-silver" class="strip-dim">-- silvers</span>
-        </div>
-        <div class="rail-chips">
-          <span id="strip-combat" class="strip-combat" hidden>[COMBAT]</span>
-          <span id="strip-rt" class="strip-rt" hidden>RT: --</span>
-          <span id="strip-hidden" class="strip-chip strip-hidden-chip" hidden>&#128064; Hidden</span>
-          <span id="strip-resting" class="strip-chip strip-resting-chip" hidden>&#128164; Resting</span>
+      <section class="dwin" data-window="status-strip" id="status-strip-sec">
+        <div class="dwin-head rail-kicker">VITALS<button class="dwin-collapse" data-collapse="status-strip" title="Collapse">&#9660;</button></div>
+        <div class="dwin-body" id="status-strip">
+          <div id="strip-room" class="rail-room" title="Room">&#8212;</div>
+          <div class="gauge" title="Health"><span class="gauge-fill" id="strip-hp-fill"></span><span class="gauge-label" id="strip-hp-label">HP --</span></div>
+          <div class="gauge gauge-mana" id="strip-mana-wrap" title="Mana" hidden><span class="gauge-fill" id="strip-mana-fill"></span><span class="gauge-label" id="strip-mana-label">Mana --</span></div>
+          <div class="gauge gauge-stamina" id="strip-stamina-wrap" title="Stamina" hidden><span class="gauge-fill" id="strip-stamina-fill"></span><span class="gauge-label" id="strip-stamina-label">Stamina --</span></div>
+          <div class="rail-meta">
+            <span id="strip-circle" class="strip-dim">Circle --</span>
+            <span id="strip-silver" class="strip-dim">-- silvers</span>
+          </div>
+          <div class="rail-chips">
+            <span id="strip-combat" class="strip-combat" hidden>[COMBAT]</span>
+            <span id="strip-rt" class="strip-rt" hidden>RT: --</span>
+            <span id="strip-hidden" class="strip-chip strip-hidden-chip" hidden>&#128064; Hidden</span>
+            <span id="strip-resting" class="strip-chip strip-resting-chip" hidden>&#128164; Resting</span>
+          </div>
         </div>
       </section>
-      <section id="hands-bar" aria-label="Hands" hidden>
-        <div class="rail-kicker">HANDS</div>
-        <div id="hands-hand" class="hands-item">Hand: &#8212;</div>
-        <div id="hands-worn" class="hands-item"></div>
-        <div id="hands-carried" class="hands-item"></div>
+      <section class="dwin" data-window="hands-bar" id="hands-container" hidden>
+        <div class="dwin-head rail-kicker">HANDS<button class="dwin-collapse" data-collapse="hands-bar" title="Collapse">&#9660;</button></div>
+        <div class="dwin-body" id="hands-bar">
+          <div id="hands-hand" class="hands-item">Hand: &#8212;</div>
+          <div id="hands-worn" class="hands-item"></div>
+          <div id="hands-carried" class="hands-item"></div>
+        </div>
       </section>
-      <section id="fe-tracker" aria-label="Field experience">
-        <div class="rail-kicker">FIELD EXPERIENCE</div>
-        <div id="fe-row"></div>
+      <section class="dwin" data-window="fe-tracker" id="fe-container">
+        <div class="dwin-head rail-kicker">EXP (THOUGHTS)<button class="dwin-collapse" data-collapse="fe-tracker" title="Collapse">&#9660;</button></div>
+        <div class="dwin-body" id="fe-tracker">
+          <div id="fe-count" class="fe-count" hidden></div>
+          <div id="fe-row"></div>
+        </div>
       </section>
     </aside>
     <div id="story">
       <div id="terminal" aria-live="polite"></div>
     </div>
     <aside id="dock" hidden>
-      <section id="room-panel" aria-label="Room" hidden>
-        <div id="rp-title" class="room-panel-title"></div>
-        <div id="rp-desc" class="room-panel-desc"></div>
-        <div id="rp-contents" class="room-panel-contents"></div>
-        <div class="room-panel-foot">
-          <div id="rp-exits" class="room-panel-exits"></div>
-          <div id="rp-compass"></div>
+      <section class="dwin" data-window="room-panel" id="room-panel" aria-label="Room">
+        <div class="dwin-head rail-kicker">ROOM<button class="dwin-collapse" data-collapse="room-panel" title="Collapse">&#9660;</button></div>
+        <div class="dwin-body">
+          <div id="rp-title" class="room-panel-title"></div>
+          <div id="rp-desc" class="room-panel-desc"></div>
+          <div id="rp-contents" class="room-panel-contents"></div>
+          <div class="room-panel-foot">
+            <div id="rp-exits" class="room-panel-exits"></div>
+            <div id="rp-compass"></div>
+          </div>
+          <div id="rp-hint" class="room-panel-hint">move: n s e w ne nw se sw u d (or click the compass) &middot; type <b>help</b> for every command</div>
         </div>
-        <div id="rp-hint" class="room-panel-hint">move: n s e w ne nw se sw u d (or click the compass) &middot; type <b>help</b> for every command</div>
       </section>
-      <section id="target-widget" aria-label="Targets" hidden>
-        <div class="dock-kicker">TARGET</div>
-        <div id="target-row"></div>
+      <section class="dwin" data-window="target-widget" id="target-container" aria-label="Targets">
+        <div class="dwin-head rail-kicker">COMBAT<button class="dwin-collapse" data-collapse="target-widget" title="Collapse">&#9660;</button><span id="combat-status" class="dwin-status" hidden></span></div>
+        <div class="dwin-body" id="target-widget">
+          <div id="target-row"></div>
+        </div>
       </section>
-      <section id="chat-widget" aria-label="Conversations" hidden>
-        <div class="dock-kicker">CONVERSATIONS</div>
-        <div id="chat-row"></div>
+      <section class="dwin" data-window="chat-widget" id="chat-container" aria-label="Conversations">
+        <div class="dwin-head rail-kicker">CONVERSATIONS<button class="dwin-collapse" data-collapse="chat-widget" title="Collapse">&#9660;</button></div>
+        <div class="dwin-body" id="chat-widget">
+          <div id="chat-row"></div>
+        </div>
       </section>
       <section id="panel-wrap" hidden>
         <div id="panel-head">

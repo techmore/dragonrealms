@@ -7,3 +7,9 @@ data/store/
 
 bin/
 bins/
+
+# Local ML model (huge, not for git)
+Qwen3.8-27B-Uncensored-MLX/
+
+# scratch / tmp notes
+tmp-*.md
