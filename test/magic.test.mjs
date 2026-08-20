@@ -113,10 +113,10 @@ test('mana pulses regen and cambrinth stores energy', async () => {
   p.ws = ws;
   game.addPlayer(p);
 
-  // Mana regenerates in pulses while logged in.
+  // Mana regenerates in pulses while logged in (tickers are stopped in the
+  // test harness, so drive the pulse directly like combat.test.mjs).
   p.mana = 5;
-  const t0 = Date.now();
-  while (p.mana === 5 && Date.now() - t0 < 8000) await new Promise((r) => setTimeout(r, 400));
+  game.manaPulse();
   assert.ok(p.mana > 5, 'mana regen pulses restore mana');
 
   // Charge a cambrinth band: mana spent, energy stored, arcana trains.
@@ -231,7 +231,7 @@ test('warmage familiar summons, fights, and survives death', async () => {
   game.addPlayer(p);
 
   handleCommand(game, p, 'summon familiar'); // not at the hall
-  assert.equal(p.familiar, undefined, 'binding requires the hall');
+  assert.equal(p.familiar, null, 'binding requires the hall');
 
   p.room = 'hall_warmage';
   p.skills.summoning.rank = 1;
