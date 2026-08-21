@@ -496,9 +496,13 @@ export class Combat {
   }
 
   // --- Ambush from hiding: a preemptive strike that breaks concealment ---
-  ambushAttack(targetUid) {
+  ambushAttack(targetUid, move = null) {
     const p = this.player;
-    if (!this.spendStamina(10)) return;
+    if (move) {
+      if (p.guild.id !== 'thief') return this.say('Only thieves know the ambush moves.');
+      if (p.circle < move.minCircle) return this.say(`${move.name} comes at circle ${move.minCircle}.`);
+      if (!this.spendStamina(move.stamina)) return;
+    } else if (!this.spendStamina(10)) return;
     const target = this.enemies.find((e) => e.uid === targetUid && !e.dead);
     if (!target) { this.say('Your ambush finds no target.'); p.hidden = false; return; }
     const w = weaponOf(p);
@@ -509,7 +513,8 @@ export class Combat {
     const def = target.def.defense + target.def.stats.ref * 0.03;
     const hit = Math.random() < clamp(0.6 + (atk - def) * 0.012, 0.2, 0.97);
 
-    p.hidden = false;
+    // Screen: strike and slip straight back into hiding.
+    if (!(move && move.rescreen && hit)) p.hidden = false;
     if (!hit) {
       this.announce(
         `You spring from hiding at ${target.def.name}, but it twists away!`,
@@ -528,12 +533,26 @@ export class Combat {
       dmg = rand(3, 7) + Math.floor(p.stats.str * 0.1);
     }
     dmg = Math.floor(dmg * (1.5 + stealth * 0.02));
+    if (move) dmg = Math.floor(dmg * move.dmgMult);
     if (p.khri && p.khri.dampen > 0) dmg = Math.floor(dmg * 1.3);
     if (p.khri && p.khri.stealth > 0) dmg = Math.floor(dmg * 1.25);
     if (p.khri && p.khri.sight > 0) dmg = Math.floor(dmg * 1.15);
+    let moveNote = '';
+    if (move && move.stunTicks) {
+      target.stunnedTicks = move.stunTicks;
+      moveNote = ` ${cap(target.def.name)} reels, stunned!`;
+    }
+    if (move && move.chokeTicks) {
+      target.chokedTicks = move.chokeTicks;
+      moveNote = ` You clamp a forearm across ${target.def.name}'s throat — its blows weaken.`;
+    }
+    if (move && move.rescreen) {
+      moveNote = ' You melt back into the shadows.';
+      p.hidden = true;
+    }
     this.announce(
-      `You burst from hiding and strike ${target.def.name} for ${dmg} damage!`,
-      `${p.name} bursts from hiding and strikes you for ${dmg} damage!`
+      `You burst from hiding and strike ${target.def.name} for ${dmg} damage!${moveNote}`,
+      `${p.name} bursts from hiding and strikes you for ${dmg} damage!${move && move.stunTicks ? ' The world rings white — you cannot act!' : ''}`
     );
     gainSkillExp(p, skillId, 10);
     gainSkillExp(p, 'stealth', 8);
@@ -1307,6 +1326,12 @@ export class Combat {
     // their own — docile ones hold ground until the player advances.
     for (const e of this.aliveEnemies) {
       if (e.dead || this._ended) continue;
+      // Stunned (ambush moves): reeling — no attack this tick.
+      if (e.stunnedTicks > 0) {
+        e.stunnedTicks -= 1;
+        if (e.stunnedTicks <= 0) this.say(`${cap(e.def.name)} shakes off the stunning blow!`);
+        continue;
+      }
       if (e.impededTicks > 0) continue; // bound by clinging earth
       const magicAtk = SKILLS[e.def.weapon.skill] && SKILLS[e.def.weapon.skill].cat === CATEGORIES.MAGIC;
       if (e.range !== 'melee' && !magicAtk) {

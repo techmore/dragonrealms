@@ -1,5 +1,5 @@
 // Combat commands: engagement, maneuvers, stances, PvP, barbarian/thief arts.
-import { KHRI, khriById, concentrationPool, khriConcentrationUsed, KHRI_TICKS } from '../../data/khri.js';
+import { KHRI, khriById, concentrationPool, khriConcentrationUsed, KHRI_TICKS, ambushMoveById } from '../../data/khri.js';
 import { barbarianAbilityById, barbarianAbilitiesFor, barbarianSlots, ABILITY_PATHS, VOICE_POOL } from '../../data/abilities.js';
 import { roomById } from '../../data/world.js';
 import { gainSkillExp, skillRank, stancePoints, STANCES, STANCE_COSTS, setRoundtime } from '../player.js';
@@ -73,13 +73,23 @@ function hide(ctx) {
 }
 
 function ambush(ctx) {
-  const { game, p, arg1, emit } = ctx;
+  const { game, p, arg1, arg2, emit } = ctx;
   if (!p.hidden) return emit('You must be hiding to ambush. Try "hide" first.');
   let combat = game.combat.getFor(p);
   if (combat && combat.defender === p) return emit('You are locked in an automatic duel.');
+  // Optional ambush move: "ambush <creature> <move>" or "ambush <move>".
+  let move = null;
+  let targetName = arg1;
+  if (arg2) {
+    move = ambushMoveById(arg2.toLowerCase());
+    if (!move) return emit('Unknown ambush move. Thieves know: clout, screen, stun, choke.');
+  } else if (arg1 && ambushMoveById(arg1.toLowerCase()) && !game.findCreature(p.room, arg1)) {
+    move = ambushMoveById(arg1.toLowerCase());
+    targetName = null;
+  }
   let uid = combat ? combat.playerTarget : null;
-  if (!combat) {
-    const creature = arg1 ? game.findCreature(p.room, arg1) : null;
+  if (!combat || !uid) {
+    const creature = targetName ? game.findCreature(p.room, targetName) : null;
     if (creature) {
       game.startCombat(p, [creature.def]);
       combat = game.combat.getFor(p);
@@ -88,7 +98,7 @@ function ambush(ctx) {
       return emit('There is nothing to ambush here. Try "attack <creature>" first.');
     }
   }
-  combat.ambushAttack(uid);
+  combat.ambushAttack(uid, move);
   setRoundtime(p, 4);
   game.status(p);
 }

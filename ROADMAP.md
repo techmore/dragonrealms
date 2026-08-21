@@ -390,7 +390,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Feature | Status |
 |---|---|
 | Khri: concentration-based buffs (9: Elusion, Focus, Nimbleness, Dampen, Strike, Sight, Stealth, Swiftness, Clarity), limited by concentration + Stealth skill | 🚧 v1 live; full khri family + pulse upkeep pending |
-| Blindside (surprise attack from hiding), Ambush Moves (Stun, Choke, Ignite, Clout, Screen), Poison Resistance, Mark/Glance | ⬜ |
+| Blindside (surprise attack from hiding), Ambush Moves (Stun, Choke, Ignite, Clout, Screen), Poison Resistance, Mark/Glance | 🚧 blindside = the hidden strike (live); ambush moves live — `ambush <creature> clout|screen|stun|choke` circle-gated with stun/skip, re-hide, and halve-damage effects (Ignite needs a fire source; not modeled) |
 | Passages (city shortcuts), Contacts (+1/20 circles), Lockpick carving (12+), Slip, Voice throw | ⬜ |
 | Urban bonus / Reputation (heat → guild punishment) / Confidence mechanics | ⬜ |
 | Faithful circle table (1–10): Thievery 2 soft, Stealth 2 soft, Inner Magic 1, 1st–8th survival 4/4/3/3/3/2/2/1, 1st/2nd weapon 3/1, Parry Ability 1, 1st armor 2, 1st–3rd lore 1/1/1, 1st/2nd magic 1/0 | ✅ (live in the band-table engine) |

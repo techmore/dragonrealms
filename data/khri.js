@@ -61,3 +61,33 @@ export function khriConcentrationUsed(p) {
   }
   return used;
 }
+
+// ---- Ambush moves (Pillar 20, compressed) ----
+// Thieves extend a hidden strike with a finishing trick. Each move gates on
+// circle and adds stamina to the ambush; effects ride combat status ticks.
+export const AMBUSH_MOVES = {
+  clout: {
+    id: 'clout', name: 'Clout', minCircle: 4, stamina: 12,
+    dmgMult: 1.2, stunTicks: 1,
+    desc: 'A pommel blow snaps the head aside — the foe loses its next attack.',
+  },
+  screen: {
+    id: 'screen', name: 'Screen', minCircle: 5, stamina: 12,
+    dmgMult: 1.0, rescreen: true,
+    desc: 'Strike and melt straight back into hiding.',
+  },
+  stun: {
+    id: 'stun', name: 'Stun', minCircle: 6, stamina: 14,
+    dmgMult: 1.0, stunTicks: 2,
+    desc: 'A nerve-rattling strike — the foe loses its next two attacks.',
+  },
+  choke: {
+    id: 'choke', name: 'Choke', minCircle: 8, stamina: 14,
+    dmgMult: 0.8, chokeTicks: 4,
+    desc: 'A forearm across the throat — the foe\u2019s damage is halved for four ticks.',
+  },
+};
+
+export function ambushMoveById(id) {
+  return AMBUSH_MOVES[id] || null;
+}
