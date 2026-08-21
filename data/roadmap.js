@@ -74,7 +74,7 @@ export const FEATURES = [
   { s:5, id:"f40", label:"TDP awards from rank-ups + circle bonus", detail:"mirrors source game: ranks in skills grant TDPs", status:"done" },
   { s:5, id:"f41", label:"Spend TDPs on stats", detail:"Fane of Training, train-twice (DR-authentic)", status:"done" },
   { s:5, id:"f42", label:"Spend TDPs on skills", detail:"'tdptrain <skill>' trains any skill", status:"done" },
-  { s:5, id:"f43", label:"Circle caps on skills", detail:"next-circle ceiling is (circle + 1) × 4, so c9 can train rank 40 for c10", status:"done" },
+  { s:5, id:"f43", label:"Circle caps on skills", detail:"superseded by DR's flat 1750 rank cap — circle requirements are minimums, never ceilings", status:"done" },
   { s:5, id:"f44", label:"Circles 4–6 pacing", detail:"exp/training curves tuned", status:"partial" },
   { s:5, id:"f45", label:"Circles 7–10 pacing", detail:"endgame curve + rewards", status:"partial" },
   { s:5, id:"f46", label:"Guild rank titles", detail:"flavor titles per circle for all guilds", status:"done" },

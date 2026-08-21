@@ -79,7 +79,8 @@ The fidelity findings are the mechanical ones in §2–§3.
 > on the 200 s schedule, corpus pool formulas × Int/Disc, tier fractions with
 > accelerators, Wisdom scaling. D8 is partially resolved (3× drain value +
 > per-pulse consumption live; subscription caps/cycles stay out by design).
-> D1, D9, D10 remain open.
+> **D1 is now resolved (Option A)** — flat 1750 cap, soft mastery tiers,
+> technique ladder at DR scale (see §7). D9, D10 remain open.
 
 ### 3.1 Structural
 
@@ -254,8 +255,13 @@ shape is the fidelity signal, not the absolute hours).
 
 ## 7. Implementation plan — rank cap expansion (D1)
 
-> **Status: PROPOSED (needs approval).** Not started; the §6 re-shape should
-> settle in playtesting first.
+> **Status: IMPLEMENTED (Option A).** `RANK_CAP = 1750` replaces the
+> circle-linked ceiling; spell tiers are soft mastery references at DR
+> thresholds (0/10/80/250/400); technique gates sit at quarters of DR's
+> 25–1200 range. Commit d9838ce. The livelock that motivated speed: at
+> circle 9 every skill pinned at rank 40, rank-ups stopped, TDP flow
+> stopped, and an untaught breadth skill became unpurchasable — the sim's
+> ranger hung for 90+ minutes as a result.
 
 ### 7.1 Source ground truth
 

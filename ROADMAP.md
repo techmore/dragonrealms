@@ -69,7 +69,7 @@ large-lift items in *Next Up*.
 | **TDPs** — authentic model: 600 starting, 50+circle base on circling, hidden pool (every 200 rank-points → 1 TDP), death can cost pool | ✅ |
 | Spend TDPs to permanently raise stats — at the **Fane of Training** (DR: TRAIN twice to confirm) | ✅ |
 | Spend TDPs to train any skill (`tdptrain <skill>`) | ✅ |
-| Skill caps tied to circle (next-circle ceiling = `(circle + 1) × 4`; c9 can train rank 40 for c10) | ✅ intentional compressed-game divergence |
+| Skill caps tied to circle | ✅ superseded: DR's flat 1750 cap is live — circle requirements are minimums, never ceilings (see P24) |
 | Mastery skills (Melee/Missile Mastery, Primary Magic) boost lower same-class skills | ✅ |
 | Debts/locks to slow runaway grinding (optional, DR-flavored) | ✅ learning lockout after 3+ rapid rank-ups (50% for 2 min); death costs rank progress |
 | **Guild capstones at circle 10** | ✅ (11 signature passives) |
@@ -449,7 +449,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Hard/soft/restricted requirement semantics in the circle engine | ✅ (hard flags, mastery/Sorcery/Thievery exclusions live) |
 | Skill-level messaging tiers (Novice → Practitioner → … → Avatar, 16 tiers with degree modifiers) in `skills` output | ✅ |
 | Learning model: field-exp pools (100% banks), DR pulse schedule (ten fixed groups, 20 s phases, 200 s cycle), mindstate ladder, REXP (2:1 bank, 3× drain) | ✅ DR-model pools & pulses live: corpus pool-size formulas × Int/Disc, tier pulse fractions with low-rank accelerators, Wisdom scaling; guild skills pulse in the final group |
-| Rank cap 1750 (DR) vs our next-circle ceiling (`(circle + 1) × 4`; rank 40 trainable at c9 for c10) | ✅ curve 200 + n exact; cap is an intentional compressed-game divergence |
+| Rank cap: DR's flat 1750 for every skill; buffs may exceed | ✅ flat `RANK_CAP = 1750` live (circle requirements are minimums, never ceilings); curve 200 + n exact |
 
 ---
 
@@ -463,7 +463,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Casting model: PREPARE <spell> # → CAST <target>; TARGET verb; spell slots (primary ~89–92, secondary ~55–77, tertiary ~60–68 @150) | ✅ `prepare` + `target` + slot-constrained holding: tier costs, per-guild budgets, `learn`/`forget`, cast gated on held spells |
 | Spell types: standard, battle, ritual (foci cut mana), cyclic (one at a time, pulsing upkeep), metaspell | ⬜ |
 | Analogous patterns: universal spells free circles 1–10, removed at 11 | ⬜ |
-| Spell difficulty tiers: intro / basic (~10 ranks) / intermediate (~80) / advanced (~250) / esoteric (~400+) | 🚧 mastery gating is live with compressed thresholds (0 / 10 / 24 / 32 / 44) that remain reachable at each unlock circle; source-scale tiers require the future rank-cap expansion |
+| Spell difficulty tiers: intro / basic (~10 ranks) / intermediate (~80) / advanced (~250) / esoteric (~400+) | ✅ DR thresholds live as soft mastery reference points — circle unlocks the spell, ranks drive power (weak-cast warning under threshold); DR never blocks casting on ranks |
 | Backfire risk when over-channeling; sorcerous backlash; SvS contests (attack types vs defenses) for contested spells | 🚧 overchannel backfire live (Primary Magic raises the safe ceiling, damage on fizzle); sorcerous backlash and SvS contests pending |
 
 ---
