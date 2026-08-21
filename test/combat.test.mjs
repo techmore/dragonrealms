@@ -369,7 +369,7 @@ test('barbarian abilities: slots, paths, forms, roars, and masteries', async () 
   handleCommand(game, p, 'learn dragon');
   const noHall = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
   assert.match(noHall, /guildhall/, 'learning requires the hall');
-  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'n'); game.move(p, 'n'); // square -> guild district -> north row -> barbarian hall
+  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'w'); // square -> guild district -> north row -> barbarian hall
   assert.equal(p.room, 'hall_barbarian');
 
   handleCommand(game, p, 'learn screech');
@@ -384,7 +384,7 @@ test('barbarian abilities: slots, paths, forms, roars, and masteries', async () 
 
   // Use the form in combat: costs inner fire, decays over ticks.
   p.abilities = ['dragon', 'everilds_rage', 'screech'];
-  game.move(p, 's'); game.move(p, 's'); game.move(p, 'w'); game.move(p, 'e'); game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // north row -> district -> green -> temple row -> sewers
+  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // hall row -> district -> green -> temple row -> sewers
   const creature = game.creaturesIn(p.room)[0];
   game.startCombat(p, [creature.def]);
   let combat = game.combat.getFor(p);
@@ -427,7 +427,7 @@ test('barbarian specials: whirlwind, war stomp, choke, analyze, and forgetting',
   game.addPlayer(p);
 
   // Learning is slot-gated; use is circle-gated.
-  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'n'); game.move(p, 'n'); // -> hall_barbarian
+  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'w'); // -> hall_barbarian
   handleCommand(game, p, 'learn choke');
   assert.equal(p.abilities.includes('choke'), true, 'choke learned at the hall');
 
@@ -443,7 +443,7 @@ test('barbarian specials: whirlwind, war stomp, choke, analyze, and forgetting',
   assert.equal(p.abilities.includes('choke'), true, 'still known after cooldown refusal');
 
   // Head to the sewers; grant the specials and a high circle for the test.
-  game.move(p, 's'); game.move(p, 's'); game.move(p, 'w'); game.move(p, 'e'); game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd');
+  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd');
   p.abilities = ['whirlwind', 'war_stomp', 'choke'];
   p.circle = 8;
   p.innerFire = 100;

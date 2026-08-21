@@ -174,7 +174,7 @@ export const ROOMS = {
   order_hq: {
     id: 'order_hq', zone: 'town', name: 'Order Headquarters',
     desc: 'One room east of the bank stands the Order Headquarters, where the recruiting offices of the town\'s orders ply their trade among banners and mustering lists.',
-    exits: { s: 'bank_plaza' },
+    exits: { n: 'bank_plaza' },
   },
 
   // ---------- Southeast / south (East Road, gate, Longbow Bridge) ----------
@@ -292,7 +292,7 @@ export const ROOMS = {
   tg_nw: {
     id: 'tg_nw', zone: 'town', name: 'Town Green Northwest',
     desc: 'The northwestern corner of the green, where a quiet, tree-lined road curves toward the temple quarter of the city.',
-    exits: { se: 'square', w: 'nw_road' },
+    exits: { se: 'square', w: 'nw_road', n: 'west_road', e: 'tg_n', s: 'tg_w' },
   },
   nw_road: {
     id: 'nw_road', zone: 'town', name: 'Northwest Road',
@@ -414,17 +414,17 @@ export const ROOMS = {
   woods_path: {
     id: 'woods_path', zone: 'woods', name: 'Siergelde Road', spawns: ['goblin'],
     desc: 'A rutted trail winds between towering pines toward the Siergelde Ruins. Shadows flicker between the trunks.',
-    exits: { e: 'west_gate', s: 'woods_1' },
+    exits: { e: 'west_gate', n: 'woods_1' },
   },
   woods_1: {
     id: 'woods_1', zone: 'woods', name: 'Clearing', spawns: ['goblin', 'goblin', 'wolf'],
     desc: 'A mossy clearing ringed by ancient oaks. The canopy cuts the light into dapples. A cart track heads west toward the river town.',
-    exits: { n: 'woods_path', s: 'woods_2', w: 'rh_ferry' },
+    exits: { s: 'woods_path', n: 'woods_2', w: 'rh_ferry' },
   },
   woods_2: {
     id: 'woods_2', zone: 'woods', name: 'Wolf Dens', spawns: ['wolf', 'wolf'],
     desc: 'The ground is scored with claw marks. A distant howl rises and falls in the wind.',
-    exits: { n: 'woods_1', s: 'deep_1' },
+    exits: { s: 'woods_1', n: 'deep_1' },
   },
   marsh_1: {
     id: 'marsh_1', zone: 'marsh', name: 'Marsh Edge', spawns: ['wisp'],
@@ -439,7 +439,7 @@ export const ROOMS = {
   deep_1: {
     id: 'deep_1', zone: 'deepwoods', name: 'Deep Wood', spawns: ['troll'],
     desc: 'The oaks here are vast and dark, their roots older than the town. Something heavy breathes nearby.',
-    exits: { n: 'woods_2', e: 'deep_2' },
+    exits: { s: 'woods_2', e: 'deep_2' },
   },
   deep_2: {
     id: 'deep_2', zone: 'deepwoods', name: 'Troll Mounds', spawns: ['troll', 'troll'],
@@ -516,22 +516,22 @@ export const ROOMS = {
   rh_ferry: {
     id: 'rh_ferry', zone: 'riverhaven', name: 'The River Ferry',
     desc: 'A stout ferry moors here, its bell ringing across the water. A dirt road winds east from the landing into the wild woods, and reed-choked shallows stretch away north.',
-    exits: { e: 'woods_1', w: 'rh_wilds_1', s: 'rh_square' },
+    exits: { e: 'woods_1', sw: 'rh_wilds_1', s: 'rh_square' },
   },
   rh_wilds_1: {
     id: 'rh_wilds_1', zone: 'riverhaven', name: 'Reedwater Shore', spawns: ['mud_crab', 'mud_crab'],
     desc: 'Muddy shallows lap at a shore of broken reeds. Crab tracks stitch the mud in neat, deliberate lines, and the river breathes cool fog over everything.',
-    exits: { e: 'rh_ferry', w: 'rh_wilds_2' },
+    exits: { ne: 'rh_ferry', s: 'rh_wilds_2' },
   },
   rh_wilds_2: {
     id: 'rh_wilds_2', zone: 'riverhaven', name: 'Otter Slough', spawns: ['reed_stalker', 'reed_stalker'],
     desc: 'Black water pools between hummocks of sedge. Something sleek leaves wake-lines through the reeds where no wind blows, and small bones litter the muck.',
-    exits: { e: 'rh_wilds_1', n: 'rh_wilds_3' },
+    exits: { n: 'rh_wilds_1', w: 'rh_wilds_3' },
   },
   rh_wilds_3: {
     id: 'rh_wilds_3', zone: 'riverhaven', name: "Thug's Landing", spawns: ['river_thug', 'river_thug'],
     desc: 'A smugglers\u2019 landing of lashed logs, crates pried open and left to rot. The kind of quiet that listens back.',
-    exits: { s: 'rh_wilds_2' },
+    exits: { e: 'rh_wilds_2' },
   },
 };
 

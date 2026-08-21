@@ -92,7 +92,7 @@ export const GRID = {
 
   // ---- Siergelde woods, ferry landing, deep wilds ----
   woods_path: [-3, 2, 0], woods_1: [-3, 3, 0], rh_ferry: [-4, 3, 0],
-  rh_wilds_1: [-5, 3, 0], rh_wilds_2: [-6, 3, 0], rh_wilds_3: [-6, 2, 0],
+  rh_wilds_1: [-5, 6, 0], rh_wilds_2: [-5, 5, 0], rh_wilds_3: [-6, 5, 0],
   woods_2: [-3, 4, 0], deep_1: [-3, 5, 0], deep_2: [-2, 5, 0],
   black_1: [-1, 5, 0], black_2: [-1, 5, -1],
 
@@ -114,6 +114,8 @@ export const PORTALS = new Set([
   'pier:w>rh_square',        // amusement-pier barge across the Segoltha
   'rh_square:n>rh_ferry',    // ...and back to the ferry landing
   'rh_ferry:s>rh_square',    // ferry downstream to Riverhaven
+  'rh_ferry:sw>rh_wilds_1',  // ferry landing trail out to the wilds
+  'rh_wilds_1:ne>rh_ferry',  // ...and back
 ]);
 
 const keyOf = (p) => p.join(',');

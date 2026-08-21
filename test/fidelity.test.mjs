@@ -503,10 +503,10 @@ test('landmarks: taverns ease rest, the middens yield salvage, the pier gambles'
     assert.ok(ROOMS[id], `${id} exists`);
   }
   assert.equal(ROOMS.half_pint.tavern, true, 'tavern flagged restful');
-  assert.equal(ROOMS.docks.exits.w, 'half_pint', 'Half Pint sits off the docks');
+  assert.equal(ROOMS.docks.exits.e, 'half_pint', 'Half Pint sits off the docks');
   assert.equal(ROOMS.pier.exits.w, 'rh_square', 'pier barge reaches Riverhaven');
-  assert.equal(ROOMS.guild_district.exits.e, 'academy', 'academy off the guild district');
-  assert.equal(ROOMS.temple.exits.n, 'high_temple', 'high temple behind the temple');
+  assert.equal(ROOMS.guild_halls_n.exits.s, 'academy', 'academy off the north guild row');
+  assert.equal(ROOMS.temple.exits.w, 'high_temple', 'high temple behind the temple');
 
   // Tavern rest is faster.
   const p = await mkChar('TavernRest', 'barbarian');

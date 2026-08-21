@@ -28,13 +28,14 @@ test('riverhaven wilds exist with reciprocal exits and tiered spawns', async () 
   const { ROOMS } = await import('../data/world.js');
   const { CREATURES } = await import('../data/creatures.js');
 
-  // Ferry road leads north into the reeds; every link is reciprocal.
-  assert.equal(ROOMS.rh_ferry.exits.n, 'rh_wilds_1');
-  assert.equal(ROOMS.rh_wilds_1.exits.s, 'rh_ferry');
-  assert.equal(ROOMS.rh_wilds_1.exits.n, 'rh_wilds_2');
-  assert.equal(ROOMS.rh_wilds_2.exits.s, 'rh_wilds_1');
-  assert.equal(ROOMS.rh_wilds_2.exits.n, 'rh_wilds_3');
-  assert.equal(ROOMS.rh_wilds_3.exits.s, 'rh_wilds_2');
+  // Ferry landing trail runs southwest into the reeds; every link is
+  // reciprocal, and the ferry ride itself is a portal (non-adjacent).
+  assert.equal(ROOMS.rh_ferry.exits.sw, 'rh_wilds_1');
+  assert.equal(ROOMS.rh_wilds_1.exits.ne, 'rh_ferry');
+  assert.equal(ROOMS.rh_wilds_1.exits.s, 'rh_wilds_2');
+  assert.equal(ROOMS.rh_wilds_2.exits.n, 'rh_wilds_1');
+  assert.equal(ROOMS.rh_wilds_2.exits.w, 'rh_wilds_3');
+  assert.equal(ROOMS.rh_wilds_3.exits.e, 'rh_wilds_2');
 
   // Depth tiers escalate: crabs (c1) -> stalkers (c3) -> thugs (c5).
   assert.deepEqual(ROOMS.rh_wilds_1.spawns, ['mud_crab', 'mud_crab']);
@@ -52,7 +53,7 @@ test('riverhaven wilds exist with reciprocal exits and tiered spawns', async () 
 test('walking the wilds reaches the shore; all three tiers spawn creatures', async () => {
   const p = await makeChar('Walker');
   p.room = 'rh_ferry';
-  handleCommand(game, p, 'n'); // rh_wilds_1 (mud crabs are docile)
+  handleCommand(game, p, 'sw'); // rh_wilds_1 (mud crabs are docile)
   assert.equal(p.room, 'rh_wilds_1', 'ferry road opens into the reeds');
 
   // Deeper tiers: reed stalkers and river thugs are aggressive and will

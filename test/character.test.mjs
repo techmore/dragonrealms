@@ -156,7 +156,7 @@ test('train command spends silvers to advance guild skills at hall', async () =>
 
   // non-guild skill rejected even at hall
   game.move(p, 'w'); game.move(p, 'w'); game.move(p, 's'); game.move(p, 's');
-  game.move(p, 's'); game.move(p, 's'); game.move(p, 's'); game.move(p, 's'); // -> hall_warmage
+  game.move(p, 's'); game.move(p, 's'); game.move(p, 'w'); game.move(p, 's'); // -> hall_warmage
   assert.equal(p.room, 'hall_warmage');
   handleCommand(game, p, 'train holy_magic');
   assert.equal(skillRank(p, 'holy_magic'), 0);
@@ -235,7 +235,7 @@ test('TDPs: earned from rank-ups, spent on stats and any skill', async () => {
   handleCommand(game, p, 'raise int'); // refused outside the fane
   assert.equal(p.tdp, tdpBefore, 'raise is gated to the fane');
   game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); // temple row
-  game.move(p, 's'); // fane
+  game.move(p, 'w'); // fane
   assert.equal(p.room, 'fane');
   handleCommand(game, p, 'raise int');
   assert.equal(p.tdp, tdpBefore - cost, 'raise works at the fane');
