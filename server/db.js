@@ -88,7 +88,8 @@ export function migrate() {
       item_id TEXT NOT NULL,
       qty INTEGER NOT NULL DEFAULT 1,
       condition INTEGER,
-      quality REAL
+      quality REAL,
+      maker TEXT
     );
 
     CREATE TABLE IF NOT EXISTS equipment (
@@ -97,6 +98,7 @@ export function migrate() {
       item_id TEXT NOT NULL,
       condition INTEGER NOT NULL DEFAULT 100,
       quality REAL,
+      maker TEXT,
       PRIMARY KEY (character_id, slot)
     );
 
@@ -160,7 +162,9 @@ export function migrate() {
   for (const [table, col, def] of [
     ['inventory', 'condition', 'INTEGER'],
     ['inventory', 'quality', 'REAL'],
+    ['inventory', 'maker', 'TEXT'],
     ['equipment', 'quality', 'REAL'],
+    ['equipment', 'maker', 'TEXT'],
     ['vault', 'metadata', "TEXT NOT NULL DEFAULT '[]'"],
   ]) {
     try {

@@ -3,6 +3,7 @@ import { DIR_ALIASES } from './dirs.js';
 import { guildById, circleRequirements, circleRequirementSummary, guildTrainedSkills } from '../../data/guilds.js';
 import { roomById } from '../../data/world.js';
 import { creatureById } from '../../data/creatures.js';
+import { QUALITY_LADDER } from '../../data/forging.js';
 import { npcById } from '../../data/npcs.js';
 import { barbarianAbilityById, FORGET_COOLDOWN_MS } from '../../data/abilities.js';
 import { gainSkillExp, addItem } from '../player.js';
@@ -381,6 +382,7 @@ function perform(ctx) {
 
 function appraise(ctx) {
   const { game, p, arg1, emit } = ctx;
+  const qualityNameFor = (mult) => (QUALITY_LADDER.find((q) => Math.abs(q.mult - mult) < 0.001) || {}).name;
   if (!arg1) return emit('Appraise what? Look around, name an item you carry, or a creature here.');
   const n = arg1.toLowerCase();
   const inv = findInventoryItem(p, n);
@@ -388,9 +390,15 @@ function appraise(ctx) {
   const creature = game.findCreature(p.room, n);
   const leveled = gainSkillExp(p, 'appraisal', 4);
   let target;
-  if (inv) target = `${inv.item.name} (worth about ${inv.item.value} silvers)`;
-  else if (eq) target = `${eq.name} (worth about ${eq.value} silvers)`;
-  else if (creature) target = `${creature.def.name.charAt(0).toUpperCase() + creature.def.name.slice(1)} — looks like it could be skinned for a few silvers`;
+  if (inv) {
+    target = `${inv.item.name} (worth about ${inv.item.value} silvers)`;
+    if (inv.quality) target += `, ${qualityNameFor(inv.quality)}`;
+    if (inv.maker) target += `, made by ${inv.maker}`;
+  } else if (eq) {
+    target = `${eq.name} (worth about ${eq.value} silvers)`;
+    if (eq.quality) target += `, ${qualityNameFor(eq.quality)}`;
+    if (eq.maker) target += `, made by ${eq.maker}`;
+  } else if (creature) target = `${creature.def.name.charAt(0).toUpperCase() + creature.def.name.slice(1)} — looks like it could be skinned for a few silvers`;
   else return emit('You cannot appraise that.');
   setRoundtime(p, 4);
   emit(`You appraise ${target}.${leveled ? ' Your Appraisal improved!' : ''}`);

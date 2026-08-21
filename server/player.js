@@ -66,6 +66,7 @@ function persistentStateFor(p) {
     spellsKnown: Array.isArray(p.spellsKnown) ? p.spellsKnown : [],
     spellsForgotten: Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [],
     debt: Number.isFinite(p.debt) ? p.debt : 0,
+    workOrder: p.workOrder && typeof p.workOrder === 'object' ? p.workOrder : null,
     cooldowns,
   };
 }
@@ -93,6 +94,9 @@ export function instanceMetadata(value = {}) {
   return {
     condition: finiteCondition(value.condition),
     quality: finiteQuality(value.quality),
+    maker: typeof value.maker === 'string' && value.maker.trim()
+      ? value.maker.trim().slice(0, 20)
+      : null,
   };
 }
 
@@ -102,6 +106,7 @@ function withInstanceMetadata(item, value = {}) {
     ...item,
     condition: metadata.condition,
     ...(metadata.quality === null ? {} : { quality: metadata.quality }),
+    ...(metadata.maker ? { maker: metadata.maker } : {}),
   };
 }
 
@@ -198,6 +203,7 @@ export function loadPlayer(charId) {
       : [],
     spellsForgotten: Array.isArray(persisted.spellsForgotten) ? persisted.spellsForgotten : [],
     debt: Number.isFinite(persisted.debt) ? persisted.debt : 0,
+    workOrder: persisted.workOrder && typeof persisted.workOrder === 'object' ? persisted.workOrder : null,
     buffs: {},
     // runtime
     online: false,
@@ -245,7 +251,7 @@ export function loadPlayer(charId) {
   for (const s of db.prepare('SELECT skill_id, rank, exp FROM skills WHERE character_id = ?').all(charId)) {
     player.skills[s.skill_id] = { rank: s.rank, exp: s.exp };
   }
-  for (const inv of db.prepare('SELECT id, item_id, qty, condition, quality FROM inventory WHERE character_id = ? ORDER BY id').all(charId)) {
+  for (const inv of db.prepare('SELECT id, item_id, qty, condition, quality, maker FROM inventory WHERE character_id = ? ORDER BY id').all(charId)) {
     const item = itemById(inv.item_id);
     if (!item) continue;
     if (isStackableItem(item)) {
@@ -259,23 +265,25 @@ export function loadPlayer(charId) {
     const metadata = instanceMetadata({
       condition: inv.condition,
       quality: inv.quality ?? persisted.forgedQuality?.[item.id],
+      maker: inv.maker,
     });
     const copies = Math.max(1, inv.qty || 1);
-    db.prepare('UPDATE inventory SET qty=1, condition=?, quality=? WHERE id=?')
-      .run(metadata.condition, metadata.quality, inv.id);
+    db.prepare('UPDATE inventory SET qty=1, condition=?, quality=?, maker=? WHERE id=?')
+      .run(metadata.condition, metadata.quality, metadata.maker, inv.id);
     player.inventory.push({ id: inv.id, item, qty: 1, ...metadata });
     for (let copy = 1; copy < copies; copy += 1) {
-      const info = db.prepare('INSERT INTO inventory (character_id, item_id, qty, condition, quality) VALUES (?,?,1,?,?)')
-        .run(charId, item.id, metadata.condition, metadata.quality);
+      const info = db.prepare('INSERT INTO inventory (character_id, item_id, qty, condition, quality, maker) VALUES (?,?,1,?,?,?)')
+        .run(charId, item.id, metadata.condition, metadata.quality, metadata.maker);
       player.inventory.push({ id: Number(info.lastInsertRowid), item, qty: 1, ...metadata });
     }
   }
-  for (const eq of db.prepare('SELECT slot, item_id, condition, quality FROM equipment WHERE character_id = ?').all(charId)) {
+  for (const eq of db.prepare('SELECT slot, item_id, condition, quality, maker FROM equipment WHERE character_id = ?').all(charId)) {
     const item = itemById(eq.item_id);
     if (item) {
       player.equipment[eq.slot] = withInstanceMetadata(item, {
         condition: eq.condition,
         quality: eq.quality ?? persisted.forgedQuality?.[item.id],
+        maker: eq.maker,
       });
     }
   }
@@ -336,14 +344,14 @@ export function savePlayer(p) {
   // Persist equipment condition (durability) alongside everything else.
   for (const [slot, item] of Object.entries(p.equipment || {})) {
     const metadata = instanceMetadata(item);
-    db.prepare('UPDATE equipment SET condition=?, quality=? WHERE character_id=? AND slot=?')
-      .run(metadata.condition, metadata.quality, p.charId, slot);
+    db.prepare('UPDATE equipment SET condition=?, quality=?, maker=? WHERE character_id=? AND slot=?')
+      .run(metadata.condition, metadata.quality, metadata.maker, p.charId, slot);
   }
   for (const entry of p.inventory || []) {
     if (isStackableItem(entry.item)) continue;
     const metadata = instanceMetadata(entry);
-    db.prepare('UPDATE inventory SET condition=?, quality=? WHERE id=? AND character_id=?')
-      .run(metadata.condition, metadata.quality, entry.id, p.charId);
+    db.prepare('UPDATE inventory SET condition=?, quality=?, maker=? WHERE id=? AND character_id=?')
+      .run(metadata.condition, metadata.quality, metadata.maker, entry.id, p.charId);
   }
 
   if (p.quest) {
@@ -634,8 +642,8 @@ export function addItem(p, itemId, qty = 1, metadata = null) {
     const instance = instanceMetadata(metadataList ? metadataList[copy] : metadata || {});
     const info = db.prepare('INSERT INTO inventory (character_id, item_id, qty) VALUES (?,?,?)')
       .run(p.charId, itemId, 1);
-    db.prepare('UPDATE inventory SET condition=?, quality=? WHERE id=?')
-      .run(instance.condition, instance.quality, Number(info.lastInsertRowid));
+    db.prepare('UPDATE inventory SET condition=?, quality=?, maker=? WHERE id=?')
+      .run(instance.condition, instance.quality, instance.maker, Number(info.lastInsertRowid));
     p.inventory.push({ id: Number(info.lastInsertRowid), item, qty: 1, ...instance });
   }
   return true;

@@ -2,7 +2,40 @@
 import { roomById } from '../../data/world.js';
 import { ITEMS, itemById } from '../../data/items.js';
 import { RECIPES, recipeById } from '../../data/recipes.js';
-import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll } from '../../data/forging.js';
+import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll, QUALITY_LADDER } from '../../data/forging.js';
+
+// ---- Work orders (P26): craft NPCs post piecework; quality matters. ----
+const ORDER_VERBS = {
+  forge: { npc: 'Bram', skill: 'forging', recipes: FORGE_RECIPES },
+  shape: { npc: 'Bram', skill: 'engineering', recipes: ENGINEER_RECIPES },
+  tailor: { npc: 'Mara', skill: 'outfitting', recipes: OUTFIT_RECIPES },
+  craft: { npc: 'Fennel', skill: 'alchemy', recipes: RECIPES },
+};
+const ROOM_VERBS = {
+  forge: ['forge', 'shape'],
+  tailor_shop: ['tailor'],
+};
+
+function stationVerbs(p) {
+  if (p.room === 'forge') return ROOM_VERBS.forge;
+  if (p.room === 'tailor_shop') return ROOM_VERBS.tailor_shop;
+  const room = roomById(p.room);
+  return (room && (room.npcs || []).some((id) => npcById(id)?.role === 'craft')) ? ['craft'] : [];
+}
+
+function qualityNameFor(mult) {
+  return (QUALITY_LADDER.find((q) => Math.abs(q.mult - mult) < 0.001) || {}).name || 'serviceable';
+}
+
+// Called after a successful craft: consumes the output into an active work
+// order when verb/recipe/quality all match. Returns a message or null.
+function completeOrderStep(p, verb, recipeId, qMult) {
+  const o = p.workOrder;
+  if (!o || o.done || o.verb !== verb || o.recipeId !== recipeId) return null;
+  if (o.qualMult && qMult != null && qMult < o.qualMult) return null;
+  o.done = true;
+  return `You set it aside for ${o.npc}'s order — "order claim" collects your ${o.pay} silvers.`;
+}
 import { npcById } from '../../data/npcs.js';
 import {
   skillRank, gainSkillExp, addItem, removeItem, removeItemInstances,
@@ -130,8 +163,77 @@ export const commands = {
   pick: unlock,
   unlock,
 
+  // Work orders (P26): take piecework from the craft NPC at this station,
+  // fill it with a qualifying craft, claim the pay.
+  order(ctx) {
+    const { game, p, arg1, arg2, emit } = ctx;
+    const sub = (arg1 || '').toLowerCase();
+    const verbs = stationVerbs(p);
+    if (!verbs.length) return emit('No craft station here. Work orders post at the Ember Forge, the Needle & Thread, and the Tilted Retort.');
+
+    if (sub === 'abandon') {
+      if (!p.workOrder) return emit('You carry no work order.');
+      p.workOrder = null;
+      game.persistPlayer(p);
+      return emit('You set the work order aside. No coin for unfinished work.');
+    }
+
+    if (sub === 'claim') {
+      const o = p.workOrder;
+      if (!o) return emit('You carry no work order.');
+      if (!verbs.includes(o.verb)) return emit(`That order posts at ${o.npc}'s station.`);
+      if (!o.done) {
+        const def = ORDER_VERBS[o.verb].recipes[o.recipeId];
+        const need = o.qualMult ? `${o.qualName} or better` : 'any serviceable batch';
+        return emit(`Not yet filled: ${def ? def.name : o.recipeId}, ${need}. ${o.pay} silvers on delivery.`);
+      }
+      p.silver += o.pay;
+      gainSkillExp(p, ORDER_VERBS[o.verb].skill, 18);
+      p.workOrder = null;
+      game.persistPlayer(p);
+      return emit(`${o.npc} inspects the work, nods once, and counts out \x1b[1m${o.pay} silvers\x1b[0m. "Good hands. Come back when you're hungry."`);
+    }
+
+    // Take an order (or show the active one).
+    const o = p.workOrder;
+    if (o) {
+      const def = ORDER_VERBS[o.verb].recipes[o.recipeId];
+      if (o.done) return emit(`Filled and waiting: ${def ? def.name : o.recipeId} for ${o.npc} — "order claim" at their station (${o.pay} silvers).`);
+      const need = o.qualMult ? `${o.qualName} or better` : 'any serviceable batch';
+      return emit(`Active order: ${def ? def.name : o.recipeId} (${need}) for ${o.npc} — ${o.pay} silvers on delivery. "order abandon" to drop it.`);
+    }
+    // Build candidates across this station's verbs, reachable within +4 skill.
+    const candidates = [];
+    for (const verb of verbs) {
+      const { skill, recipes } = ORDER_VERBS[verb];
+      const rank = skillRank(p, skill);
+      for (const r of Object.values(recipes)) {
+        if (r.minSkill <= rank + 4) candidates.push({ verb, recipe: r, rank });
+      }
+    }
+    if (!candidates.length) return emit('Nothing posts here that you could yet craft. Practice your trade and return.');
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    const req = pick.rank < 8 ? QUALITY_LADDER[2] : pick.rank < 20 ? QUALITY_LADDER[3] : QUALITY_LADDER[4]; // average / well-crafted / masterfully
+    const alchemy = pick.verb === 'craft';
+    const pay = Math.round((25 + pick.recipe.minSkill * 3) * (alchemy ? 1 : req.mult) * 1.15);
+    p.workOrder = {
+      verb: pick.verb,
+      recipeId: pick.recipe.id,
+      qualMult: alchemy ? null : req.mult,
+      qualName: alchemy ? 'serviceable' : req.name,
+      pay,
+      npc: ORDER_VERBS[pick.verb].npc,
+      done: false,
+    };
+    game.persistPlayer(p);
+    emit(p.workOrder.qualMult
+      ? `\n${p.workOrder.npc} posts a work order: "\x1b[1m${pick.recipe.name}\x1b[0m — ${p.workOrder.qualName} or better. ${pay} silvers on delivery." Craft it here, then "order claim".`
+      : `\n${p.workOrder.npc} posts a work order: "\x1b[1m${pick.recipe.name}\x1b[0m — a serviceable batch. ${pay} silvers on delivery." Brew it here, then "order claim".`);
+  },
+
   forge(ctx) {
-    const { p, arg1, emit } = ctx;
+    const { p, rest, emit } = ctx;
+    const arg1 = rest || '';
     if (p.room !== 'forge') return emit('The hammer rings only at the Ember Forge, east of the brewery.');
     if (!arg1) {
       const rows = Object.values(FORGE_RECIPES).map((r) => `  ${pad(r.name, 24)} ${r.desc}`);
@@ -152,18 +254,20 @@ export const commands = {
     const leveled = gainSkillExp(p, 'forging', 12);
     const base = itemById(recipe.item);
     // Quality belongs to this concrete item, not every copy of its type.
-    addItem(p, recipe.item, 1, { quality: q.mult, condition: 100 });
+    const orderMsg = completeOrderStep(p, 'forge', recipe.id, q.mult);
+    if (!orderMsg) addItem(p, recipe.item, 1, { quality: q.mult, condition: 100, maker: p.name });
     // Keep the legacy map as a last-crafted compatibility view for scripts
     // and old saves; combat reads the equipped instance directly.
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
     setRoundtime(p, 6);
-    emit(`You work the metal at the anvil and produce ${q.name} ${base.name}.${leveled ? ' Your Forging improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
+    emit(`You work the metal at the anvil and produce ${q.name} ${base.name}.${leveled ? ' Your Forging improved!' : ''} (${Math.round(q.roll * 100)}% mastery)${orderMsg ? `\n${orderMsg}` : ''}`);
   },
 
   shape(ctx) {
-    const { p, arg1, emit } = ctx;
+    const { p, rest, emit } = ctx;
+    const arg1 = rest || '';
     if (p.room !== 'forge') return emit('The workbench stands at the Ember Forge, east of the brewery.');
     if (!arg1) {
       const rows = Object.values(ENGINEER_RECIPES).map((r) => `  ${pad(r.name, 24)} ${r.desc}`);
@@ -181,16 +285,18 @@ export const commands = {
     const q = qualityRoll(skill + craftAffinity(p.guild.id, 'shape'));
     const leveled = gainSkillExp(p, 'engineering', 12);
     const base = itemById(recipe.item);
-    addItem(p, recipe.item, 1, { quality: q.mult, condition: 100 });
+    const orderMsg = completeOrderStep(p, 'shape', recipe.id, q.mult);
+    if (!orderMsg) addItem(p, recipe.item, 1, { quality: q.mult, condition: 100, maker: p.name });
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
     setRoundtime(p, 6);
-    emit(`You shape the materials into ${q.name} ${base.name}.${leveled ? ' Your Engineering improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
+    emit(`You shape the materials into ${q.name} ${base.name}.${leveled ? ' Your Engineering improved!' : ''} (${Math.round(q.roll * 100)}% mastery)${orderMsg ? `\n${orderMsg}` : ''}`);
   },
 
   tailor(ctx) {
-    const { p, arg1, emit } = ctx;
+    const { p, rest, emit } = ctx;
+    const arg1 = rest || '';
     if (p.room !== 'tailor_shop') return emit('The cutting table stands at the Needle & Thread, off the West Road.');
     if (!arg1) {
       const rows = Object.values(OUTFIT_RECIPES).map((r) => `  ${pad(r.name, 24)} ${r.desc}`);
@@ -208,16 +314,18 @@ export const commands = {
     const q = qualityRoll(skill + craftAffinity(p.guild.id, 'tailor'));
     const leveled = gainSkillExp(p, 'outfitting', 12);
     const base = itemById(recipe.item);
-    addItem(p, recipe.item, 1, { quality: q.mult, condition: 100 });
+    const orderMsg = completeOrderStep(p, 'tailor', recipe.id, q.mult);
+    if (!orderMsg) addItem(p, recipe.item, 1, { quality: q.mult, condition: 100, maker: p.name });
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
     setRoundtime(p, 6);
-    emit(`You cut and stitch ${q.name} ${base.name}.${leveled ? ' Your Outfitting improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
+    emit(`You cut and stitch ${q.name} ${base.name}.${leveled ? ' Your Outfitting improved!' : ''} (${Math.round(q.roll * 100)}% mastery)${orderMsg ? `\n${orderMsg}` : ''}`);
   },
 
   craft(ctx) {
-    const { p, arg1, emit } = ctx;
+    const { p, rest, emit } = ctx;
+    const arg1 = rest || '';
     const room = roomById(p.room);
     const alchemist = (room.npcs || []).map(npcById).find((n) => n && n.role === 'craft');
     if (!alchemist) return emit('There is no alchemist here. Try the Tilted Retort, north of Market Way.');
@@ -237,8 +345,9 @@ export const commands = {
     const leveled = gainSkillExp(p, 'alchemy', 10);
     setRoundtime(p, 6);
     if (Math.random() < chance) {
-      addItem(p, recipe.item, 1);
-      emit(`You carefully combine the ingredients and produce ${itemById(recipe.item).name}!${leveled ? ' Your Alchemy improved!' : ''}`);
+      const orderMsg = completeOrderStep(p, 'craft', recipe.id, null);
+      if (!orderMsg) addItem(p, recipe.item, 1, { maker: p.name });
+      emit(`You carefully combine the ingredients and produce ${itemById(recipe.item).name}!${leveled ? ' Your Alchemy improved!' : ''}${orderMsg ? `\n${orderMsg}` : ''}`);
     } else {
       emit(`The mixture boils over, ruined.${leveled ? ' Still, your Alchemy improved!' : ''}`);
     }
