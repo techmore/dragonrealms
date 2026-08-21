@@ -1,6 +1,7 @@
 // Static file serving for the web client. Pure handler factory — unit-testable
 // without booting the game.
-import { readFileSync, existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
 
 const MIME = {
@@ -34,7 +35,11 @@ export function createStaticHandler(publicDir) {
       const headers = { 'Content-Type': type };
       if (type.startsWith('text/')) headers['Cache-Control'] = 'no-cache';
       res.writeHead(200, headers);
-      res.end(readFileSync(filePath));
+      // Async: a synchronous read here stalls the entire event loop —
+      // game ticks included — on every page load.
+      readFile(filePath)
+        .then((body) => res.end(body))
+        .catch(() => { res.writeHead(500); res.end('error'); });
     } catch {
       res.writeHead(500);
       res.end('error');
