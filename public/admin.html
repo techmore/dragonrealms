@@ -6,6 +6,9 @@
   <title>Dragon Realms — Admin</title>
   <link rel="stylesheet" href="/css/style.css">
   <style>
+    /* style.css is the game client's app shell: body{height:100dvh;overflow:hidden}.
+       This page is a document — undo that so it scrolls normally. */
+    html, body { height: auto !important; overflow: auto !important; }
     body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-mono), ui-monospace, Menlo, monospace; }
     .admin { max-width: 1080px; margin: 0 auto; padding: 24px 20px 60px; }
     h1 { color: var(--amber); font-size: 20px; margin: 0; }
@@ -214,6 +217,7 @@
       <button class="btn" id="pause">&#9208; pause</button>
       <button class="btn" id="refresh">&#8635; refresh now</button>
       <span style="flex:1"></span>
+      <span id="gmflag" class="sub"></span>
       <label class="sub" for="gm-token">GM token</label>
       <input id="gm-token" type="password" placeholder="DR_GM_TOKEN" autocomplete="off" spellcheck="false">
     </div>
@@ -264,7 +268,7 @@
     <!-- ===================== JOBS ===================== -->
     <section>
       <h2>Live jobs
-        <span class="right sub">scripts append to <code>public/live/&lt;job&gt;.log</code> · <span id="jobstate" class="idle">&#9675; idle</span></span>
+        <span class="right sub">headless sim output (<code>public/live/&lt;job&gt;.log</code>) — text summaries, <b>not</b> the live world · <span id="jobstate" class="idle">&#9675; idle</span></span>
       </h2>
       <div class="jobs" id="joblist"></div>
       <div id="joblog">(no job selected)</div>
@@ -402,7 +406,14 @@
           S.statusAt = Date.now();
           S.gm = 'ok';
           if (!S.world) loadWorld();
-        } else if (st.code === 401 || st.code === 403) S.gm = 'locked';
+        } else if (st.code === 401 || st.code === 403) {
+          S.gm = 'locked';
+          // A stored token the server rejects is dead weight — drop it so the
+          // failure is loud instead of a permanent silent lock.
+          localStorage.removeItem('dr_gm_token');
+          tokenEl.value = '';
+          S.token = '';
+        }
         else if (st.code === 503) S.gm = 'notconf';
         else S.gm = 'err';
         if (sm.code === 200 && sm.ok) S.summary = sm.d;
@@ -431,6 +442,13 @@
       renderRoster();
       renderZones();
       renderPv();
+      const flag = $('gmflag');
+      flag.textContent = S.gm === 'ok' ? 'GM: connected'
+        : S.gm === 'off' ? 'GM: no token'
+        : S.gm === 'locked' ? 'GM: TOKEN REJECTED — paste fresh'
+        : S.gm === 'notconf' ? 'GM: not configured on server'
+        : 'GM: unreachable';
+      flag.style.color = S.gm === 'ok' ? 'var(--green)' : 'var(--red)';
       $('worldref').disabled = !(S.gm === 'ok');
       $('reload').disabled = !(S.gm === 'ok');
     }
