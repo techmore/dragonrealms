@@ -28,7 +28,8 @@ const HELP = `
   Quests:    quest  |  claim  |  deliver  |  ask <leader> task
   Stances:   stance aggressive | defensive | guarded | balanced  (costs stance points)
   PvP:       duel <player> [blood|blow|pain] [reason] | accept/decline <player> | surrender | assault <player> (OPEN targets only) | recall warrant | pvp stance open|guarded|closed  (duels wilds only)
-  Wilds:     forage  |  hunt  |  track  |  ladder  |  hide  |  ambush <creature>  |  rest  (recover)
+  Wilds:     forage  |  hunt  |  track  |  ladder [undead|skins|boxes...]  |  hide  |  ambush <creature>  |  rest  (recover)
+  Travel:    ferry  (Crossing docks <-> Riverhaven landing, 20 silvers)
   Skills:    perform  |  appraise <item>  |  study  (temple library)
    Crafting:  craft <recipe>  (Tilted Retort)  |  forge <recipe>  (Ember Forge)  |  shape <recipe>  (Ember Forge, Engineering)  |  tailor <recipe>  (Needle & Thread, off West Road)
   Crime:     steal <npc>  (lift coin, town)  |  pick <strongbox>  |  plead guilty|innocent  (if jailed)
@@ -109,6 +110,30 @@ export const commands = {
     emit(p.debt === 0
       ? `You lay ${amt} silvers on the counter. The clerk stamps your ledger PAID. "Your name is clean again."`
       : `You pay ${amt} toward your debt. ${p.debt} silvers remain outstanding.`);
+  },
+
+  // Province travel: the river ferry links the Crossing docks to the
+  // Riverhaven landing (DR: provinces are far apart; the boat is the road).
+  ferry(ctx) {
+    const { game, p, emit } = ctx;
+    if (p.stocksUntil && Date.now() < p.stocksUntil) {
+      return emit(`You are in the stocks! The ferryman will not wait for you.`);
+    }
+    if (game.combat.getFor(p)) return emit('Not while you are fighting — the ferryman casts off without you.');
+    const FARE = 20;
+    const routes = { docks: 'rh_ferry', rh_ferry: 'docks' };
+    const dest = routes[p.room];
+    if (!dest) return emit('No ferry landing here. The barge runs between the Crossing docks and the Riverhaven landing.');
+    if (p.silver < FARE) return emit(`The crossing costs ${FARE} silvers, and Old Whit waves you off. "Coin first, passenger."`);
+    p.silver -= FARE;
+    const fromName = roomById(p.room).name;
+    p.room = dest;
+    setRoundtime(p, 10);
+    game.persistPlayer(p);
+    emit(dest === 'rh_ferry'
+      ? `You pay ${FARE} silvers and board the barge. Old Whit poles off from ${fromName}, and the Crossing falls away behind you — an hour of grey water, gulls, and the far shore growing tall. The landing at \x1b[1mRiverhaven\x1b[0m rises to meet you.`
+      : `You pay ${FARE} silvers and board the barge. The Riverhaven landing slips behind you as the river widens — a long hour of current and cloud. Smoke from a thousand chimneys marks \x1b[1mthe Crossing\x1b[0m, and the docks rise to meet you.`);
+    game.enterRoom(p);
   },
 
   plead(ctx) {

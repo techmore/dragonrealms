@@ -433,7 +433,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Depth-tiered hunting grounds: difficulty bands gated by room depth inside one area (e.g. Crossing Sewers with 3 tiers of silverfish/thugs) | ✅ Sewers tiers 1–5 (Lower Drains, The Blackwater); Riverhaven wilds tiered crabs → stalkers → thugs; specialized views via `ladder <kind>` |
 | Crossing fidelity: districts and landmarks (High Temple of the Thirteen, Asemath Academy, The Middens, docks, Amusement Pier), inns/taverns (Half Pint, Sand Spit, Tenderfoot…), hangouts | ✅ High Temple, Academy, Middens, Docks, Amusement Pier, Half Pint + Tenderfoot live |
 | Task givers: per-guild leader kill tasks (ask <leader> task) + crier pest-control | ✅ kill + delivery/recovery/skinning quests live; street task givers pending |
-| Second starting city: Riverhaven (square, market, temple, shared hall row, ferry road to the woods); province travel | ✅ Riverhaven live with its own depth-tiered wilds (Reedwater Shore → Otter Slough → Thug's Landing, crabs → stalkers → thugs); province travel pending |
+| Second starting city: Riverhaven (square, market, temple, shared hall row, ferry road to the woods); province travel | ✅ Riverhaven live with its own depth-tiered wilds (Reedwater Shore → Otter Slough → Thug's Landing); river ferry links the Crossing docks ↔ Riverhaven landing (`ferry`, 20 silvers) |
 | Loot flags per creature (gems, coin, boxes, skins) driving ladder choice | ✅ flags live on the ladder; gems drop from flagged creatures |
 | Specialized ladders: undead, constructs, skinning, locksmith | ✅ `ladder undead|construct|beast|humanoid|spirit|skins|boxes` — creature `kinds` flags + rank-sorted filtered views |
 

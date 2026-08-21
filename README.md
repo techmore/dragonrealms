@@ -132,7 +132,10 @@ testing and analysis — see `docs/api.md`.
   ladder reads the pool); REXP doubles learning.
 - **Riverhaven** — a second starting city across the river: its own square,
   market, shrine, and a shared guild-hall row (circle works there too), with
-  a ferry road into the Old Woods. Choose your city at character creation.
+  a ferry road into the Old Woods and reedwater wilds of its own (mud crabs
+  up to river thugs). The river ferry (`ferry`, 20 silvers) runs between the
+  Crossing docks and the Riverhaven landing. Choose your city at character
+  creation.
 - **Justice** — theft near a guard can land you in the Town Cells:
   `plead guilty` (fine) or `plead innocent` (serve the sentence).
 - **Dungeons & rares** — the Cinder Cavern (circle 5–7) lies under the bandit

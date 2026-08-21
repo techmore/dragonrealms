@@ -6,9 +6,14 @@ import {
   auth, createCharacter, loadPlayer, Game, handleCommand, fakeWs, game,
   setupGame, teardownGame,
 } from './helpers.mjs';
+import { roundtimeLeft } from '../server/player.js';
 
 before(() => setupGame());
 after(() => teardownGame());
+
+function stream(p) {
+  return p.ws.msgs.map((m) => m.msg || '').join('\n');
+}
 
 async function makeChar(name) {
   const acc = await auth.registerAccount('Rh' + name + Math.floor(Math.random() * 9999), 's3cretword');
@@ -66,6 +71,35 @@ test('walking the wilds reaches the shore; all three tiers spawn creatures', asy
     if ((game.roomCreatures.get(room) || []).length) found++;
   }
   assert.ok(found >= 2, `spawns populate the wilds (${found}/3 rooms)`);
+  game.removePlayer(p);
+});
+
+test('the river ferry carries passengers between provinces for a fare', async () => {
+  const p = await makeChar('Sailor');
+  // Wrong landing refused.
+  p.room = 'square';
+  handleCommand(game, p, 'ferry');
+  assert.match(stream(p), /No ferry landing here/);
+
+  // Crossing docks -> Riverhaven landing.
+  p.room = 'docks';
+  p.silver = 100;
+  handleCommand(game, p, 'ferry');
+  assert.equal(p.room, 'rh_ferry', 'barge reaches the Riverhaven landing');
+  assert.equal(p.silver, 80, 'fare collected');
+  assert.match(stream(p), /Riverhaven/);
+  assert.ok(roundtimeLeft(p) > 0, 'the crossing takes time');
+
+  // And back again.
+  handleCommand(game, p, 'ferry');
+  assert.equal(p.room, 'docks', 'return barge reaches the docks');
+  assert.equal(p.silver, 60, 'return fare collected');
+
+  // A light purse is waved off.
+  p.silver = 5;
+  handleCommand(game, p, 'ferry');
+  assert.equal(p.room, 'docks', 'no passage without coin');
+  assert.match(stream(p), /Coin first/);
   game.removePlayer(p);
 });
 

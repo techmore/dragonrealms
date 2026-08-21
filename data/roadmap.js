@@ -109,7 +109,7 @@ export const FEATURES = [
   { s:4, id:"f75", label:"Bard enchantes v1", detail:"cyclic songs with upkeep", status:"done" },
   { s:4, id:"f76", label:"Trader commodity pits v1", detail:"fluctuating board, buy low/sell high", status:"done" },
   { s:2, id:"f77", label:"Exp pools/pulses", detail:"70/30 field split, 30s pulses, mindstate from pool", status:"done" },
-  { s:4, id:"f78", label:"Riverhaven second city", detail:"square/market/temple/hall row/ferry, city choice", status:"done" },
+  { s:4, id:"f78", label:"Riverhaven second city", detail:"live: square/market/temple/hall row/ferry, city choice, depth-tiered wilds (Reedwater Shore/Otter Slough/Thug's Landing), and the river ferry to the Crossing docks (ferry, 20 silvers)", status:"done" },
   { s:4, id:"f79", label:"Judge verdicts", detail:"heat-scaled fines on release", status:"done" },
   { s:7, id:"f80", label:"Mobile layout", detail:"bottom-sheet dock, safe-area insets, thumb-reachable exits", status:"done" },
   { s:7, id:"f81", label:"Scrollback search", detail:"Ctrl-F or /search, highlight + prev/next", status:"done" },
