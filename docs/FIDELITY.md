@@ -230,14 +230,9 @@ shape is the fidelity signal, not the absolute hours).
 
 ### 6.5 Open questions (need approval before implementation)
 
-1. **Cycle speed:** ship the authentic 200 s cycle, or a compressed variant
-   (e.g. 60 s) for the circle-10 game? Authentic is default per the fidelity
-   framing; compressed touches only the phase constant.
-2. **Transition:** keep the 70/30 hybrid behind `DR_LEGACY_EXP=1` for one
-   release, or hard-cut? Hard-cut keeps the code honest; flag eases A/B
-   playtesting.
-3. **Learning lockout (D11):** remove entirely (authentic braking = pool caps
-   + mind lock), or retain as declared house rule?
+1. ~~Cycle speed~~ **Resolved:** authentic 200 s cycle shipped.
+2. ~~Transition~~ **Resolved:** hard cut, no legacy flag.
+3. ~~Learning lockout~~ **Resolved:** removed entirely.
 4. **Wis formula:** ~~accept the inferred band multiplier, or leave Wis out of
    v1~~ **Resolved:** corpus search found no exact formula; adopting the
    documented mental-stat curve shape (same piecewise table as Int — the wiki
@@ -254,3 +249,80 @@ shape is the fidelity signal, not the absolute hours).
    the pool while Wis only speeds draining. We keep the 2015 hard numbers
    (shared table) over the 2009 prose; revisit if playtesting shows Wis
    overweighted.
+
+---
+
+## 7. Implementation plan — rank cap expansion (D1)
+
+> **Status: PROPOSED (needs approval).** Not started; the §6 re-shape should
+> settle in playtesting first.
+
+### 7.1 Source ground truth
+
+- **Flat 1750 cap, no circle linkage.** "Ranks are capped at 1750" for every
+  skill (`Experience.md`); "nothing prevents a character from training skills
+  not required to circle, or in excess of circle requirements" (`Circle.md`).
+  Buffs may exceed to +20% (self) / +30% (third-party).
+- **What lives at high ranks:** spell-slot trees master at 55–89 slots @150
+  ranks; crafting technique slots rank-gated 25–1200 (13 general); spell
+  difficulty tiers ~10 / 80 / 250 / 400+ ranks; hunting-ladder teaching bands
+  continue upward.
+
+### 7.2 Our compression and its dependents
+
+`(circle + 1) × 4` (rank 40 at c9) is enforced in `applyExpToSkill`
+(`server/player.js`). Three systems are tuned to that ceiling:
+
+| System | Compressed | DR scale | Where |
+|---|---|---|---|
+| Spell mastery gates | `SPELL_TIER_RANKS` 0/10/24/32/44, hard cast-gate | ~0/10/80/250/400, mastery ≠ access | `data/guilds.js:498`, gate in `server/commands/magic.js:57` |
+| Technique slots | minRank 8/16/24/32 per craft skill | 13 slots gated 25–1200 | `data/forging.js` |
+| Reachability tests | cap must cover next-circle bands | n/a | `test/progression-fidelity.test.mjs` |
+
+**Key insight from the corpus:** DR does *not* hard-gate casting on ranks —
+circle/knowledge unlocks the spell; ranks drive success and potency. Our hard
+`minRank` cast-gate is itself a compression artifact, independent of where
+the cap sits.
+
+### 7.3 Options
+
+**A. Authentic flat cap (recommended end-state).** `RANK_CAP = 1750` replaces
+`maxRankFor(circle)`; circle requirements stay as minimums (already far below
+the cap). Brakes become the authentic ones: trainer silver curve
+(`40 + rank×20` → 2,040/train at rank 100), pool sizes, TDP economy, and
+hunting-ladder teaching bands. Spell gates convert from hard permission to
+soft mastery (success/potency scaling); technique ladders migrate to the
+25–1200 data table.
+*Cost:* absolute thresholds assume DR's time/economy scale. Under our silver
+curve, rank-80 Primary Magic by c5 costs ≈166k trainer silvers — out of reach
+without organic-casting supplements. That is *also true in DR* (intermediate
+spells arrive well after their nominal circle), so this is fidelity-honest,
+but it changes the c1–10 feel and demands a full sim/economy re-baseline.
+
+**B. Two-tier cap (pragmatic middle).** Keep `(circle+1)×4` through c10 as
+the breadth-enforcing training ceiling; open a documented post-capstone elder
+track where the ceiling rises along a DR-shaped curve toward 175 (a
+compressed 1750). Dependent gates stretch on the elder track instead of now.
+*Cost:* preserves the circle-linked-cap divergence forever; two cap regimes
+to document.
+
+**C. Status quo + documentation.** Keep D1 as declared divergence. Cheapest;
+leaves every high-rank system (spell trees, technique ladder, difficulty
+tiers) permanently blocked at compressed scale.
+
+### 7.4 If A lands, implementation order
+
+1. `RANK_CAP = 1750` constant; `applyExpToSkill` uses it; delete
+   `maxRankFor` (or keep as display helper).
+2. Spell gates: drop the hard cast-gate; add mastery scaling to
+   success/potency using DR tier thresholds as soft reference points.
+3. Migrate technique `minRank` tables to the DR 25–1200 ladder (data-only).
+4. Update `progression-fidelity.test.mjs` invariants: requirements-below-cap
+   becomes trivial; replace with pacing assertions (sim-based).
+5. Full sim re-baseline + economy pass (trainer income vs costs at ranks
+   40–150); update ROADMAP P2/P24/P25 rows and FIDELITY.md.
+
+### 7.5 Decision needed
+
+Pick A, B, or C. A is the fidelity-first choice but is a game-feel earthquake
+and should follow a playtest of the §6 learning re-shape, not precede it.
