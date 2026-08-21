@@ -18,7 +18,7 @@ const {
   SPELL_TIER_RANKS,
 } = await import('../data/guilds.js');
 const { SKILLS } = await import('../data/skills.js');
-const { maxRankFor } = await import('../server/player.js');
+const { RANK_CAP } = await import('../server/player.js');
 const { closeDb } = await import('../server/db.js');
 
 after(() => {
@@ -108,31 +108,30 @@ test('Thief soft Thievery counts for survival breadth but Barbarian restricted T
   assert.ok(req.missing.some((line) => /5th survival/.test(line)), req.missing.join(', '));
 });
 
-test('the current-circle rank cap reaches every next-circle requirement', () => {
-  assert.equal(maxRankFor(9), 40, 'circle 9 can train the rank-40 rows needed for circle 10');
-  for (let circle = 1; circle < 10; circle += 1) {
-    const cap = maxRankFor(circle);
-    const skills = rankedSkills(cap);
+test('the flat DR rank cap covers every requirement with room to spare', () => {
+  assert.equal(RANK_CAP, 1750, 'DR caps ranks flat at 1750 (Experience.md)');
+  for (let circle = 1; circle <= 10; circle += 1) {
+    const skills = rankedSkills(40); // a c10-ready breadth spread
     for (const guild of Object.values(GUILDS)) {
-      const req = circleRequirements(guild, skills, circle + 1);
-      assert.equal(req.ok, true, `${guild.name} cannot reach circle ${circle + 1} under rank cap ${cap}: ${req.missing.join(', ')}`);
+      const req = circleRequirements(guild, skills, circle + 1 > 10 ? 10 : circle + 1);
+      assert.equal(req.ok, true, `${guild.name} circle-${Math.min(circle + 1, 10)} requirements unmet at rank-40 spread: ${req.missing.join(', ')}`);
     }
   }
 });
 
-test('every spell mastery gate is reachable at that spell\'s unlock circle', () => {
-  for (let circle = 1; circle <= 10; circle += 1) {
-    const tier = spellTierFor(circle);
-    assert.ok(SPELL_TIER_RANKS[tier] <= maxRankFor(circle), `${tier} gate exceeds the circle-${circle} cap`);
+test('spell mastery thresholds are soft reference points in DR order', () => {
+  const order = ['intro', 'basic', 'intermediate', 'advanced', 'esoteric'];
+  for (let i = 1; i < order.length; i += 1) {
+    assert.ok(SPELL_TIER_RANKS[order[i]] > SPELL_TIER_RANKS[order[i - 1]],
+      `${order[i]} (${SPELL_TIER_RANKS[order[i]]}) must exceed ${order[i - 1]} (${SPELL_TIER_RANKS[order[i - 1]]})`);
   }
+  // DR-scale thresholds (docs/FIDELITY.md §7): basic ~10, intermediate ~80,
+  // advanced ~250, esoteric ~400+.
+  assert.deepEqual(SPELL_TIER_RANKS, { intro: 0, basic: 10, intermediate: 80, advanced: 250, esoteric: 400 });
   for (const guild of Object.values(GUILDS)) {
     for (const spell of guild.spells || []) {
       const tier = spellTierFor(spell.minCircle);
-      const gate = SPELL_TIER_RANKS[tier];
-      const cap = maxRankFor(spell.minCircle);
-      assert.ok(Number.isInteger(gate), `${guild.name} ${spell.name}: missing ${tier} gate`);
-      assert.ok(gate <= cap, `${guild.name} ${spell.name}: ${tier} gate ${gate} exceeds circle-${spell.minCircle} cap ${cap}`);
+      assert.ok(Number.isInteger(SPELL_TIER_RANKS[tier]), `${guild.name} ${spell.name}: missing ${tier} threshold`);
     }
   }
-  assert.ok(SPELL_TIER_RANKS.esoteric <= maxRankFor(10), 'future circle-10 esoteric spells remain attainable');
 });

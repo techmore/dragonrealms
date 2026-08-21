@@ -495,7 +495,10 @@ export function circleRequirementNeeds(guild, skills, targetCircle) {
 // of its skill you must command before it obeys. Intro spells come freely;
 // the high circles demand real mastery. Gates stay at or below the highest
 // rank a character can train when the earliest spell in that tier unlocks.
-export const SPELL_TIER_RANKS = { intro: 0, basic: 10, intermediate: 24, advanced: 32, esoteric: 44 };
+// Spell difficulty tiers with DR's rank thresholds. These are soft mastery
+// reference points — circle/knowledge unlocks a spell; ranks drive its power
+// (DR never blocks casting on ranks).
+export const SPELL_TIER_RANKS = { intro: 0, basic: 10, intermediate: 80, advanced: 250, esoteric: 400 };
 
 export function spellTierFor(minCircle) {
   if (minCircle >= 10) return 'esoteric';

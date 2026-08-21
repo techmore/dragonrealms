@@ -37,7 +37,7 @@ test('slot math: rank growth + guild affinity bonus, capped', () => {
 test('learning is station-routed, rank-gated, and costs silver', async () => {
   const p = await makeChar('Apprentice');
   p.room = 'forge';
-  p.skills.forging = { rank: 20, exp: 0 };
+  p.skills.forging = { rank: 30, exp: 0 };
   p.silver = 500;
 
   handleCommand(game, p, 'technique');
@@ -48,7 +48,7 @@ test('learning is station-routed, rank-gated, and costs silver', async () => {
   assert.ok(known(p, 'hammer_rhythm'), 'technique learned');
   assert.equal(p.silver, 425, 'tuition collected (75 silvers)');
 
-  // Rank gate: Scale Fold needs 16 (met); Dragon-Tongue needs 32 (not met).
+  // Rank gate: Scale Fold needs 400 (not met); Hammer Rhythm needs 25 (met).
   handleCommand(game, p, 'technique learn dragon tongue');
   assert.ok(!known(p, 'dragon_tongue'), 'rank gate holds');
   handleCommand(game, p, 'technique learn hammer rhythm');

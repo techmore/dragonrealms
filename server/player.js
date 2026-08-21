@@ -434,12 +434,6 @@ export function unlockAchievement(p, id) {
 // (DR-authentic) and each converting group-pulse consumes 1/3 unit (20 s).
 export const REXP_CAP = 120;
 
-// Skills can train through the next circle's 1-10-band requirement ceiling.
-// A circle-9 character must be able to reach rank 40 before circling to 10.
-export function maxRankFor(circle) {
-  return (circle + 1) * 4;
-}
-
 export function bankRexp(p, offlineMs) {
   const gained = Math.floor(offlineMs / 120000);
   if (gained > 0) {
@@ -520,12 +514,16 @@ export function roundtimeLeft(p) {
   return left > 0 ? left : 0;
 }
 
-// Apply raw exp to a skill's rank ladder (with circle caps + TDP pool).
+// Apply raw exp to a skill's rank ladder (with TDP pool feed).
+// DR caps ranks flat at 1750 for every skill — circle requirements are
+// minimums, never ceilings ("nothing prevents a character from training
+// skills … in excess of circle requirements", Circle.md).
+export const RANK_CAP = 1750;
+
 export function applyExpToSkill(p, s, amount) {
   s.exp += Math.max(0, Math.floor(amount));
   let leveled = 0;
-  const cap = maxRankFor(p.circle);
-  while (s.exp >= expToNextRank(s.rank) && s.rank < cap) {
+  while (s.exp >= expToNextRank(s.rank) && s.rank < RANK_CAP) {
     s.exp -= expToNextRank(s.rank);
     s.rank += 1;
     leveled += 1;

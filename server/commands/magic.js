@@ -52,12 +52,13 @@ export const commands = {
     if (!spell) return emit('You do not know any spells yet.');
     if (spell.minCircle > p.circle) return emit(`You learn ${spell.name} at circle ${spell.minCircle}.`);
     if (!knownSpell(p, spell)) return emit(`You have not yet learned ${spell.name}. Your guild hall can teach it ("learn ${spell.name.toLowerCase()}").`);
-    // Spell difficulty tiers (DR): command the skill before the spell obeys.
+    // Spell difficulty tiers (DR): ranks drive mastery, never permission —
+    // a known spell can always be attempted; slight ranks make it weak.
     const tier = spellTierFor(spell.minCircle);
     const req = SPELL_TIER_RANKS[tier];
     const castSkill = skillRank(p, spell.skill);
     if (castSkill < req) {
-      return emit(`${spell.name} is ${tier} magic — you need ${req} ranks of ${SKILLS[spell.skill].name} to command it (you have ${castSkill}).`);
+      emit(`Your grasp of ${SKILLS[spell.skill].name} is slight for ${tier} magic (${castSkill}/${req} ranks) — the spell will be weak.`);
     }
     let cost = Math.ceil(spell.mana * pct / 100);
     const lunar = p.lunarUntil && Date.now() < p.lunarUntil;

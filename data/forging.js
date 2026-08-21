@@ -100,25 +100,25 @@ export function qualityRoll(skill) {
 // the skill's rank; a guild's craft affinity grants one bonus slot. Effects
 // are concrete: quality-roll bonuses, work-order pay, brew success/potency.
 export const CRAFT_TECHNIQUES = {
-  hammer_rhythm:   { id: 'hammer_rhythm',   skill: 'forging',     name: 'Hammer Rhythm',       minRank: 8,  effect: { kind: 'quality', mag: 3 },    desc: '+3 to Forging quality rolls.' },
-  scale_fold:      { id: 'scale_fold',      skill: 'forging',     name: 'Scale Fold',          minRank: 16, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Forging quality rolls.' },
-  master_patterns: { id: 'master_patterns', skill: 'forging',     name: "Master's Patterns",   minRank: 24, effect: { kind: 'order', mag: 0.25 },   desc: 'Work orders pay +25%.' },
-  dragon_tongue:   { id: 'dragon_tongue',   skill: 'forging',     name: 'Dragon-Tongue Forge', minRank: 32, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Forging quality rolls.' },
+  hammer_rhythm:   { id: 'hammer_rhythm',   skill: 'forging',     name: 'Hammer Rhythm',       minRank: 25,  effect: { kind: 'quality', mag: 3 },    desc: '+3 to Forging quality rolls.' },
+  scale_fold:      { id: 'scale_fold',      skill: 'forging',     name: 'Scale Fold',          minRank: 400, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Forging quality rolls.' },
+  master_patterns: { id: 'master_patterns', skill: 'forging',     name: "Master's Patterns",   minRank: 800, effect: { kind: 'order', mag: 0.25 },   desc: 'Work orders pay +25%.' },
+  dragon_tongue:   { id: 'dragon_tongue',   skill: 'forging',     name: 'Dragon-Tongue Forge', minRank: 1200, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Forging quality rolls.' },
 
-  fine_mechanism:  { id: 'fine_mechanism',  skill: 'engineering', name: 'Fine Mechanism',      minRank: 8,  effect: { kind: 'quality', mag: 3 },    desc: '+3 to Engineering quality rolls.' },
-  true_bore:       { id: 'true_bore',       skill: 'engineering', name: 'True Bore',           minRank: 16, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Engineering quality rolls.' },
-  tinker_grit:     { id: 'tinker_grit',     skill: 'engineering', name: 'Tinker Grit',         minRank: 24, effect: { kind: 'order', mag: 0.25 },   desc: 'Work orders pay +25%.' },
-  clockwork_eye:   { id: 'clockwork_eye',   skill: 'engineering', name: 'Clockwork Eye',       minRank: 32, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Engineering quality rolls.' },
+  fine_mechanism:  { id: 'fine_mechanism',  skill: 'engineering', name: 'Fine Mechanism',      minRank: 25,  effect: { kind: 'quality', mag: 3 },    desc: '+3 to Engineering quality rolls.' },
+  true_bore:       { id: 'true_bore',       skill: 'engineering', name: 'True Bore',           minRank: 400, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Engineering quality rolls.' },
+  tinker_grit:     { id: 'tinker_grit',     skill: 'engineering', name: 'Tinker Grit',         minRank: 800, effect: { kind: 'order', mag: 0.25 },   desc: 'Work orders pay +25%.' },
+  clockwork_eye:   { id: 'clockwork_eye',   skill: 'engineering', name: 'Clockwork Eye',       minRank: 1200, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Engineering quality rolls.' },
 
-  double_stitch:   { id: 'double_stitch',   skill: 'outfitting',  name: 'Double Stitch',       minRank: 8,  effect: { kind: 'quality', mag: 3 },    desc: '+3 to Outfitting quality rolls.' },
-  hide_read:       { id: 'hide_read',       skill: 'outfitting',  name: 'Hide Reading',        minRank: 16, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Outfitting quality rolls.' },
-  needle_run:      { id: 'needle_run',      skill: 'outfitting',  name: 'Needle Run',          minRank: 24, effect: { kind: 'order', mag: 0.25 },   desc: 'Work orders pay +25%.' },
-  master_cut:      { id: 'master_cut',      skill: 'outfitting',  name: "Master's Cut",        minRank: 32, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Outfitting quality rolls.' },
+  double_stitch:   { id: 'double_stitch',   skill: 'outfitting',  name: 'Double Stitch',       minRank: 25,  effect: { kind: 'quality', mag: 3 },    desc: '+3 to Outfitting quality rolls.' },
+  hide_read:       { id: 'hide_read',       skill: 'outfitting',  name: 'Hide Reading',        minRank: 400, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Outfitting quality rolls.' },
+  needle_run:      { id: 'needle_run',      skill: 'outfitting',  name: 'Needle Run',          minRank: 800, effect: { kind: 'order', mag: 0.25 },   desc: 'Work orders pay +25%.' },
+  master_cut:      { id: 'master_cut',      skill: 'outfitting',  name: "Master's Cut",        minRank: 1200, effect: { kind: 'quality', mag: 3 },    desc: '+3 more to Outfitting quality rolls.' },
 
-  catalyst_hand:   { id: 'catalyst_hand',   skill: 'alchemy',     name: 'Catalyst Hand',       minRank: 8,  effect: { kind: 'brew', mag: 0.05 },    desc: '+5% alchemy brew success.' },
-  steady_heat:     { id: 'steady_heat',     skill: 'alchemy',     name: 'Steady Heat',         minRank: 16, effect: { kind: 'brew', mag: 0.05 },    desc: '+5% alchemy brew success.' },
-  potent_essence:  { id: 'potent_essence',  skill: 'alchemy',     name: 'Potent Essence',      minRank: 24, effect: { kind: 'potency', mag: 0.25 }, desc: 'Brewed draughts restore +25%.' },
-  alchemist_ledger:{ id: 'alchemist_ledger',skill: 'alchemy',     name: "Alchemist's Ledger",  minRank: 32, effect: { kind: 'order', mag: 0.25 },   desc: 'Work orders pay +25%.' },
+  catalyst_hand:   { id: 'catalyst_hand',   skill: 'alchemy',     name: 'Catalyst Hand',       minRank: 25,  effect: { kind: 'brew', mag: 0.05 },    desc: '+5% alchemy brew success.' },
+  steady_heat:     { id: 'steady_heat',     skill: 'alchemy',     name: 'Steady Heat',         minRank: 400, effect: { kind: 'brew', mag: 0.05 },    desc: '+5% alchemy brew success.' },
+  potent_essence:  { id: 'potent_essence',  skill: 'alchemy',     name: 'Potent Essence',      minRank: 800, effect: { kind: 'potency', mag: 0.25 }, desc: 'Brewed draughts restore +25%.' },
+  alchemist_ledger:{ id: 'alchemist_ledger',skill: 'alchemy',     name: "Alchemist's Ledger",  minRank: 1200, effect: { kind: 'order', mag: 0.25 },   desc: 'Work orders pay +25%.' },
 };
 
 export function craftSlotsFor(rank, affinityBonus = false) {

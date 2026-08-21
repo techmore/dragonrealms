@@ -772,7 +772,7 @@ test('moon gate: bridged by the great moon, refused when Xibar is dark', async (
 });
 
 // ------------------- Spell difficulty tiers -------------------
-test('tiers: spells demand mastery of their skill before they obey', async () => {
+test('tiers: ranks shape spell power, never permission (DR model)', async () => {
   const { guildById, spellTierFor, SPELL_TIER_RANKS } = await import('../data/guilds.js');
   assert.equal(spellTierFor(1), 'intro');
   assert.equal(spellTierFor(3), 'basic');
@@ -784,16 +784,21 @@ test('tiers: spells demand mastery of their skill before they obey', async () =>
   p.room = 'marsh_1';
   p.mana = 100;
   const spell = guildById('moonmage').spells.find((s) => s.minCircle === 8); // stellar_cascade
+  // Slight ranks: the cast is allowed (DR never blocks on ranks) but the
+  // caster is warned the spell will be weak.
   p.skills.moon_magic = { rank: 10, exp: 0 };
-  handleCommand(game, p, `cast ${spell.id}`);
-  assert.match(lastMsg(p), /advanced magic/i, 'advanced spell refused without mastery');
-  assert.equal(p.mana, 100, 'no mana spent on a refused cast');
-  p.skills.moon_magic = { rank: SPELL_TIER_RANKS.advanced, exp: 0 };
   const rat = game.makeCreature(CREATURES.rat);
   game.roomCreatures.get('marsh_1').push(rat);
   game.startCombat(p, [rat.def]);
   handleCommand(game, p, `cast ${spell.id}`);
-  assert.ok(p.mana < 100, 'mastery unlocks the cast');
+  assert.match(p.ws.msgs.map((m) => m.msg || '').join(' '), /slight for advanced magic/i, 'under-threshold cast warns of weakness');
+  assert.ok(p.mana < 100, 'the cast still goes off');
+  // Mastery threshold reached: no warning.
+  p.mana = 100;
+  p.skills.moon_magic = { rank: SPELL_TIER_RANKS.advanced, exp: 0 };
+  const msgsBefore = p.ws.msgs.length;
+  handleCommand(game, p, `cast ${spell.id}`);
+  assert.doesNotMatch(p.ws.msgs.slice(msgsBefore).map((m) => m.msg || '').join(' '), /slight for advanced magic/i, 'mastered tier casts without the weakness warning');
   game.removePlayer(p);
 });
 
