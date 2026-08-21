@@ -515,8 +515,23 @@ export const ROOMS = {
   },
   rh_ferry: {
     id: 'rh_ferry', zone: 'riverhaven', name: 'The River Ferry',
-    desc: 'A stout ferry moors here, its bell ringing across the water. A dirt road winds east from the landing into the wild woods.',
-    exits: { s: 'rh_square', e: 'woods_1' },
+    desc: 'A stout ferry moors here, its bell ringing across the water. A dirt road winds east from the landing into the wild woods, and reed-choked shallows stretch away north.',
+    exits: { s: 'rh_square', e: 'woods_1', n: 'rh_wilds_1' },
+  },
+  rh_wilds_1: {
+    id: 'rh_wilds_1', zone: 'riverhaven', name: 'Reedwater Shore', spawns: ['mud_crab', 'mud_crab'],
+    desc: 'Muddy shallows lap at a shore of broken reeds. Crab tracks stitch the mud in neat, deliberate lines, and the river breathes cool fog over everything.',
+    exits: { s: 'rh_ferry', n: 'rh_wilds_2' },
+  },
+  rh_wilds_2: {
+    id: 'rh_wilds_2', zone: 'riverhaven', name: 'Otter Slough', spawns: ['reed_stalker', 'reed_stalker'],
+    desc: 'Black water pools between hummocks of sedge. Something sleek leaves wake-lines through the reeds where no wind blows, and small bones litter the muck.',
+    exits: { s: 'rh_wilds_1', n: 'rh_wilds_3' },
+  },
+  rh_wilds_3: {
+    id: 'rh_wilds_3', zone: 'riverhaven', name: "Thug's Landing", spawns: ['river_thug', 'river_thug'],
+    desc: 'A smugglers\u2019 landing of lashed logs, crates pried open and left to rot. The kind of quiet that listens back.',
+    exits: { s: 'rh_wilds_2' },
   },
 };
 

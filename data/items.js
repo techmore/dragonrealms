@@ -74,6 +74,8 @@ export const ITEMS = {
   roar_helm:     { id: 'roar_helm', name: 'a roar helm', type: 'armor', slot: 'head', skill: 'light_armor', armor: 14, value: 220, burden: 1, desc: 'A horned iron helm that magnifies the voice — roars cost half the voice and bite harder.' },
   // Creature loot (skins)
   rat_pelt:      { id: 'rat_pelt', name: 'a rat pelt', type: 'misc', slot: null, value: 8, desc: 'A scrappy grey pelt.' },
+  crab_shell:    { id: 'crab_shell', name: 'a mud crab shell', type: 'misc', slot: null, value: 10, desc: 'A broad green-brown shell, still smelling of the reeds.' },
+  reed_skin:     { id: 'reed_skin', name: 'a reed stalker hide', type: 'misc', slot: null, value: 14, desc: 'Sleek dappled hide from the sloughs, prized for waterwork leathers.' },
   kobold_skin:   { id: 'kobold_skin', name: 'a kobold hide', type: 'misc', slot: null, value: 20, desc: 'A scaly kobold hide.' },
   goblin_skin:   { id: 'goblin_skin', name: 'a goblin hide', type: 'misc', slot: null, value: 30, desc: 'A rank green goblin hide.' },
   wolf_pelt:     { id: 'wolf_pelt', name: 'a wolf pelt', type: 'misc', slot: null, value: 55, desc: 'A thick grey wolf pelt.' },

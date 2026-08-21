@@ -158,7 +158,7 @@ armor skill, defense skill, and either spells or powers that reward mastery.
 
 | Feature | Status |
 |---|---|
-| Towns: The Crossing (square, market, bank, temple, brewery, forge, fane, jail, pit, guild district) + Riverhaven (square, market, shrine, hall row, ferry) | ✅ |
+| Towns: The Crossing (square, market, bank, temple, brewery, forge, fane, jail, pit, guild district) + Riverhaven (square, market, shrine, hall row, ferry, reedwater wilds) | ✅ |
 | 7 hunting zones (Sewers, Old Woods, Marsh, Deep Wilds, Bandit Camp, Cinder Cavern, Blackwood Ruins) | ✅ |
 | Shops: buy/sell with stock + prices | ✅ |
 | Bank deposit/withdraw | ✅ |
@@ -430,10 +430,10 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Feature | Status |
 |---|---|
 | Creature levels + rank-band hunting ladder: creatures teach within documented min/max ranks | 🚧 teaching bands live (`ladder`); province/city/type/skill ladders pending |
-| Depth-tiered hunting grounds: difficulty bands gated by room depth inside one area (e.g. Crossing Sewers with 3 tiers of silverfish/thugs) | ⬜ |
+| Depth-tiered hunting grounds: difficulty bands gated by room depth inside one area (e.g. Crossing Sewers with 3 tiers of silverfish/thugs) | ✅ Sewers tiers 1–5 (Lower Drains, The Blackwater); Riverhaven wilds tiered crabs → stalkers → thugs; specialized views via `ladder <kind>` |
 | Crossing fidelity: districts and landmarks (High Temple of the Thirteen, Asemath Academy, The Middens, docks, Amusement Pier), inns/taverns (Half Pint, Sand Spit, Tenderfoot…), hangouts | ✅ High Temple, Academy, Middens, Docks, Amusement Pier, Half Pint + Tenderfoot live |
 | Task givers: per-guild leader kill tasks (ask <leader> task) + crier pest-control | ✅ kill + delivery/recovery/skinning quests live; street task givers pending |
-| Second starting city: Riverhaven (square, market, temple, shared hall row, ferry road to the woods); province travel | ✅ Riverhaven live; province travel pending |
+| Second starting city: Riverhaven (square, market, temple, shared hall row, ferry road to the woods); province travel | ✅ Riverhaven live with its own depth-tiered wilds (Reedwater Shore → Otter Slough → Thug's Landing, crabs → stalkers → thugs); province travel pending |
 | Loot flags per creature (gems, coin, boxes, skins) driving ladder choice | ✅ flags live on the ladder; gems drop from flagged creatures |
 | Specialized ladders: undead, constructs, skinning, locksmith | ✅ `ladder undead|construct|beast|humanoid|spirit|skins|boxes` — creature `kinds` flags + rank-sorted filtered views |
 
@@ -526,7 +526,7 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 - **Stage 10 — Barbarian Fidelity 🚧** — inner fire, four ability classes, paths, masteries, Expertise combos, warpaint, and roar helms live; the full berserk/form/roar families and registers remain (Pillar 11).
 - **Stage 11 — Cross-Guild Systems 🚧** — full DR skill set, mana types + cambrinth, spell-slot budgets with learn/forget, Nth-skill engine, alchemy + forging live; crafting disciplines pending (Pillar 12).
 - **Stage 12 — Guild Fidelity 🚧** — every guild has a live fidelity v1 (enchantes, devotion, wound-taking, prediction, risen, soul, companions/beseeches, khri, commodity pits, familiars); deeper per-guild trees pending (Pillars 13–22).
-- **Stage 13 — World & Systems Fidelity 🚧** — Riverhaven, hunting ladder, task quests, justice loop live; provinces, depth-tiered grounds, the full crime set, and crafting disciplines pending (Pillars 23–27).
+- **Stage 13 — World & Systems Fidelity 🚧** — Riverhaven (with its own wilds), hunting ladder + specialized views, task quests, justice loop live; provinces, the full crime set, and crafting disciplines pending (Pillars 23–27).
 
 ## Next Up (prioritized backlog)
 
