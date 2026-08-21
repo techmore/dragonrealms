@@ -60,6 +60,32 @@ test('movement and passive reads stay free during roundtime', async () => {
   assert.notEqual(p.room, roomBefore, 'movement is free during RT');
 });
 
+test('crafting aliases are RT-gated while passive devotion remains readable', async () => {
+  const { RT_BLOCK, mergeCommandModules } = await import('../server/commands/index.js');
+  for (const command of ['forge', 'shape', 'tailor', 'craft', 'unlock', 'sing', 'appr']) {
+    assert.equal(RT_BLOCK.has(command), true, `${command} is declared as an RT action`);
+  }
+  assert.equal(RT_BLOCK.has('devotion'), false, 'devotion is a passive read');
+  assert.throws(
+    () => mergeCommandModules([['one', { duplicate() {} }], ['two', { duplicate() {} }]]),
+    /Duplicate command "duplicate" in one and two/,
+    'registry construction rejects silent command overrides',
+  );
+
+  const crafter = await fresh('ranger');
+  crafter.room = 'forge';
+  setRoundtime(crafter, 30);
+  handleCommand(game, crafter, 'forge', 0, { applyRT: true });
+  const craftMessages = crafter.ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
+  assert.match(craftMessages, /You must wait/, 'crafting is refused during RT');
+
+  const cleric = await fresh('cleric');
+  setRoundtime(cleric, 30);
+  handleCommand(game, cleric, 'devotion', 0, { applyRT: true });
+  const messages = cleric.ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
+  assert.match(messages, /Your devotion is/, 'passive devotion remains readable during RT');
+});
+
 test('combat swing grants roundtime matching weapon speed', async () => {
   const p = await fresh('barbarian');
   p.circle = 7;
@@ -68,7 +94,7 @@ test('combat swing grants roundtime matching weapon speed', async () => {
   addItem(p, 'hunting_bow', 1);
   addItem(p, 'arrows', 40); // dual-load burns 2/shot; enough that misses can't starve it
   handleCommand(game, p, 'wield bow');
-  game.move(p, 's'); game.move(p, 'd'); // sewers
+  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // sewers
   const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   game.startCombat(p, [rat.def]);
   const combat = game.combat.getFor(p);

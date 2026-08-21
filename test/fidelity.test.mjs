@@ -503,10 +503,10 @@ test('landmarks: taverns ease rest, the middens yield salvage, the pier gambles'
     assert.ok(ROOMS[id], `${id} exists`);
   }
   assert.equal(ROOMS.half_pint.tavern, true, 'tavern flagged restful');
-  assert.equal(ROOMS.square.exits.nw, 'half_pint', 'square connects to the Half Pint');
+  assert.equal(ROOMS.docks.exits.w, 'half_pint', 'Half Pint sits off the docks');
   assert.equal(ROOMS.pier.exits.w, 'rh_square', 'pier barge reaches Riverhaven');
   assert.equal(ROOMS.guild_district.exits.e, 'academy', 'academy off the guild district');
-  assert.equal(ROOMS.temple.exits.s, 'high_temple', 'high temple behind the temple');
+  assert.equal(ROOMS.temple.exits.n, 'high_temple', 'high temple behind the temple');
 
   // Tavern rest is faster.
   const p = await mkChar('TavernRest', 'barbarian');
@@ -788,7 +788,7 @@ test('tiers: spells demand mastery of their skill before they obey', async () =>
   handleCommand(game, p, `cast ${spell.id}`);
   assert.match(lastMsg(p), /advanced magic/i, 'advanced spell refused without mastery');
   assert.equal(p.mana, 100, 'no mana spent on a refused cast');
-  p.skills.moon_magic = { rank: 40, exp: 0 };
+  p.skills.moon_magic = { rank: SPELL_TIER_RANKS.advanced, exp: 0 };
   const rat = game.makeCreature(CREATURES.rat);
   game.roomCreatures.get('marsh_1').push(rat);
   game.startCombat(p, [rat.def]);
@@ -931,7 +931,7 @@ test('caravan: rent, hire, and the cut lands on sales', async () => {
   assert.match(lastMsg(p), /no more berths|already keep/i, 'berths capped');
 
   // Porter cut lands on shop sales.
-  p.room = 'market_way';
+  p.room = 'bazaar';
   addItem(p, 'rat_pelt', 1);
   const silverBefore = p.silver;
   handleCommand(game, p, 'sell rat_pelt');
@@ -943,7 +943,7 @@ test('caravan: rent, hire, and the cut lands on sales', async () => {
 test('chaffer: the next sale runs 10% better', async () => {
   const { addItem } = await import('../server/player.js');
   const p = await mkChar('ChaffT', 'trader');
-  p.room = 'market_way';
+  p.room = 'bazaar';
   p.silver = 100;
   addItem(p, 'wolf_pelt', 1);
   handleCommand(game, p, 'chaffer');
@@ -1300,14 +1300,16 @@ test('link: the silver thread survives reloads while it holds', async () => {
   handleCommand(game, a, `link ${b.name}`);
   assert.ok(a.empathLink, 'linked');
   game.persistPlayer(a);
+  game.removePlayer(a);
   const reloaded = loadPlayer(a.charId);
+  game.addPlayer(reloaded);
   assert.ok(reloaded.empathLink && reloaded.empathLink.charId === b.charId, 'link persisted');
   // An expired link does not survive.
   reloaded.empathLink.until = Date.now() - 1000;
   game.persistPlayer(reloaded);
   const reloaded2 = loadPlayer(a.charId);
   assert.equal(reloaded2.empathLink, null, 'expired link dropped at load');
-  game.removePlayer(a);
+  game.removePlayer(reloaded);
   game.removePlayer(b);
 });
 

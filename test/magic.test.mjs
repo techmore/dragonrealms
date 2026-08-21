@@ -79,7 +79,7 @@ test('mana system: types, perceive, harness, and held mana empowers casts', asyn
 
   // held mana is consumed by the next combat cast.
   p.heldMana = 40;
-  game.move(p, 's'); game.move(p, 'd'); // temple row -> sewers
+  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // temple row -> sewers
   const creature = game.creaturesIn(p.room)[0];
   game.startCombat(p, [creature.def]);
   const combat = game.combat.getFor(p);
@@ -187,7 +187,7 @@ test('prepare/cast: overchanneling scales cost and risks backlash', async () => 
   const ws2 = fakeWs();
   p2.ws = ws2;
   game.addPlayer(p2);
-  game.move(p2, 's'); game.move(p2, 'd'); // sewers
+  game.move(p2, 'nw'); game.move(p2, 'w'); game.move(p2, 'w'); game.move(p2, 'd'); // sewers
   const creature = game.creaturesIn(p2.room)[0];
   game.startCombat(p2, [creature.def]);
   p2.mana = 100;

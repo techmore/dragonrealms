@@ -18,14 +18,13 @@ test('heal and bank services', async () => {
   game.addPlayer(p);
 
   p.hp = 50;
-  game.move(p, 's'); // temple row (healer)
+  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); // temple row (healer)
   handleCommand(game, p, 'heal');
   assert.equal(p.hp, p.maxHp, 'healed to full');
 
   p.silver = 150;
-  game.move(p, 'n'); // square
-  game.move(p, 'n'); // market way
-  game.move(p, 'n'); // market end (banker)
+  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'se'); // temple row -> green
+  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); // -> bazaar -> market way -> bank plaza (banker)
   handleCommand(game, p, 'deposit 100');
   assert.equal(p.bank, 100);
   assert.equal(p.silver, 50);
@@ -76,9 +75,9 @@ test('craft command: alchemy recipes, ingredient consumption, success', async ()
   const errMsg = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
   assert.match(errMsg, /alchemist/, 'craft requires the alchemist');
 
-  // Go to the brewery (square -> n market, e brewery).
+  // Go to the brewery (square -> bazaar -> market way, north).
+  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e');
   game.move(p, 'n');
-  game.move(p, 'e');
   assert.equal(p.room, 'brewery');
 
   addItem(p, 'herb_root', 2);
@@ -240,7 +239,7 @@ test('forging: ore, quality ladder, and crafted steel', async () => {
   handleCommand(game, p, 'forge forged_short_sword');
   assert.match(ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' '), /Ember Forge/, 'gated to the forge');
 
-  game.move(p, 'n'); game.move(p, 'e'); game.move(p, 'e'); // square -> market -> brewery -> forge
+  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'n'); game.move(p, 'e'); // square -> bazaar -> market way -> brewery -> forge
   assert.equal(p.room, 'forge');
   handleCommand(game, p, 'forge forged_short_sword');
   assert.match(ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' '), /You lack materials/, 'materials required');

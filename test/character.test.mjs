@@ -76,38 +76,39 @@ test('DR circle engine: nth-skill, hard skills, and circle-10 band values', asyn
     assert.ok(SKILLS[id], `DR skill ${id} should exist`);
   }
 
-  // Barbarian, circle 10: must meet the full 1-10 band (Expertise 4, 4th weapon 1, ...).
+  // Barbarian, circle 10: the 1-10 figures are per-circle increments
+  // (Expertise 4/circle => 40 cumulative, 4th weapon 1/circle => 10).
   const barb = GUILDS.barbarian;
   let s = zero();
-  setRanks(s, { expertise: 4, primary_magic: 4, parry: 4, evasion: 3, tactics: 1, inner_fire: 1 });
-  setRanks(s, { small_edged: 4, large_edged: 4, twohanded_edged: 2, blunt: 1 });
-  setRanks(s, { light_armor: 3, chain_armor: 1 });
-  setRanks(s, { evasion: 3, perception: 2, stealth: 2, hiding: 2, skinning: 1, athletics: 1 });
-  setRanks(s, { appraisal: 2 });
-  setRanks(s, { augmentation: 1 });
+  setRanks(s, { expertise: 40, primary_magic: 40, parry: 40, evasion: 30, tactics: 10, inner_fire: 10 });
+  setRanks(s, { small_edged: 40, large_edged: 40, twohanded_edged: 20, blunt: 10 });
+  setRanks(s, { light_armor: 30, chain_armor: 10 });
+  setRanks(s, { perception: 20, stealth: 20, skinning: 20, athletics: 10, first_aid: 10 });
+  setRanks(s, { appraisal: 20 });
+  setRanks(s, { augmentation: 10 });
   assert.equal(circleRequirements(barb, s, 10).ok, true, 'full band values pass circle 10');
 
-  // Nth skill semantics: 3rd weapon needs rank 2 at circle 10 — drop the 3rd weapon below it.
+  // Nth skill semantics: 3rd weapon needs rank 20 at circle 10 — drop it below that.
   let s2 = zero();
-  setRanks(s2, { expertise: 4, primary_magic: 4, parry: 4, evasion: 3, tactics: 1, inner_fire: 1 });
-  setRanks(s2, { small_edged: 4, large_edged: 4, twohanded_edged: 1, blunt: 1 });
-  setRanks(s2, { light_armor: 3, chain_armor: 1 });
-  setRanks(s2, { perception: 2, stealth: 2, hiding: 2, skinning: 1, athletics: 1 });
-  setRanks(s2, { appraisal: 2, augmentation: 1 });
+  setRanks(s2, { expertise: 40, primary_magic: 40, parry: 40, evasion: 30, tactics: 10, inner_fire: 10 });
+  setRanks(s2, { small_edged: 40, large_edged: 40, twohanded_edged: 19, blunt: 10 });
+  setRanks(s2, { light_armor: 30, chain_armor: 10 });
+  setRanks(s2, { perception: 20, stealth: 20, skinning: 20, athletics: 10, first_aid: 10 });
+  setRanks(s2, { appraisal: 20, augmentation: 10 });
   const req2 = circleRequirements(barb, s2, 10);
   assert.equal(req2.ok, false, '3rd weapon below band fails');
   assert.ok(req2.missing.some((m) => /3rd weapon/.test(m)), 'missing lists the 3rd weapon row');
 
-  // Scaling: circle 2 needs far less than circle 10.
+  // Cumulative progression: circle 2 needs 8 ranks for a band-4 row.
   const s3 = zero();
-  for (const id of Object.keys(SKILLS)) s3[id].rank = 1;
-  assert.equal(circleRequirements(barb, s3, 2).ok, true, 'light ranks pass circle 2');
+  for (const id of Object.keys(SKILLS)) s3[id].rank = 8;
+  assert.equal(circleRequirements(barb, s3, 2).ok, true, 'circle-2 cumulative ranks pass');
   assert.equal(circleRequirements(barb, s3, 10).ok, false, 'same ranks fail circle 10');
 
   // Summary text lists rows for the ask dialog.
   const summary = circleRequirementSummary(barb, 10);
   assert.ok(summary.length > 10, 'circle 10 summary has many rows');
-  assert.ok(summary.some((l) => /expertise \(hard\) 4/.test(l)), 'summary includes hard expertise');
+  assert.ok(summary.some((l) => /expertise \(hard\) 40/.test(l)), 'summary includes cumulative hard expertise');
 });
 
 test('circle command requires own hall and raises circle', async () => {
@@ -120,14 +121,15 @@ test('circle command requires own hall and raises circle', async () => {
 
   // Set ranks high enough for circle 2.
   const { SKILLS } = await import('../data/skills.js');
-  for (const id of Object.keys(SKILLS)) p.skills[id] = { rank: 6, exp: 0 };
+  for (const id of Object.keys(SKILLS)) p.skills[id] = { rank: 8, exp: 0 };
 
   // Wrong room: circle refused.
   handleCommand(game, p, 'circle');
   assert.equal(p.circle, 1);
 
-  // Walk to own guild hall: square -> guild_district -> guild_halls_s -> hall_paladin
-  game.move(p, 'e');
+  // Walk to own guild hall: square -> tg_w -> guild_district -> guild_halls_s -> hall_paladin
+  game.move(p, 'w');
+  game.move(p, 'w');
   game.move(p, 's');
   game.move(p, 's');
   assert.equal(p.room, 'hall_paladin');
@@ -153,8 +155,8 @@ test('train command spends silvers to advance guild skills at hall', async () =>
   assert.equal(skillRank(p, 'war_magic'), 0);
 
   // non-guild skill rejected even at hall
-  game.move(p, 'e'); game.move(p, 's'); game.move(p, 's'); game.move(p, 's');
-  game.move(p, 's'); game.move(p, 's'); game.move(p, 's'); // -> hall_warmage
+  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 's'); game.move(p, 's');
+  game.move(p, 's'); game.move(p, 's'); game.move(p, 's'); game.move(p, 's'); // -> hall_warmage
   assert.equal(p.room, 'hall_warmage');
   handleCommand(game, p, 'train holy_magic');
   assert.equal(skillRank(p, 'holy_magic'), 0);
@@ -230,8 +232,8 @@ test('TDPs: earned from rank-ups, spent on stats and any skill', async () => {
   const tdpBefore = p.tdp;
   handleCommand(game, p, 'raise int'); // refused outside the fane
   assert.equal(p.tdp, tdpBefore, 'raise is gated to the fane');
-  game.move(p, 's'); // temple row
-  game.move(p, 'e'); // fane
+  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); // temple row
+  game.move(p, 's'); // fane
   assert.equal(p.room, 'fane');
   handleCommand(game, p, 'raise int');
   assert.equal(p.tdp, tdpBefore - cost, 'raise works at the fane');
@@ -358,8 +360,8 @@ test('guild skills train at the hall and via guild activity', async () => {
   game.addPlayer(p);
 
   // Trainer teaches the guild skill: backstab for thief.
-  game.move(p, 'e'); game.move(p, 's'); game.move(p, 's'); game.move(p, 's');
-  game.move(p, 's'); // hall_thief (guild_district -> south row -> paladin -> ranger -> thief)
+  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 's'); game.move(p, 's');
+  game.move(p, 's'); game.move(p, 's'); // hall_thief (green -> district -> south row -> paladin -> ranger -> thief)
   assert.equal(p.room, 'hall_thief');
   handleCommand(game, p, 'train backstab');
   assert.ok(p.skills.backstab.exp > 0, 'guild skill trainable at hall');
@@ -431,7 +433,7 @@ test('target verb marks creatures; slots lists guild progression', async () => {
   handleCommand(game, p, 'slots');
   const slotsMsg = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
   assert.match(slotsMsg, /Spell slots/, 'slots command works');
-  assert.match(slotsMsg, /90 slot rate/, 'warmage is primary-magic tier');
+  assert.match(slotsMsg, /primary-magic tier/, 'warmage is primary-magic tier');
 
   game.removePlayer(p);
 });

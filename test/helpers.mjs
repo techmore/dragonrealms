@@ -28,14 +28,12 @@ export function setupGame() {
   migrate();
   game = new Game();
   game.init();
-  game.combat.stopTicker();
-  clearInterval(game.respawnTicker);
+  game.stop();
   return game;
 }
 
 export function teardownGame() {
-  clearInterval(game.respawnTicker);
-  game.combat.stopTicker();
+  game.stop();
   closeDb();
   rmSync(tmp, { recursive: true, force: true });
 }

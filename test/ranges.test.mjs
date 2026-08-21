@@ -25,7 +25,7 @@ test('attack presses in to melee and resolves a fight in the sewers', async () =
   const { addItem } = await import('../server/player.js');
   addItem(p, 'short_sword', 1);
   handleCommand(game, p, 'wield short_sword');
-  game.move(p, 's'); game.move(p, 'd'); // sewers -> pole range
+  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // sewers -> pole range
   const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   handleCommand(game, p, `attack ${rat.def.id}`);
   let combat = game.combat.getFor(p);
@@ -40,7 +40,7 @@ test('attack presses in to melee and resolves a fight in the sewers', async () =
 
 test('assess reports ranges and your weapon reach', async () => {
   const p = await fresh('RangetestB');
-  game.move(p, 's'); game.move(p, 'd');
+  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd');
   const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   game.startCombat(p, [rat.def]);
   handleCommand(game, p, 'assess');
@@ -53,7 +53,7 @@ test('assess reports ranges and your weapon reach', async () => {
 
 test('advance closes a range; retreat backs off; retreat at missile disengages', async () => {
   const p = await fresh('RangetestC');
-  game.move(p, 's'); game.move(p, 'd');
+  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd');
   const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   game.startCombat(p, [rat.def]);
   const combat = game.combat.getFor(p);
@@ -72,7 +72,7 @@ test('advance closes a range; retreat backs off; retreat at missile disengages',
 
 test('movement is blocked at melee/pole, allowed when only at missile', async () => {
   const p = await fresh('RangetestD');
-  game.move(p, 's'); game.move(p, 'd');
+  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd');
   const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   game.startCombat(p, [rat.def]);
   const combat = game.combat.getFor(p);

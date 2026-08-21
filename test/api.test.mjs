@@ -11,6 +11,7 @@ import { createServer } from 'node:http';
 
 const tmp = mkdtempSync(join(tmpdir(), 'dr-api-test-'));
 process.env.DR_DB_PATH = join(tmp, 'api.db');
+const DEBUG_TOKEN = 'debug-test-secret-distinct-from-session';
 
 const { migrate, closeDb } = await import('../server/db.js');
 const { Game } = await import('../server/game.js');
@@ -26,31 +27,38 @@ before(async () => {
   migrate();
   const game = new Game();
   game.init(); // combat ticker left RUNNING: combat is real and async, like a live client
-  server = createServer((req, res) => apiRequest(req, res, game));
+  server = createServer((req, res) => apiRequest(req, res, game, {
+    debugApiEnabled: true,
+    debugToken: DEBUG_TOKEN,
+  }));
   await new Promise((r) => server.listen(0, r));
   base = `http://127.0.0.1:${server.address().port}/api`;
   global.__testGame = game;
 });
 
-after(() => {
-  server.close();
-  global.__testGame.combat.stopTicker();
-  clearInterval(global.__testGame.respawnTicker);
+after(async () => {
+  await new Promise((resolve) => server.close(resolve));
+  global.__testGame.stop();
   closeDb();
   rmSync(tmp, { recursive: true, force: true });
 });
 
-async function call(method, path, token, body) {
+async function call(method, path, token, body, extraHeaders = {}) {
   const res = await fetch(base + path, {
     method,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...extraHeaders,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
   return { status: res.status, json: await res.json() };
 }
+
+const debugCall = (body, credential = DEBUG_TOKEN) => call(
+  'POST', '/debug', token, body, credential ? { 'X-DR-Debug-Token': credential } : {}
+);
 
 const msg = (o) => (o.messages || []).map((m) => m.msg || '').join(' ');
 const state = async () => (await call('GET', '/state', token)).json.state;
@@ -84,6 +92,42 @@ test('health is public; register + login; tokens enforced', async () => {
 
   assert.equal((await call('GET', '/characters')).status, 401, 'no token -> 401');
   assert.equal((await call('GET', '/characters', 'forged-token')).status, 401, 'forged token -> 401');
+  assert.equal((await call('POST', '/debug', token, { silver: 999 })).status, 403, 'game session alone cannot mutate debug state');
+  assert.equal((await debugCall({ silver: 999 }, DEBUG_TOKEN + '-suffix')).status, 403, 'debug secret must match exactly');
+
+  const disabledServer = createServer((req, res) => apiRequest(req, res, global.__testGame, {
+    debugApiEnabled: false,
+    debugToken: DEBUG_TOKEN,
+  }));
+  await new Promise((resolve) => disabledServer.listen(0, '127.0.0.1', resolve));
+  const disabledResponse = await fetch(`http://127.0.0.1:${disabledServer.address().port}/api/debug`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      'X-DR-Debug-Token': DEBUG_TOKEN,
+    },
+    body: '{}',
+  });
+  assert.equal(disabledResponse.status, 404, 'debug API is absent unless explicitly enabled');
+  await new Promise((resolve) => disabledServer.close(resolve));
+
+  const unconfiguredServer = createServer((req, res) => apiRequest(req, res, global.__testGame, {
+    debugApiEnabled: true,
+    debugToken: '',
+  }));
+  await new Promise((resolve) => unconfiguredServer.listen(0, '127.0.0.1', resolve));
+  const unconfiguredResponse = await fetch(`http://127.0.0.1:${unconfiguredServer.address().port}/api/debug`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      'X-DR-Debug-Token': DEBUG_TOKEN,
+    },
+    body: '{}',
+  });
+  assert.equal(unconfiguredResponse.status, 503, 'enabled debug API fails closed without a configured secret');
+  await new Promise((resolve) => unconfiguredServer.close(resolve));
 });
 
 test('create character, enter world, alloc stats', async () => {
@@ -115,13 +159,17 @@ test('movement, real async combat, and combat-state analysis', async () => {
   let s = await state();
   assert.equal(s.player.room, 'square');
 
-  s = (await call('POST', '/command', token, { command: 's' })).json.state;
+  s = (await call('POST', '/command', token, { command: 'nw' })).json.state;
+  assert.equal(s.player.room, 'tg_nw');
+  s = (await call('POST', '/command', token, { command: 'w' })).json.state;
+  assert.equal(s.player.room, 'nw_road');
+  s = (await call('POST', '/command', token, { command: 'w' })).json.state;
   assert.equal(s.player.room, 'temple_row');
   s = (await call('POST', '/command', token, { command: 'd' })).json.state;
   assert.equal(s.player.room, 'sewers_1');
 
   // Arm the tester: a bare-fist paladin would take ~40s to kill a rat.
-  await call('POST', '/debug', token, { addItems: [{ id: 'long_sword', qty: 1 }] });
+  await debugCall({ addItems: [{ id: 'long_sword', qty: 1 }] });
   await call('POST', '/command', token, { command: 'wield long_sword' });
 
   const atk = await call('POST', '/command', token, { command: 'attack sewer rat' });
@@ -141,11 +189,14 @@ test('movement, real async combat, and combat-state analysis', async () => {
 
 test('state analysis: shops, inventory, equipment round-trip', async () => {
   await waitCombatEnd();
-  // sewers_1 -> temple_row -> square -> market_way
+  // sewers_1 -> temple_row -> nw_road -> tg_nw -> square -> tg_e -> bazaar
   await call('POST', '/command', token, { command: 'u' });
-  await call('POST', '/command', token, { command: 'n' });
-  let r = await call('POST', '/command', token, { command: 'n' });
-  assert.equal(r.json.state.player.room, 'market_way');
+  await call('POST', '/command', token, { command: 'e' });
+  await call('POST', '/command', token, { command: 'e' });
+  await call('POST', '/command', token, { command: 'se' });
+  await call('POST', '/command', token, { command: 'e' });
+  let r = await call('POST', '/command', token, { command: 'e' });
+  assert.equal(r.json.state.player.room, 'bazaar');
 
   r = await call('POST', '/command', token, { command: 'buy dagger' });
   assert.ok(r.json.state.inventory.some((i) => i.id === 'dagger'), 'buy visible in inventory');
@@ -159,17 +210,17 @@ test('death drops a corpse at the death site; reclaim via the API', async () => 
   // Self-contained: ensure the dagger is equipped, then die on purpose.
   let r = await call('POST', '/command', token, { command: 'wield dagger' });
   if (r.json.state.equipment.hand !== 'dagger') {
-    await call('POST', '/debug', token, { addItems: [{ id: 'dagger', qty: 1 }] });
+    await debugCall({ addItems: [{ id: 'dagger', qty: 1 }] });
     await call('POST', '/command', token, { command: 'wield dagger' });
   }
   assert.equal((await state()).equipment.hand, 'dagger', 'dagger equipped before death');
 
-  r = await call('POST', '/debug', token, { room: 'sewers_1', clearCombat: true });
+  r = await debugCall({ room: 'sewers_1', clearCombat: true });
   assert.equal(r.json.state.player.room, 'sewers_1');
 
   // Deterministic death: the debug fixture runs the real death path
   // (corpse drop at the death site, temple respawn, exp penalty).
-  r = await call('POST', '/debug', token, { die: true });
+  r = await debugCall({ die: true });
   const dead = await until(async () => {
     const s = await state();
     return s.player.room === 'temple' ? s : null;
@@ -180,7 +231,7 @@ test('death drops a corpse at the death site; reclaim via the API', async () => 
   assert.equal(dead.inventory.length, 0, 'inventory emptied by death');
 
   // Return to the death site: the corpse should hold the dagger.
-  await call('POST', '/debug', token, { room: 'sewers_1' });
+  await debugCall({ room: 'sewers_1' });
   const site = await state();
   const corpse = site.floor.find((f) => f.corpse);
   assert.ok(corpse, 'corpse lies at the death site');
@@ -201,4 +252,11 @@ test('death drops a corpse at the death site; reclaim via the API', async () => 
 
   const ret = await call('POST', '/command', token, { command: 'retreat' });
   assert.equal(ret.json.ok, true, 'retreat resolves cleanly outside combat');
+});
+
+test('HTTP commands obey the same roundtime gate as WebSocket commands', async () => {
+  const first = await call('POST', '/command', token, { command: 'forage' });
+  assert.equal(first.json.ok, true);
+  const blocked = await call('POST', '/command', token, { command: 'forage' });
+  assert.match(msg(blocked.json), /must wait \d+ second/, 'second roundtime action is refused');
 });
