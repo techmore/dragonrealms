@@ -166,7 +166,7 @@ function tryCast(combat, tickInFight) {
 // between-hunt actions. Save finite TDPs for gaps such as First Aid,
 // Locksmithing, extra weapons, and otherwise unavailable breadth skills.
 const ORGANIC_SKILLS = new Set([
-  'performance', 'scholarship', 'appraisal', 'tactics',
+  'performance', 'scholarship', 'appraisal',
   'evasion', 'athletics', 'perception', 'stealth', 'foraging', 'skinning',
   'parry', 'defending', 'fitness', 'hunting', 'tracking',
   'inner_fire', 'expertise', 'trading', 'thievery',
@@ -235,7 +235,9 @@ while (p.circle < 10 && safety++ < 30000) {
     combat.tick();
     ticks += 1;
     tryCast(combat, guard);
-    if (guard % 12 === 0) handleCommand(game, p, 'disarm');
+    // Maneuvers train Tactics (and the weapon skill) — a real adventurer
+    // uses them; fire early so short fights still get one in.
+    if (guard === 2 || guard % 8 === 0) handleCommand(game, p, 'disarm');
     if (p.guild.id === 'barbarian' && guard % 6 === 0) handleCommand(game, p, 'analyze flame');
     if (p.guild.id === 'barbarian' && guard === 3 && !combat.berserk) handleCommand(game, p, 'berserk');
   }
