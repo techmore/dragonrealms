@@ -534,15 +534,15 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 - ~~Spell-slot-constrained learning + free magical feats at circle 2 (P12/P25)~~ ✅ live: tier-scaled budgets, per-tier costs, `learn`/`forget`, +2 feat at circle 2
 - ~~Exp: DR's 10-group pulse offsets + retention by skillset rate (P24)~~ ✅ live: ten staggered wall-clock groups; primary/secondary/tertiary conversion rates
 
-**P2 — combat & world**
-- Loot: circle-scaled coins/gems, tiered strongboxes/ore, rare named loot, and ladder loot flags are live (P5/P23); deeper flags (undead/constructs/skinning/locksmith ladders) pending
-- Provinces + more depth-tiered hunting grounds (P23) — Lower Drains + The Blackwater live
-- Full crime set (murder, forbidden practices) + provincial debts (P27) — murder warrants live; debts/stocks pending
-- ~~Duel reasons live; justice-zone variants + DEPART ITEM pending (P27)~~ ✅ justice zones (lawless/standard/strict), town debts with guard garnishment, and the Rite of Departure are live
+**P2 — combat & world** ✅ complete
+- ~~Loot: deeper flags (undead/constructs/skinning/locksmith ladders)~~ ✅ specialized ladder views live
+- ~~Provinces + more depth-tiered hunting grounds (P23)~~ ✅ Riverhaven wilds tiered + river ferry province travel
+- ~~Full crime set (murder, forbidden practices) + provincial debts (P27)~~ ✅ murder warrants, stocks, town debts with guard garnishment
+- ~~Duel reasons; justice-zone variants + DEPART ITEM (P27)~~ ✅ justice zones (lawless/standard/strict), Rite of Departure
 
 **P3 — breadth & polish**
 - Crafting disciplines (Engineering/Outfitting/Enchanting) + technique slots (P26) — shaping/tailoring v1 live; technique slots pending
-- Masterful-craft durability, work orders + maker's mark (P26)
+- ~~Masterful-craft durability, work orders + maker's mark (P26)~~ ✅ work orders with quality gates + maker's marks live; durability system already on instances
 - Deeper per-guild trees: full khri family, enchante segue + area effects,
   cleric infusion/resurrection, empath shift, astral travel, risen states,
   paladin protect, ranger horses, trader caravans/hirelings, warmage pathways (P13–22)
