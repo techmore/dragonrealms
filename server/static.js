@@ -34,12 +34,23 @@ export function createStaticHandler(publicDir) {
       // Pages iterate fast during development; never let browsers pin them.
       const headers = { 'Content-Type': type };
       if (type.startsWith('text/')) headers['Cache-Control'] = 'no-cache';
-      res.writeHead(200, headers);
       // Async: a synchronous read here stalls the entire event loop —
-      // game ticks included — on every page load.
+      // game ticks included — on every page load. Headers go out only after
+      // the read succeeds: a failed read (EISDIR, EACCES, deleted mid-flight)
+      // must not crash the server with ERR_HTTP_HEADERS_SENT.
       readFile(filePath)
-        .then((body) => res.end(body))
-        .catch(() => { res.writeHead(500); res.end('error'); });
+        .then((body) => {
+          res.writeHead(200, headers);
+          res.end(body);
+        })
+        .catch(() => {
+          if (!res.headersSent) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('Not found');
+          } else {
+            res.end();
+          }
+        });
     } catch {
       res.writeHead(500);
       res.end('error');

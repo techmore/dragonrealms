@@ -79,3 +79,19 @@ test('404 does not leak beyond public dir via encoded slashes', async () => {
   await settle(res);
   assert.equal(res.calls[0][1], 404);
 });
+
+test('directory request 404s without crashing the handler', async () => {
+  const res = fakeRes();
+  handle(req('/js/'), res);
+  await settle(res);
+  assert.equal(res.calls[0][1], 404);
+});
+
+test('failed read never writes headers twice', async () => {
+  const res = fakeRes();
+  handle(req('/css/'), res);
+  await settle(res);
+  const heads = res.calls.filter(([k]) => k === 'head');
+  assert.equal(heads.length, 1, 'exactly one writeHead call');
+  assert.equal(heads[0][1], 404);
+});
