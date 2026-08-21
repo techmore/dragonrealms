@@ -142,3 +142,17 @@ files (never `git add -A` if other work is in flight) — use
 `git apply --cached` hunks if a file is shared. `data/` and `test/` are often
 in flux during fidelity passes; `server/commands/`, `public/js/`, and the
 domain modules are the stable seams.
+
+## Reference material — Elanthipedia local archive
+
+A one-time archival copy of the DragonRealms wiki lives at
+`~/elanthipedia-dump/` (taken 2026-08-21 with express permission from the
+Elanthipedia community). For fidelity questions:
+
+- Query the **local** dump: `cd ~/elanthipedia-dump && ./lookup.mjs <terms>`
+  (`--title`, `--ns N` flags available; see its README). Do not hit the live
+  API from sessions.
+- Clean-room rule: extract *facts and mechanics* into `data/*.js` rewritten
+  in our own words, citing the source page title in a comment. Never copy
+  wiki prose/wikitext into the repo, and never commit anything from the
+  archive folder itself.
