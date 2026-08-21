@@ -10,12 +10,13 @@ regenerate (the circle matrix is pulled live from the circle engine).
 - **Parity bar:** every guild must be able to reach circle 10 through a fair,
   fun, self-directed loop (hunt → skill up → train → circle → new spells/gear).
 
-**Status snapshot (2026-08):** circle-10 parity for all 11 guilds is
-sim-verified; the authentic exp/TDP/circle economy is live; both starting
-cities exist; scripting, interface, and native controls are done; every guild
-has a fidelity v1. The remaining work is breadth — deeper passes inside each
-pillar (marked ⬜) and the large-lift items in the *Next Up* section at the
-bottom.
+**Status snapshot (2026-08):** circle-10 reachability for all 11 guilds is
+sim-verified against cumulative source band tables. The EXP, TDP, and rank-cap
+systems are source-shaped but deliberately compressed for a circle-10 game;
+they are not full production parity. Both starting cities exist and every
+guild has a fidelity v1. Remaining work includes live-player pacing, deeper
+guild trees, complete stance allocation, crafting disciplines, and the
+large-lift items in *Next Up*.
 
 ---
 
@@ -64,11 +65,11 @@ bottom.
 | Field-exp pools & pulses: 70% lands now, 30% banks and pulses into ranks every 30s; mindstate ladder reads the pool | ✅ |
 | `skills`, `exp`, `score` reporting (exp shows mindstate ladder) | ✅ |
 | Skill-gated world actions: `forage`, `track`, `skin`, `hunt`, `hide`, `study`, `steal`, `pick` | ✅ |
-| Balanced exp curve so each guild can reach rank 10 primaries | ✅ sim-validated (all 11 guilds, 5–16 sim-min) |
+| Progression reachability through circle 10 | ✅ simulator validates all 11 guilds; active-time and economy balance still need live playtests |
 | **TDPs** — authentic model: 600 starting, 50+circle base on circling, hidden pool (every 200 rank-points → 1 TDP), death can cost pool | ✅ |
 | Spend TDPs to permanently raise stats — at the **Fane of Training** (DR: TRAIN twice to confirm) | ✅ |
 | Spend TDPs to train any skill (`tdptrain <skill>`) | ✅ |
-| Skill caps tied to circle (max rank = circle × 4, anti-grind) | ✅ |
+| Skill caps tied to circle (next-circle ceiling = `(circle + 1) × 4`; c9 can train rank 40 for c10) | ✅ intentional compressed-game divergence |
 | Mastery skills (Melee/Missile Mastery, Primary Magic) boost lower same-class skills | ✅ |
 | Debts/locks to slow runaway grinding (optional, DR-flavored) | ✅ learning lockout after 3+ rapid rank-ups (50% for 2 min); death costs rank progress |
 | **Guild capstones at circle 10** | ✅ (11 signature passives) |
@@ -87,7 +88,7 @@ Nth-of-skillset pools, 1–10 bands scaled per circle). See the matrix below.
 | HP/Mana growth with circle | ✅ |
 | Circle 2 reachable & tested | ✅ |
 | Circles 3–6 pacing balanced | 🚧 sim-validated (smooth per-circle milestones); curve retuning in flight after stamina/lockout landed |
-| Circles 7–10 pacing + endgame | 🚧 pacing validated; endgame = capstones + tiered gear live |
+| Circles 7–10 pacing + endgame | 🚧 simulator reachability, capstones, and tiered gear are live; economy tuning and live-player pacing remain |
 | TDP bonus granted on circle-up (50 + circle < 10; 100 + circle ≥ 10) | ✅ |
 | Guild rank titles (e.g. Barbarian "Furrier" → "Warlord") | ✅ (10 titles per guild) |
 | Circle display in prompt, score, who | ✅ |
@@ -123,7 +124,7 @@ Nth-of-skillset pools, 1–10 bands scaled per circle). See the matrix below.
 | Powers: Berserk (Barbarian), Backstab (Thief) | ✅ |
 | 15 creature types (12 base + 3 named rares) across 7 zones | ✅ |
 | Creature auto-engage on aggressive spawns | ✅ |
-| **Combat stances** (aggressive / defensive / guarded) with **stance points** (Barbarian +1/60 Defending, Ranger +defense scaling) | ✅ |
+| **Combat stances** (aggressive / defensive / guarded presets) | 🚧 preset offense/defense effects live; custom evasion/parry/shield allocation and meaningful bonus-point effects pending |
 | **PvP duels** (challenge/accept, wilds only, concede/defeat) | ✅ |
 | **Ambush from hiding** (`hide` → `ambush`; thieves hide mid-fight) | ✅ |
 | **Hunting ladder** (creature teaching bands; `ladder` command; over-levelled prey teaches little) | ✅ |
@@ -186,7 +187,7 @@ The web client is the surface for automation. All scripting is **client-side**
 | Macro bar (buttons that fire commands) | ✅ (client) |
 | Timed scripts / loops (`timer <sec> <command>`) | ✅ (client) |
 | Triggered actions (react to room text) | ✅ (client: `trigger <text> <command>`) |
-| Persistent per-character scripts (server-stored) | ✅ aliases; full scripts ⬜ |
+| Persistent per-character scripts (server-stored) | ✅ aliases; DR scripts sync to the character's record (`scripts_put`/`scripts_del` WS messages, library pushed on entry) and follow them across browsers |
 | **DR-style scripts** (`.script` prefix, `put`/`move`/`wait`/`waitfor`/`match`/`matchwait`/`goto`/`pause`, `%1..%9` args, `%var`, `if_n`; `.hunt`, `.rest`, `.heal` ship built-in) | ✅ (client-side interpreter, roundtime-aware) |
 | Script safety: rate limits, no eval of server state | ✅ |
 
@@ -199,7 +200,20 @@ The web client is the surface for automation. All scripting is **client-side**
 | Clickable exits | ✅ |
 | Command history (arrow keys) | ✅ |
 | Themes (dark / parchment / terminal-green) | ✅ |
+| **Ember theme** (4th: deep charcoal + forge-light, all tokens WCAG AA) | ✅ |
+| **WCAG AA contrast pass** on every theme's text/accent/muted/dim tokens | ✅ |
 | Font size & family controls | ✅ (size slider; mono/serif family; line spacing) |
+| **Quick font keys** (Ctrl/Cmd `=`/`-` step, `0` resets) | ✅ |
+| **Channel muting** (Settings → Channels; render-time filter, automation unaffected) | ✅ |
+| **Timestamps toggle** (`[HH:MM]` prefixes on story lines) | ✅ |
+| **Automation edit-in-place** (macro/trigger row editors in the Scripts panel) | ✅ |
+| **Config export/import** (one JSON blob: settings, macros, triggers, highlights, scripts, window layout) | ✅ |
+| **Quest journal** (docked window; `quest` push on assign/progress/claim) | ✅ |
+| **Chargen cards** (stat-mod chips per race, mana type per guild) | ✅ |
+| **Scrollback buffer cap** (500/2000/5000/unlimited) | ✅ |
+| **Gag rules** (regex line-dropping, render-time only) | ✅ |
+| **Audio alerts** (WebAudio chime on highlight match, opt-in) | ✅ |
+| **Keys overlay** (F1 / `keys` shortcut reference) | ✅ |
 | Custom ANSI color palette | ✅ (text/accent/success/muted pickers) |
 | Auto-scroll toggle + pause | ✅ (toggle, scroll-lock pill, End to resume) |
 | Mobile-friendly layout | ✅ (bottom-sheet dock, safe-area insets, thumb-reachable exits) |
@@ -213,9 +227,9 @@ The web client is the surface for automation. All scripting is **client-side**
 | **EXP (Thoughts) window** with `N skills learning` count | ✅ |
 | **Hands bar** (Hand / Worn / Carried from the `hands` message) | ✅ |
 | **EXP + INFO toolbar buttons** (docked exp/info panels) | ✅ |
-| **Watch any player live** (`/?spectate=Name` deep-link; room/hands snapshot on subscribe) | ✅ |
+| **GM live watch** (`/?spectate=Name` deep-link; room/hands snapshot and typed-command relay) | ✅ dedicated `DR_GM_TOKEN` required; ordinary accounts cannot subscribe |
 | Navigation help in the room panel | ✅ |
-| Incoming/outgoing text styles (say/emote/combat) | 🚧 room/notice/error/echo/prompt styled; say/emote/combat lines not channel-tagged on the wire yet |
+| Incoming/outgoing text styles (say/emote/combat) | ✅ say/emote/shout carry channel tags; combat uses its dedicated message type |
 
 ---
 
@@ -252,7 +266,7 @@ Magic tertiary).
 | Choke | 🚧 live (circle 5 gate, single-target grip, halved foe damage for 5 ticks) |
 | Dual Load: fire two arrows (201 Bows + 30 agi/ref + Eagle form) | 🚧 live (learnable at circle 7, bow only, 2× ammo per shot, 1.5× damage) |
 | Magic Resistance: premier anti-magic edge (Serenity, Dispel, Mage's Lash) | ✅ innate ward scales with Defending; Serenity (purge + magic ward), Dispel (silence foe magic), Mage's Lash (reflect) live |
-| Bonus stance points: +1 per 60 Defending ranks | ✅ (stance-points model live) |
+| Bonus stance points: +1 per 60 Defending ranks | 🚧 totals are calculated and displayed; bonuses do not yet change allocation or combat outcomes |
 | Expertise skill + Barbarian combos: ANALYZE FLAME/ACCURACY/DAMAGE…, ACM Expertise checks | 🚧 `analyze <flame\|accuracy\|damage>` live (trains Expertise, 3-part combo grants an advantage); ACM check cooldown reduction pending |
 | Barbarian items: chakrel, warhorns (15-min spawn boost), warpaint, roar helms | ✅ warhorn (spawns beasts, 15-min timer), chakrel (neck slot, −5 meditation cost), warpaint (+15% damage), roar helm (half voice cost, stronger roars) all live |
 | Faithful circle requirements: the authentic DR band table (Weapon primary; Survival+Armor secondary; Lore+Magic tertiary) | ✅ (live in the band-table engine) |
@@ -270,8 +284,8 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Feature | Status |
 |---|---|
 | Full DR skill set (~83 skills): Empathy, Thanatology, Summoning, Tactics, Scholarship, Performance, Defending, Parry Ability, Offhand Weapon, Melee/Missile Mastery, Inner Fire, Augmentation, Debilitation, Warding, Targeted Magic, Arcana, Sorcery, Outdoorsmanship, Thievery, Athletics, forging/enchanting/alchemy/outfitting/engineering | ✅ list live (83 skills); mastery mechanics live; guild-skill training gates live |
-| Mana-type system: Elemental (Bard, Warrior Mage), Holy (Cleric, Paladin), Life (Empath, Ranger), Lunar (Moon Mage, Trader), Necromantic (Necromancer), none (Barbarian, Thief) | 🚧 types + cycles + cambrinth live; attunement-pulse regen nuances pending |
-| Spell-slot progressions per guild: primary magic 89–91 slots @150 (Cleric, Moon Mage, Warrior Mage), secondary magic 55–76 (Bard, Empath, Necromancer), tertiary magic 60–61 (Paladin, Ranger, Trader); free magical feats at circle 2 | 🚧 `slots` display live; slot-constrained learning + free feats pending |
+| Mana-type system: Elemental (Bard, Warrior Mage), Holy (Cleric, Paladin), Life (Empath, Ranger), Lunar (Moon Mage; Trader reserved), Necromantic (Necromancer), none (Barbarian, Thief) | 🚧 types + cycles + cambrinth live for casting guilds; Trader magic/Starlight Aura and attunement nuances pending |
+| Spell-slot progressions per guild: primary magic 89–91 slots @150 (Cleric, Moon Mage, Warrior Mage), secondary magic 55–76 (Bard, Empath, Necromancer), tertiary magic 60–61 (Paladin, Ranger, Trader); free magical feats at circle 2 | ✅ compressed parity: tier-scaled budgets (primary > secondary > tertiary), per-tier slot costs, +2 feat at circle 2; `learn`/`forget` at the hall; over-budget unlocks await at the hall |
 | Nth-skill + hard/soft requirement engine | ✅ cumulative DR 1–10 tables; hard named skills never double-count toward Nth; mastery skills excluded; guild-specific Thievery eligibility; cross-system invariants tested; organic exp sources live for tactics, scholarship, performance, appraisal, outdoorsmanship (foraging), athletics, hunting, scouting, backstab, defending, parry, thievery (steal), locksmithing (strongboxes), empathy, arcana |
 | Crafting skills + disciplines: Forging (Weaponsmithing/Armorsmithing/Blacksmithing), Enchanting (Artificing/Binding/Invoking), Alchemy (Remedies/Poison/Cooking), Outfitting (Tailoring/Artistry), Engineering (Tinkering/Shaping/Carving) | 🚧 Alchemy + Forging v1 live (ore → quality steel); full disciplines pending |
 | Guild crafting affiliations: free technique slots per guild (e.g. 3× Armorsmithing Paladin, 2× Remedies+1× Cooking Empath) | 🚧 v1 live: Paladin +3 Armorsmithing, Ranger +2 Tailoring, Trader +2 Engineering, Empath +2 Remedies, Barbarian +3 Forging; explicit technique slots pending |
@@ -421,7 +435,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Task givers: per-guild leader kill tasks (ask <leader> task) + crier pest-control | ✅ kill + delivery/recovery/skinning quests live; street task givers pending |
 | Second starting city: Riverhaven (square, market, temple, shared hall row, ferry road to the woods); province travel | ✅ Riverhaven live; province travel pending |
 | Loot flags per creature (gems, coin, boxes, skins) driving ladder choice | ✅ flags live on the ladder; gems drop from flagged creatures |
-| Specialized ladders: undead, constructs, skinning, locksmith | ⬜ |
+| Specialized ladders: undead, constructs, skinning, locksmith | ✅ `ladder undead|construct|beast|humanoid|spirit|skins|boxes` — creature `kinds` flags + rank-sorted filtered views |
 
 ---
 
@@ -434,8 +448,8 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | 11 guild skills: Empathy, Astrology, Expertise, Scouting, Backstab, Summoning, Bardic Lore, Conviction, Theurgy, Thanatology, Trading (guild-only training) | ✅ trainer-gated + activity sources live (8 in the Guild category; Astrology/Summoning/Theurgy live in the Magic skillset) |
 | Hard/soft/restricted requirement semantics in the circle engine | ✅ (hard flags, mastery/Sorcery/Thievery exclusions live) |
 | Skill-level messaging tiers (Novice → Practitioner → … → Avatar, 16 tiers with degree modifiers) in `skills` output | ✅ |
-| Learning model: field-exp pools (70% now / 30% banks), 30s pulses, mindstate ladder, REXP (2:1, 2× drain) | ✅ pool/pulse timing live (single pulse group; DR's 10-group offset model noted) |
-| Rank cap 1750 (DR) vs our anti-grind cap (circle × 4, 40 @ circle 10) | ✅ curve 200 + n exact; cap is an intentional divergence |
+| Learning model: field-exp pools (70% now / 30% banks), 30s pulses, mindstate ladder, REXP (2:1, 2× drain) | ✅ ten staggered pulse groups on wall-clock phases; conversion rate by skillset tier (primary 100% / secondary 80% / tertiary 65% — retained tails); REXP unchanged |
+| Rank cap 1750 (DR) vs our next-circle ceiling (`(circle + 1) × 4`; rank 40 trainable at c9 for c10) | ✅ curve 200 + n exact; cap is an intentional compressed-game divergence |
 
 ---
 
@@ -446,10 +460,10 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Mana spectrum: Elemental / Holy / Life / Lunar / Necromantic / none with per-type cycles (holy days, seasons, weather, moon phases) | 🚧 six types + deterministic cycles live (lunar 12h, holy 72h, life monthly, elemental diurnal, necromantic amalgam); storms charge mana, fog dims it (weather live) |
 | HARNESS + PERCEIVE verbs; attunement pool regenerates in pulses (4/3/2.5% of max per 6s base by guild rate — primary > secondary > tertiary — ×0.5–2.5 attunement scaling) | 🚧 `perceive`/`harness` + held-mana cast bonus live; 6s pulse regen live (guild-rate + attunement-scaled) |
 | Cambrinth storage: CHARGE / INVOKE / RELEASE / FOCUS; type-locked (wrong type explodes), 1/8 leakage per 500s, Arcana-gated efficiency (~200 ranks), capacity by item shape | 🚧 cambrinth items + charge/invoke/focus live (type-lock explosion, 500s leakage, Arcana efficiency, capacity by device); multi-device tracking and partial-invoke pending |
-| Casting model: PREPARE <spell> # → CAST <target>; TARGET verb; spell slots (primary ~89–92, secondary ~55–77, tertiary ~60–68 @150) | 🚧 `prepare` + `target` + `slots` live; slot-constrained prep pending |
+| Casting model: PREPARE <spell> # → CAST <target>; TARGET verb; spell slots (primary ~89–92, secondary ~55–77, tertiary ~60–68 @150) | ✅ `prepare` + `target` + slot-constrained holding: tier costs, per-guild budgets, `learn`/`forget`, cast gated on held spells |
 | Spell types: standard, battle, ritual (foci cut mana), cyclic (one at a time, pulsing upkeep), metaspell | ⬜ |
 | Analogous patterns: universal spells free circles 1–10, removed at 11 | ⬜ |
-| Spell difficulty tiers: intro / basic (~10 ranks) / intermediate (~80) / advanced (~250) / esoteric (~400+) | ✅ tiers map from minCircle (intro 0, basic 10, intermediate 25, advanced 40, esoteric 60 ranks); casting beyond your mastery refuses |
+| Spell difficulty tiers: intro / basic (~10 ranks) / intermediate (~80) / advanced (~250) / esoteric (~400+) | 🚧 mastery gating is live with compressed thresholds (0 / 10 / 24 / 32 / 44) that remain reachable at each unlock circle; source-scale tiers require the future rank-cap expansion |
 | Backfire risk when over-channeling; sorcerous backlash; SvS contests (attack types vs defenses) for contested spells | 🚧 overchannel backfire live (Primary Magic raises the safe ceiling, damage on fizzle); sorcerous backlash and SvS contests pending |
 
 ---
@@ -475,20 +489,20 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | PvP stance flagging (OPEN / GUARDED / CLOSED) + forced-open triggers (stealing) | 🚧 `pvp stance` live; steal forces OPEN; further forced-open triggers pending |
 | Justice zones: Standard / Clan / Dirge / Hara'jaal / None, each with distinct crime consequences | 🚧 |
 | Crime list: thievery; arrest → jail → PLEAD (guilty fine / innocent time + judge's costs on release, heat-scaled) | 🚧 theft justice live; murder/sorcery crimes + provincial debts pending |
-| Warrants (RECALL WARRANT), SURRENDER to clear charges, stocks for petty theft, DEPART ITEM vs graverobbing | 🚧 murder warrants live (guards seize on sight, RECALL/SURRENDER/plead, stocks after guilty plea); DEPART ITEM + zone variants pending |
+| Warrants (RECALL WARRANT), SURRENDER to clear charges, stocks for petty theft, DEPART ITEM vs graverobbing | ✅ murder warrants live (guards seize on sight, RECALL/SURRENDER/plead, stocks after guilty plea); Rite of Departure draws one item from your last corpse to the temple for a fee, once per death |
+| Justice zones + town debts | ✅ wilds lawless / town standard / Guild District strict (heat ×2, fines ×1.5); unpaid fines become town debt — guards garnish 25% of purse on sight, `debts` views it, `paydebt` clears it at the bank |
 | Policy guardrails: no ganking / spawn-camping / preying on weaker players; REPORT for abuse | ✅ v1 live (assault circle-gap guard, hot-room respawn throttle, REPORT); broader moderation tooling pending |
 
 ---
 
 ## Circle-10 Requirement Matrix
 
-The live engine (`data/guilds.js` `CIRCLE_TABLES`) implements the **authentic
-DragonRealms band tables** for all 11 guilds — named hard/soft skills plus
-Nth-of-skillset pools, with the 1–10 band values scaled per circle
-(`need = max(1, ceil(band × circle / 10))`, so circle 10 demands exactly the
-source-game table). Mastery skills (Defending, Parry Ability, Offhand,
-Melee/Missile Mastery, Primary Magic) never count toward Nth pools, and
-Sorcery/Thievery exclusions follow each guild's rules.
+The live engine (`data/guilds.js` `CIRCLE_TABLES`) implements the cumulative
+DragonRealms 1–10 band tables for all 11 guilds — named hard/soft skills plus
+Nth-of-skillset pools. Requirements use `need = band × target circle`, so a
+band value of 4 requires rank 40 at circle 10. Named hard skills are excluded
+from their Nth pools so one rank cannot satisfy both rows; mastery skills are
+also excluded, and Sorcery/Thievery eligibility follows each guild's rules.
 
 Verified by the progression simulator: **every guild reaches circle 10**.
 Per-guild band rows can be read from the wiki corpus
@@ -504,31 +518,30 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 - **Stage 3 — Combat & Magic 🚧** — async combat, stances, PvP duels, maneuvers, ambush, tiered grounds, and fifth spells live; loot scaling live.
 - **Stage 4 — Economy & Content 🚧** — tiers, alchemy, dungeon, named rares, auction, durability/repair live; balance pass pending.
 - **Stage 5 — TDPs & Advanced Growth 🚧** — TDP economy, titles, and circle-10 capstones live.
-- **Stage 6 — Scripting ✅** — aliases, chaining, macro bar, timers, triggers all live.
-- **Stage 7 — Custom Interface 🚧** — themes, fonts, and palette live; channel styling pending.
-- **Stage 8 — Native Controls 🚧** — D-pad + gamepad + haptics live.
-- **Stage 9 — Circle-10 Parity 🚧** — all guilds verified by simulator; capstones live; pacing re-verify (5–16 sim-min) and playtest pending.
+- **Stage 6 — Scripting ✅** — aliases, chaining, macro bar, timers, triggers, DR-style scripts, and per-character server-stored script persistence are live.
+- **Stage 7 — Custom Interface ✅** — four themes (incl. Ember, all WCAG AA), window manager, channel muting, timestamps, gags, scrollback cap, config backup, quest journal, chargen cards, and the keys overlay are live.
+- **Stage 8 — Native Controls ✅** — D-pad + gamepad + haptics live.
+- **Stage 9 — Circle-10 Parity 🚧** — all guilds reach circle 10 under the corrected simulator; capstones live; active-time economy and live playtests remain.
 
-- **Stage 10 — Barbarian Fidelity 🚧** — inner fire, four ability classes, paths, masteries, Expertise combos live; the full berserk/form/roar families, warpaint, roar helms, and registers pending (Pillar 11).
-- **Stage 11 — Cross-Guild Systems 🚧** — full DR skill set, mana types + cambrinth, spell-slot display, Nth-skill engine, alchemy + forging live; crafting disciplines and slot-constrained learning pending (Pillar 12).
+- **Stage 10 — Barbarian Fidelity 🚧** — inner fire, four ability classes, paths, masteries, Expertise combos, warpaint, and roar helms live; the full berserk/form/roar families and registers remain (Pillar 11).
+- **Stage 11 — Cross-Guild Systems 🚧** — full DR skill set, mana types + cambrinth, spell-slot budgets with learn/forget, Nth-skill engine, alchemy + forging live; crafting disciplines pending (Pillar 12).
 - **Stage 12 — Guild Fidelity 🚧** — every guild has a live fidelity v1 (enchantes, devotion, wound-taking, prediction, risen, soul, companions/beseeches, khri, commodity pits, familiars); deeper per-guild trees pending (Pillars 13–22).
 - **Stage 13 — World & Systems Fidelity 🚧** — Riverhaven, hunting ladder, task quests, justice loop live; provinces, depth-tiered grounds, the full crime set, and crafting disciplines pending (Pillars 23–27).
 
 ## Next Up (prioritized backlog)
 
 **P1 — growth-loop depth**
-- Spell-slot-constrained learning + free magical feats at circle 2 (P12/P25) — `slots` display live; prep gating pending
-- Exp: DR's 10-group pulse offsets + retention by skillset rate (P24) — single 30s pulse group live
+- ~~Spell-slot-constrained learning + free magical feats at circle 2 (P12/P25)~~ ✅ live: tier-scaled budgets, per-tier costs, `learn`/`forget`, +2 feat at circle 2
+- ~~Exp: DR's 10-group pulse offsets + retention by skillset rate (P24)~~ ✅ live: ten staggered wall-clock groups; primary/secondary/tertiary conversion rates
 
 **P2 — combat & world**
 - Loot: circle-scaled coins/gems, tiered strongboxes/ore, rare named loot, and ladder loot flags are live (P5/P23); deeper flags (undead/constructs/skinning/locksmith ladders) pending
 - Provinces + more depth-tiered hunting grounds (P23) — Lower Drains + The Blackwater live
 - Full crime set (murder, forbidden practices) + provincial debts (P27) — murder warrants live; debts/stocks pending
-- Duel reasons live; justice-zone variants + DEPART ITEM pending (P27)
+- ~~Duel reasons live; justice-zone variants + DEPART ITEM pending (P27)~~ ✅ justice zones (lawless/standard/strict), town debts with guard garnishment, and the Rite of Departure are live
 
 **P3 — breadth & polish**
 - Crafting disciplines (Engineering/Outfitting/Enchanting) + technique slots (P26) — shaping/tailoring v1 live; technique slots pending
-- Say/emote channel styling in the client (P9) — needs a wire-protocol channel tag
 - Masterful-craft durability, work orders + maker's mark (P26)
 - Deeper per-guild trees: full khri family, enchante segue + area effects,
   cleric infusion/resurrection, empath shift, astral travel, risen states,
@@ -544,21 +557,27 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
   10** and reports pacing, TDPs, silver economy, and per-circle milestones.
 - `node scripts/build-skills-doc.mjs` — regenerates `public/SKILLS.html` (the
   full skill reference) from the live game data.
-- `npm test` — 82 headless tests including a full HTTP API suite
-  (`server/api.js`, enable with `DR_ENABLE_API=1`).
+- `npm test` — the complete headless domain, HTTP API, security, and static
+  suites (`server/api.js`, enable the runtime API with `DR_ENABLE_API=1`).
 
-**Sim-validated circle-10 times (simulated active minutes):**
+**Deterministic circle-10 simulation (cumulative band requirements):**
 
-| Guild | Minutes | | Guild | Minutes |
-|---|---|---|---|---|
-| Moon Mage | 5 | | Ranger | 12 |
-| Bard | 8 | | Thief | 12 |
-| Cleric | 7 | | Trader | 12 |
-| Necromancer | 6 | | Warmage | 7 |
-| Barbarian | 16 | | Paladin | 8 |
-| | | | Empath | 11 |
+| Guild | Hunts | Active min | Active hours |
+|---|---:|---:|---:|
+| Barbarian | 1,040 | 937 | 15.6 |
+| Bard | 2,388 | 1,612 | 26.8 |
+| Cleric | 2,986 | 2,009 | 33.4 |
+| Empath | 3,989 | 4,539 | 75.6 |
+| Moon Mage | 2,638 | 1,757 | 29.2 |
+| Necromancer | 3,096 | 2,040 | 34.0 |
+| Paladin | 1,525 | 1,060 | 17.6 |
+| Ranger | 3,096 | 2,426 | 40.4 |
+| Thief | 1,314 | 1,348 | 22.4 |
+| Trader | 1,974 | 2,024 | 33.7 |
+| Warrior Mage | 2,997 | 1,964 | 32.7 |
 
-All eleven guilds verified to circle 10 through the authentic band-based
-requirement tables (named skills + Nth-of-skillset pools). TDP totals at
-circle 10 land in the DR-authentic hundreds-to-thousands range (≈900–1030
-with the 600-start + circle awards + pool conversions).
+All eleven runs reached circle 10 with zero deaths. These numbers validate
+engine reachability, not human pacing: the simulator performs deterministic
+practice and does not model navigation, social play, experimentation, or idle
+time. The 15.6–75.6 hour spread is now explicit evidence for the live-play
+balance backlog, especially the Empath and Ranger curves.

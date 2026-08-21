@@ -60,9 +60,10 @@ lookups), `test/world.test.mjs` (NPC assertions), `README.md` (command list).
 2. Add the NPC entry to `NPCS` in `data/npcs.js` (one object, no comments
    beyond the existing header style).
 3. Place it in the right room in `data/world.js` by adding its id to the
-   room's `npcs` array. Rooms: `square`, `market_way`, `market_end`,
-   `brewery`, `temple_row`, `temple`, `west_road`, `west_gate`, `east_gate`,
-   `guild_district`, and the `hall_*` guild halls.
+   room's `npcs` array. Rooms: `square`, `tg_*` green corners, `bazaar`,
+   `bank_plaza`, `market_end`, `brewery`, `temple_row`, `temple`,
+   `west_road`, `west_gate`, `east_gate`, `guild_district`, and the `hall_*`
+   guild halls.
 4. Validate ids: every `stock`/`buys` id resolves in `data/items.js`; every
    `guild` field resolves in `data/guilds.js`.
 5. Verify functionality end-to-end.

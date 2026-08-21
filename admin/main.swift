@@ -10,10 +10,26 @@
 
 import AppKit
 import Foundation
+import Security
+
+func configuredOrRandomGMToken() -> String {
+    if let configured = ProcessInfo.processInfo.environment["DR_GM_TOKEN"], !configured.isEmpty {
+        return configured
+    }
+    var bytes = [UInt8](repeating: 0, count: 32)
+    guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
+        fatalError("Unable to generate the required GM credential.")
+    }
+    return bytes.map { String(format: "%02x", $0) }.joined()
+}
 
 let ROOT = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).path
 let PORT = 3000
-let GMTOKEN = ProcessInfo.processInfo.environment["DR_GM_TOKEN"] ?? "gmsecret"
+// When the operator does not supply a token, generate an unpredictable
+// per-launch credential and pass it directly to the child world process.
+// It is never printed or placed in a URL; the menu exposes an explicit copy
+// action for pasting it into the GM console.
+let GMTOKEN = configuredOrRandomGMToken()
 let BASE = "http://127.0.0.1:\(PORT)"
 let LOG_PATH = "/tmp/dr-world.log"
 
@@ -26,6 +42,7 @@ func worldOnline() -> Bool {
 enum Action: String, CaseIterable {
     case admin = "Open Admin Dash"
     case gm = "GM Console"
+    case copyToken = "Copy GM Token"
     case play = "Play"
     case roadmap = "Roadmap"
     case start = "Start World"
@@ -111,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCent
         m.addItem(state)
         m.addItem(.separator())
 
-        for a in [Action.admin, .gm, .play, .roadmap] {
+        for a in [Action.admin, .gm, .copyToken, .play, .roadmap] {
             m.addItem(NSMenuItem(title: a.rawValue, action: #selector(runAction(_:)), keyEquivalent: "").then {
                 $0.target = self; $0.representedObject = a.rawValue
             })
@@ -141,6 +158,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCent
         switch a {
         case .admin: NSWorkspace.shared.open(URL(string: "\(BASE)/admin.html")!)
         case .gm: NSWorkspace.shared.open(URL(string: "\(BASE)/gm.html")!)
+        case .copyToken:
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(GMTOKEN, forType: .string)
+            let n = NSUserNotification()
+            n.title = "Dragon Realms"
+            n.informativeText = "GM token copied to the clipboard."
+            NSUserNotificationCenter.default.deliver(n)
         case .play: NSWorkspace.shared.open(URL(string: "\(BASE)/")!)
         case .roadmap: NSWorkspace.shared.open(URL(string: "\(BASE)/ROADMAP.html")!)
         case .start: World.shared.start()
@@ -181,4 +205,3 @@ let delegate = AppDelegate()
 app.delegate = delegate
 app.run()
 try? FileManager.default.removeItem(atPath: Singleton.lockFile)
-

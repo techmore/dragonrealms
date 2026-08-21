@@ -12,16 +12,16 @@ const auth = await import('../server/auth.js');
 const { createCharacter, loadPlayer, gainSkillExp, tdpTrainCost, skillRank, pulseExp } = await import('../server/player.js');
 const { Game } = await import('../server/game.js');
 const { handleCommand } = await import('../server/commands/index.js');
-const { circleRequirements, circleRequirementNeeds } = await import('../data/guilds.js');
+const { circleRequirements, circleRequirementNeeds, trainableSkills } = await import('../data/guilds.js');
 const { CREATURES } = await import('../data/creatures.js');
 
 const GUILD = process.argv[2] || 'warmage';
 migrate();
 const game = new Game();
 game.init();
-game.combat.stopTicker();
-clearInterval(game.respawnTicker);
-clearInterval(game.autosaveTicker);
+// The simulation advances combat and experience explicitly, so all real-time
+// background systems stay stopped.
+game.stop();
 
 // Hunt table by circle: [creatureId, room]
 const HUNTS = [
@@ -55,10 +55,6 @@ p.ws = sink;
 p.online = true;
 game.addPlayer(p);
 
-const equip = (id) => {
-  if (!id) return;
-  const { addItem } = p.inventory.length ? {} : {};
-};
 const { addItem } = await import('../server/player.js');
 const give = (itemId, cmd) => { addItem(p, itemId, 1); handleCommand(game, p, cmd); };
 
@@ -70,7 +66,6 @@ let hunts = 0;
 let deaths = 0;
 let kills = 0;
 let silverEarned = 0;
-let totalExp = 0;
 const startReal = Date.now();
 const circleTimes = { 1: 0 };
 
@@ -87,10 +82,10 @@ function sellLoot() {
   // Walk to the markets, sell everything the vendors will take, come back.
   const backRoom = p.room;
   if (p.guild.id === 'thief') {
-    p.room = 'market_way';
+    p.room = 'bazaar';
     handleCommand(game, p, 'steal shopkeeper');
   }
-  for (const room of ['market_way', 'market_end']) {
+  for (const room of ['bazaar', 'market_end']) {
     p.room = room;
     for (const inv of [...p.inventory]) {
       if (['padded_cloth', 'short_sword', 'strongbox'].includes(inv.item.id)) continue;
@@ -103,24 +98,49 @@ function sellLoot() {
   p.room = backRoom;
 }
 
-function trainPrimaries() {
-  const guild = p.guild;
-  const need = p.circle + 1;
-  for (const skillId of guild.primary) {
-    const rank = (p.skills[skillId] || {}).rank || 0;
-    if (rank >= need + 1) continue;
-    const cost = 40 + rank * 20;
-    if (p.silver >= cost) {
-      handleCommand(game, p, `train ${skillId}`);
-    }
+function requirementNeeds() {
+  const bySkill = new Map();
+  const taught = new Set(trainableSkills(p.guild));
+  const raw = circleRequirementNeeds(p.guild, p.skills, p.circle + 1);
+
+  for (const { skill, need, candidates } of raw) {
+    if (candidates) continue;
+    bySkill.set(skill, Math.max(need, bySkill.get(skill) || 0));
   }
-  for (const skillId of guild.secondary) {
+
+  // Reserve a distinct concrete target for every Nth row. Without this, all
+  // rows can collapse onto one strong trainer-taught skill and breadth never
+  // increases (for example a Barbarian's four weapon requirements).
+  const nthRows = new Map();
+  for (const req of raw.filter((entry) => entry.candidates)) {
+    const key = `${req.set}:${req.nth}`;
+    const prior = nthRows.get(key);
+    if (!prior || req.need > prior.need) nthRows.set(key, req);
+  }
+  const usedBySet = new Map();
+  const ordered = [...nthRows.values()].sort((a, b) => a.set.localeCompare(b.set) || a.nth - b.nth);
+  for (const req of ordered) {
+    const used = usedBySet.get(req.set) || new Set();
+    const ranked = req.candidates
+      .filter((id) => !used.has(id))
+      .sort((a, b) => ((p.skills[b] || {}).rank || 0) - ((p.skills[a] || {}).rank || 0));
+    const belowNeed = ranked.filter((id) => ((p.skills[id] || {}).rank || 0) < req.need);
+    const skill = belowNeed.find((id) => taught.has(id)) || belowNeed[0] || req.skill;
+    used.add(skill);
+    usedBySet.set(req.set, used);
+    bySkill.set(skill, Math.max(req.need, bySkill.get(skill) || 0));
+  }
+  return bySkill;
+}
+
+function trainAtGuild() {
+  const needs = requirementNeeds();
+  for (const skillId of trainableSkills(p.guild)) {
+    const need = needs.get(skillId) || 0;
     const rank = (p.skills[skillId] || {}).rank || 0;
-    if (rank >= Math.max(1, need - 1)) continue;
+    if (rank >= need) continue;
     const cost = 40 + rank * 20;
-    if (p.silver >= cost) {
-      handleCommand(game, p, `train ${skillId}`);
-    }
+    if (p.silver >= cost) handleCommand(game, p, `train ${skillId}`);
   }
 }
 
@@ -135,10 +155,25 @@ function tryCast(combat, tickInFight) {
   handleCommand(game, p, `cast ${spell.name.toLowerCase()}`);
 }
 
+// These skills receive dependable practice from the simulator's combat and
+// between-hunt actions. Save finite TDPs for gaps such as First Aid,
+// Locksmithing, extra weapons, and otherwise unavailable breadth skills.
+const ORGANIC_SKILLS = new Set([
+  'performance', 'scholarship', 'appraisal', 'tactics',
+  'evasion', 'athletics', 'perception', 'stealth', 'foraging', 'skinning',
+  'parry', 'defending', 'fitness', 'hunting', 'tracking',
+  'inner_fire', 'expertise', 'trading', 'thievery',
+  'attunement', 'arcana', 'augmentation', 'debilitation', 'targeted_magic',
+  'utility_magic', 'warding_magic', 'primary_magic',
+  'light_armor', 'chain_armor', 'medium_edged',
+]);
+
 function tdpBoost() {
-  // Spend TDPs on the weakest skill each requirement row names.
-  const needs = circleRequirementNeeds(p.guild, p.skills, p.circle + 1);
-  for (const { skill, need } of needs) {
+  // Preserve TDPs for requirements the guild trainer cannot teach; normal
+  // guild skills use the silver sink above.
+  const taught = new Set(trainableSkills(p.guild));
+  for (const [skill, need] of requirementNeeds()) {
+    if (taught.has(skill) || ORGANIC_SKILLS.has(skill)) continue;
     let rank = (p.skills[skill] || {}).rank || 0;
     let guard = 0;
     while (rank < need && p.tdp >= tdpTrainCost(rank) && guard++ < 12) {
@@ -160,7 +195,11 @@ let safety = 0;
 report(`=== Progression sim: ${p.guild.name} (${p.race.name}) -> circle 10 ===`);
 while (p.circle < 10 && safety++ < 30000) {
   const hunt = huntFor(p.circle);
-  if (hunts % 1000 === 0) report(`  ...hunt ${hunts}: circle ${p.circle}, hp ${p.hp}/${p.maxHp}, ticks ${Math.floor(ticks / 60)}m`);
+  if (hunts % 1000 === 0) {
+    const missing = circleRequirements(p.guild, p.skills, p.circle + 1).missing.slice(0, 3).join('; ');
+    const targets = [...requirementNeeds()].map(([id, need]) => `${id} ${(p.skills[id] || {}).rank || 0}/${need}`).slice(0, 4).join(', ');
+    report(`  ...hunt ${hunts}: circle ${p.circle}, hp ${p.hp}/${p.maxHp}, TDP ${p.tdp}, silver ${p.silver}, ticks ${Math.floor(ticks / 60)}m${missing ? `; next: ${missing}` : ''}${targets ? `; train: ${targets}` : ''}`);
+  }
   // Gear up
   for (const g of GEAR) {
     if (p.circle >= g.min) {
@@ -170,10 +209,14 @@ while (p.circle < 10 && safety++ < 30000) {
     }
   }
   // Breadth activities a real player does between fights.
-  if (hunts % 3 === 0) handleCommand(game, p, 'hunt');
-  if (hunts % 4 === 0) handleCommand(game, p, 'forage');
-  if (hunts % 7 === 0) handleCommand(game, p, 'hide');
-  if (hunts % 9 === 0 && p.guild.magic) handleCommand(game, p, 'perform');
+  // Some high-circle combat zones are barren/urban rather than forageable.
+  // Practice fieldcraft in the nearest true wilds before walking to the hunt.
+  p.room = game.isWild(hunt.room) ? hunt.room : 'woods_1';
+  handleCommand(game, p, 'hunt');
+  handleCommand(game, p, 'forage');
+  handleCommand(game, p, 'hide');
+  handleCommand(game, p, 'perform');
+  ticks += 18; // hunt 5 + forage 5 + hide 3 + performance 5 RT
 
   p.room = hunt.room;
   const def = CREATURES[hunt.ids[Math.floor(Math.random() * hunt.ids.length)]];
@@ -181,12 +224,12 @@ while (p.circle < 10 && safety++ < 30000) {
   if (!res.ok) { console.error('combat start failed'); break; }
   let combat = res.combat;
   let guard = 0;
-  let usedManeuver = false;
   while (game.combat.getFor(p) && guard++ < 2000) {
     combat.tick();
     ticks += 1;
     tryCast(combat, guard);
-    if (!usedManeuver && guard % 12 === 0) { handleCommand(game, p, 'disarm'); usedManeuver = true; }
+    if (guard % 12 === 0) handleCommand(game, p, 'disarm');
+    if (p.guild.id === 'barbarian' && guard % 6 === 0) handleCommand(game, p, 'analyze flame');
     if (p.guild.id === 'barbarian' && guard === 3 && !combat.berserk) handleCommand(game, p, 'berserk');
   }
   hunts += 1;
@@ -213,13 +256,12 @@ while (p.circle < 10 && safety++ < 30000) {
   }
   restToFull();
   // Study at the temple on the way to the guild hall (scholarship).
-  if (hunts % 5 === 0) {
-    p.room = 'temple';
-    handleCommand(game, p, 'study');
-  }
+  p.room = 'temple';
+  handleCommand(game, p, 'study');
+  ticks += 4;
   // Return to the guild hall to train and circle, like a real player.
   p.room = `hall_${GUILD}`;
-  trainPrimaries();
+  trainAtGuild();
   tdpBoost();
   if (tryCircle()) break;
   p.room = hunt.room;
@@ -237,6 +279,6 @@ report(`Circle milestones (sim minutes):`);
 for (const [c, t] of Object.entries(circleTimes)) report(`  circle ${c}: ${Math.floor(t / 60)}m`);
 report(`Final primary ranks: ${p.guild.primary.map((s) => `${s}=${(p.skills[s] || {}).rank || 0}`).join(', ')}`);
 
-game.combat.stopTicker();
+game.stop();
 closeDb();
 rmSync(tmp, { recursive: true, force: true });

@@ -60,15 +60,31 @@ game stream and drives the gauges from them.
 | Combat ranges | missile/pole/melee with `advance`/`retreat`/`flee`/`assess`; weapon reach |
 | Roundtime | DR weapon-class RT table; `RT: n` in the prompt; actions gated |
 | Scripts | DR-script interpreter: `.script` prefix, `put`/`wait`/`match`/`matchwait`/`goto` |
+| **Server-stored scripts** | saved DR scripts persist on the character record and follow the player across browsers/machines; library pushed on world entry, deletes sync too (Pillar 8 closed) |
 | Clickable exits | exits list under the compass + inline exit bar in the terminal |
 | Channel colors | `ch-room/combat/notice/error/echo/prompt` + themes |
+| Themes (dark / parchment / terminal-green) | theme tokens in `public/css/style.css`; picker in Settings → Appearance |
+| **Ember theme** | 4th theme: deep charcoal warmed by forge-light accents; every token WCAG AA (≥ 4.5:1) against bg and panel |
+| **WCAG AA contrast pass** | all four themes' text/accent/muted/dim tokens audited and retuned to ≥ 4.5:1 (`dim` raised in dark/green/parchment; parchment amber/green/muted darkened) |
 | Scripts/macros/triggers | client automation panel (aliases, macro bar, timers, triggers, DR scripts) |
-| Watch any player | `/?spectate=Name` auto-enters watch mode; room/hands snapshots on subscribe |
+| **Channel muting** | Settings → Channels drops new lines of a muted channel from the story stream at render time; triggers/scripts still see them, and the Conversations pane keeps say/emote/shout |
+| **Timestamps** | optional `[HH:MM]` prefix on story lines (Settings → Input) |
+| **Automation edit-in-place** | macros and triggers editable inline in the Scripts panel (✎ row editor), not just delete/recreate |
+| **Config backup** | Export/Import in the Scripts panel serializes all client-persisted config (settings, macros, triggers, highlights, scripts, window layout) as JSON for machine-to-machine moves |
+| **Quick font keys** | Ctrl/Cmd `=`/`-` step font size, Ctrl/Cmd `0` resets (persisted) |
+| **Quest journal** | docked Journal window fed by a `quest` push message (assign/progress/claim); kind label, live description, `✓ ready to claim` badge; hides when no task |
+| **Chargen cards** | the `charcreate` message carries structured race/guild data; the form renders stat-modifier chips (+green/−red) per race and mana type per guild ("Elemental magic" / "no magic") |
+| **Scrollback buffer cap** | Settings → Input (500/2000/5000/unlimited); the DOM never grows unbounded, trimmed search marks are pruned |
+| **Gag rules** | Settings → Gagging: regex rules that drop matching lines from the story stream at render time (Genie/Lich staple); automation still sees them |
+| **Audio alerts** | optional soft WebAudio chime when a highlight rule matches — no assets, no dependencies |
+| **Keys overlay** | F1 or `keys` opens a keyboard-shortcuts reference; Esc closes |
+| GM live watch | With `DR_GM_TOKEN` stored by the GM console, `/?spectate=Name` enters read-only watch mode with room/hands snapshots; ordinary accounts cannot read player streams or typed commands |
 
 ## Still pending (nice-to-have, per the research)
 
-- **`You also see ...` objects line** — room output lists floor items as
-  `On the ground: ...`; DR's phrasing differs per container.
+- **`You also see ...` objects line** — the pinned room panel renders floor
+  objects this way (`renderRoomContents`); the server prose itself still says
+  `On the ground: ...` (DR's phrasing differs per container).
 - **Balance & position** — the full balance/position ladder and maneuver
   chart (jab/draw/slice/chop per attack type) beyond the DR combat ranges.
 - **Room numbers** — shown only with a flag; we omit.
@@ -78,6 +94,6 @@ game stream and drives the gauges from them.
 
 ## Verification
 
-Room format verified live: a connected spectator receives
+Room format verified live: an authorized GM spectator receives
 `[[Sewer Entrance, Old Sewers]]` + `Obvious paths: up, north.` and the exits
 array. Vitals gauges track HP/Mana/Stamina from the per-tick prompt.

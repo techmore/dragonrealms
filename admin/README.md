@@ -25,15 +25,20 @@ open bin/admin/dragonrealms-admin
 
 Direct binary run (reliable for the menu-bar item):
 ```bash
-DC_GM_TOKEN=gmsecret ./bin/admin/dragonrealms-admin/Contents/MacOS/dradmin
+DR_GM_TOKEN="$(openssl rand -hex 32)" ./bin/admin/dragonrealms-admin/Contents/MacOS/dradmin
 ```
 
 ## Config
 
 - World port: `PORT` (default 3000).
-- GM access token: `DR_GM_TOKEN` (default `gmsecret`) — the same token the GM
-  console / any auth-ed `DR_ENABLE_API` client uses. The server is started with
-  `DR_ENABLE_API=1` and that token.
+- GM access token: `DR_GM_TOKEN`. It is a dedicated privilege secret; ordinary
+  game/API sessions are not accepted. If omitted, the native app generates a
+  cryptographically random per-launch token and passes it directly to the
+  child server. Use **Copy GM Token** in the app menu to paste it into the GM
+  console; the raw token is never logged or placed in a URL.
+- The server is started with `DR_ENABLE_API=1` and that dedicated token. Debug
+  mutations remain disabled unless configured separately with
+  `DR_ENABLE_DEBUG_API=1` and `DR_DEBUG_TOKEN`.
 
 ## Files
 

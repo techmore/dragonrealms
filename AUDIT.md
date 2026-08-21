@@ -1,4 +1,13 @@
-# Dragon Realms — Deep Audit: Roadmap × Implementation × DragonRealms (through Circle 10)
+# Dragon Realms — Historical Audit Log
+
+> **Archive notice (2026-08-20):** This file preserves the findings and
+> resolution journal from the original August 12 audit. Counts, gaps, and
+> recommendations below describe the revision named in each section; they are
+> not a current status report. For current scope and status use `ROADMAP.md`
+> and `data/roadmap.js`, then run `npm test`, `npm run verify-docs`, and
+> `node scripts/audit-data.mjs`. A fresh audit found that the old circle-band
+> scaling overclaimed source fidelity; that correction is tracked in the live
+> roadmap and executable fidelity tests.
 
 Date: 2026-08-12 · **Revision 2** (re-audit after the P0/P1/P2 follow-up batch) ·
 Scope: everything the game claims through **circle 10** parity.
@@ -28,7 +37,8 @@ districts/Riverhaven/tasks), crafting disciplines, PvP/justice, and the
 per-guild fidelity passes (ROADMAP Pillars 13–22). Two roadmap rows were
 found stale this pass and fixed (barbarian forgetting status; rank-cap row).
 
-**Operational risk unchanged:** the repository still has **zero commits**.
+**Historical operational note:** this warning was resolved when the repository
+gained Git history; it is retained only as part of the original audit record.
 
 ---
 
@@ -184,7 +194,7 @@ alongside the circle engine.**
 ## 6. Prioritized recommendations (Revision 2)
 
 **P0 — do immediately**
-1. **Commit the repository** (still zero commits; total data-loss risk).
+1. **Commit the repository** — historical recommendation, now resolved.
 2. Audit's R1 roadmap fixes are all shipped; remaining staleness is tracked
    in ROADMAP.md itself (a periodic `npm test && node scripts/audit-data.mjs`
    catches data drift).
@@ -238,7 +248,7 @@ alongside the circle engine.**
 | Fourth spells @ circle 8 | ✅ verified live (all 8 magic guilds); tracker claim corrected |
 | Persistent audit tool | ✅ `scripts/audit-data.mjs` (all cross-references valid) |
 | Sim re-validation | ✅ all 11 guilds → circle 10 in 4–12 sim-min; TDPs ≈910–1040 |
-| Git commit | ⚠️ **still zero commits** — run `git add -A && git commit` |
+| Git commit | ✅ resolved after this historical revision; the repository now has commit history |
 | Exp pools/pulses, spell slots + TARGET, messaging tiers, world/justice/crafting, per-guild passes | ⬜ next batches |
 
 **Revision 3 — gaps targeted this pass:**

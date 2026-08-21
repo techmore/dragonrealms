@@ -49,12 +49,14 @@ for (const [gid, rows] of Object.entries(tables)) {
     if (r.nth && (!r.set || !r.rank)) issues.push(`circle table ${gid} -> malformed nth row`);
   }
 }
-for (const it of Object.values(ITEMS)) {
+for (const [id, it] of Object.entries(ITEMS)) {
+  if (it.id !== id) issues.push(`item key ${id} disagrees with id ${it.id}`);
   if (it.skill && !SKILLS[it.skill]) issues.push(`item ${it.id} -> missing skill ${it.skill}`);
   if (it.type === 'weapon' && (!it.dmg || it.dmg.length !== 2)) issues.push(`item ${it.id} malformed dmg`);
   if (it.type === 'armor' && !it.armor) issues.push(`item ${it.id} missing armor value`);
 }
-for (const c of Object.values(CREATURES)) {
+for (const [id, c] of Object.entries(CREATURES)) {
+  if (c.id !== id) issues.push(`creature key ${id} disagrees with id ${c.id}`);
   if (!SKILLS[c.weapon.skill]) issues.push(`creature ${c.id} -> missing skill ${c.weapon.skill}`);
   for (const l of c.loot || []) if (!ITEMS[l]) issues.push(`creature ${c.id} -> missing loot ${l}`);
   if (c.teaches && (c.teaches.length !== 2 || c.teaches[0] > c.teaches[1])) issues.push(`creature ${c.id} malformed teaches band`);
@@ -64,12 +66,14 @@ for (const [zone, r] of Object.entries(RARES)) {
   if (!SKILLS[r.weapon.skill]) issues.push(`rare ${r.id} -> missing skill ${r.weapon.skill}`);
   for (const l of r.loot || []) if (!ITEMS[l]) issues.push(`rare ${r.id} -> missing loot ${l}`);
 }
-for (const n of Object.values(NPCS)) {
+for (const [id, n] of Object.entries(NPCS)) {
+  if (n.id !== id) issues.push(`npc key ${id} disagrees with id ${n.id}`);
   for (const id of Object.keys(n.stock || {})) if (!ITEMS[id]) issues.push(`npc ${n.id} -> missing stock ${id}`);
   for (const id of n.buys || []) if (!ITEMS[id]) issues.push(`npc ${n.id} -> buys missing ${id}`);
   if (n.role === 'guild' && !GUILDS[n.guild]) issues.push(`npc ${n.id} -> guild ${n.guild} invalid`);
 }
 for (const [rid, room] of Object.entries(ROOMS)) {
+  if (room.id !== rid) issues.push(`room key ${rid} disagrees with id ${room.id}`);
   if (!ZONES[room.zone]) issues.push(`room ${rid} -> zone ${room.zone} invalid`);
   for (const npcId of room.npcs || []) if (!NPCS[npcId]) issues.push(`room ${rid} -> npc ${npcId} missing`);
   for (const spawn of room.spawns || []) if (!CREATURES[spawn]) issues.push(`room ${rid} -> creature ${spawn} missing`);
@@ -77,6 +81,23 @@ for (const [rid, room] of Object.entries(ROOMS)) {
     if (!ROOMS[target]) issues.push(`room ${rid} -> exit ${dir} -> ${target} missing`);
     else if (!Object.values(ROOMS[target].exits || {}).includes(rid)) issues.push(`room ${rid} -> exit to ${target} not reciprocal`);
   }
+}
+
+// Every room must be navigable from at least one character-creation origin.
+// Reciprocal references alone do not catch an internally connected island.
+const reachable = new Set(['square', 'rh_square'].filter((id) => ROOMS[id]));
+const frontier = [...reachable];
+while (frontier.length) {
+  const room = ROOMS[frontier.shift()];
+  for (const target of Object.values(room.exits || {})) {
+    if (!reachable.has(target) && ROOMS[target]) {
+      reachable.add(target);
+      frontier.push(target);
+    }
+  }
+}
+for (const rid of Object.keys(ROOMS)) {
+  if (!reachable.has(rid)) issues.push(`room ${rid} is unreachable from every starting city`);
 }
 for (const r of Object.values(RECIPES)) {
   if (!ITEMS[r.item]) issues.push(`recipe ${r.id} -> missing result ${r.item}`);

@@ -106,20 +106,15 @@ if (statusDrift) errors += statusDrift;
 //    in-flight work never trips this check)
 console.log('\nVerifying generators are current...');
 const { execSync } = await import('node:child_process');
+const GENERATED = ['public/ROADMAP.html', 'public/SKILLS.html', 'SKILLS.md'];
+const beforeGeneration = new Map(GENERATED.map((f) => [f, readFileSync(join(ROOT, f), 'utf8')]));
 for (const script of ['build-roadmap.mjs', 'build-skills-doc.mjs']) {
   execSync(process.execPath, ['scripts/' + script], { cwd: ROOT });
 }
-const GENERATED = ['public/ROADMAP.html', 'public/SKILLS.html', 'SKILLS.md'];
-let dirty = [];
-for (const f of GENERATED) {
-  try {
-    const out = execSync(`git diff --stat -- ${f}`, { cwd: ROOT, encoding: 'utf8' });
-    if (out.trim()) dirty.push(f);
-  } catch { /* no repo */ }
-}
-if (dirty.length) {
+const changedByGenerator = GENERATED.filter((f) => readFileSync(join(ROOT, f), 'utf8') !== beforeGeneration.get(f));
+if (changedByGenerator.length) {
   errors++;
-  console.log('GENERATORS DIRTY (regeneration changed): ' + dirty.join(', '));
+  console.log('GENERATED FILES WERE STALE: ' + changedByGenerator.join(', '));
 } else {
   console.log('generators reproducible: ok');
 }

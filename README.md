@@ -27,13 +27,13 @@ testing and analysis — see `docs/api.md`.
 
 - **Accounts** — scrypt-hashed passwords, per-salt hashing, lockout after 5
   failed logins, 12-hour session tokens, rate-limited input.
-- **Races** (11) — each with stat modifiers (Strength, Constitution, Reflex,
+- **Races** (12) — each with stat modifiers (Strength, Constitution, Reflex,
   Agility, Charisma, Discipline, Wisdom, Intelligence).
 - **Guilds** (11) — Barbarian, Bard, Cleric, Empath, Moon Mage, Necromancer,
   Paladin, Ranger, Thief, Trader, Warrior Mage. Each trains a primary and
   secondary skill set; magic guilds wield a signature spell.
-- **Skills** (~45 across Weapon, Armor, Combat Manipulation, Defense, Lore,
-  Magic, Survival). Using a skill earns experience toward its next rank; ranks
+- **Skills** (83 across Weapon, Armor, Combat Manipulation, Defense, Lore,
+  Magic, Survival, and Guild). Using a skill earns experience toward its next rank; ranks
   cost ~200 exp plus a small per-rank increase, and Int/Wis/Discipline speed
   your learning. Rank-ups feed a hidden TDP pool (200 points → 1 TDP).
 - **TDPs** (Training Development Points) — the DR-authentic growth currency:
@@ -51,20 +51,25 @@ testing and analysis — see `docs/api.md`.
   `slots` shows your guild's spell-slot budget.
 - **Trainers** — your guild leader will drill you in your guild's skills for
   silver: `train <skill>`. This is how you prepare the ranks needed to circle.
-- **Circles** — to advance a circle, meet your guild's rank requirements
-  (primaries ≥ circle, secondaries ≥ circle−2, plus total ranks) and `circle`
-  in your guild hall.
-- **Spells** — magic guilds learn spells as they rise (up to circle 3 for the
-  advanced spell). Kinds include damage, healing, sleep, escape (flee/teleport),
+- **Circles** — to advance a circle, meet your guild's cumulative
+  DragonRealms-style named-skill and Nth-of-skillset requirements, then
+  `circle` in your guild hall. A band value of 4 means rank 4 at circle 1,
+  rank 20 at circle 5, and rank 40 at circle 10.
+- **Spells** — each magic guild learns five spells through circle 8. Kinds
+  include damage, healing, sleep, escape (flee/teleport),
   hunter's mark, and a defensive ward. `spells` lists what you know.
+  Spells occupy **slot budgets** scaled by your guild's magic tier —
+  `slots` shows held vs. free, `learn <spell>` / `forget <spell>` at your
+  guild hall manage them, and the circle-2 feat grants +2 slots.
   Magic guilds can also store mana in **cambrinth** devices — `charge`,
   `invoke`, `focus` — sold by Marlene in the market and Sergeant Voss at the
   bank end (type-locked: charging with the wrong mana destroys the device).
 - **Combat** — fully async and server-ticked. Commands issued between rounds
   (`attack`, `cast`, `retreat`, `berserk`, `backstab`, and the maneuvers
   `disarm`, `trip`, `shield-bash`). Adopt a **stance** (`aggressive`,
-  `defensive`, `guarded`, `balanced`) — stances cost **stance points**
-  (Barbarians earn +1 per 60 Defending ranks, Rangers from defense skills).
+  `defensive`, `guarded`, `balanced`) to trade offense for defense. The
+  current named presets are live; custom evasion/parry/shield allocation and
+  meaningful use of bonus **stance points** remain roadmap work.
   Thieves can **hide** and **ambush** from concealment — even mid-fight. The
   **hunting ladder** (`ladder`) shows which creatures teach which rank bands,
   and over-levelled prey teaches little. **PvP duels** let you challenge
@@ -83,15 +88,15 @@ testing and analysis — see `docs/api.md`.
 - **NPCs** — shopkeepers (buy/sell), a tanner who buys hides and high-tier
   trophies on West Road, banker (deposit/withdraw), healer, guild
   trainers, a town crier, the quartermaster's circle-gated high-tier gear, and
-  fourteen creature types across seven hunting grounds to hunt and skin for
+  fifteen creature types across seven hunting grounds to hunt and skin for
   loot.
-- **Crafting** — visit Fennel at the Tilted Retort (east of Market Way) and
+- **Crafting** — visit Fennel at the Tilted Retort (north of Market Way) and
   `craft` alchemical recipes, or cross to **Bram's Ember Forge** and `forge`
   steel: iron ore drops from trolls, bandits, and the blackwood dead, and
   quality scales with your Forging skill (practically worthless →
   masterfully-crafted, and masterful steel hits harder).
-- **Thief khri** — concentration-based buffs (`khri`): Elusion, Focus,
-  Nimbleness, Dampen, and Strike. The pool grows with circle and Stealth;
+- **Thief khri** — nine concentration-based buffs (`khri`), from Elusion and
+  Focus through Sight, Swiftness, and Clarity. The pool grows with circle and Stealth;
   taking a hit shatters your focus.
 - **Guild tasks** — `ask <leader> task` gives guild-scaled kill quests with
   silver and guild-skill rewards (crier pest-control for everyone else).
@@ -148,24 +153,29 @@ testing and analysis — see `docs/api.md`.
   **gamepad support** for touch and controller play. A roadmap tracker lives
   at `/ROADMAP.html`.
 - **Balance tooling** — `node scripts/simulate-progression.mjs [guild]` grinds
-  a fresh character to circle 10 with the real systems; all 11 guilds are
-  verified (4–12 simulated minutes each). `node scripts/build-skills-doc.mjs`
+  a fresh character to circle 10 with the real systems and cumulative source
+  band requirements. It verifies reachability and reports active-time pacing;
+  the current deterministic matrix spans 15.6–75.6 simulated active hours,
+  and live-player balance remains a separate playtest. `node scripts/build-skills-doc.mjs`
   regenerates `/SKILLS.html` and `SKILLS.md`; `node scripts/build-roadmap.mjs`
   regenerates the tracker from `data/roadmap.js`. A test-only HTTP API (`server/api.js`,
   `DR_ENABLE_API=1`) drives the game headlessly for analysis.
-- **Barbarian bot + spectator** — `node scripts/barbarian-bot.mjs` (or
+- **Barbarian bot + GM spectator** — `node scripts/barbarian-bot.mjs` (or
   `npm run bot`) plays a real gortog barbarian: it shops, gears up, hunts,
   skins, hauls to market, trains, learns abilities, and circles. Watch it
-  two ways: open `/spectate.html?name=<bot>` for a dedicated live viewer, or
+  after entering the dedicated `DR_GM_TOKEN` in the GM console: open
+  `/spectate.html?name=<bot>` for the live viewer, or
   type `spectate <bot>` straight into the main client (`http://localhost:3000/`)
   — the full interface renders the bot's rooms, combat, prompts, and its
   typed commands (`> attack sewer rat`) with the status strip tracking its
   vitals. `unspectate` returns you to normal play. The relay is
+  GM-only because it includes private command input. The relay is
   `server/spectate.js`; head-starts for fast demo arcs: `--silver N`,
-  `--start-ranks N` (needs `DR_ENABLE_API=1`).
+  `--start-ranks N` (needs the API + separately authorized debug API).
   Options: `--minutes N` (cap), `--circle N` (target), `--name <n>`,
   `--silver N` and `--start-ranks N` (head-starts via the test API,
-  `DR_ENABLE_API=1`, for watchable demos that circle within minutes).
+  requiring `DR_ENABLE_API=1`, `DR_ENABLE_DEBUG_API=1`, and the matching
+  `DR_DEBUG_TOKEN`, for watchable demos that circle within minutes).
 - **Barbarian arts** — inner fire + voice pool, ability paths (Flame/Horde/
   Predator), berserks (Berserk, Wildfire, Mage's Lash), forms (Dragon),
   meditations (Tenacity, Serenity), roars (Everild's Rage, Screech),
@@ -220,5 +230,7 @@ public/      web terminal client (HTML/CSS/JS)
 test/        domain test suites + shared helpers
 ```
 
-Everything persists to `data/store/dragonrealms.db` (SQLite via `node:sqlite`,
-no native dependencies).
+Durable character state—progression, learned abilities and techniques, items,
+equipment condition, quests, justice, resources, and cooldowns—persists to
+`data/store/dragonrealms.db` (SQLite via `node:sqlite`). Live combat and other
+short-lived effects reset when a session ends.

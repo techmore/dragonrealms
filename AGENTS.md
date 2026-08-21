@@ -83,13 +83,14 @@ prefix, `script <name>`/`script stop`). The compass rose is shared via
 ## Game Master / admin surfaces
 
 Read-only inspection and inspection-driven ops live behind the auth-gated
-GM API (`server/gm.js`, mounted at `/api/gm/*`, bearer = `DR_GM_TOKEN` or a
-valid game session):
+GM API (`server/gm.js`, mounted at `/api/gm/*`, bearer = the exact dedicated
+`DR_GM_TOKEN`; ordinary game sessions are never sufficient):
 
 - `GET /api/gm/summary | world | room/<id> | creatures | npcs | items |
   guilds | races | skills | characters | player/<name> | players-online |
   admin/status | admin/reload | db` (DB browser: table list/dump or a
-  sandboxed `SELECT … LIMIT n`, write/DDL keywords rejected).
+  bounded `SELECT … LIMIT n`; authentication tables/columns, SQLite internals,
+  compound queries, and write/DDL keywords are rejected).
 
 Clients: `public/gm.html` + `gm-console.js` (GM console: world map, player
 inspector, live per-player + world-wide streams) and `public/admin.html`

@@ -29,8 +29,14 @@ const guildNames = {
   barbarian: 'Barbarian', bard: 'Bard', cleric: 'Cleric', empath: 'Empath', moonmage: 'Moon Mage',
   necromancer: 'Necromancer', paladin: 'Paladin', ranger: 'Ranger', thief: 'Thief', trader: 'Trader', warmage: 'Warrior Mage',
 };
+const MATRIX_CIRCLE = 10;
 const bandRows = Object.entries(tables).map(([gid, rows]) => {
-  const parts = rows.map((r) => (r.skill ? `${r.skill} ${r.rank}${r.hard ? '*' : ''}` : `${ord(r.nth)} ${r.set} ${r.rank}`));
+  const parts = rows.map((r) => {
+    const requiredRank = r.rank * MATRIX_CIRCLE;
+    return r.skill
+      ? `${r.skill} ${requiredRank}${r.hard ? '*' : ''}`
+      : `${ord(r.nth)} ${r.set} ${requiredRank}`;
+  });
   return `  ["${guildNames[gid] || gid}", "${parts.join('; ')}"]`;
 }).join(',\n');
 
@@ -219,10 +225,10 @@ function render() {
   const matrix = document.createElement("div");
   matrix.className = "matrix";
   matrix.innerHTML = \`
-    <h2>Circle-10 Band Requirement Matrix</h2>
-    <p class="sub">Each guild\u2019s authentic DR band table as implemented in the live engine (named skills + Nth-of-skillset pools, 1\u201310 bands scaled per circle). * = hard requirement.</p>
+    <h2>Circle-10 Rank Requirement Matrix</h2>
+    <p class="sub">Cumulative ranks from each guild\u2019s live 1\u201310 band table (required rank = band \u00d7 10). Named hard skills cannot also satisfy an Nth row. * = hard requirement.</p>
     <table>
-      <tr><th>Guild</th><th>Circle-10 band requirements</th></tr>
+      <tr><th>Guild</th><th>Circle-10 required ranks</th></tr>
       \${GUILD_BANDS.map(([g, b]) => \`<tr><td><b>\${g}</b></td><td>\${b}</td></tr>\`).join("")}
     </table>\`;
   main.appendChild(matrix);

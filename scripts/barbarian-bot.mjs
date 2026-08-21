@@ -1,5 +1,6 @@
 // Barbarian bot: a live player that registers, hunts, trains, learns
-// abilities, and circles — visible in-game and via /spectate.html?name=<bot>.
+// abilities, and circles — visible in-game and to an authorized GM via
+// /spectate.html?name=<bot>.
 //
 //   node scripts/barbarian-bot.mjs [--name BarbX] [--minutes 5] [--circle 3]
 //   node scripts/barbarian-bot.mjs --name Gor10 --minutes 20 --circle 10 --silver 1500 --start-ranks 8
@@ -9,8 +10,8 @@
 // shops for gear (basic kit, then circle-gated quartermaster tiers), hunts
 // every zone through Blackwood Ruins, learns barbarian arts, spends TDPs on
 // the exact skills the circle command reports as missing, and circles up.
-// --start-ranks/<skill> and --silver head-start the API so demos can skip the
-// early grind.
+// --start-ranks/<skill> and --silver use the separately authorized debug API
+// so demos can skip the early grind (DR_ENABLE_DEBUG_API + DR_DEBUG_TOKEN).
 import WebSocket from 'ws';
 
 const args = process.argv.slice(2);
@@ -22,6 +23,7 @@ const MAX_MINUTES = Number(opt('--minutes', '5'));
 const TARGET_CIRCLE = Number(opt('--circle', '3'));
 const START_SILVER = Number(opt('--silver', '0'));
 const START_RANKS = Number(opt('--start-ranks', '0'));
+const DEBUG_TOKEN = process.env.DR_DEBUG_TOKEN || '';
 const letters = 'abcdefghijklmnopqrstuvwxyz';
 const rnd = (n) => letters[Math.floor(Math.random() * n)];
 const BOT_NAME = (opt('--name', '') || 'Gor' + Array.from({ length: 5 }, () => rnd(26)).join('')).replace(/[^a-zA-Z]/g, '');
@@ -41,58 +43,87 @@ const ZONES = {
   black_1: 'blackwood', black_2: 'blackwood',
 };
 const ROUTES = {
-  sewers: ['s', 'd'],            // from square
-  fromSewers: ['up', 'n'],
-  woods: ['w', 'w', 'w'],        // from square
-  fromWoods: ['e', 'e', 'e'],
-  marsh: ['n', 'n', 'e', 'e', 'e'],
-  fromMarsh: ['w', 'w', 'w', 's', 's'],
-  cinder: ['w', 'n', 'n', 'e', 'd', 'n'],              // square -> cinder_2
-  fromCinder: ['s', 'up', 'w', 's', 's', 'e'],         // cinder_2 -> square
-  blackwood: ['w', 'w', 'w', 'n', 'n', 'e', 'e', 'd'], // square -> black_2
-  fromBlackwood: ['up', 'w', 'w', 's', 's', 'e', 'e', 'e'], // black_2 -> square
-  fromDeepWoods: ['w', 's', 's', 'e', 'e', 'e'],       // deep_2 -> square (emergency)
+  sewers: ['nw', 'w', 'w', 'd'],              // from square (green -> nw_road -> temple row -> sewers_1)
+  fromSewers: ['up', 'e', 'e', 'se'],         // sewers_1 -> square
+  woods: ['w', 'n', 'w', 'w'],                // from square (tg_w -> west road -> west gate -> woods_path)
+  fromWoods: ['e', 'e', 's', 'e'],            // woods_path -> square
+  marsh: ['se', 'e', 'e', 'e'],               // from square (tg_se -> east road -> east gate -> marsh_1)
+  fromMarsh: ['w', 'w', 'w', 'w', 'w', 'w', 'w'], // marsh_1 -> east gate -> bank plaza -> bazaar -> square
+  cinder: ['w', 'n', 'n', 'n', 'e', 'd', 'n'], // square -> camp_den -> cinder_2
+  fromCinder: ['s', 'up', 'w', 's', 's', 's', 'e'], // cinder_2 -> square
+  blackwood: ['w', 'n', 'w', 'w', 'n', 'n', 'e', 'e', 'd'], // square -> black_2
+  fromBlackwood: ['up', 'w', 'w', 's', 's', 'e', 'e', 's', 'e'], // black_2 -> square
+  fromDeepWoods: ['w', 's', 's', 'e', 'e', 's', 'e'], // deep_2 -> square (emergency)
   fromCamp: ['s', 's', 'e'],     // camp_path -> square (emergency)
-  hall: ['e', 'n', 'n'],         // from square
-  fromHall: ['s', 's', 'w'],
-  market: ['n'],
-  fromMarket: ['s'],
-  fromMarketEnd: ['s', 's'],
-  temple: ['n', 'n'],            // from temple to square
+  hall: ['w', 'w', 'n', 'n'],    // from square (tg_w -> guild district -> north row -> barbarian hall)
+  fromHall: ['s', 's', 'w', 'e'],
+  market: ['e', 'e'],            // from square (tg_e -> bazaar)
+  fromMarket: ['w', 'w'],
+  fromMarketEnd: ['w', 'w', 'w', 'w'], // bank plaza -> market way -> bazaar -> square
+  temple: ['s', 'e', 'e', 'se'], // from temple to square
 };
 // Room ids each route arrives at (used to detect arrival).
 // Return-to-square routes for town rooms the bot can resume or wander into
 // (mirrors data/world.js). Used when the bot finds itself off its normal loop.
 const TOWN_TO_SQUARE = {
   square: [],
-  west_gate: ['e', 'e'], west_road: ['e'], half_pint: ['se'], tailor_shop: ['n', 'e'],
-  temple_row: ['n'], temple: ['n', 'n'], high_temple: ['n', 'n', 'n'], fane: ['w', 'n'], jail: ['up'],
-  guild_district: ['w'], guild_halls_n: ['s', 'w'], guild_halls_s: ['n', 'w'],
-  hall_barbarian: ['s', 's', 'w'], hall_bard: ['s', 's', 's', 'w'], hall_cleric: ['s', 's', 's', 's', 'w'],
-  hall_empath: ['s', 's', 's', 's', 's', 'w'], hall_moonmage: ['s', 's', 's', 's', 's', 's', 'w'],
-  hall_necromancer: ['s', 's', 's', 's', 's', 's', 's', 'w'],
-  hall_paladin: ['n', 'n', 'w'], hall_ranger: ['n', 'n', 'n', 'w'], hall_thief: ['n', 'n', 'n', 'n', 'w'],
-  hall_trader: ['n', 'n', 'n', 'n', 'n', 'w'], hall_warmage: ['n', 'n', 'n', 'n', 'n', 'n', 'w'],
-  market_way: ['s'], market_end: ['s', 's'],
-  commodity_pit: ['e', 's'], auction_house: ['s', 'e', 's'], brewery: ['w', 's'], forge: ['w', 'w', 's'],
-  east_road: ['w', 's', 's'], tenderfoot: ['s', 'w', 's', 's'], middens: ['n', 'w', 's', 's'],
-  docks: ['s', 's', 's'], pier: ['s', 's', 's', 's'], academy: ['w', 'w'],
+  tg_n: ['s'], tg_ne: ['sw'], tg_e: ['w'], tg_se: ['nw'], tg_s: ['n'], tg_sw: ['ne'],
+  tg_w: ['e'], tg_nw: ['se'], tg_pond: ['up'],
+  carousel_way: ['s', 's'], carousel: ['s', 's', 's'], hall_street: ['s', 's', 's', 's'],
+  town_hall: ['w', 's', 's', 's', 's'],
+  north_road: ['s', 's'], north_gate: ['s', 's', 's'],
+  jadewater_way: ['w', 's', 's'], jadewater: ['w', 'w', 's', 's'],
+  tenderfoot: ['w', 'w', 'w', 's', 's'],
+  ne_road: ['w', 'sw'], ne_gate: ['w', 'w', 'sw'], herald_st: ['n', 'w', 'sw'],
+  enchanting_soc: ['n', 'n', 'w', 'sw'],
+  bazaar: ['w', 'w'], market_plaza: ['n', 'w', 'w'], market_way: ['w', 'w', 'w'],
+  bank_plaza: ['w', 'w', 'w', 'w'], market_end: ['s', 'w', 'w', 'w', 'w'],
+  brewery: ['s', 'w', 'w', 'w'], forge: ['w', 's', 'w', 'w', 'w'],
+  forge_row: ['n', 'w', 'w', 'w'], auction_house: ['n', 'n', 'w', 'w', 'w'],
+  commodity_pit: ['w', 'n', 'n', 'w', 'w', 'w'], order_hq: ['s', 'w', 'w', 'w', 'w'],
+  east_road: ['w', 'w', 'w', 'w', 'w'], east_gate: ['w', 'w', 'w', 'w', 'w', 'w'],
+  middens: ['n', 'w', 'w', 'w', 'w', 'w'], longbow: ['n', 'w', 'w', 'w', 'w', 'w'],
+  tatting_st: ['n', 'n', 'w', 'w', 'w', 'w', 'w'],
+  riverlace: ['n', 'n', 'n', 'w', 'w', 'w', 'w', 'w'],
+  crofton_walk: ['e', 'n', 'n', 'w', 'w', 'w', 'w', 'w'],
+  smithy_lane: ['e', 'e', 'n', 'n', 'w', 'w', 'w', 'w', 'w'],
+  docks: ['s', 's', 'w', 'w', 'w', 'w'], pier: ['s', 's', 's', 'w', 'w', 'w', 'w'],
+  half_pint: ['e', 's', 's', 'w', 'w', 'w', 'w'],
+  west_road: ['s', 'e'], west_gate: ['e', 's', 'e'], tailor_shop: ['w', 's', 'e'],
+  aldoran_barn: ['n', 'e', 's', 'e'],
+  stockyard: ['n', 'n'], south_road: ['n', 'n', 'n'], strand: ['n', 'n', 'n', 'n'],
+  strand_communal: ['n', 'n', 'n', 'n', 'n'],
+  sw_road: ['e', 'n', 'n', 'n'], segoltha_stair: ['n', 'e', 'n', 'n', 'n'],
+  jail: ['up', 'n', 'n'],
+  guild_district: ['w', 'e'], guild_halls_n: ['s', 'w', 'e'], guild_halls_s: ['n', 'w', 'e'],
+  hall_barbarian: ['s', 's', 'w', 'e'], hall_bard: ['s', 's', 's', 'w', 'e'],
+  hall_cleric: ['s', 's', 's', 's', 'w', 'e'], hall_empath: ['s', 's', 's', 's', 's', 'w', 'e'],
+  hall_moonmage: ['s', 's', 's', 's', 's', 's', 'w', 'e'],
+  hall_necromancer: ['s', 's', 's', 's', 's', 's', 's', 'w', 'e'],
+  hall_paladin: ['n', 'n', 'w', 'e'], hall_ranger: ['n', 'n', 'n', 'w', 'e'],
+  hall_thief: ['n', 'n', 'n', 'n', 'w', 'e'], hall_trader: ['n', 'n', 'n', 'n', 'n', 'w', 'e'],
+  hall_warmage: ['n', 'n', 'n', 'n', 'n', 'n', 'w', 'e'],
+  academy: ['w', 'w', 'e'],
+  temple_row: ['e', 'e', 'se'], temple: ['s', 'e', 'e', 'se'], high_temple: ['s', 's', 'e', 'e', 'se'],
+  immortals_approach: ['s', 's', 's', 'e', 'e', 'se'],
+  nw_road: ['e', 'se'],
+  fane: ['n', 'e', 'e', 'se'],
 };
 // Routes from the square to each wilds room the bot can fight/die in
 // (mirrors data/world.js). Used to reclaim gear left on a corpse.
 const ROOM_ROUTES = {
-  sewers_1: ['s', 'd'], sewers_2: ['s', 'd', 'n'], sewers_3: ['s', 'd', 'n', 'n'],
-  woods_path: ['w', 'w', 'w'], woods_1: ['w', 'w', 'w', 'n'], woods_2: ['w', 'w', 'w', 's'],
-  marsh_1: ['n', 'n', 'e', 'e', 'e'], marsh_2: ['n', 'n', 'e', 'e', 'e', 's'],
-  camp_den: ['w', 'n', 'n', 'e'],
-  cinder_1: ['w', 'n', 'n', 'e', 'd'], cinder_2: ['w', 'n', 'n', 'e', 'd', 'n'],
-  deep_1: ['w', 'w', 'w', 'n', 'n'], deep_2: ['w', 'w', 'w', 'n', 'n', 'e'],
-  black_1: ['w', 'w', 'w', 'n', 'n', 'e', 'e'], black_2: ['w', 'w', 'w', 'n', 'n', 'e', 'e', 'd'],
+  sewers_1: ['nw', 'w', 'w', 'd'], sewers_2: ['nw', 'w', 'w', 'd', 'n'], sewers_3: ['nw', 'w', 'w', 'd', 'n', 'n'],
+  woods_path: ['w', 'n', 'w', 'w'], woods_1: ['w', 'n', 'w', 'w', 'n'], woods_2: ['w', 'n', 'w', 'w', 's'],
+  marsh_1: ['se', 'e', 'e', 'e'], marsh_2: ['se', 'e', 'e', 'e', 's'],
+  camp_den: ['w', 'n', 'n', 'n', 'e'],
+  cinder_1: ['w', 'n', 'n', 'n', 'e', 'd'], cinder_2: ['w', 'n', 'n', 'n', 'e', 'd', 'n'],
+  deep_1: ['w', 'n', 'w', 'w', 'n', 'n'], deep_2: ['w', 'n', 'w', 'w', 'n', 'n', 'e'],
+  black_1: ['w', 'n', 'w', 'w', 'n', 'n', 'e', 'e'], black_2: ['w', 'n', 'w', 'w', 'n', 'n', 'e', 'e', 'd'],
 };
 const ARRIVES = {
   sewers: 'sewers_1', woods: 'woods_path', marsh: 'marsh_1',
   cinder: 'cinder_2', blackwood: 'black_2',
-  hall: 'hall_barbarian', market: 'market_way', square: 'square',
+  hall: 'hall_barbarian', market: 'bazaar', square: 'square',
 };
 const SKINS = ['rat pelt', 'kobold hide', 'goblin hide', 'wolf pelt', 'wisp mote', 'troll hide', 'cinder scale', 'wraith essence', 'silver signet ring', 'iron ore', 'dread knight sigil', 'blood garnet', 'deep sapphire', 'forest emerald', 'cut diamond'];
 const TRAIN_PRIORITY = ['large_edged', 'twohanded_edged', 'twohanded_blunt', 'light_armor', 'fitness', 'evasion', 'blunt', 'thrown', 'perception', 'foraging'];
@@ -132,7 +163,7 @@ const TDP_PRIORITY = [
   'scholarship', 'tactics', 'performance', 'appraisal',
 ];
 
-// Tiered gear from the quartermaster (Market Way North), circle-gated like
+// Tiered gear from the quartermaster (bank plaza, east of the market), circle-gated like
 // the simulator's gear ladder. Basic kit comes from the market stalls.
 const BASIC_KIT = ['buy short_sword', 'buy leather', 'buy shield_wood', 'wield short_sword', 'wear leather', 'wear shield_wood'];
 const GEAR_BRACKETS = [
@@ -359,7 +390,7 @@ function decide(trigger) {
       }
       return;
     }
-    if (state.room === 'market_way' || state.room === 'market_end') {
+    if (state.room === 'bazaar' || state.room === 'bank_plaza') {
       gearUp();
       return;
     }
@@ -481,9 +512,9 @@ function reclaimGear() {
 }
 
 function gearUp() {
-  // market_way: sell everything, then the basic kit (once), then head north
-  // to the quartermaster for tier gear if a bracket has opened.
-  if (state.room === 'market_way') {
+  // bazaar: sell everything, then the basic kit (once), then head east to
+  // the bank plaza for the quartermaster's tier gear if a bracket has opened.
+  if (state.room === 'bazaar') {
     const steps = [...SKINS.map((s) => `sell ${s}`), ...(!state.boughtGear ? BASIC_KIT : [])];
     const step = steps[state.marketStep] || null;
     if (!step) {
@@ -491,7 +522,7 @@ function gearUp() {
       state.boughtGear = true;
       if (tierSteps().length) {
         log('market errands done — heading to the quartermaster');
-        sendCmd('n');
+        navigate('bank_plaza', ['e', 'e']);
         return;
       }
       log('market errands done — back to the square');
@@ -502,8 +533,8 @@ function gearUp() {
     sendCmd(step);
     return;
   }
-  // market_end: the quartermaster's circle-gated tier kit.
-  if (state.room === 'market_end') {
+  // bank_plaza: the quartermaster's circle-gated tier kit.
+  if (state.room === 'bank_plaza') {
     const steps = tierSteps();
     const step = steps[state.marketStep] || null;
     if (!step) {
@@ -608,6 +639,7 @@ async function apiBootstrap() {
       headers: {
         'Content-Type': 'application/json',
         ...(apiToken ? { Authorization: 'Bearer ' + apiToken } : {}),
+        ...(path === '/debug' && DEBUG_TOKEN ? { 'X-DR-Debug-Token': DEBUG_TOKEN } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
     });
@@ -622,11 +654,18 @@ async function apiBootstrap() {
     const cc = await call('/characters', 'POST', { name: BOT_NAME, race: 'gortog', guild: 'barbarian' });
     if (!cc.ok) return null;
     await call('/enter', 'POST', { charId: cc.charId });
-    if (START_SILVER > 0) await call('/debug', 'POST', { silver: START_SILVER });
+    if ((START_SILVER > 0 || START_RANKS > 0) && !DEBUG_TOKEN) {
+      throw new Error('head-start options require DR_ENABLE_DEBUG_API=1 and DR_DEBUG_TOKEN');
+    }
+    if (START_SILVER > 0) {
+      const result = await call('/debug', 'POST', { silver: START_SILVER });
+      if (!result.ok) throw new Error(result.error || 'debug silver bootstrap failed');
+    }
     if (START_RANKS > 0) {
       const skills = {};
       for (const id of RANK_BOOST_SKILLS) skills[id] = START_RANKS;
-      await call('/debug', 'POST', { setSkills: skills });
+      const result = await call('/debug', 'POST', { setSkills: skills });
+      if (!result.ok) throw new Error(result.error || 'debug skill bootstrap failed');
     }
     log(`API bootstrap: ${BOT_NAME} created${START_SILVER ? ` with ${START_SILVER} silvers` : ''}${START_RANKS ? `, primaries at rank ${START_RANKS}` : ''}`);
     return apiToken;
@@ -698,7 +737,7 @@ async function handle(msg) {
       break;
     case 'prompt':
       parsePrompt(msg);
-      if (state.phase === 'alloc') { state.phase = 'playing'; log(`entered the world. watch live: http://localhost:3000/spectate.html?name=${BOT_NAME}`); }
+      if (state.phase === 'alloc') { state.phase = 'playing'; log(`entered the world. GM watch (DR_GM_TOKEN required): http://localhost:3000/spectate.html?name=${BOT_NAME}`); }
       if (!state.inCombat) state.tactics = {}; // fresh fight, fresh tactics
       if (state.wasInCombat && !state.inCombat) {
         // Combat ended: the room picture is stale — resume the interrupted
@@ -797,7 +836,7 @@ async function handle(msg) {
       break;
     case 'enter':
       state.phase = 'playing';
-      log(`entered the world. watch live: http://localhost:3000/spectate.html?name=${BOT_NAME}`);
+      log(`entered the world. GM watch (DR_GM_TOKEN required): http://localhost:3000/spectate.html?name=${BOT_NAME}`);
       break;
   }
 }
