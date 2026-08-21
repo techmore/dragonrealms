@@ -9,6 +9,11 @@ import {
 before(() => setupGame());
 after(() => teardownGame());
 
+// Total learning in a skill under the pool model: banked field exp + residual
+// rank bits + ranks (ranks stand in for already-consumed bits in >0 checks).
+const learned = (p, id) => ((p.expPools && p.expPools[id]) || 0)
+  + (p.skills[id]?.exp || 0) + (p.skills[id]?.rank || 0);
+
 test('full gameplay: alloc, shop, combat, skin, sell', async () => {
   const acc = await auth.registerAccount('Hunttest', 's3cretword');
   const charId = createCharacter(acc.accountId, { name: 'Huntsman', race: 'human', guild: 'warmage' });
@@ -55,7 +60,7 @@ test('full gameplay: alloc, shop, combat, skin, sell', async () => {
   assert.ok(killed.length >= 1, 'should have killed a creature');
 
   // exp gained
-  assert.ok(p.skills.medium_edged.rank + p.skills.medium_edged.exp > 0);
+  assert.ok(learned(p, 'medium_edged') > 0);
 
   // skin the corpse and sell the loot
   handleCommand(game, p, `skin ${def.id}`);
@@ -87,14 +92,14 @@ test('defending and parry train when struck in combat', async () => {
 
   game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // sewers (square -> temple row -> sewers_1)
   const creature = game.creaturesIn(p.room)[0];
-  const defBefore = p.skills.defending.exp + p.skills.defending.rank;
-  const parryBefore = p.skills.parry.exp + p.skills.parry.rank;
+  const defBefore = learned(p, 'defending');
+  const parryBefore = learned(p, 'parry');
   game.startCombat(p, [creature.def]);
   let combat = game.combat.getFor(p);
   let safety = 0;
   while (game.combat.getFor(p) && safety++ < 300) combat.tick();
-  assert.ok(p.skills.defending.exp + p.skills.defending.rank > defBefore, 'defending should train when struck');
-  assert.ok(p.skills.parry.exp + p.skills.parry.rank > parryBefore, 'parry should train when struck with a shield');
+  assert.ok(learned(p, 'defending') > defBefore, 'defending should train when struck');
+  assert.ok(learned(p, 'parry') > parryBefore, 'parry should train when struck with a shield');
 
   game.removePlayer(p);
 });
@@ -225,12 +230,12 @@ test('armor skill trains when struck in combat', async () => {
 
   game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // sewers
   const creature = game.creaturesIn(p.room)[0];
-  const expBefore = p.skills.light_armor.exp + p.skills.light_armor.rank;
+  const expBefore = learned(p, 'light_armor');
   game.startCombat(p, [creature.def]);
   let combat = game.combat.getFor(p);
   let safety = 0;
   while (game.combat.getFor(p) && safety++ < 300) combat.tick();
-  assert.ok(p.skills.light_armor.exp + p.skills.light_armor.rank > expBefore, 'light_armor should gain exp from being struck');
+  assert.ok(learned(p, 'light_armor') > expBefore, 'light_armor should gain exp from being struck');
 
   game.removePlayer(p);
 });
@@ -313,10 +318,10 @@ test('inner fire: berserk costs, burns out, kills recharge, pulses cap passively
   game.startCombat(p, [creature.def]);
   let combat = game.combat.getFor(p);
   const ifBefore = p.innerFire;
-  const skillBefore = p.skills.inner_fire.exp + p.skills.inner_fire.rank;
+  const skillBefore = learned(p, 'inner_fire');
   handleCommand(game, p, 'berserk');
   assert.ok(p.innerFire < ifBefore, 'berserk costs inner fire');
-  assert.ok(p.skills.inner_fire.exp + p.skills.inner_fire.rank > skillBefore, 'berserk trains inner fire');
+  assert.ok(learned(p, 'inner_fire') > skillBefore, 'berserk trains inner fire');
   assert.equal(combat.berserk, true);
 
   // Upkeep drains inner fire; at zero the fury burns out.

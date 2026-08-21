@@ -56,7 +56,10 @@ Plus the shared **guild spellbook expansion**: every magic guild has 5 spells
 ## 4. Known intentional divergences (documented, not bugs)
 
 - Rank cap = circle × 4 (anti-grind) vs DR's 1750.
-- Exp pools use ten staggered wall-clock groups, not DR's exact offsets.
+- Exp pools use DR's ten fixed pulse groups and 200 s cycle, but the overall
+  game is compressed to circle 10 (see `docs/FIDELITY.md` for the full
+  fidelity ledger, including remaining exp-system gaps: offline drain,
+  bonus pools).
 - Combat is tick-resolved with ranges/stances, not per-blow sim resolution.
 - Death auto-respawns at the temple (Rite of Departure replaces DEPART).
 - Thief Ignite ambush move not modeled (no fire-source item).

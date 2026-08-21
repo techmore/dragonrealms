@@ -2,7 +2,7 @@
 import { db } from './db.js';
 import { raceById } from '../data/races.js';
 import { guildById, spellsFor } from '../data/guilds.js';
-import { SKILLS, expToNextRank } from '../data/skills.js';
+import { SKILLS, expToNextRank, pulseGroupFor, mentalStatBonus } from '../data/skills.js';
 import { itemById } from '../data/items.js';
 
 export const BASE_STAT = 35;
@@ -52,7 +52,6 @@ function persistentStateFor(p) {
     abilities: Array.isArray(p.abilities) ? p.abilities : [],
     lastForgetAt: Number.isFinite(p.lastForgetAt) ? p.lastForgetAt : 0,
     forgedQuality: p.forgedQuality && typeof p.forgedQuality === 'object' ? p.forgedQuality : {},
-    expLocks: p.expLocks && typeof p.expLocks === 'object' ? p.expLocks : {},
     crimeHeat: Number.isFinite(p.crimeHeat) ? p.crimeHeat : 0,
     jailUntil: Number.isFinite(p.jailUntil) ? p.jailUntil : 0,
     stocksUntil: Number.isFinite(p.stocksUntil) ? p.stocksUntil : 0,
@@ -222,7 +221,6 @@ export function loadPlayer(charId) {
     abilities: Array.isArray(persisted.abilities) ? persisted.abilities : [],
     lastForgetAt: Number.isFinite(persisted.lastForgetAt) ? persisted.lastForgetAt : 0,
     forgedQuality: persisted.forgedQuality && typeof persisted.forgedQuality === 'object' ? persisted.forgedQuality : {},
-    expLocks: persisted.expLocks && typeof persisted.expLocks === 'object' ? persisted.expLocks : {},
     crimeHeat: Number.isFinite(persisted.crimeHeat) ? persisted.crimeHeat : 0,
     jailUntil: Number.isFinite(persisted.jailUntil) ? persisted.jailUntil : 0,
     stocksUntil: Number.isFinite(persisted.stocksUntil) ? persisted.stocksUntil : 0,
@@ -376,7 +374,7 @@ export function skillRank(p, skillId) {
 // Primary Magic -> magic skillset.
 const MELEE_WEAPONS = new Set([
   'small_edged', 'medium_edged', 'large_edged', 'twohanded_edged', 'blunt',
-  'twohanded_blunt', 'staff', 'polearm', 'brawling',
+  'large_blunt', 'twohanded_blunt', 'staff', 'polearm', 'brawling',
 ]);
 const RANGED_WEAPONS = new Set(['bow', 'crossbow', 'slings', 'thrown', 'heavy_thrown']);
 const MAGIC_SKILLS = new Set([
@@ -397,11 +395,6 @@ export function effectiveRank(p, skillId) {
 }
 
 export const MASTERY_SETS = { MELEE_WEAPONS, RANGED_WEAPONS };
-
-// Intelligence, Wisdom and Discipline improve how fast you learn.
-export function learningMultiplier(p) {
-  return 1 + (p.stats.int - 20) * 0.004 + (p.stats.wis - 20) * 0.004 + (p.stats.dis - 20) * 0.002;
-}
 
 // TDPs awarded when a skill reaches a new rank.
 // Authentic model: each rank-up adds `rank` points to a shared hidden pool;
@@ -437,7 +430,8 @@ export function unlockAchievement(p, id) {
 }
 
 // Rested Experience (REXP): banks while logged out (2 offline minutes -> 1
-// REXP) and while resting; while active it doubles exp drain (DR-authentic).
+// REXP) and while resting; while active, drained field exp is worth 3x ranks
+// (DR-authentic) and each converting group-pulse consumes 1/3 unit (20 s).
 export const REXP_CAP = 120;
 
 // Skills can train through the next circle's 1-10-band requirement ceiling.
@@ -455,47 +449,64 @@ export function bankRexp(p, offlineMs) {
   return 0;
 }
 
-// Gain experience in a skill; auto-rank-up when enough accumulates.
-// DR-authentic field model: ~70% converts at once, ~30% banks in a field
-// pool that pulses into ranks on the server ticker (retention feel).
-// Rapid rank-ups trigger a learning lockout: the skill dims for a while
-// (DR debt/lock feel — no one masters a skill by staring at one foe).
+// ---------------- Field-exp pools (DR model) ----------------
+// All field experience banks into the skill's pool; only pulses convert it
+// into ranks. Pool size follows the corpus formulas by skillset placement,
+// scaled by Intelligence and Discipline; a full pool is "mind lock" —
+// further field exp for that skill is lost until it drains.
+
+function guildTier(p, skillId) {
+  if (p.guild?.primary?.includes(skillId)) return 'primary';
+  if (p.guild?.secondary?.includes(skillId)) return 'secondary';
+  return 'tertiary';
+}
+
+// Base pool size before stat scaling (docs/elanthipedia/Experience.md).
+const POOL_BASE = {
+  primary: (x) => (15000 * x) / (x + 900) + 1000,
+  secondary: (x) => (12750 * x) / (x + 900) + 850,
+  tertiary: (x) => (10500 * x) / (x + 900) + 700,
+};
+
+// Maximum bankable field exp for a skill: base-by-tier x Int/Disc scaling.
+export function poolCap(p, skillId) {
+  const ranks = (p.skills[skillId] || {}).rank || 0;
+  const base = POOL_BASE[guildTier(p, skillId)](ranks);
+  const i = mentalStatBonus(p.stats?.int ?? 10, 'int');
+  const d = mentalStatBonus(p.stats?.dis ?? 10, 'disc');
+  return base * ((1000 + i + d) / 1000);
+}
+
+// Fraction of the current pool converted per pulse, by tier — derived from
+// the documented mind-lock-to-clear drain times (primary 40-60 min,
+// secondary 50-80, tertiary 70-100) over the 200 s cycle. Low-rank
+// accelerator: secondary under 50 ranks drains like primary; tertiary under
+// 25 like secondary. Wisdom scales the fraction on the shared mental-stat
+// curve.
+const PULSE_FRACTION = { primary: 1 / 15, secondary: 1 / 19, tertiary: 1 / 25 };
+
+export function pulseFraction(p, skillId) {
+  const tier = guildTier(p, skillId);
+  const rank = (p.skills[skillId] || {}).rank || 0;
+  let frac = PULSE_FRACTION[tier];
+  if (tier === 'secondary' && rank < 50) frac = PULSE_FRACTION.primary;
+  else if (tier === 'tertiary' && rank < 25) frac = PULSE_FRACTION.secondary;
+  const wis = mentalStatBonus(p.stats?.wis ?? 10, 'int');
+  return Math.min(1, frac * ((1000 + wis) / 1000));
+}
+
+// Gain field experience in a skill (DR model): everything banks up to the
+// pool cap. Returns ranks gained immediately — always 0; ranks move on
+// pulses. Trainers and TDP spending use applyExpToSkill directly instead.
 export function gainSkillExp(p, skillId, amount) {
   if (!SKILLS[skillId]) return 0;
-  const s = p.skills[skillId] || (p.skills[skillId] = { rank: 0, exp: 0 });
-  let gained = Math.max(0, Math.floor(amount * learningMultiplier(p)));
-  // Learning lock: 3+ rank-ups in one skill inside 5 minutes halves further
-  // learning for 2 minutes (fresh rank-ups may extend it).
-  const now = Date.now();
-  if (p.expLocks) {
-    const lock = p.expLocks[skillId];
-    if (lock && lock.until > now) gained = Math.floor(gained * 0.5);
-  }
-  if (p.rexp > 0) {
-    gained *= 2;
-    p.rexp -= 1;
-  }
-  const immediate = Math.max(gained > 0 ? 1 : 0, Math.floor(gained * 0.7));
-  const banked = gained - immediate;
-  let leveled = applyExpToSkill(p, s, immediate);
-  if (leveled > 0) {
-    p.expLocks = p.expLocks || {};
-    const lock = p.expLocks[skillId] || { count: 0, until: 0 };
-    if (lock.until > now) {
-      lock.count += 1;
-      if (lock.count >= 3) lock.until = now + 2 * 60 * 1000;
-    } else {
-      lock.count = 1;
-      lock.until = now + 5 * 60 * 1000;
-    }
-    p.expLocks[skillId] = lock;
-  }
-  if (banked > 0) {
-    p.expPools = p.expPools || {};
-    const cap = expToNextRank(s.rank) * 2;
-    p.expPools[skillId] = Math.min(cap, (p.expPools[skillId] || 0) + banked);
-  }
-  return leveled;
+  const amt = Math.max(0, Math.floor(amount));
+  if (amt <= 0) return 0;
+  p.expPools = p.expPools || {};
+  const room = Math.max(0, poolCap(p, skillId) - (p.expPools[skillId] || 0));
+  if (room <= 0) return 0; // mind lock: the pool is full
+  p.expPools[skillId] = (p.expPools[skillId] || 0) + Math.min(room, amt);
+  return 0;
 }
 
 // Roundtime (DR): the seconds you must wait after an action before you may
@@ -527,29 +538,16 @@ export function applyExpToSkill(p, s, amount) {
   return leveled;
 }
 
-// Field-exp grouping (DR's ten pulse groups, compressed): each skill belongs
-// to one of ten groups; a group converts only on its own 30-second phase, so
-// different skills bank→rank on staggered schedules. Deterministic hash keeps
-// assignments stable across restarts without a data table.
+// Field-exp grouping: DR's ten fixed groups (data/skills.js PULSE_GROUPS),
+// one group converting per 20-second phase — full cycle 200 seconds.
 export function expGroupFor(skillId) {
-  let h = 0;
-  const id = String(skillId);
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h % 10;
+  return pulseGroupFor(skillId);
 }
 
-// How much of a skill's pooled exp converts on its group's pulse, by the
-// skill's standing in the guild: primaries convert fully, secondaries retain
-// a tail, tertiaries more so (DR retention-by-skillset, compressed).
-export function poolConversionRate(p, skillId) {
-  if (p.guild?.primary?.includes(skillId)) return 1;
-  if (p.guild?.secondary?.includes(skillId)) return 0.8;
-  return 0.65;
-}
-
-// The server pulse: on each 30s tick, only one of the ten groups converts.
-// `tick` derives from wall clock (stateless across restarts). Omitting tick
-// flushes every group immediately (logout/save paths).
+// The server pulse: on each phase, only the matching group converts a
+// fraction of its pools into ranks. `tick` derives from wall clock
+// (stateless across restarts). Omitting tick flushes every group immediately
+// (logout/save paths). REXP makes drained bits worth 3x ranks while active.
 export function pulseExp(p, tick) {
   if (!p.expPools) return 0;
   let pulsed = 0;
@@ -557,14 +555,17 @@ export function pulseExp(p, tick) {
   for (const [skillId, pool] of Object.entries(p.expPools)) {
     if (pool <= 0) { delete p.expPools[skillId]; continue; }
     if (phase !== null && expGroupFor(skillId) !== phase) continue;
-    const s = p.skills[skillId];
-    if (!s) { delete p.expPools[skillId]; continue; }
-    const rate = poolConversionRate(p, skillId);
-    const drain = Math.min(pool, Math.max(1, Math.round(pool * rate)));
+    const s = p.skills[skillId] || (p.skills[skillId] = { rank: 0, exp: 0 });
+    const drain = Math.min(pool, Math.max(1, Math.round(pool * pulseFraction(p, skillId))));
+    let value = drain;
+    if (p.rexp > 0) {
+      value = drain * 3;
+      p.rexp = Math.max(0, p.rexp - 1 / 3);
+    }
     p.expPools[skillId] = pool - drain;
     if (p.expPools[skillId] <= 0) delete p.expPools[skillId];
     pulsed += drain;
-    applyExpToSkill(p, s, drain);
+    applyExpToSkill(p, s, value);
   }
   return pulsed;
 }

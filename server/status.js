@@ -2,8 +2,8 @@
 import { roomById } from '../data/world.js';
 import { npcById } from '../data/npcs.js';
 import { guildTitle } from '../data/guilds.js';
-import { SKILLS, expToNextRank, mindstate } from '../data/skills.js';
-import { roundtimeLeft, weaponOf } from './player.js';
+import { SKILLS, mindstate } from '../data/skills.js';
+import { roundtimeLeft, weaponOf, poolCap } from './player.js';
 
 export const status = {
   guildTrainer(p) {
@@ -59,7 +59,7 @@ export const status = {
         const def = SKILLS[skillId];
         if (!def || pool <= 0) continue;
         const rank = (p.skills[skillId] || {}).rank || 0;
-        const pct = Math.min(100, (pool / Math.max(1, expToNextRank(rank))) * 100);
+        const pct = Math.min(100, (pool / Math.max(1, poolCap(p, skillId))) * 100);
         rows.push({ name: def.name, rank, mindstate: mindstate(pct) });
       }
       rows.sort((a, b) => {

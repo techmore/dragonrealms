@@ -20,7 +20,7 @@ test('earned progression, justice, resources, and cooldowns survive reload', asy
   p.abilities = ['dragon', 'titan'];
   p.lastForgetAt = now - 500;
   p.forgedQuality = { forged_short_sword: 1.3 };
-  p.expLocks = { brawling: { count: 3, until: now + 60_000 } };
+  p.expPools = { brawling: 137.5, skinning: 42 };
   p.stamina = 0;
   p.crimeHeat = 4;
   p.jailUntil = now + 30_000;
@@ -39,7 +39,7 @@ test('earned progression, justice, resources, and cooldowns survive reload', asy
   assert.deepEqual(reloaded.abilities, p.abilities);
   assert.equal(reloaded.lastForgetAt, p.lastForgetAt);
   assert.deepEqual(reloaded.forgedQuality, p.forgedQuality);
-  assert.deepEqual(reloaded.expLocks, p.expLocks);
+  assert.deepEqual(reloaded.expPools, p.expPools);
   assert.equal(reloaded.stamina, 0, 'zero stamina is exhaustion, not a missing value');
   assert.equal(reloaded.crimeHeat, 4);
   assert.equal(reloaded.jailUntil, p.jailUntil);
@@ -63,7 +63,7 @@ test('corrupt optional persistent state degrades to safe defaults', async () => 
   const p = loadPlayer(charId);
   assert.deepEqual(p.abilities, []);
   assert.deepEqual(p.forgedQuality, {});
-  assert.deepEqual(p.expLocks, {});
+  assert.deepEqual(p.expPools, {});
   assert.equal(p.crimeHeat, 0);
 });
 

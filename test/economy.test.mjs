@@ -126,31 +126,34 @@ test('crime loop: steal, strongboxes, and magical consumables train skills', asy
   p.ws = ws;
   game.addPlayer(p);
 
-  const exp = (id) => p.skills[id].exp + p.skills[id].rank;
+  // Total learning in a skill under the pool model: banked field exp +
+  // residual rank bits + ranks.
+  const exp = (pl, id) => ((pl.expPools && pl.expPools[id]) || 0)
+    + (pl.skills[id]?.exp || 0) + (pl.skills[id]?.rank || 0);
 
   // Steal from the crier: either path grants thievery exp and moves silver.
   const silverBefore = p.silver;
-  const thieveryBefore = exp('thievery');
+  const thieveryBefore = exp(p, 'thievery');
   handleCommand(game, p, 'steal crier');
-  assert.ok(exp('thievery') > thieveryBefore, 'steal trains thievery');
+  assert.ok(exp(p, 'thievery') > thieveryBefore, 'steal trains thievery');
   const msgs = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
   assert.match(msgs, /lift|catches|guard/, 'steal narrates an outcome');
   assert.ok(p.silver !== silverBefore, 'steal changes your silver');
 
   // Pick a locked strongbox: coins + lockpicking exp either way.
-  const lockBefore = exp('lockpicking');
+  const lockBefore = exp(p, 'lockpicking');
   const silver2 = p.silver;
   addItem(p, 'strongbox', 1);
   handleCommand(game, p, 'pick strongbox');
-  assert.ok(exp('lockpicking') > lockBefore, 'pick trains lockpicking');
+  assert.ok(exp(p, 'lockpicking') > lockBefore, 'pick trains lockpicking');
   assert.ok(p.silver >= silver2, 'strongbox either pays or keeps your coin');
   assert.ok(p.inventory.filter((i) => i.item.id === 'strongbox').length === 0, 'strongbox consumed');
 
   // Drinking a draught trains arcana.
-  const arcanaBefore = exp('arcana');
+  const arcanaBefore = exp(p, 'arcana');
   addItem(p, 'potion_heal', 1);
   handleCommand(game, p, 'drink healing draught');
-  assert.ok(exp('arcana') > arcanaBefore, 'magical draughts train arcana');
+  assert.ok(exp(p, 'arcana') > arcanaBefore, 'magical draughts train arcana');
 
   // Kobolds and bandits now carry strongboxes.
   const { CREATURES } = await import('../data/creatures.js');
@@ -166,9 +169,9 @@ test('crime loop: steal, strongboxes, and magical consumables train skills', asy
   e.ws = ews;
   game.addPlayer(e);
   e.hp = e.maxHp - 40;
-  const empBefore = e.skills.empathy.exp + e.skills.empathy.rank;
+  const empBefore = exp(e, 'empathy');
   handleCommand(game, e, 'cast sooth');
-  assert.ok(e.skills.empathy.exp + e.skills.empathy.rank > empBefore, 'empath casting trains empathy');
+  assert.ok(exp(e, 'empathy') > empBefore, 'empath casting trains empathy');
   game.removePlayer(e);
 });
 

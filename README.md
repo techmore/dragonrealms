@@ -127,9 +127,11 @@ testing and analysis — see `docs/api.md`.
 - **Trader commodity pits** — at the Grain Pit (west of Market Way) the
   board fluctuates every hour: `pit` reads prices, buy low and sell high
   (`buy grain 10` / `sell silk 5`); traders earn a bonus on sells.
-- **Field exp & pulses** — exp lands 70% immediately and 30% banks in a
-  field pool that pulses into ranks every 30s (retention feel, mindstate
-  ladder reads the pool); REXP doubles learning.
+- **Field exp & pulses** — all field experience banks in a per-skill pool
+  (DR formulas size the pool by skillset, Intelligence and Discipline) and
+  converts into ranks as one of ten fixed skill groups pulses on DR's
+  200-second cycle; mindstate reads pool fullness. REXP triples drained
+  learning (2 offline minutes → 1 banked).
 - **Riverhaven** — a second starting city across the river: its own square,
   market, shrine, and a shared guild-hall row (circle works there too), with
   a ferry road into the Old Woods and reedwater wilds of its own (mud crabs

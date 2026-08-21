@@ -1021,25 +1021,21 @@ test('respec: the fane returns spent points to the pool', async () => {
 });
 
 // ------------------- Exp lockout -------------------
-test('lockout: rapid rank-ups dim a skill for a while', async () => {
+test('no lockout: rapid field exp banks to the cap; ranks move only on pulses', async () => {
   const { gainSkillExp } = await import('../server/player.js');
   const { expToNextRank } = await import('../data/skills.js');
   const p = await mkChar('LockT', 'ranger');
   p.circle = 6; // rank cap 24 — room to level
-  // Give brawling 3 ranks' worth of progress rapidly.
+  // A flood of field exp neither levels the skill directly nor dims learning:
+  // the authentic brakes are the pool cap ("mind lock") and the pulse rhythm.
   p.skills.brawling = { rank: 5, exp: expToNextRank(5) - 1 };
-  const now = Date.now();
-  gainSkillExp(p, 'brawling', expToNextRank(6) * 2); // rank 6 (1st)
-  gainSkillExp(p, 'brawling', expToNextRank(6) * 2); // rank 7 (2nd)
-  gainSkillExp(p, 'brawling', expToNextRank(6) * 2); // rank 8 (3rd) -> lock window opens
-  assert.ok(p.expLocks.brawling.count >= 3, 'three rapid rank-ups logged');
-  // The lock cuts learning roughly in half: set the window, then measure.
-  p.expLocks.brawling.until = Date.now() + 60 * 1000;
-  const level0 = p.skills.brawling.rank;
-  const before = p.skills.brawling.exp;
-  gainSkillExp(p, 'brawling', expToNextRank(level0) * 2);
-  const gained = p.skills.brawling.exp - before;
-  assert.ok(gained < expToNextRank(level0) * 2 * 0.75, `locked learning is dimmed (${gained})`);
+  const rankBefore = p.skills.brawling.rank;
+  const { poolCap } = await import('../server/player.js');
+  const cap = poolCap(p, 'brawling');
+  gainSkillExp(p, 'brawling', expToNextRank(6) * 100);
+  assert.equal(p.skills.brawling.rank, rankBefore, 'field exp never levels directly');
+  assert.ok(p.expPools.brawling <= cap, 'banking stops at the pool cap');
+  assert.ok(Math.abs(p.expPools.brawling - cap) < 1e-9, 'overflow discarded at exactly the cap');
   game.removePlayer(p);
 });
 

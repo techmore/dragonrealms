@@ -448,7 +448,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | 11 guild skills: Empathy, Astrology, Expertise, Scouting, Backstab, Summoning, Bardic Lore, Conviction, Theurgy, Thanatology, Trading (guild-only training) | ✅ trainer-gated + activity sources live (8 in the Guild category; Astrology/Summoning/Theurgy live in the Magic skillset) |
 | Hard/soft/restricted requirement semantics in the circle engine | ✅ (hard flags, mastery/Sorcery/Thievery exclusions live) |
 | Skill-level messaging tiers (Novice → Practitioner → … → Avatar, 16 tiers with degree modifiers) in `skills` output | ✅ |
-| Learning model: field-exp pools (70% now / 30% banks), 30s pulses, mindstate ladder, REXP (2:1, 2× drain) | ✅ ten staggered pulse groups on wall-clock phases; conversion rate by skillset tier (primary 100% / secondary 80% / tertiary 65% — retained tails); REXP unchanged |
+| Learning model: field-exp pools (100% banks), DR pulse schedule (ten fixed groups, 20 s phases, 200 s cycle), mindstate ladder, REXP (2:1 bank, 3× drain) | ✅ DR-model pools & pulses live: corpus pool-size formulas × Int/Disc, tier pulse fractions with low-rank accelerators, Wisdom scaling; guild skills pulse in the final group |
 | Rank cap 1750 (DR) vs our next-circle ceiling (`(circle + 1) × 4`; rank 40 trainable at c9 for c10) | ✅ curve 200 + n exact; cap is an intentional compressed-game divergence |
 
 ---

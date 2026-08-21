@@ -140,17 +140,17 @@ export class Game {
       }
     }, 60 * 1000);
     this.autosaveTicker.unref();
-    // Field-exp pulse: banked pools drain into ranks on staggered group
-    // phases (ten groups over five minutes, DR retention feel). Wall-clock
-    // tick keeps phases stable across restarts.
+    // Field-exp pulse: banked pools drain into ranks on DR's staggered group
+    // schedule — ten fixed groups, one per 20-second phase, full cycle 200 s.
+    // Wall-clock tick keeps phases stable across restarts.
     this.pulseTicker = setInterval(() => {
-      const tick = Math.floor(Date.now() / (30 * 1000));
+      const tick = Math.floor(Date.now() / (20 * 1000));
       for (const p of this.players.values()) {
         try {
           if (pulseExp(p, tick) > 0) savePlayer(p);
         } catch (e) { console.error('pulse error', e); }
       }
-    }, 30 * 1000);
+    }, 20 * 1000);
     this.pulseTicker.unref();
   }
 

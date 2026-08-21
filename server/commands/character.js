@@ -6,7 +6,7 @@ import { roomById } from '../../data/world.js';
 import { db } from '../db.js';
 import {
   skillRank, gainSkillExp, applyExpToSkill, weaponOf, totalArmor, STAT_NAMES, MAX_STAT,
-  statRaiseCost, tdpTrainCost, tdpAwardFor, baseStatsFor, ACHIEVEMENTS, unlockAchievement,
+  statRaiseCost, tdpTrainCost, tdpAwardFor, baseStatsFor, ACHIEVEMENTS, unlockAchievement, poolCap,
 } from '../player.js';
 import { pad, matchSkill, recalcDerived, rankExp, SLOT_RATES, STAT_FULL } from './util.js';
 
@@ -146,7 +146,7 @@ export const commands = {
 
   rexp(ctx) {
     const { p, say } = ctx;
-    say(`\nRested experience: ${p.rexp || 0} minute(s) banked (cap 120).\nBank it by logging out (2 minutes away = 1 minute of rest) or by resting deeply. While active it doubles your learning.`);
+    say(`\nRested experience: ${Math.floor(p.rexp || 0)} minute(s) banked (cap 120).\nBank it by logging out (2 minutes away = 1 minute of rest) or by resting deeply. While active, drained field experience is worth three times the ranks.`);
   },
 
   achievements(ctx) {
@@ -249,7 +249,11 @@ function showExp(ctx) {
     const def = SKILLS[id];
     const need = rankExp(s.rank);
     const pool = (p.expPools && p.expPools[id]) || 0;
-    const pct = Math.floor(((s.exp + pool) / need) * 100);
+    // Mindstate reads pool fullness (DR); skills with only trainer-taught
+    // residual bits fall back to rank progress.
+    const pct = pool > 0
+      ? Math.min(100, Math.floor((pool / Math.max(1, poolCap(p, id))) * 100))
+      : Math.floor((s.exp / need) * 100);
     if (s.rank > 0 || s.exp > 0 || pool > 0) {
       lines.push(`  ${pad(def.name, 24)} rank ${s.rank}  ${pad(`${pct}%`, 4)} ${mindstate(pct)}${pool > 0 ? `  [${Math.floor(pool)} held]` : ''}`);
     }

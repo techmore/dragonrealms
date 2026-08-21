@@ -9,6 +9,11 @@ import {
 before(() => setupGame());
 after(() => teardownGame());
 
+// Total learning in a skill under the pool model: banked field exp + residual
+// rank bits + ranks (ranks stand in for already-consumed bits in >0 checks).
+const learned = (p, id) => ((p.expPools && p.expPools[id]) || 0)
+  + (p.skills[id]?.exp || 0) + (p.skills[id]?.rank || 0);
+
 test('ask <npc> <topic> responses', async () => {
   const acc = await auth.registerAccount('Askertest', 's3cretword');
   const charId = createCharacter(acc.accountId, { name: 'Curious', race: 'human', guild: 'trader' });
@@ -91,7 +96,7 @@ test('forage works in wild zones but not town', async () => {
   game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // temple row -> sewers (wild)
   const resWild = game.forage(p);
   assert.equal(resWild.ok, true);
-  assert.ok(p.skills.foraging.exp > 0 || p.skills.foraging.rank > 0, 'foraging earns exp');
+  assert.ok(learned(p, 'foraging') > 0, 'foraging earns exp');
 
   game.removePlayer(p);
 });
@@ -147,7 +152,7 @@ test('hunt verb trains perception in the wilds only', async () => {
   let gained = false;
   while (!gained && attempts++ < 200) {
     const res = game.hunt(p);
-    gained = p.skills.perception.exp > 0 || p.skills.perception.rank > 0;
+    gained = learned(p, 'perception') > 0;
   }
   assert.ok(gained, 'hunt should earn perception exp in the wilds');
 
@@ -182,12 +187,12 @@ test('organic exp sources for DR requirement skills', async () => {
   p.ws = ws;
   game.addPlayer(p);
 
-  const exp = (id) => p.skills[id].exp + p.skills[id].rank;
+  const exp = (id) => learned(p, id);
 
   // perform trains performance (bards faster).
   handleCommand(game, p, 'perform');
   assert.ok(exp('performance') > 0, 'perform trains performance');
-  assert.ok(exp('performance') >= 3, 'perform grants base exp (70% immediate)');
+  assert.ok(exp('performance') >= 3, 'perform grants base field exp');
 
   // appraise trains appraisal on items and creatures.
   game.move(p, 'e'); game.move(p, 'e'); // bazaar (Marlene's store)
@@ -236,12 +241,12 @@ test('organic exp sources for DR requirement skills', async () => {
   game.addPlayer(t);
   game.move(t, 'nw'); game.move(t, 'w'); game.move(t, 'w'); game.move(t, 'd');
   const tcreature = game.creaturesIn(t.room)[0];
-  const bsBefore = exp('backstab');
+  const bsBefore = learned(t, 'backstab');
   handleCommand(game, t, `attack ${tcreature.def.id}`);
   const tcombat = game.combat.getFor(t);
   assert.ok(tcombat);
   handleCommand(game, t, 'backstab');
-  assert.ok(t.skills.backstab.exp + t.skills.backstab.rank > bsBefore, 'backstab power trains backstab skill');
+  assert.ok(learned(t, 'backstab') > bsBefore, 'backstab power trains backstab skill');
   while (game.combat.getFor(t)) tcombat.tick();
   game.removePlayer(t);
 });
@@ -259,17 +264,17 @@ test('guild leader tasks assign, complete, and reward guild skill exp', async ()
   assert.equal(p.room, 'hall_thief');
   handleCommand(game, p, 'ask Mist task');
   assert.ok(p.quest && p.quest.source === 'leader', 'leader task assigned');
-  const before = p.skills.backstab.exp;
+  const before = learned(p, 'backstab');
   let guard = 0;
   while (!p.quest.done && guard++ < 20) game.questKill(p, p.quest.creatureId);
   handleCommand(game, p, 'ask Mist claim');
   assert.equal(p.quest, null, 'claimed');
-  assert.ok(p.skills.backstab.exp > before, 'guild skill exp granted');
+  assert.ok(learned(p, 'backstab') > before, 'guild skill exp granted');
 
   game.removePlayer(p);
 });
 
-test('REXP banks offline and doubles learning', async () => {
+test('REXP banks offline and triples drained learning', async () => {
   const { bankRexp } = await import('../server/player.js');
   const acc = await auth.registerAccount('Rexptest', 's3cretword');
   const charId = createCharacter(acc.accountId, { name: 'Napper', race: 'human', guild: 'warmage' });
@@ -283,20 +288,32 @@ test('REXP banks offline and doubles learning', async () => {
   assert.equal(gained, 5);
   assert.equal(p.rexp, 5);
 
-  // REXP doubles exp gain and drains (70% lands now, 30% banks in the pool).
-  const before = p.skills.war_magic.exp;
-  const { gainSkillExp, learningMultiplier } = await import('../server/player.js');
+  // REXP makes drained field exp worth 3x ranks at pulse time (DR).
+  const { gainSkillExp } = await import('../server/player.js');
+  const expBefore = p.skills.war_magic.exp;
+  const rankBefore = p.skills.war_magic.rank;
   gainSkillExp(p, 'war_magic', 10);
-  const doubled = Math.floor(10 * learningMultiplier(p)) * 2;
-  assert.equal(p.skills.war_magic.exp - before, Math.floor(doubled * 0.7), 'immediate 70% lands');
-  assert.equal(p.expPools.war_magic, doubled - Math.floor(doubled * 0.7), '30% banks in the field pool');
-  assert.equal(p.rexp, 4, 'one REXP drained');
+  assert.equal(p.skills.war_magic.exp - expBefore, 0, 'field exp banks, nothing converts immediately');
+  assert.ok(p.expPools.war_magic >= 10, 'all 10 bits bank in the field pool');
+  assert.equal(p.rexp, 5, 'banking alone consumes no REXP');
 
-  // The pulse converts banked pool into ranks.
+  // Each pulse converts only a fraction (primary ~1/15). The first pulse
+  // drains with REXP active: bits worth 3x, one converting group-pulse
+  // consumes 1/3 unit (20 s).
   const { pulseExp } = await import('../server/player.js');
   const pulsed = pulseExp(p);
-  assert.ok(pulsed > 0, 'pool drains on pulse');
-  assert.equal(p.expPools.war_magic, undefined, 'pool emptied by the pulse');
+  assert.ok(pulsed > 0 && pulsed < 10, `a fraction drains per pulse (${pulsed})`);
+  assert.ok(p.expPools.war_magic > 0, 'the pool survives its first pulse');
+  // Progress in bits = residual exp delta + cost of each rank-up (200 + rank).
+  let cost = 0;
+  for (let r = rankBefore; r < p.skills.war_magic.rank; r++) cost += 200 + r;
+  const progress = p.skills.war_magic.exp - expBefore + cost;
+  assert.equal(progress, pulsed * 3, 'drained bits landed at triple value via REXP');
+  assert.ok(Math.abs(p.rexp - 5 + 1 / 3) < 1e-9, 'one converting pulse consumed 1/3 REXP');
+
+  // Repeated pulses empty the pool over the documented ~40-60 minute window.
+  for (let i = 0; i < 60; i++) pulseExp(p);
+  assert.equal(p.expPools.war_magic, undefined, 'repeated pulses empty the pool');
 
   game.removePlayer(p);
 });

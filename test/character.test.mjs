@@ -202,7 +202,8 @@ test('deletechar removes another character but not yourself', async () => {
 });
 
 test('TDPs: earned from rank-ups, spent on stats and any skill', async () => {
-  const { gainSkillExp, skillRank } = await import('../server/player.js');
+  const { gainSkillExp, skillRank, pulseExp, applyExpToSkill } = await import('../server/player.js');
+  const { expToNextRank } = await import('../data/skills.js');
   const acc = await auth.registerAccount('Tdptest', 's3cretword');
   const charId = createCharacter(acc.accountId, { name: 'Investor', race: 'elothean', guild: 'warmage' });
   const p = loadPlayer(charId);
@@ -211,18 +212,19 @@ test('TDPs: earned from rank-ups, spent on stats and any skill', async () => {
   game.addPlayer(p);
 
   assert.equal(p.tdp, 600, 'new characters start with 600 TDPs (DR-authentic)');
-  // Rank-ups feed the hidden pool; every 200 pool points -> 1 TDP.
-  gainSkillExp(p, 'war_magic', 300); // learning multiplier scales exp
+  // Field exp banks; a pulse converts a fraction. Keep pulsing until the
+  // banked 300 bits produce the first rank.
+  gainSkillExp(p, 'war_magic', 300);
+  for (let i = 0; i < 60 && skillRank(p, 'war_magic') < 1; i++) pulseExp(p);
   assert.ok(skillRank(p, 'war_magic') >= 1, 'skill ranks up');
   assert.equal(p.tdp, 600, 'pool under 200 converts nothing yet');
   assert.ok(p.tdpPool >= 1, 'rank points accumulate in the pool');
 
-  // A big flood of rank-ups crosses the 200 threshold (cap = circle*4).
+  // Sustained training (the trainer path feeds applyExpToSkill directly)
+  // crosses the 200-point threshold: 30 rank-ups feed 465 pool points.
   p.circle = 10;
   p.skills.war_magic = { rank: 0, exp: 0 };
-  gainSkillExp(p, 'war_magic', 200 * 100);
-  const { pulseExp } = await import('../server/player.js');
-  pulseExp(p); // drain the banked 30% into ranks
+  for (let r = 0; r < 30; r++) applyExpToSkill(p, p.skills.war_magic, expToNextRank(r));
   assert.ok(p.tdp > 600, 'pool conversions grant TDPs');
   assert.ok(p.tdpPool < 200, 'pool remainder kept after conversion');
 

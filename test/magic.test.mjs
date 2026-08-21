@@ -9,6 +9,11 @@ import {
 before(() => setupGame());
 after(() => teardownGame());
 
+// Total learning in a skill under the pool model: banked field exp + residual
+// rank bits + ranks (ranks stand in for already-consumed bits in >0 checks).
+const learned = (p, id) => ((p.expPools && p.expPools[id]) || 0)
+  + (p.skills[id]?.exp || 0) + (p.skills[id]?.rank || 0);
+
 test('spells command and out-of-combat healing', async () => {
   const acc = await auth.registerAccount('Empathtest', 's3cretword');
   const charId = createCharacter(acc.accountId, { name: 'Gentle', race: 'elothean', guild: 'empath' });
@@ -70,7 +75,7 @@ test('mana system: types, perceive, harness, and held mana empowers casts', asyn
   handleCommand(game, p, 'perceive');
   const percMsg = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
   assert.match(percMsg, /lunar mana/, 'perceive reports your guild\'s mana type');
-  assert.ok(p.skills.attunement.exp > 0, 'perceive trains attunement');
+  assert.ok(learned(p, 'attunement') > 0, 'perceive trains attunement');
 
   // harness fills the held pool up to the attunement-based cap.
   const cap = 10 + p.skills.attunement.rank * 2;
@@ -122,13 +127,13 @@ test('mana pulses regen and cambrinth stores energy', async () => {
   // Charge a cambrinth band: mana spent, energy stored, arcana trains.
   addItem(p, 'cambrinth_band', 1);
   p.mana = 40;
-  const arcanaBefore = p.skills.arcana.exp + p.skills.arcana.rank;
+  const arcanaBefore = learned(p, 'arcana');
   const manaBefore = p.mana;
   handleCommand(game, p, 'charge cambrinth band');
   assert.ok(p.cambrinth && p.cambrinth.charge > 0, 'cambrinth holds a charge');
   assert.equal(p.cambrinth.manaType, 'elemental', 'charged with your guild\'s mana type');
   assert.ok(p.mana < manaBefore, 'charging spends mana');
-  assert.ok(p.skills.arcana.exp + p.skills.arcana.rank > arcanaBefore, 'charging trains arcana');
+  assert.ok(learned(p, 'arcana') > arcanaBefore, 'charging trains arcana');
 
   // Invoke draws the stored energy into held mana.
   const heldBefore = p.heldMana || 0;
@@ -167,10 +172,10 @@ test('prepare/cast: overchanneling scales cost and risks backlash', async () => 
   const ws = fakeWs();
   p.ws = ws;
   game.addPlayer(p);
-  const pmBefore = p.skills.primary_magic.exp + p.skills.primary_magic.rank;
+  const pmBefore = learned(p, 'primary_magic');
   handleCommand(game, p, 'prepare sooth 100');
   assert.ok(p.prepared && p.prepared.spellId === 'soothe' && p.prepared.pct === 100, 'prepare records the spell');
-  assert.ok(p.skills.primary_magic.exp + p.skills.primary_magic.rank > pmBefore, 'prepare trains Primary Magic');
+  assert.ok(learned(p, 'primary_magic') > pmBefore, 'prepare trains Primary Magic');
   p.hp = p.maxHp - 30;
   const hpBefore = p.hp;
   handleCommand(game, p, 'cast');
@@ -446,7 +451,7 @@ test('cleric devotion: rituals deepen it, holy magic scales', async () => {
   p.room = 'temple';
   handleCommand(game, p, 'pray');
   assert.equal(p.devotion, 35, 'devotion ritual deepens faith');
-  assert.ok(p.skills.theurgy.exp > 0, 'ritual trains theurgy');
+  assert.ok(learned(p, 'theurgy') > 0, 'ritual trains theurgy');
 
   game.removePlayer(p);
 });
