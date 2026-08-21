@@ -1,0 +1,29 @@
+# Dragon Realms — systemd unit (Linux hosts)
+#
+# Install:
+#   sudo cp deploy/dragonrealms.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now dragonrealms
+#
+# The API and GM surfaces are opt-in; uncomment Environment lines to expose
+# them. Set DR_GM_TOKEN / DR_DEBUG_TOKEN to long random secrets if enabled.
+
+[Unit]
+Description=Dragon Realms MUD server
+After=network.target
+
+[Service]
+Type=simple
+User=sdolbec
+WorkingDirectory=/home/sdolbec/dragonrealms
+ExecStart=/usr/bin/node server/index.js
+Environment=PORT=3000
+#Environment=DR_ENABLE_API=1
+#Environment=DR_GM_TOKEN=change-me-long-random
+#Environment=DR_ENABLE_DEBUG_API=1
+#Environment=DR_DEBUG_TOKEN=change-me-long-random
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
