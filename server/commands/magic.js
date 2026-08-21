@@ -1,6 +1,7 @@
 // Magic commands: casting, preparation, mana, cambrinth, familiars.
 import { roomById } from '../../data/world.js';
 import { spellsFor, spellById, spellTierFor, SPELL_TIER_RANKS, spellSlotCost, spellSlotsTotal, spellSlotsUsed } from '../../data/guilds.js';
+import { craftTechnique, stationVerbs } from './items.js';
 
 // A spell is castable when your guild's curriculum reaches it and you have
 // not forgotten it. The slot budget is enforced where spells are granted
@@ -893,6 +894,8 @@ export function knowsTechnique(p, id) {
 
 function technique(ctx) {
   const { p, arg1, emit } = ctx;
+  // Craft stations teach their own trade techniques (P26).
+  if (stationVerbs(p).length) return craftTechnique(ctx);
   if (!p.guild.magic) return emit('Your guild forswears magic — there are no techniques to learn.');
   if (!arg1) {
     const slots = techniqueSlots(p.circle);

@@ -67,6 +67,7 @@ function persistentStateFor(p) {
     spellsForgotten: Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [],
     debt: Number.isFinite(p.debt) ? p.debt : 0,
     workOrder: p.workOrder && typeof p.workOrder === 'object' ? p.workOrder : null,
+    craftTechs: p.craftTechs && typeof p.craftTechs === 'object' ? p.craftTechs : {},
     cooldowns,
   };
 }
@@ -204,6 +205,7 @@ export function loadPlayer(charId) {
     spellsForgotten: Array.isArray(persisted.spellsForgotten) ? persisted.spellsForgotten : [],
     debt: Number.isFinite(persisted.debt) ? persisted.debt : 0,
     workOrder: persisted.workOrder && typeof persisted.workOrder === 'object' ? persisted.workOrder : null,
+    craftTechs: persisted.craftTechs && typeof persisted.craftTechs === 'object' ? persisted.craftTechs : {},
     buffs: {},
     // runtime
     online: false,

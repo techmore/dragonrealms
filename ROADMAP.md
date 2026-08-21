@@ -288,7 +288,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Spell-slot progressions per guild: primary magic 89–91 slots @150 (Cleric, Moon Mage, Warrior Mage), secondary magic 55–76 (Bard, Empath, Necromancer), tertiary magic 60–61 (Paladin, Ranger, Trader); free magical feats at circle 2 | ✅ compressed parity: tier-scaled budgets (primary > secondary > tertiary), per-tier slot costs, +2 feat at circle 2; `learn`/`forget` at the hall; over-budget unlocks await at the hall |
 | Nth-skill + hard/soft requirement engine | ✅ cumulative DR 1–10 tables; hard named skills never double-count toward Nth; mastery skills excluded; guild-specific Thievery eligibility; cross-system invariants tested; organic exp sources live for tactics, scholarship, performance, appraisal, outdoorsmanship (foraging), athletics, hunting, scouting, backstab, defending, parry, thievery (steal), locksmithing (strongboxes), empathy, arcana |
 | Crafting skills + disciplines: Forging (Weaponsmithing/Armorsmithing/Blacksmithing), Enchanting (Artificing/Binding/Invoking), Alchemy (Remedies/Poison/Cooking), Outfitting (Tailoring/Artistry), Engineering (Tinkering/Shaping/Carving) | 🚧 Alchemy + Forging v1 live (ore → quality steel); full disciplines pending |
-| Guild crafting affiliations: free technique slots per guild (e.g. 3× Armorsmithing Paladin, 2× Remedies+1× Cooking Empath) | 🚧 v1 live: Paladin +3 Armorsmithing, Ranger +2 Tailoring, Trader +2 Engineering, Empath +2 Remedies, Barbarian +3 Forging; explicit technique slots pending |
+| Guild crafting affiliations: free technique slots per guild (e.g. 3× Armorsmithing Paladin, 2× Remedies+1× Cooking Empath) | ✅ affinity grants +quality edge and a bonus technique slot; `technique` at any craft station lists/learns rank-gated techniques (quality +3, order pay +25%, brew success/potency) |
 | Stamina + burden pools (prerequisite for War Stomp, berserks, heavy gear) | ✅ stamina pool (Con + Fitness); weapon/armor burden shrinks it and slows recovery; maneuvers/ambush/backstab/whirlwind/stomp/choke/snipe spend wind |
 | Magic techniques / analogous patterns / metaspells | 🚧 five techniques live (Aether Efficiency −10% mana, Deep Harness +30%, Resonant Attunement, Meditation +20% regen, Cold Casting +15 safe ceiling), slots by circle; patterns/metaspells pending |
 
@@ -473,9 +473,9 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Feature | Status |
 |---|---|
 | 5 crafting skills × 3 disciplines (~25 techniques each): Forging (Blacksmithing/Armorsmithing/Weaponsmithing), Engineering (Carving/Shaping/Tinkering), Outfitting (Tailoring/Artistry/Jewelry), Alchemy (Remedies/Reactants/Cooking), Enchanting (Artificing/Binding/Invoking) | ⬜ |
-| Technique slots: 13 general per skill (rank-gated 25–1200), careers (12) + hobbies (6), 3 guild bonus slots | ⬜ |
+| Technique slots: 13 general per skill (rank-gated 25–1200), careers (12) + hobbies (6), 3 guild bonus slots | ✅ compressed: rank-gated slots per crafting skill (1 + rank/10, +1 guild-affinity bonus, cap 6); `technique` at any craft station lists/learns |
 | Guild bonus disciplines (e.g. Empath Remedies×2+Cooking, Paladin Armorsmithing×3, Thief Carving×2+Reactants) | ⬜ |
-| Workflow: gather materials → craft → quality roll; quality ladder (practically worthless → masterfully-crafted, quality scales damage) | 🚧 v1 live; tools/instructions/ANALYZE + masterful durability pending |
+| Workflow: gather materials → craft → quality roll; quality ladder (practically worthless → masterfully-crafted, quality scales damage) | ✅ full workflow live at four stations; quality on instances scales damage/armor and shows in appraise; techniques push the ladder higher |
 | Work orders + prestige → maker's mark; unmarked items recognized only by their maker | ⬜ |
 | Crafted gear strictly superior to store-bought at high skill; magic buffs apply at half strength to crafting checks | ✅ crafted base stats exceed store-bought and the quality ladder (1.3x) scales with skill; half-strength magic buffs on crafting checks pending |
 
@@ -541,7 +541,7 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 - ~~Duel reasons; justice-zone variants + DEPART ITEM (P27)~~ ✅ justice zones (lawless/standard/strict), Rite of Departure
 
 **P3 — breadth & polish**
-- Crafting disciplines (Engineering/Outfitting/Enchanting) + technique slots (P26) — shaping/tailoring v1 live; technique slots pending
+- Crafting disciplines (Engineering/Outfitting/Enchanting) + technique slots (P26) — ✅ all four disciplines craftable with rank-gated technique slots (quality/order/brew effects); Enchanting discipline remains
 - ~~Masterful-craft durability, work orders + maker's mark (P26)~~ ✅ work orders with quality gates + maker's marks live; durability system already on instances
 - Deeper per-guild trees: full khri family, enchante segue + area effects,
   cleric infusion/resurrection, empath shift, astral travel, risen states,

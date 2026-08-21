@@ -2,7 +2,7 @@
 import { roomById } from '../../data/world.js';
 import { ITEMS, itemById } from '../../data/items.js';
 import { RECIPES, recipeById } from '../../data/recipes.js';
-import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll, QUALITY_LADDER } from '../../data/forging.js';
+import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll, QUALITY_LADDER, CRAFT_TECHNIQUES, craftSlotsFor } from '../../data/forging.js';
 
 // ---- Work orders (P26): craft NPCs post piecework; quality matters. ----
 const ORDER_VERBS = {
@@ -22,6 +22,7 @@ function stationVerbs(p) {
   const room = roomById(p.room);
   return (room && (room.npcs || []).some((id) => npcById(id)?.role === 'craft')) ? ['craft'] : [];
 }
+export { stationVerbs };
 
 function qualityNameFor(mult) {
   return (QUALITY_LADDER.find((q) => Math.abs(q.mult - mult) < 0.001) || {}).name || 'serviceable';
@@ -54,6 +55,48 @@ const CRAFT_AFFINITY = {
 
 function craftAffinity(guildId, craft) {
   return (CRAFT_AFFINITY[craft] && CRAFT_AFFINITY[craft][guildId]) || 0;
+}
+
+// ---- Crafting techniques (P26) ----
+const CRAFT_TECH_COST = 75;
+const VERB_SKILL = { forge: 'forging', shape: 'engineering', tailor: 'outfitting', craft: 'alchemy' };
+
+function knownCraftTechs(p, skill) {
+  return ((p.craftTechs || {})[skill]) || [];
+}
+
+function hasCraftTech(p, techId) {
+  const def = CRAFT_TECHNIQUES[techId];
+  return def ? knownCraftTechs(p, def.skill).includes(techId) : false;
+}
+
+// Sum of learned quality-effect magnitudes for a crafting skill.
+function craftQualityBonus(p, skill) {
+  let bonus = 0;
+  for (const id of knownCraftTechs(p, skill)) {
+    const t = CRAFT_TECHNIQUES[id];
+    if (t && t.effect.kind === 'quality') bonus += t.effect.mag;
+  }
+  return bonus;
+}
+
+// Work-order pay multiplier from learned order-effect techniques.
+function craftOrderMultiplier(p, skill) {
+  let mult = 1;
+  for (const id of knownCraftTechs(p, skill)) {
+    const t = CRAFT_TECHNIQUES[id];
+    if (t && t.effect.kind === 'order') mult += t.effect.mag;
+  }
+  return mult;
+}
+
+function craftBrewBonus(p) {
+  let bonus = 0;
+  for (const id of knownCraftTechs(p, 'alchemy')) {
+    const t = CRAFT_TECHNIQUES[id];
+    if (t && t.effect.kind === 'brew') bonus += t.effect.mag;
+  }
+  return bonus;
 }
 
 export const commands = {
@@ -187,11 +230,12 @@ export const commands = {
         const need = o.qualMult ? `${o.qualName} or better` : 'any serviceable batch';
         return emit(`Not yet filled: ${def ? def.name : o.recipeId}, ${need}. ${o.pay} silvers on delivery.`);
       }
-      p.silver += o.pay;
+      const pay = Math.round(o.pay * craftOrderMultiplier(p, ORDER_VERBS[o.verb].skill));
+      p.silver += pay;
       gainSkillExp(p, ORDER_VERBS[o.verb].skill, 18);
       p.workOrder = null;
       game.persistPlayer(p);
-      return emit(`${o.npc} inspects the work, nods once, and counts out \x1b[1m${o.pay} silvers\x1b[0m. "Good hands. Come back when you're hungry."`);
+      return emit(`${o.npc} inspects the work, nods once, and counts out \x1b[1m${pay} silvers\x1b[0m. "Good hands. Come back when you're hungry."`);
     }
 
     // Take an order (or show the active one).
@@ -250,7 +294,7 @@ export const commands = {
     for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
     // Weaponsmithing affinity: barbarians wield the forge with a natural edge
     // (DR: 3 free technique slots in the Weaponsmithing discipline).
-    const q = qualityRoll(forgeSkill + craftAffinity(p.guild.id, 'forge'));
+    const q = qualityRoll(forgeSkill + craftAffinity(p.guild.id, 'forge') + craftQualityBonus(p, 'forging'));
     const leveled = gainSkillExp(p, 'forging', 12);
     const base = itemById(recipe.item);
     // Quality belongs to this concrete item, not every copy of its type.
@@ -282,7 +326,7 @@ export const commands = {
       return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Ore and scale drop in the wilds.`);
     }
     for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
-    const q = qualityRoll(skill + craftAffinity(p.guild.id, 'shape'));
+    const q = qualityRoll(skill + craftAffinity(p.guild.id, 'shape') + craftQualityBonus(p, 'engineering'));
     const leveled = gainSkillExp(p, 'engineering', 12);
     const base = itemById(recipe.item);
     const orderMsg = completeOrderStep(p, 'shape', recipe.id, q.mult);
@@ -311,7 +355,7 @@ export const commands = {
       return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Pelts come from the hunt.`);
     }
     for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
-    const q = qualityRoll(skill + craftAffinity(p.guild.id, 'tailor'));
+    const q = qualityRoll(skill + craftAffinity(p.guild.id, 'tailor') + craftQualityBonus(p, 'outfitting'));
     const leveled = gainSkillExp(p, 'outfitting', 12);
     const base = itemById(recipe.item);
     const orderMsg = completeOrderStep(p, 'tailor', recipe.id, q.mult);
@@ -341,7 +385,7 @@ export const commands = {
     }
     for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
     const skill = skillRank(p, 'alchemy');
-    const chance = Math.min(0.95, 0.5 + (skill + craftAffinity(p.guild.id, 'craft')) * 0.03 + p.stats.wis * 0.003);
+    const chance = Math.min(0.95, 0.5 + (skill + craftAffinity(p.guild.id, 'craft')) * 0.03 + p.stats.wis * 0.003 + craftBrewBonus(p));
     const leveled = gainSkillExp(p, 'alchemy', 10);
     setRoundtime(p, 6);
     if (Math.random() < chance) {
@@ -353,6 +397,46 @@ export const commands = {
     }
   },
 };
+
+// Crafting techniques: list and learn at the matching station. Routed from
+// magic.js's `technique` verb when the player stands at a craft station.
+export function craftTechnique(ctx) {
+  const { game, p, arg1, arg2, emit } = ctx;
+  const verbs = stationVerbs(p);
+  const skills = [...new Set(verbs.map((v) => VERB_SKILL[v]))];
+  const slotsFor = (skill) => craftSlotsFor(skillRank(p, skill), craftAffinity(p.guild.id, verbOfSkill(skill)) > 0);
+  const verbOfSkill = (skill) => verbs.find((v) => VERB_SKILL[v] === skill);
+
+  if (arg1 && arg1.toLowerCase() === 'learn') {
+    const name = (arg2 || '').toLowerCase();
+    const def = Object.values(CRAFT_TECHNIQUES).find((t) => skills.includes(t.skill) && (t.id === name || t.name.toLowerCase().includes(name)));
+    if (!def) return emit('No such technique posts here. "technique" lists what this station teaches.');
+    const skill = def.skill;
+    const known = knownCraftTechs(p, skill);
+    if (known.includes(def.id)) return emit(`You already practice ${def.name}.`);
+    if (skillRank(p, skill) < def.minRank) return emit(`${def.name} requires ${def.minRank} ${skill} ranks; you have ${skillRank(p, skill)}.`);
+    if (known.length >= slotsFor(skill)) return emit(`Your ${skill} slots are full (${known.length}/${slotsFor(skill)}). Higher ${skill} ranks open more.`);
+    if (p.silver < CRAFT_TECH_COST) return emit(`Learning ${def.name} costs ${CRAFT_TECH_COST} silvers, and you are short.`);
+    p.silver -= CRAFT_TECH_COST;
+    p.craftTechs = p.craftTechs || {};
+    p.craftTechs[skill] = known.concat(def.id);
+    game.persistPlayer(p);
+    const teacher = ORDER_VERBS[verbOfSkill(skill)].npc;
+    return emit(`${teacher} watches your hands, adjusts your grip, and names it: \x1b[1m${def.name}\x1b[0m — ${def.desc} (${known.length + 1}/${slotsFor(skill)} ${skill} slots, ${p.silver} silvers left).`);
+  }
+
+  // List what this station offers.
+  let out = '';
+  for (const skill of skills) {
+    const known = knownCraftTechs(p, skill);
+    const rank = skillRank(p, skill);
+    const lines = Object.values(CRAFT_TECHNIQUES)
+      .filter((t) => t.skill === skill)
+      .map((t) => `  ${pad(t.name, 20)} [rank ${t.minRank}] ${t.desc}${known.includes(t.id) ? '  \x1b[1m[known]\x1b[0m' : ''}`);
+    out += `\n\x1b[1m${skill}\x1b[0m — ${known.length}/${slotsFor(skill)} slots (${rank} ranks):\n${lines.join('\n')}`;
+  }
+  emit(`\nTechniques of the trade:${out}\n\nSay "technique learn <name>" here (${CRAFT_TECH_COST} silvers each).`);
+}
 
 function showInventory(ctx) {
   const { p, say } = ctx;
@@ -447,11 +531,12 @@ function consume(ctx) {
     emit(`You drink ${entry.item.name}. A wave of power washes over you!`);
     return;
   }
+  const potency = hasCraftTech(p, 'potent_essence') ? 1 + CRAFT_TECHNIQUES.potent_essence.effect.mag : 1;
   const before = p.hp;
-  if (entry.item.restore) p.hp = Math.min(p.maxHp, p.hp + entry.item.restore);
+  if (entry.item.restore) p.hp = Math.min(p.maxHp, p.hp + Math.ceil(entry.item.restore * potency));
   const healed = p.hp - before;
   const manaBefore = p.mana;
-  if (entry.item.restoreMana) p.mana = Math.min(p.maxMana, p.mana + entry.item.restoreMana);
+  if (entry.item.restoreMana) p.mana = Math.min(p.maxMana, p.mana + Math.ceil(entry.item.restoreMana * potency));
   const manaGained = p.mana - manaBefore;
   emit(`You use ${entry.item.name}${healed ? ` and restore ${healed} health` : ''}${manaGained ? ` and ${manaGained} mana` : ''}.`);
   gainSkillExp(p, 'first_aid', 2);
