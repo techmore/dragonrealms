@@ -14,17 +14,16 @@ const GUILDS = [
 ];
 const STATS = ['str', 'con', 'ref', 'agi', 'cha', 'dis', 'wis', 'int'];
 
-const raceFlavor = {};
-const guildFlavor = {};
-
 export function hideAll() {
   $('welcome').hidden = true;
   $('welcome-body').innerHTML = '';
   chargenEl.hidden = true;
+  document.body.classList.remove('onboarding');
 }
 
 export function showWelcome(mode, msgText) {
   const body = $('welcome-body');
+  document.body.classList.add('onboarding');
   $('welcome').hidden = false;
   if (mode === 'login') {
     body.innerHTML = `
@@ -36,7 +35,7 @@ export function showWelcome(mode, msgText) {
           <button id="wf-login">Enter the Crossing</button>
           <button id="wf-register" class="ghost">Create account</button>
         </div>
-        <div id="wf-err" class="welcome-err"></div>
+        <div id="wf-err" class="welcome-err" role="alert" aria-live="assertive"></div>
       </div>
       <p class="welcome-sub">Or just type <b>login</b> or <b>register</b> into the terminal below.</p>`;
     const go = (reg) => {
@@ -76,9 +75,11 @@ export function showWelcome(mode, msgText) {
   }
 }
 
-export function enterChargen(msgText) {
+export function enterChargen(msg) {
   $('welcome').hidden = true;
-  parseChargenFlavor(msgText);
+  document.body.classList.add('onboarding');
+  ingestChargenData(msg);
+  parseChargenFlavor(typeof msg === 'string' ? msg : msg && msg.msg);
   showChargen();
 }
 
@@ -95,6 +96,22 @@ export function routeTypedCommand(line) {
 }
 
 // ---------------- Character creation form ----------------
+// Structured data from the server's charcreate message (races with stat
+// modifiers, guilds with mana type). Falls back to prose parsing for older
+// servers.
+let raceData = {};
+let guildData = {};
+
+function ingestChargenData(msg) {
+  raceData = {}; guildData = {};
+  if (msg && Array.isArray(msg.races)) {
+    for (const r of msg.races) raceData[r.id] = r;
+  }
+  if (msg && Array.isArray(msg.guilds)) {
+    for (const g of msg.guilds) guildData[g.id] = g;
+  }
+}
+
 function parseChargenFlavor(msgText) {
   for (const line of String(msgText || '').split('\n')) {
     const m = /^(\w+)\s*-\s*([^:]+):\s*(.+)$/.exec(line.trim());
@@ -102,9 +119,20 @@ function parseChargenFlavor(msgText) {
     const id = m[1].toLowerCase();
     const name = m[2].trim();
     const desc = m[3].trim();
-    if (RACES.some(([r]) => r === id)) raceFlavor[id] = { name, desc };
-    if (GUILDS.some(([g]) => g === id)) guildFlavor[id] = { name, desc };
+    if (RACES.some(([r]) => r === id) && !raceData[id]) raceData[id] = { id, name, desc };
+    if (GUILDS.some(([g]) => g === id) && !guildData[id]) guildData[id] = { id, name, desc };
   }
+}
+
+const STAT_LABELS = { str: 'STR', con: 'CON', ref: 'REF', agi: 'AGI', cha: 'CHA', dis: 'DIS', wis: 'WIS', int: 'INT' };
+
+function statModHtml(stats) {
+  if (!stats) return '';
+  return Object.entries(stats).map(([k, v]) => {
+    const sign = v > 0 ? '+' : (v < 0 ? '\u2212' : '\u00b1');
+    const cls = v > 0 ? 'mod-up' : (v < 0 ? 'mod-down' : 'mod-zero');
+    return `<span class="stat-mod ${cls}" title="${STAT_LABELS[k]}">${STAT_LABELS[k]} ${sign}${Math.abs(v)}</span>`;
+  }).join('');
 }
 
 function showChargen() {
@@ -120,10 +148,22 @@ function showChargen() {
 }
 
 function updateCgFlavor() {
-  const r = raceFlavor[$('cg-race').value];
-  const g = guildFlavor[$('cg-guild').value];
-  $('cg-race-flavor').textContent = r ? r.desc : '';
-  $('cg-guild-flavor').textContent = g ? g.desc : '';
+  const rid = $('cg-race').value;
+  const gid = $('cg-guild').value;
+  const r = raceData[rid];
+  const g = guildData[gid];
+  const raceEl = $('cg-race-flavor');
+  raceEl.textContent = r ? r.desc : '';
+  // Stat modifiers ride under the description when the server sent them.
+  const oldMods = document.getElementById('cg-race-mods');
+  if (oldMods) oldMods.remove();
+  if (r && r.stats) {
+    raceEl.insertAdjacentHTML('afterend', `<div id="cg-race-mods" class="stat-mods">${statModHtml(r.stats)}</div>`);
+  }
+  const manaLine = g && g.manaName
+    ? (g.magic ? `${g.manaName} magic` : 'no magic')
+    : '';
+  $('cg-guild-flavor').textContent = (g ? g.desc : '') + (manaLine ? `\n${manaLine}` : '');
 }
 
 export function showAlloc(panel) {

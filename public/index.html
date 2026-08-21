@@ -10,10 +10,10 @@
   <header id="topbar">
     <span class="brand"><span class="brand-mark">&#128009;</span> DRAGON REALMS</span>
     <span class="topbar-right">
-      <span id="conn-status" class="conn-off">disconnected</span>
+      <span id="conn-status" class="conn-off" role="status" aria-live="polite">disconnected</span>
       <nav id="toolbar" aria-label="Tools">
-        <button id="btn-exits" class="tool" title="Exits panel">Exits</button>
-        <button id="btn-chat" class="tool" title="Conversations (local chat)">Chat</button>
+        <button id="btn-exits" class="tool" title="Room and exits" aria-controls="dock" aria-expanded="false">Exits</button>
+        <button id="btn-chat" class="tool" title="Conversations (local chat)" aria-controls="chat-container" aria-expanded="false">Chat</button>
         <button id="btn-exp" class="tool" title="Experience">Exp</button>
         <button id="btn-info" class="tool" title="Vital statistics (info)">Info</button>
         <button id="btn-inv" class="tool" title="Inventory">Inventory</button>
@@ -22,23 +22,23 @@
         <button id="btn-spells" class="tool" title="Spells">Spells</button>
         <button id="btn-scripts" class="tool" title="Macros, timers, triggers, DR scripts">Scripts</button>
         <div id="btn-windows" class="windows-wrap">
-          <button id="windows-btn" class="tool" title="Windows: show or hide each Docked window">Windows</button>
+          <button id="windows-btn" class="tool" title="Windows: show or hide each docked window" aria-controls="windows-menu" aria-expanded="false">Windows</button>
           <div id="windows-menu" class="windows-menu" hidden></div>
         </div>
-        <button id="settings-btn" class="tool" title="Settings">&#9881;</button>
+        <button id="settings-btn" class="tool tool-icon" title="Settings" aria-label="Open settings" aria-controls="settings-panel" aria-expanded="false">&#9881;</button>
       </nav>
     </span>
   </header>
 
   <main id="app">
-    <aside id="leftrail">
+    <aside id="leftrail" aria-label="Character status">
       <section class="dwin" data-window="status-strip" id="status-strip-sec">
-        <div class="dwin-head rail-kicker">VITALS<button class="dwin-collapse" data-collapse="status-strip" title="Collapse">&#9660;</button></div>
+        <div class="dwin-head rail-kicker">VITALS<button class="dwin-collapse" data-collapse="status-strip" title="Collapse vitals" aria-label="Collapse vitals" aria-expanded="true">&#9660;</button></div>
         <div class="dwin-body" id="status-strip">
           <div id="strip-room" class="rail-room" title="Room">&#8212;</div>
-          <div class="gauge" title="Health"><span class="gauge-fill" id="strip-hp-fill"></span><span class="gauge-label" id="strip-hp-label">HP --</span></div>
-          <div class="gauge gauge-mana" id="strip-mana-wrap" title="Mana" hidden><span class="gauge-fill" id="strip-mana-fill"></span><span class="gauge-label" id="strip-mana-label">Mana --</span></div>
-          <div class="gauge gauge-stamina" id="strip-stamina-wrap" title="Stamina" hidden><span class="gauge-fill" id="strip-stamina-fill"></span><span class="gauge-label" id="strip-stamina-label">Stamina --</span></div>
+          <div class="gauge gauge-health" id="strip-hp-wrap" title="Health" role="progressbar" aria-label="Health"><span class="gauge-fill" id="strip-hp-fill"></span><span class="gauge-label" id="strip-hp-label">HP --</span></div>
+          <div class="gauge gauge-mana" id="strip-mana-wrap" title="Mana" role="progressbar" aria-label="Mana" hidden><span class="gauge-fill" id="strip-mana-fill"></span><span class="gauge-label" id="strip-mana-label">Mana --</span></div>
+          <div class="gauge gauge-stamina" id="strip-stamina-wrap" title="Stamina" role="progressbar" aria-label="Stamina" hidden><span class="gauge-fill" id="strip-stamina-fill"></span><span class="gauge-label" id="strip-stamina-label">Stamina --</span></div>
           <div class="rail-meta">
             <span id="strip-circle" class="strip-dim">Circle --</span>
             <span id="strip-silver" class="strip-dim">-- silvers</span>
@@ -52,7 +52,7 @@
         </div>
       </section>
       <section class="dwin" data-window="hands-bar" id="hands-container" hidden>
-        <div class="dwin-head rail-kicker">HANDS<button class="dwin-collapse" data-collapse="hands-bar" title="Collapse">&#9660;</button></div>
+        <div class="dwin-head rail-kicker">HANDS<button class="dwin-collapse" data-collapse="hands-bar" title="Collapse hands" aria-label="Collapse hands" aria-expanded="true">&#9660;</button></div>
         <div class="dwin-body" id="hands-bar">
           <div id="hands-hand" class="hands-item">Hand: &#8212;</div>
           <div id="hands-worn" class="hands-item"></div>
@@ -60,19 +60,23 @@
         </div>
       </section>
       <section class="dwin" data-window="fe-tracker" id="fe-container">
-        <div class="dwin-head rail-kicker">EXP (THOUGHTS)<button class="dwin-collapse" data-collapse="fe-tracker" title="Collapse">&#9660;</button></div>
+        <div class="dwin-head rail-kicker">EXP (THOUGHTS)<button class="dwin-collapse" data-collapse="fe-tracker" title="Collapse experience" aria-label="Collapse experience" aria-expanded="true">&#9660;</button></div>
         <div class="dwin-body" id="fe-tracker">
           <div id="fe-count" class="fe-count" hidden></div>
           <div id="fe-row"></div>
         </div>
       </section>
     </aside>
-    <div id="story">
-      <div id="terminal" aria-live="polite"></div>
+    <div id="story" aria-label="Story stream">
+      <div id="terminal" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false"></div>
     </div>
-    <aside id="dock" hidden>
+    <aside id="dock" aria-label="Field windows" hidden>
+      <div class="dock-mobile-head">
+        <span>FIELD WINDOWS</span>
+        <button id="dock-close" class="dock-btn" title="Close field windows" aria-label="Close field windows">&#215;</button>
+      </div>
       <section class="dwin" data-window="room-panel" id="room-panel" aria-label="Room">
-        <div class="dwin-head rail-kicker">ROOM<button class="dwin-collapse" data-collapse="room-panel" title="Collapse">&#9660;</button></div>
+        <div class="dwin-head rail-kicker">ROOM<button class="dwin-collapse" data-collapse="room-panel" title="Collapse room" aria-label="Collapse room" aria-expanded="true">&#9660;</button></div>
         <div class="dwin-body">
           <div id="rp-title" class="room-panel-title"></div>
           <div id="rp-desc" class="room-panel-desc"></div>
@@ -85,97 +89,115 @@
         </div>
       </section>
       <section class="dwin" data-window="target-widget" id="target-container" aria-label="Targets">
-        <div class="dwin-head rail-kicker">COMBAT<button class="dwin-collapse" data-collapse="target-widget" title="Collapse">&#9660;</button><span id="combat-status" class="dwin-status" hidden></span></div>
+        <div class="dwin-head rail-kicker">COMBAT<button class="dwin-collapse" data-collapse="target-widget" title="Collapse combat" aria-label="Collapse combat" aria-expanded="true">&#9660;</button><span id="combat-status" class="dwin-status" role="status" aria-live="polite" hidden></span></div>
         <div class="dwin-body" id="target-widget">
           <div id="target-row"></div>
         </div>
       </section>
       <section class="dwin" data-window="chat-widget" id="chat-container" aria-label="Conversations">
-        <div class="dwin-head rail-kicker">CONVERSATIONS<button class="dwin-collapse" data-collapse="chat-widget" title="Collapse">&#9660;</button></div>
+        <div class="dwin-head rail-kicker">CONVERSATIONS<button class="dwin-collapse" data-collapse="chat-widget" title="Collapse conversations" aria-label="Collapse conversations" aria-expanded="true">&#9660;</button></div>
         <div class="dwin-body" id="chat-widget">
           <div id="chat-row"></div>
         </div>
       </section>
-      <section id="panel-wrap" hidden>
+      <section class="dwin" data-window="quest-widget" id="quest-container" aria-label="Quest journal">
+        <div class="dwin-head rail-kicker">JOURNAL<button class="dwin-collapse" data-collapse="quest-widget" title="Collapse journal" aria-label="Collapse journal" aria-expanded="true">&#9660;</button></div>
+        <div class="dwin-body" id="quest-widget">
+          <div id="quest-row"></div>
+        </div>
+      </section>
+      <section id="panel-wrap" role="region" aria-labelledby="panel-title" hidden>
         <div id="panel-head">
           <span id="panel-title" class="dock-kicker">PANEL</span>
-          <button id="panel-refresh" class="dock-btn" title="Refresh">&#8635;</button>
-          <button id="panel-close" class="dock-btn" title="Close (Esc)">&#215;</button>
+          <button id="panel-refresh" class="dock-btn" title="Refresh panel" aria-label="Refresh panel">&#8635;</button>
+          <button id="panel-close" class="dock-btn" title="Close panel (Esc)" aria-label="Close panel">&#215;</button>
         </div>
         <div id="panel-body" class="panel-body"></div>
       </section>
     </aside>
   </main>
 
-  <div id="scroll-pill" hidden title="Return to latest output">&#9660; scrolled back &#8212; press End</div>
+  <button id="scroll-pill" hidden title="Return to latest output">&#9660; scrolled back &#8212; return to latest</button>
 
   <div id="searchbar" hidden>
     <input id="search-input" placeholder="Search scrollback&#8230;" autocomplete="off">
     <span id="search-count" class="search-count"></span>
-    <button id="search-prev" title="Previous match">&#9650;</button>
-    <button id="search-next" title="Next match">&#9660;</button>
-    <button id="search-close" title="Close (Esc)">&#215;</button>
+    <button id="search-prev" title="Previous match" aria-label="Previous match">&#9650;</button>
+    <button id="search-next" title="Next match" aria-label="Next match">&#9660;</button>
+    <button id="search-close" title="Close search (Esc)" aria-label="Close search">&#215;</button>
   </div>
 
-  <div id="welcome" hidden>
+  <section id="welcome" aria-label="Enter Dragon Realms" hidden>
     <div class="welcome-card">
+      <div class="welcome-sigil" aria-hidden="true">&#128009;</div>
       <div class="welcome-title">DRAGON REALMS</div>
       <div class="welcome-tag">enter the Crossing</div>
       <div id="welcome-body"></div>
     </div>
-  </div>
+  </section>
 
-  <div id="chargen" hidden>
-    <h2>Create your adventurer</h2>
-    <label>Name <input id="cg-name" maxlength="16" placeholder="e.g. Thornmoor" autocomplete="off"></label>
-    <label>Race
-      <select id="cg-race"></select>
-      <span id="cg-race-flavor" class="cg-flavor"></span>
-    </label>
-    <label>Guild
-      <select id="cg-guild"></select>
-    </label>
-    <label>City
-      <select id="cg-city">
-        <option value="crossing">The Crossing</option>
-        <option value="riverhaven">Riverhaven</option>
-      </select>
-    </label>
-    <button id="cg-submit">Create character</button>
-    <pre id="cg-alloc"></pre>
-    <div id="cg-alloc-row" class="cg-alloc-row" hidden>
-      <select id="cg-stat"></select>
-      <input id="cg-amt" type="number" min="1" value="1">
-      <button id="cg-allocbtn">Allocate</button>
-      <button id="cg-enter">Enter the world</button>
+  <div id="chargen" role="dialog" aria-modal="false" aria-labelledby="cg-title" hidden>
+    <div class="chargen-card">
+      <div class="form-kicker">NEW ADVENTURER</div>
+      <h2 id="cg-title">Choose your path</h2>
+      <label>Name <input id="cg-name" maxlength="16" placeholder="e.g. Thornmoor" autocomplete="off"></label>
+      <div class="cg-choice-grid">
+        <label>Race
+          <select id="cg-race"></select>
+          <span id="cg-race-flavor" class="cg-flavor"></span>
+        </label>
+        <label>Guild
+          <select id="cg-guild"></select>
+          <span id="cg-guild-flavor" class="cg-flavor"></span>
+        </label>
+      </div>
+      <label>Starting city
+        <select id="cg-city">
+          <option value="crossing">The Crossing</option>
+          <option value="riverhaven">Riverhaven</option>
+        </select>
+      </label>
+      <button id="cg-submit">Create character</button>
+      <pre id="cg-alloc" aria-live="polite"></pre>
+      <div id="cg-alloc-row" class="cg-alloc-row" hidden>
+        <select id="cg-stat" aria-label="Statistic"></select>
+        <input id="cg-amt" type="number" min="1" value="1" aria-label="Training points to allocate">
+        <button id="cg-allocbtn">Allocate</button>
+        <button id="cg-enter">Enter the world</button>
+      </div>
     </div>
   </div>
 
-  <div id="dpad" hidden>
-    <span class="dpad-none"></span><button class="dbtn" data-dir="n">N</button><span class="dpad-none"></span>
-    <button class="dbtn" data-dir="w">W</button><span class="dpad-none"></span><button class="dbtn" data-dir="e">E</button>
-    <span class="dpad-none"></span><button class="dbtn" data-dir="s">S</button><button class="dbtn" data-dir="u">U</button>
+  <div id="dpad" role="group" aria-label="Movement controls" hidden>
+    <span class="dpad-none"></span><button class="dbtn" data-dir="n" aria-label="Move north">N</button><span class="dpad-none"></span>
+    <button class="dbtn" data-dir="w" aria-label="Move west">W</button><span class="dpad-none"></span><button class="dbtn" data-dir="e" aria-label="Move east">E</button>
+    <span class="dpad-none"></span><button class="dbtn" data-dir="s" aria-label="Move south">S</button><button class="dbtn" data-dir="u" aria-label="Move up">U</button>
   </div>
 
   <div id="macrobars" class="macrobars" hidden>
-    <button id="macros-toggle" class="macro-toggle" title="Collapse macro bar">&#9660;</button>
+    <button id="macros-toggle" class="macro-toggle" title="Collapse macro bar" aria-label="Collapse macro bar">&#9660;</button>
     <span id="macros-row" class="macros-row"></span>
-    <button id="macros-edit" class="macro-edit" title="Edit macros">&#9998;</button>
+    <button id="macros-edit" class="macro-edit" title="Edit macros" aria-label="Edit macros">&#9998;</button>
   </div>
 
   <div id="inputbar">
+    <label class="sr-only" for="cmd">Command</label>
     <span class="prompt-symbol">&gt;</span>
-    <input id="cmd" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus>
+    <input id="cmd" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type a command…" aria-label="Command" autofocus>
     <span id="completion" class="completion" aria-live="polite"></span>
   </div>
 
-  <div id="settings-panel" hidden>
-    <h3>Settings</h3>
+  <div id="settings-panel" role="dialog" aria-modal="false" aria-labelledby="settings-title" hidden>
+    <div class="settings-head">
+      <h3 id="settings-title">Settings</h3>
+      <button id="settings-close" class="dock-btn" title="Close settings" aria-label="Close settings">&#215;</button>
+    </div>
     <details open>
       <summary>Appearance</summary>
       <label>Theme
         <select id="set-theme">
           <option value="dark">Dark</option>
+          <option value="ember">Ember</option>
           <option value="parchment">Parchment</option>
           <option value="green">Terminal green</option>
         </select>
@@ -208,6 +230,25 @@
       <label><input id="set-haptics" type="checkbox" checked> Haptic taps</label>
       <label><input id="set-statusstrip" type="checkbox" checked> Status bar</label>
       <label><input id="set-exits" type="checkbox" checked> Exits panel</label>
+      <label><input id="set-timestamps" type="checkbox"> Timestamps ([HH:MM])</label>
+      <label>Scrollback buffer
+        <select id="set-scrollback">
+          <option value="500">500 lines</option>
+          <option value="2000">2000 lines (default)</option>
+          <option value="5000">5000 lines</option>
+          <option value="0">Unlimited</option>
+        </select>
+      </label>
+    </details>
+    <details>
+      <summary>Channels</summary>
+      <label class="ch-note">Hidden channels stay in scrollback history but new lines are not printed. Triggers and scripts still see them.</label>
+      <label><input id="set-ch-combat" type="checkbox" checked> Combat narration</label>
+      <label><input id="set-ch-say" type="checkbox" checked> Say</label>
+      <label><input id="set-ch-emote" type="checkbox" checked> Emote</label>
+      <label><input id="set-ch-shout" type="checkbox" checked> Shout</label>
+      <label><input id="set-ch-echo" type="checkbox" checked> Command echo</label>
+      <label><input id="set-ch-notice" type="checkbox" checked> Notices</label>
     </details>
     <details>
       <summary>Automation</summary>
@@ -231,7 +272,40 @@
         <label class="hl-bold"><input id="hl-bold" type="checkbox"> bold</label>
         <button id="hl-add">Add</button>
       </div>
+      <h4>Audio alerts</h4>
+      <label><input id="set-soundalerts" type="checkbox"> Play a soft chime when a highlight matches</label>
     </details>
+    <details>
+      <summary>Gagging</summary>
+      <div class="ch-note">Gagged lines (text or regex) are dropped from the story stream. Triggers and scripts still see them.</div>
+      <div id="gag-rules" class="script-rows"></div>
+      <div class="script-add">
+        <input id="gag-pattern" placeholder="text or regex to gag, e.g. ^You feel" autocomplete="off">
+        <button id="gag-add">Add gag</button>
+      </div>
+    </details>
+  </div>
+
+  <div id="keys-overlay" hidden role="dialog" aria-label="Keyboard shortcuts">
+    <div class="keys-card">
+      <div class="keys-head">
+        <span class="dock-kicker">KEYBOARD</span>
+        <button id="keys-close" class="dock-btn" title="Close (Esc)" aria-label="Close shortcuts">&#215;</button>
+      </div>
+      <table class="keys-table">
+        <tbody>
+          <tr><td><kbd>Enter</kbd></td><td>send the typed command</td></tr>
+          <tr><td><kbd>&uarr;</kbd> / <kbd>&darr;</kbd></td><td>command history</td></tr>
+          <tr><td><kbd>Tab</kbd></td><td>complete a command or argument</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd> or <code>/search</code></td><td>search the scrollback</td></tr>
+          <tr><td><kbd>End</kbd></td><td>jump back to live output</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td><td>font size up / down / reset</td></tr>
+          <tr><td><kbd>F1</kbd></td><td>this overlay</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>close panels, search, menus</td></tr>
+        </tbody>
+      </table>
+      <p class="keys-note">Move by typing: n s e w ne nw se sw u d &middot; chain with <b>;</b> &middot; run scripts with <b>.name</b></p>
+    </div>
   </div>
 
   <script type="module" src="/js/main.js"></script>

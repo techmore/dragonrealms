@@ -3,7 +3,7 @@ import { $ } from './util.js';
 import { send } from './net.js';
 import { append, searchWith, endScroll } from './terminal.js';
 import { handleAutomation } from './automation.js';
-import { settings } from './settings.js';
+import { settings, saveSettings, applySettings } from './settings.js';
 import { gameState } from './state.js';
 import { routeTypedCommand } from './welcome.js';
 
@@ -36,6 +36,7 @@ export function focusInput() {
 
 export function blockInput(blocked) {
   cmdInput.disabled = blocked;
+  document.body.classList.toggle('input-blocked', blocked);
   if (!blocked) cmdInput.focus();
 }
 
@@ -82,6 +83,12 @@ export function handleLocalCommand(line) {
     return;
   }
 
+  // Keyboard shortcuts overlay (also F1).
+  if (parts[0].toLowerCase() === 'keys') {
+    import('./keys.js').then((k) => k.toggleKeys());
+    return;
+  }
+
   if (gameState.inChargen && gameState.value === 'charcreate') {
     if (routeTypedCommand(line)) return;
     send({ t: 'input', line });
@@ -117,7 +124,7 @@ const COMMANDS = [
   'alias', 'macro', 'timer', 'trigger', 'macros', 'timers', 'triggers',
   'ask', 'score', 'skills', 'exp', 'info', 'health', 'alloc', 'say', 'emote', 'shout', 'who', 'time',
   'help', 'save', 'quit', 'rest', 'forage', 'hunt', 'track', 'steal', 'pick',
-  'perform', 'appraise', 'duel', 'accept', 'decline', 'script', 'scripts',
+  'perform', 'appraise', 'duel', 'accept', 'decline', 'script', 'scripts', 'keys',
 ];
 const CONTEXT_ARGS = {
   alloc: STATS, raise: STATS,
@@ -208,9 +215,23 @@ cmdInput.addEventListener('input', () => { tabMatches = []; setCompletion(''); }
 document.addEventListener('keydown', (e) => {
   const tag = e.target && e.target.tagName;
   if (tag === 'INPUT' && e.target !== cmdInput) return;
+  if (e.key === 'F1') {
+    e.preventDefault();
+    import('./keys.js').then((k) => k.toggleKeys());
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
     e.preventDefault();
     searchWith('');
+    return;
+  }
+  // Quick font size: Ctrl/Cmd +/- step, Ctrl/Cmd 0 resets to 14.
+  if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+' || e.key === '-' || e.key === '0')) {
+    e.preventDefault();
+    const step = e.key === '0' ? 0 : (e.key === '-' ? -1 : 1);
+    settings.font = Math.max(11, Math.min(20, step ? settings.font + step : 14));
+    saveSettings();
+    applySettings();
     return;
   }
   if (e.key === 'End' && tag === 'INPUT') {

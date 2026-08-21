@@ -2,6 +2,7 @@
 const terminal = document.getElementById('terminal');
 const statusEl = document.getElementById('conn-status');
 const nameInput = document.getElementById('watch-name');
+const tokenInput = document.getElementById('watch-token');
 const infoEl = document.getElementById('watch-info');
 
 let ws = null;
@@ -10,6 +11,7 @@ let watching = null;
 const params = new URLSearchParams(location.search);
 const initial = params.get('name') || '';
 if (initial) nameInput.value = initial;
+tokenInput.value = localStorage.getItem('dr_gm_token') || '';
 
 function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -89,12 +91,17 @@ function connect() {
 }
 
 function sendSpectate() {
-  ws.send(JSON.stringify({ t: 'spectate', name: watching }));
+  ws.send(JSON.stringify({
+    t: 'spectate',
+    name: watching,
+    gmToken: tokenInput.value.trim(),
+  }));
 }
 
 function watch(name) {
   const n = name.trim();
   if (!n) return;
+  localStorage.setItem('dr_gm_token', tokenInput.value.trim());
   watching = n;
   infoEl.textContent = `watching ${n}`;
   terminal.innerHTML = '';
@@ -104,6 +111,7 @@ function watch(name) {
 
 document.getElementById('watch-go').addEventListener('click', () => watch(nameInput.value));
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') watch(nameInput.value); });
+tokenInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') watch(nameInput.value); });
 
 connect();
 if (initial) { watching = initial; infoEl.textContent = `watching ${initial}`; }

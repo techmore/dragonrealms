@@ -58,6 +58,18 @@ export function hideHands() {
   clearWindowSeen('hands-bar');
 }
 
+export function markDisconnected() {
+  promptState = null;
+  targets = [];
+  lastRoom = { name: null, area: null, exits: [] };
+  document.body.classList.remove('in-combat');
+  $('status-strip').hidden = true;
+  const row = $('target-row');
+  if (row) row.innerHTML = '';
+  clearWindowSeen('target-widget');
+  renderCombatStatus();
+}
+
 export function roomNameOf(text) {
   const plain = stripAnsi(text).replace(/^\n+/, '');
   const first = plain.split('\n')[0] || '';
@@ -84,6 +96,7 @@ export function parsePrompt(text) {
   const rt = /RT:\s*(\d+)/i.exec(plain);
   const circle = /Circle\s*(\d+)/i.exec(plain);
   const silver = /(\d+)\s+silvers?/i.exec(plain);
+  const stance = /\b(aggressive|defensive|guarded|balanced) stance\b/i.exec(plain);
   if (!hp && !circle) { $('status-strip').hidden = true; return; }
   promptState = {
     hp: hp ? [Number(hp[1]), Number(hp[2])] : null,
@@ -95,7 +108,7 @@ export function parsePrompt(text) {
     rt: rt ? Number(rt[1]) : 0,
     hidden: /\[Hidden\]/.test(plain),
     resting: /\[Resting\]/.test(plain),
-    stance: /\b(aggressive|defensive|guarded) stance\b/i.test(plain) || null,
+    stance: stance ? stance[1].toLowerCase() : null,
   };
   renderStatusStrip();
   renderCombatStatus();
@@ -103,6 +116,7 @@ export function parsePrompt(text) {
 
 export function renderStatusStrip() {
   const strip = $('status-strip');
+  document.body.classList.toggle('in-combat', Boolean(promptState && promptState.combat));
   if (!stripEffective() || !promptState) { strip.hidden = true; return; }
   strip.hidden = false;
   $('strip-room').textContent = lastRoom.name
@@ -110,24 +124,16 @@ export function renderStatusStrip() {
     : '\u2014';
   const hp = promptState.hp;
   if (hp) {
-    $('strip-hp-fill').style.width = `${Math.max(0, Math.min(100, (hp[0] / hp[1]) * 100))}%`;
-    $('strip-hp-label').textContent = `HP ${hp[0]}/${hp[1]}`;
+    setGauge('strip-hp-wrap', 'strip-hp-fill', 'strip-hp-label', 'HP', hp);
   } else {
-    $('strip-hp-fill').style.width = '0%';
-    $('strip-hp-label').textContent = 'HP --';
+    clearGauge('strip-hp-wrap', 'strip-hp-fill', 'strip-hp-label', 'HP');
   }
   const mana = promptState.mana;
   $('strip-mana-wrap').hidden = !mana;
-  if (mana) {
-    $('strip-mana-fill').style.width = `${Math.max(0, Math.min(100, (mana[0] / mana[1]) * 100))}%`;
-    $('strip-mana-label').textContent = `Mana ${mana[0]}/${mana[1]}`;
-  }
+  if (mana) setGauge('strip-mana-wrap', 'strip-mana-fill', 'strip-mana-label', 'Mana', mana, false);
   const stamina = promptState.stamina;
   $('strip-stamina-wrap').hidden = !stamina;
-  if (stamina) {
-    $('strip-stamina-fill').style.width = `${Math.max(0, Math.min(100, (stamina[0] / stamina[1]) * 100))}%`;
-    $('strip-stamina-label').textContent = `Stamina ${stamina[0]}/${stamina[1]}`;
-  }
+  if (stamina) setGauge('strip-stamina-wrap', 'strip-stamina-fill', 'strip-stamina-label', 'Stamina', stamina, false);
   $('strip-circle').textContent = `Circle ${promptState.circle ?? '--'}`;
   $('strip-silver').textContent = `${promptState.silver ?? '--'} silvers`;
   $('strip-combat').hidden = !promptState.combat;
@@ -137,6 +143,29 @@ export function renderStatusStrip() {
   $('strip-hidden').hidden = !promptState.hidden;
   $('strip-resting').hidden = !promptState.resting;
   renderCombatStatus();
+}
+
+function setGauge(wrapId, fillId, labelId, label, values, urgent = true) {
+  const [current, maximum] = values;
+  const pct = maximum > 0 ? Math.max(0, Math.min(100, (current / maximum) * 100)) : 0;
+  const wrap = $(wrapId);
+  $(fillId).style.width = `${pct}%`;
+  $(labelId).textContent = `${label} ${current}/${maximum}`;
+  wrap.setAttribute('aria-valuemin', '0');
+  wrap.setAttribute('aria-valuemax', String(maximum));
+  wrap.setAttribute('aria-valuenow', String(current));
+  wrap.setAttribute('aria-valuetext', `${label} ${current} of ${maximum}`);
+  if (urgent) wrap.dataset.level = pct <= 25 ? 'critical' : pct <= 50 ? 'low' : 'healthy';
+}
+
+function clearGauge(wrapId, fillId, labelId, label) {
+  const wrap = $(wrapId);
+  $(fillId).style.width = '0%';
+  $(labelId).textContent = `${label} --`;
+  delete wrap.dataset.level;
+  wrap.removeAttribute('aria-valuenow');
+  wrap.removeAttribute('aria-valuemax');
+  wrap.setAttribute('aria-valuetext', `${label} unavailable`);
 }
 
 // Target window (DR combat pane): per-foe HP/range while you fight, plus a
@@ -153,6 +182,13 @@ export function renderTargets(msg) {
   for (const t of targets) {
     const bar = document.createElement('div');
     bar.className = 'target';
+    bar.dataset.range = t.range || 'unknown';
+    bar.setAttribute('role', 'progressbar');
+    bar.setAttribute('aria-label', `${t.name}${t.range ? ` at ${t.range} range` : ''}`);
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', String(t.maxHp));
+    bar.setAttribute('aria-valuenow', String(Math.max(0, t.hp)));
+    bar.setAttribute('aria-valuetext', `${Math.max(0, t.hp)} of ${t.maxHp} vitality`);
     const name = document.createElement('div');
     name.className = 'target-name';
     name.textContent = t.name + (t.range ? ` (${t.range})` : '');
@@ -203,6 +239,47 @@ export function renderRoomContents(contents) {
   }
   el.textContent = blocks.join('\n');
   // Give the "You also see" line DR flavor (amber like gem drops are caught by highlights elsewhere).
+}
+
+// Quest journal (DR task window): the active crier/guild task, live.
+export function renderQuest(msg) {
+  const row = $('quest-row');
+  if (!row) return;
+  const q = msg && msg.quest;
+  row.innerHTML = '';
+  if (!q) {
+    const empty = document.createElement('div');
+    empty.className = 'quest-empty';
+    empty.textContent = 'No task. Ask the crier or your guild leader for work.';
+    row.appendChild(empty);
+    clearWindowSeen('quest-widget');
+    return;
+  }
+  revealWindow('quest-widget');
+  const kindLabels = { kill: 'Pest control', deliver: 'Delivery', recover: 'Recovery', skin: 'Harvest' };
+  const head = document.createElement('div');
+  head.className = 'quest-head';
+  const kind = document.createElement('span');
+  kind.className = 'quest-kind';
+  kind.textContent = kindLabels[q.kind] || q.kind;
+  head.appendChild(kind);
+  if (q.source === 'leader') {
+    const src = document.createElement('span');
+    src.className = 'quest-src';
+    src.textContent = 'guild task';
+    head.appendChild(src);
+  }
+  if (q.done) {
+    const done = document.createElement('span');
+    done.className = 'quest-done';
+    done.textContent = '\u2713 ready to claim';
+    head.appendChild(done);
+  }
+  row.appendChild(head);
+  const desc = document.createElement('div');
+  desc.className = 'quest-desc';
+  desc.textContent = q.desc || '';
+  row.appendChild(desc);
 }
 
 // FE tracker (DR field-experience pane): skills currently learning.

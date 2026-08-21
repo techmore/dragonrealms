@@ -1,16 +1,16 @@
 // Boot + message routing. Wires the client modules together.
 import { $ } from './util.js';
-import { connect, onServerMessage, onDisconnect, setToken } from './net.js';
-import * as terminal from './terminal.js';
+import { connect, onServerMessage, onDisconnect, setToken } from './net.js';import * as terminal from './terminal.js';
 import * as status from './status.js';
 import * as panels from './panels.js';
 import * as automation from './automation.js';
 import * as welcome from './welcome.js';
 import * as input from './input.js';
-import { settings, applySettings, onSettingsChange } from './settings.js';
+import { settings, applySettings, onSettingsChange, closeSettings } from './settings.js';
 import { gameState } from './state.js';
-import { feedScripts } from './scripts.js';
+import { feedScripts, mergeServerScripts } from './scripts.js';
 import { bindHighlightPanel } from './highlights.js';
+import { bindGagPanel } from './gags.js';
 import { bindWindows } from './windows.js';
 
 // Cross-module wiring.
@@ -18,9 +18,12 @@ automation.setRunner(input.pressEnter);
 terminal.setExitRunner(input.pressEnter);
 terminal.setFocusRunner(input.focusInput);
 
-// URL deep-link: "?spectate=Name" drops straight into watching that player
-// with the full interface (no login needed).
+// GM URL deep-link: "?spectate=Name" watches that player when the configured
+// GM credential has already been stored by the GM console.
 const autoSpectate = new URLSearchParams(location.search).get('spectate') || '';
+function hasStoredGmToken() {
+  try { return Boolean(localStorage.getItem('dr_gm_token')); } catch { return false; }
+}
 
 onSettingsChange(() => {
   terminal.setAutoScroll(settings.autoscroll);
@@ -34,13 +37,16 @@ onDisconnect(() => {
   input.blockInput(true);
   status.hideRoomPanel();
   status.hideHands();
+  status.markDisconnected();
 });
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
+  if (!$('keys-overlay').hidden) { import('./keys.js').then((k) => k.toggleKeys(false)); return; }
   if (!$('searchbar').hidden) { terminal.closeSearch(); return; }
+  if (!$('settings-panel').hidden) { closeSettings(true); return; }
   if (panels.isPanelOpen()) { panels.closePanel(); return; }
-  if (!$('settings-panel').hidden) { $('settings-panel').hidden = true; }
+  if (panels.isDockOpen()) panels.closeDock();
 });
 
 // ---------------- Message routing ----------------
@@ -74,6 +80,9 @@ function onMessage(msg) {
     case 'error':
       if (panels.capture(msg.msg, true)) break;
       terminal.append(msg.msg, 'ch-error');
+      if (gameState.spectating && /GM authorization is required/.test(msg.msg)) {
+        import('./spectate-mode.js').then((m) => m.leaveSpectate());
+      }
       break;
     case 'prompt':
       // DR clients never echo the raw vitals line into the story window —
@@ -91,19 +100,28 @@ function onMessage(msg) {
     case 'mindstate':
       status.renderFe(msg);
       break;
+    case 'quest':
+      status.renderQuest(msg);
+      break;
+    case 'scripts':
+      // Server snapshot of this character's saved DR script library.
+      mergeServerScripts(msg.scripts);
+      break;
     case 'command':
       // The watched player typed a command: echo it like their own typing.
       terminal.append(`> ${msg.line}`, 'ch-echo');
       break;
     case 'login_prompt':
       if (gameState.spectating) break;
-      if (autoSpectate) {
+      if (autoSpectate && hasStoredGmToken()) {
         import('./spectate-mode.js').then((m) => m.enterSpectate(autoSpectate));
         break;
       }
       status.hideRoomPanel();
+      if (autoSpectate) terminal.append('That live-watch link requires DR_GM_TOKEN from the GM console.', 'ch-error');
       terminal.append('(type: login <username> <password>  or  register <username> <password>)', 'ch-msg');
       welcome.showWelcome('login');
+      input.blockInput(false);
       break;
     case 'authed':
       setToken(msg.token);
@@ -121,7 +139,7 @@ function onMessage(msg) {
       if (gameState.spectating) break;
       gameState.value = 'charcreate';
       gameState.inChargen = true;
-      welcome.enterChargen(msg.msg);
+      welcome.enterChargen(msg);
       terminal.append(msg.msg, 'ch-notice');
       break;
     case 'charalloc':
@@ -145,6 +163,7 @@ onServerMessage(onMessage);
 applySettings();
 automation.renderMacros();
 bindHighlightPanel();
+bindGagPanel();
 bindWindows();
 window.__panelReady = true;
 panels.applyVisibility();

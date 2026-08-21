@@ -14,6 +14,7 @@ export const WINDOWS = [
   { id: 'room-panel',   label: 'Room',    rail: false, empty: true },
   { id: 'target-widget',label: 'Combat / Targets', rail: false, empty: true },
   { id: 'chat-widget',  label: 'Conversations', rail: false, empty: true },
+  { id: 'quest-widget', label: 'Journal (quest)', rail: false, empty: true },
 ];
 
 // The outer (collapsible) element id differs from the window id: the window
@@ -65,7 +66,14 @@ export function applyWindow(id) {
   if (!visible || emptyNow) outer.setAttribute('data-whidden', '1');
   else outer.removeAttribute('data-whidden');
 
-  outer.classList.toggle('collapsed', isWindowCollapsed(id));
+  const collapsed = isWindowCollapsed(id);
+  outer.classList.toggle('collapsed', collapsed);
+  const collapseButton = outer.querySelector(`[data-collapse="${id}"]`);
+  if (collapseButton) {
+    collapseButton.setAttribute('aria-controls', id);
+    collapseButton.setAttribute('aria-expanded', String(!collapsed));
+    collapseButton.innerHTML = collapsed ? '&#9654;' : '&#9660;';
+  }
   refreshDockVisibility();
 }
 
@@ -123,6 +131,7 @@ export function bindWindows() {
   $('windows-btn').addEventListener('click', () => {
     const menu = $('windows-menu');
     menu.hidden = !menu.hidden;
+    $('windows-btn').setAttribute('aria-expanded', String(!menu.hidden));
     if (!menu.hidden) renderWindowsMenu();
   });
   document.querySelectorAll('.dwin-collapse').forEach((btn) => {
@@ -130,7 +139,10 @@ export function bindWindows() {
   });
   document.addEventListener('click', (e) => {
     const menu = $('windows-menu');
-    if (menu && !menu.hidden && !e.target.closest('#btn-windows')) menu.hidden = true;
+    if (menu && !menu.hidden && !e.target.closest('#btn-windows')) {
+      menu.hidden = true;
+      $('windows-btn').setAttribute('aria-expanded', 'false');
+    }
   });
-  WINDOWS.forEach(applyWindow);
+  WINDOWS.forEach(({ id }) => applyWindow(id));
 }

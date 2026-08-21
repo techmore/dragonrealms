@@ -1,7 +1,8 @@
 // Spectate mode: watch another player's live stream inside the full DR
 // interface. Rooms, combat, prompts, and the watched player's commands all
 // render in the terminal; the status strip shows their vitals. Type
-// `unspectate` to return.
+// `unspectate` to return. Live streams are GM-only because they include the
+// watched player's typed commands; the GM console stores the required token.
 import { $ } from './util.js';
 import { send } from './net.js';
 import * as terminal from './terminal.js';
@@ -17,11 +18,18 @@ export function enterSpectate(name) {
     terminal.append('Spectate whom? Provide a player name.', 'ch-error');
     return;
   }
+  let gmToken = '';
+  try { gmToken = localStorage.getItem('dr_gm_token') || ''; } catch {}
+  if (!gmToken) {
+    watchedName = null;
+    terminal.append('Live watch is GM-only. Enter DR_GM_TOKEN in the GM console first.', 'ch-error');
+    return;
+  }
   gameState.spectating = true;
   welcome.hideAll();
   terminal.clear();
   terminal.append(`\x1b[1m— watching ${watchedName} —\x1b[0m  (type \x1b[1munspectate\x1b[0m to return)`, 'ch-notice');
-  send({ t: 'spectate', name: watchedName });
+  send({ t: 'spectate', name: watchedName, gmToken });
   blockInput(false);
 }
 

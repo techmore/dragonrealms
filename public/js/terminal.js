@@ -1,7 +1,8 @@
 // Terminal scrollback: rendering, ANSI, channels, scroll controls, search.
 import { $, escapeHtml, stripAnsi } from './util.js';
-import { settings } from './settings.js';
-import { applyHighlights } from './highlights.js';
+import { settings, isChannelVisible } from './settings.js';
+import { applyHighlights, highlightHit, playAlertBeep } from './highlights.js';
+import { isGagged } from './gags.js';
 
 const terminal = $('terminal');
 let autoScroll = true;
@@ -40,19 +41,57 @@ function scrollToBottom() {
   if (autoScroll) terminal.scrollTop = terminal.scrollHeight;
 }
 
+// Scrollback buffer cap: long sessions must not grow the DOM without bound.
+// 0 disables the cap. Trimmed search marks are pruned.
+function trimBuffer() {
+  const cap = Number(settings.scrollback) || 0;
+  if (cap <= 0) return;
+  let excess = terminal.children.length - cap;
+  if (excess <= 0) return;
+  while (excess-- > 0 && terminal.firstChild) terminal.removeChild(terminal.firstChild);
+  if (searchMarks.length) {
+    searchMarks = searchMarks.filter((m) => m.isConnected);
+    if (currentMark >= searchMarks.length) currentMark = searchMarks.length - 1;
+  }
+}
+
+// Channel key from a block class ('ch-combat' -> 'combat'); '' for plain.
+function channelOf(cls) {
+  const m = /\bch-([a-z]+)\b/.exec(cls || '');
+  return m ? m[1] : '';
+}
+
+// Optional [HH:MM] stamp, styled separately from the line text.
+function stampHtml() {
+  if (!settings.timestamps) return '';
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `<span class="ts">[${hh}:${mm}]</span> `;
+}
+
+// Muted channels and gagged lines are dropped at render time only: triggers
+// and scripts are fed from the message router before this point, so
+// automation still sees them.
 export function append(text, cls = '') {
+  if (!isChannelVisible(channelOf(cls))) return;
+  if (isGagged(text)) return;
+  if (settings.soundAlerts && highlightHit(text)) playAlertBeep();
   const div = document.createElement('div');
   div.className = 'block' + (cls ? ' ' + cls : '');
-  div.innerHTML = ansiToHtml(applyHighlights(text));
+  div.innerHTML = stampHtml() + ansiToHtml(applyHighlights(text));
   terminal.appendChild(div);
+  trimBuffer();
   scrollToBottom();
 }
 
 export function appendRoom(text) {
   const div = document.createElement('div');
   div.className = 'block ch-room';
+  div.innerHTML = stampHtml();
   renderRoomHeader(div, text);
   terminal.appendChild(div);
+  trimBuffer();
   scrollToBottom();
 }
 
@@ -123,6 +162,7 @@ export function appendExitBar(exits) {
     bar.appendChild(document.createTextNode(' '));
   }
   terminal.appendChild(bar);
+  trimBuffer();
   scrollToBottom();
 }
 
@@ -148,6 +188,7 @@ export function endScroll() {
   autoScroll = true;
   terminal.scrollTop = terminal.scrollHeight;
   $('scroll-pill').hidden = true;
+  document.body.classList.remove('scroll-paused');
 }
 
 function isAtBottom() {
@@ -158,9 +199,11 @@ terminal.addEventListener('scroll', () => {
   if (!autoScroll && isAtBottom()) {
     autoScroll = true;
     $('scroll-pill').hidden = true;
+    document.body.classList.remove('scroll-paused');
   } else if (autoScroll && !isAtBottom()) {
     autoScroll = false;
     $('scroll-pill').hidden = false;
+    document.body.classList.add('scroll-paused');
   }
 });
 
@@ -226,6 +269,7 @@ function jumpToMark(i) {
 export function searchWith(term) {
   const bar = $('searchbar');
   bar.hidden = false;
+  document.body.classList.add('search-open');
   const input = $('search-input');
   input.value = term;
   input.focus();
@@ -234,6 +278,7 @@ export function searchWith(term) {
 
 export function closeSearch() {
   $('searchbar').hidden = true;
+  document.body.classList.remove('search-open');
   clearSearch();
   focusRunner();
 }

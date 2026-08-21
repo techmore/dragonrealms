@@ -9,6 +9,7 @@
 import { $ } from './util.js';
 import { send } from './net.js';
 import * as terminal from './terminal.js';
+import { gameState } from './state.js';
 import { createRunner } from './script-engine.js';
 
 // ---- active runner registry (one at a time, like DR) ----
@@ -98,11 +99,43 @@ export function readScript(name) {
   return store[name] || DEFAULT_SCRIPTS[name] || null;
 }
 
+function playing() {
+  return gameState.value === 'playing' || gameState.value === 'charcreate_playing';
+}
+
 export function saveScript(name, text) {
   const store = loadStore();
   store[name] = text;
   try { localStorage.setItem(LS, JSON.stringify(store)); } catch {}
+  // Mirror to the server so saved scripts follow the character across
+  // browsers and machines (best-effort when offline/spectating).
+  if (playing()) send({ t: 'scripts_put', name, body: text });
 }
+
+export function deleteScript(name) {
+  const store = loadStore();
+  delete store[name];
+  try { localStorage.setItem(LS, JSON.stringify(store)); } catch {}
+  if (playing()) send({ t: 'scripts_del', name });
+}
+
+// Server snapshot of this character's script library: server entries win over
+// same-name local copies; local-only scripts are kept.
+export function mergeServerScripts(scripts) {
+  if (!scripts || typeof scripts !== 'object') return;
+  const store = loadStore();
+  let changed = false;
+  for (const [name, body] of Object.entries(scripts)) {
+    if (typeof body !== 'string') continue;
+    if (store[name] !== body) { store[name] = body; changed = true; }
+  }
+  if (changed) {
+    try { localStorage.setItem(LS, JSON.stringify(store)); } catch {}
+    if (typeof scriptsDirtyNotify === 'function') scriptsDirtyNotify();
+  }
+}
+let scriptsDirtyNotify = null;
+export function onScriptsLibraryChange(fn) { scriptsDirtyNotify = fn; }
 
 export function listScripts() {
   const store = loadStore();

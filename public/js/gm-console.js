@@ -14,10 +14,11 @@ async function api(path) {
   const r = await fetch(API + path, {
     headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: 'Bearer ' + token() } : {}) },
   });
-  if (r.status === 401) {
+  if ([401, 403, 503].includes(r.status)) {
     const el = $('gm-token');
     if (el) { el.style.borderColor = 'var(--red)'; }
-    throw new Error('unauthorized — set a GM token or login (DR_GM_TOKEN or a game session)');
+    const detail = await r.json().catch(() => null);
+    throw new Error(detail?.error || 'unauthorized — enter the dedicated DR_GM_TOKEN');
   }
   return r.json();
 }
@@ -118,7 +119,7 @@ function watchLive(name) {
   const out = $('gm-player-stream');
   out.innerHTML = `<div class="gm-dim">— live stream: ${name} —</div>`;
   const ws = new WebSocket((location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws');
-  ws.onopen = () => ws.send(JSON.stringify({ t: 'spectate', name }));
+  ws.onopen = () => ws.send(JSON.stringify({ t: 'spectate', name, gmToken: token() }));
   ws.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m.t === 'command') { appendStream(`> ${m.line}`, 'gm-cmd'); return; }
@@ -140,7 +141,7 @@ function toggleWorldFeed() {
   btn.textContent = 'stop';
   out.innerHTML = '<div class="gm-dim">— world feed —</div>';
   worldWs = new WebSocket((location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws');
-  worldWs.onopen = () => worldWs.send(JSON.stringify({ t: 'worldwatch' }));
+  worldWs.onopen = () => worldWs.send(JSON.stringify({ t: 'worldwatch', gmToken: token() }));
   worldWs.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m.t === 'notice') return;
@@ -209,11 +210,10 @@ async function loadAll() {
   const results = await Promise.allSettled([loadSummary(), loadWorld(), loadCharacters(), loadDb()]);
   if (results.some((r) => r.status === 'rejected')) {
     const el = $('gm-summary');
-    if (el && !el.innerHTML) el.innerHTML = '<div class="gm-dim">Enter a GM token above (DR_GM_TOKEN or a game session token).</div>';
+    if (el && !el.innerHTML) el.innerHTML = '<div class="gm-dim">Enter the dedicated DR_GM_TOKEN above. Game session tokens are not accepted.</div>';
   }
 }
 
 $('gm-refresh')?.addEventListener('click', loadAll);
 
 loadAll();
-

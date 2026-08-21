@@ -59,6 +59,41 @@ export function applyHighlights(text) {
   return out;
 }
 
+// First highlight rule the text matches (for the optional audio alert).
+export function highlightHit(text) {
+  const t = String(text);
+  for (const h of highlights) {
+    if (!h.pattern) continue;
+    let re;
+    try { re = new RegExp(h.pattern, 'i'); } catch { continue; }
+    if (re.test(t)) return h;
+  }
+  return null;
+}
+
+// Optional audio alert: a tiny WebAudio blip, no assets and no dependencies.
+// The AudioContext is created lazily on first play (after user interaction,
+// satisfying browser autoplay policies). `window.__alertBeeps` is an honest
+// test hook counting plays.
+let audioCtx = null;
+export function playAlertBeep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!audioCtx) audioCtx = new Ctx();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.18);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.2);
+    window.__alertBeeps = (window.__alertBeeps || 0) + 1;
+  } catch {}
+}
+
 export function renderHighlightPanel() {
   const wrap = document.getElementById('highlight-rules');
   if (!wrap) return;
