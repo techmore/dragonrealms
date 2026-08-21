@@ -30,7 +30,10 @@ export function createStaticHandler(publicDir) {
         return;
       }
       const type = MIME[extname(filePath)] || 'application/octet-stream';
-      res.writeHead(200, { 'Content-Type': type });
+      // Pages iterate fast during development; never let browsers pin them.
+      const headers = { 'Content-Type': type };
+      if (type.startsWith('text/html')) headers['Cache-Control'] = 'no-cache';
+      res.writeHead(200, headers);
       res.end(readFileSync(filePath));
     } catch {
       res.writeHead(500);
