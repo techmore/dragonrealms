@@ -2,7 +2,7 @@
 
 export const CREATURES = {
   rat: {
-    id: 'rat', name: 'a sewer rat', plural: 'sewer rats', circle: 1,
+    id: 'rat', name: 'a sewer rat', plural: 'sewer rats', circle: 1, kinds: ['beast'],
     desc: 'A mangy, red-eyed rat the size of a cat. It hisses and shows its teeth.',
     teaches: [0, 6],
     stats: { str: 5, con: 6, ref: 10, agi: 12 },
@@ -11,7 +11,7 @@ export const CREATURES = {
     loot: ['rat_pelt'], lootTags: ['skins'], exp: 30, aggressive: false,
   },
   kobold: {
-    id: 'kobold', name: 'a kobold', plural: 'kobolds', circle: 2,
+    id: 'kobold', name: 'a kobold', plural: 'kobolds', circle: 2, kinds: ['humanoid'],
     desc: 'A wiry, scaly creature clutching a rusty blade and muttering in a chittering tongue.',
     teaches: [1, 9],
     stats: { str: 9, con: 8, ref: 10, agi: 9 },
@@ -21,7 +21,7 @@ export const CREATURES = {
   },
   // Deep sewers (circle 3-5): the lower drains.
   great_rat: {
-    id: 'great_rat', name: 'a great rat', plural: 'great rats', circle: 3,
+    id: 'great_rat', name: 'a great rat', plural: 'great rats', circle: 3, kinds: ['beast'],
     desc: 'A rat grown to the size of a hound, its fur crusted with filth and its eyes burning with hunger.',
     teaches: [4, 13],
     stats: { str: 10, con: 10, ref: 12, agi: 13 },
@@ -30,7 +30,7 @@ export const CREATURES = {
     loot: ['rat_pelt', 'strongbox'], lootTags: ['skins', 'box'], gems: ['garnet'], exp: 170, aggressive: true,
   },
   sewer_viper: {
-    id: 'sewer_viper', name: 'a sewer viper', plural: 'sewer vipers', circle: 4,
+    id: 'sewer_viper', name: 'a sewer viper', plural: 'sewer vipers', circle: 4, kinds: ['beast'],
     desc: 'A mottled viper as thick as a man\'s arm, gliding through the blackwater with a soft hiss.',
     teaches: [8, 19],
     stats: { str: 9, con: 9, ref: 16, agi: 17 },
@@ -39,7 +39,7 @@ export const CREATURES = {
     loot: ['viper_fang'], lootTags: ['skins', 'gems'], gems: ['sapphire'], exp: 270, aggressive: true,
   },
   goblin: {
-    id: 'goblin', name: 'a goblin', plural: 'goblins', circle: 3,
+    id: 'goblin', name: 'a goblin', plural: 'goblins', circle: 3, kinds: ['humanoid'],
     desc: 'A squat, green-skinned goblin with yellow eyes, hefting a crude club.',
     teaches: [3, 12],
     stats: { str: 12, con: 10, ref: 10, agi: 8 },
@@ -48,7 +48,7 @@ export const CREATURES = {
     loot: ['goblin_skin'], lootTags: ['skins'], exp: 140, aggressive: true,
   },
   wolf: {
-    id: 'wolf', name: 'a grey wolf', plural: 'grey wolves', circle: 4,
+    id: 'wolf', name: 'a grey wolf', plural: 'grey wolves', circle: 4, kinds: ['beast'],
     desc: 'A lean grey wolf, nostrils flared, stalking you with patient hunger.',
     teaches: [5, 15],
     stats: { str: 14, con: 12, ref: 14, agi: 14 },
@@ -57,7 +57,7 @@ export const CREATURES = {
     loot: ['wolf_pelt'], lootTags: ['skins'], exp: 220, aggressive: true,
   },
   wisp: {
-    id: 'wisp', name: 'a marsh wisp', plural: 'marsh wisps', circle: 5,
+    id: 'wisp', name: 'a marsh wisp', plural: 'marsh wisps', circle: 5, kinds: ['spirit'],
     desc: 'A floating orb of pale blue light that shivers and hums, trailing cold sparks.',
     teaches: [8, 20],
     stats: { str: 6, con: 10, ref: 16, agi: 16 },
@@ -66,7 +66,7 @@ export const CREATURES = {
     loot: ['wisp_mote'], lootTags: ['gems'], gems: ['garnet', 'sapphire'], exp: 340, aggressive: true,
   },
   troll: {
-    id: 'troll', name: 'a forest troll', plural: 'forest trolls', circle: 6,
+    id: 'troll', name: 'a forest troll', plural: 'forest trolls', circle: 6, kinds: ['humanoid'],
     desc: 'A hulking, mossy troll whose regeneration knit wounds even as you watch. It stinks of rot and rage.',
     teaches: [10, 24],
     stats: { str: 20, con: 18, ref: 10, agi: 8 },
@@ -75,7 +75,7 @@ export const CREATURES = {
     loot: ['troll_hide', 'iron_ore'], lootTags: ['skins', 'gems'], gems: ['garnet'], exp: 520, aggressive: true,
   },
   bandit: {
-    id: 'bandit', name: 'a bandit', plural: 'bandits', circle: 5,
+    id: 'bandit', name: 'a bandit', plural: 'bandits', circle: 5, kinds: ['humanoid'],
     desc: 'A lean cutthroat with a rag-wrapped blade and cold, watchful eyes.',
     teaches: [8, 20],
     stats: { str: 14, con: 12, ref: 13, agi: 13 },
@@ -84,7 +84,7 @@ export const CREATURES = {
     loot: ['iron_ring', 'strongbox'], lootTags: ['coin', 'box', 'gems'], gems: ['garnet', 'sapphire'], exp: 380, aggressive: true,
   },
   bandit_captain: {
-    id: 'bandit_captain', name: 'a bandit captain', plural: 'bandit captains', circle: 7,
+    id: 'bandit_captain', name: 'a bandit captain', plural: 'bandit captains', circle: 7, kinds: ['humanoid'],
     desc: 'A scarred brute in a rusted hauberk, shouting orders and swinging a great cleaver.',
     teaches: [14, 28],
     stats: { str: 18, con: 16, ref: 12, agi: 10 },
@@ -95,7 +95,7 @@ export const CREATURES = {
 
   // ---- Cinder Cavern (circle 5-7) ----
   cinder_lizard: {
-    id: 'cinder_lizard', name: 'a cinder lizard', plural: 'cinder lizards', circle: 5,
+    id: 'cinder_lizard', name: 'a cinder lizard', plural: 'cinder lizards', circle: 5, kinds: ['beast'],
     desc: 'A four-foot lizard whose hide smolders, shedding embers as it skitters across the rock.',
     teaches: [10, 22],
     stats: { str: 12, con: 12, ref: 14, agi: 15 },
@@ -104,7 +104,7 @@ export const CREATURES = {
     loot: ['cinder_scale'], lootTags: ['skins'], exp: 360, aggressive: true,
   },
   fire_drake: {
-    id: 'fire_drake', name: 'a fire drake', plural: 'fire drakes', circle: 6,
+    id: 'fire_drake', name: 'a fire drake', plural: 'fire drakes', circle: 6, kinds: ['beast'],
     desc: 'A serpentine drake wreathed in slow-burning flame, its eyes like furnace doors.',
     teaches: [12, 26],
     stats: { str: 16, con: 14, ref: 12, agi: 10 },
@@ -115,7 +115,7 @@ export const CREATURES = {
 
   // ---- Blackwood Ruins (circle 7-10) ----
   wraith: {
-    id: 'wraith', name: 'a blackwood wraith', plural: 'blackwood wraiths', circle: 7,
+    id: 'wraith', name: 'a blackwood wraith', plural: 'blackwood wraiths', circle: 7, kinds: ['undead', 'spirit'],
     desc: 'A tattered figure of black mist that whispers in a language older than the town.',
     teaches: [14, 28],
     stats: { str: 14, con: 12, ref: 16, agi: 16 },
@@ -124,7 +124,7 @@ export const CREATURES = {
     loot: ['wraith_essence'], lootTags: ['gems'], gems: ['sapphire', 'emerald'], exp: 620, aggressive: true,
   },
   revenant: {
-    id: 'revenant', name: 'a clanking revenant', plural: 'clanking revenants', circle: 8,
+    id: 'revenant', name: 'a clanking revenant', plural: 'clanking revenants', circle: 8, kinds: ['undead', 'construct'],
     desc: 'A dead knight in rusted plate, moving with the jerky certainty of a marionette.',
     teaches: [16, 32],
     stats: { str: 18, con: 16, ref: 13, agi: 10 },
@@ -133,7 +133,7 @@ export const CREATURES = {
     loot: ['wraith_essence', 'silver_ring', 'iron_ore'], lootTags: ['gems', 'coin'], gems: ['emerald', 'diamond'], exp: 800, aggressive: true,
   },
   dread_knight: {
-    id: 'dread_knight', name: 'a dread knight', plural: 'dread knights', circle: 10,
+    id: 'dread_knight', name: 'a dread knight', plural: 'dread knights', circle: 10, kinds: ['undead'],
     desc: 'A towering figure in black plate whose helm burns with balefire. It bows — and draws a sword of shadow.',
     teaches: [20, 40],
     stats: { str: 24, con: 20, ref: 14, agi: 12 },
@@ -147,7 +147,7 @@ export const CREATURES = {
 // that carries unique loot.
 export const RARES = {
   deepwoods: {
-    id: 'shadowpaw', name: 'Shadowpaw the Dire Wolf', plural: 'dire wolves', circle: 8,
+    id: 'shadowpaw', name: 'Shadowpaw the Dire Wolf', plural: 'dire wolves', circle: 8, kinds: ['beast'],
     desc: 'A dire wolf the size of a pony, its pelt silver-black. One eye gleams with terrible intelligence.',
     teaches: [16, 34],
     stats: { str: 22, con: 18, ref: 18, agi: 18 },
@@ -156,7 +156,7 @@ export const RARES = {
     loot: ['fang_of_shadowpaw'], lootTags: ['gems', 'named'], gems: ['emerald'], exp: 1500, aggressive: true,
   },
   camp: {
-    id: 'bandit_chieftain', name: 'the Bandit Chieftain', plural: 'bandit chieftains', circle: 9,
+    id: 'bandit_chieftain', name: 'the Bandit Chieftain', plural: 'bandit chieftains', circle: 9, kinds: ['humanoid'],
     desc: 'A wall of scarred muscle wearing a crown of nailed hide. His cleaver is wet and ready.',
     teaches: [18, 36],
     stats: { str: 26, con: 20, ref: 14, agi: 12 },
@@ -165,7 +165,7 @@ export const RARES = {
     loot: ['chieftains_cleaver'], lootTags: ['gems', 'named'], gems: ['emerald', 'diamond'], exp: 1800, aggressive: true,
   },
   cinder: {
-    id: 'cinder_drake_king', name: 'the Cinder Drake King', plural: 'cinder drake kings', circle: 10,
+    id: 'cinder_drake_king', name: 'the Cinder Drake King', plural: 'cinder drake kings', circle: 10, kinds: ['beast'],
     desc: 'A great drake crowned in molten stone, breathing columns of white heat.',
     teaches: [20, 40],
     stats: { str: 28, con: 22, ref: 16, agi: 12 },

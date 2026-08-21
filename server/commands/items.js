@@ -4,7 +4,10 @@ import { ITEMS, itemById } from '../../data/items.js';
 import { RECIPES, recipeById } from '../../data/recipes.js';
 import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll } from '../../data/forging.js';
 import { npcById } from '../../data/npcs.js';
-import { skillRank, gainSkillExp, addItem, removeItem, equipItem, unequipItem, countItems, unlockAchievement, setRoundtime } from '../player.js';
+import {
+  skillRank, gainSkillExp, addItem, removeItem, removeItemInstances,
+  equipItem, unequipItem, countItems, unlockAchievement, setRoundtime,
+} from '../player.js';
 import { pad, findInventoryItem, findSlotByItem, findNpcByName } from './util.js';
 
 // Guild crafting affiliations (DR: free technique slots per discipline).
@@ -40,9 +43,9 @@ export const commands = {
     const qty = parseInt(arg2, 10) || 1;
     const item = findInventoryItem(p, arg1);
     if (!item) return emit('You do not have that.');
-    const n = Math.min(qty, item.qty);
-    removeItem(p, item.item.id, n);
-    game.dropFloor(p.room, item.item.id, n);
+    const n = Math.min(qty, countItems(p, item.item.id));
+    const instances = removeItemInstances(p, item.item.id, n, item);
+    game.dropFloor(p.room, item.item.id, n, instances);
     emit(`You drop ${n > 1 ? `${n}x ` : ''}${item.item.name}.`);
   },
 
@@ -94,7 +97,10 @@ export const commands = {
       const coins = 5 + Math.floor(Math.random() * (5 + p.circle * 3));
       p.silver += coins;
       const leveled = gainSkillExp(p, 'thievery', 8);
-      p.crimeHeat = (p.crimeHeat || 0) + 1;
+      // Justice zones: lawless wilds keep no ledger; the Guild District's
+      // clerks write everything down twice.
+      const zone = game.justiceZone(p);
+      if (zone !== 'none') p.crimeHeat = (p.crimeHeat || 0) + (zone === 'strict' ? 2 : 1);
       // Paladins: thieving stains the soul (code of honor).
       if (p.guild.id === 'paladin') {
         p.soul = Math.max(0, (p.soul ?? 50) - 10);
@@ -124,28 +130,6 @@ export const commands = {
   pick: unlock,
   unlock,
 
-  plead(ctx) {
-    const { game, p, arg1, emit } = ctx;
-    if (p.room !== 'jail') return emit('You are not in jail.');
-    const remaining = game.timeLeftInJail(p);
-    if (!arg1 || !['guilty', 'innocent'].includes(arg1.toLowerCase())) {
-      return emit(`The jailer looks up. "Guilty or innocent, thief?${remaining ? ` (${remaining}s left if you wait)` : ''}"`);
-    }
-    if (arg1.toLowerCase() === 'guilty') {
-      const fine = 5 + p.circle * 5;
-      const paid = Math.min(p.silver, fine);
-      p.silver -= paid;
-      p.jailUntil = 0;
-      p.room = 'square';
-      emit(`You plead guilty. The fine is ${fine} silvers — you pay ${paid}${paid < fine ? ' (the rest from your debts)' : ''}. Jailer Grum unlocks the door: "Mind your hands."`);
-      game.look(p);
-    } else {
-      if (remaining > 60) return emit('The judge has already heard you once. Wait out your sentence.');
-      p.jailUntil = Date.now() + 60 * 1000;
-      emit('You plead innocent. Jailer Grum shrugs: "The judge will see you in a minute. Sit tight."');
-    }
-  },
-
   forge(ctx) {
     const { p, arg1, emit } = ctx;
     if (p.room !== 'forge') return emit('The hammer rings only at the Ember Forge, east of the brewery.');
@@ -167,8 +151,10 @@ export const commands = {
     const q = qualityRoll(forgeSkill + craftAffinity(p.guild.id, 'forge'));
     const leveled = gainSkillExp(p, 'forging', 12);
     const base = itemById(recipe.item);
-    addItem(p, recipe.item, 1);
-    // Quality improves the forged item's stats in hand.
+    // Quality belongs to this concrete item, not every copy of its type.
+    addItem(p, recipe.item, 1, { quality: q.mult, condition: 100 });
+    // Keep the legacy map as a last-crafted compatibility view for scripts
+    // and old saves; combat reads the equipped instance directly.
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
@@ -195,7 +181,7 @@ export const commands = {
     const q = qualityRoll(skill + craftAffinity(p.guild.id, 'shape'));
     const leveled = gainSkillExp(p, 'engineering', 12);
     const base = itemById(recipe.item);
-    addItem(p, recipe.item, 1);
+    addItem(p, recipe.item, 1, { quality: q.mult, condition: 100 });
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
@@ -205,7 +191,7 @@ export const commands = {
 
   tailor(ctx) {
     const { p, arg1, emit } = ctx;
-    if (p.room !== 'tailor_shop') return emit('The cutting table stands at the Needle & Thread, south of the West Road.');
+    if (p.room !== 'tailor_shop') return emit('The cutting table stands at the Needle & Thread, off the West Road.');
     if (!arg1) {
       const rows = Object.values(OUTFIT_RECIPES).map((r) => `  ${pad(r.name, 24)} ${r.desc}`);
       return emit(`\nMara can teach you to tailor:\n${rows.join('\n')}\n\nSay "tailor <recipe>" — hides are consumed on the attempt. Better Outfitting cuts better leather.`);
@@ -222,7 +208,7 @@ export const commands = {
     const q = qualityRoll(skill + craftAffinity(p.guild.id, 'tailor'));
     const leveled = gainSkillExp(p, 'outfitting', 12);
     const base = itemById(recipe.item);
-    addItem(p, recipe.item, 1);
+    addItem(p, recipe.item, 1, { quality: q.mult, condition: 100 });
     p.forgedQuality = p.forgedQuality || {};
     p.forgedQuality[recipe.item] = q.mult;
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
@@ -234,7 +220,7 @@ export const commands = {
     const { p, arg1, emit } = ctx;
     const room = roomById(p.room);
     const alchemist = (room.npcs || []).map(npcById).find((n) => n && n.role === 'craft');
-    if (!alchemist) return emit('There is no alchemist here. Try the Tilted Retort, east of Market Way.');
+    if (!alchemist) return emit('There is no alchemist here. Try the Tilted Retort, north of Market Way.');
     if (!arg1) {
       const rows = Object.values(RECIPES).map((r) => `  ${pad(r.name, 18)} ${r.desc}`);
       return emit(`\n${alchemist.name} can craft:\n${rows.join('\n')}\n\nSay "craft <recipe>" — ingredients are consumed on the attempt.`);
@@ -286,7 +272,10 @@ function getItem(ctx) {
   if (!floor) return emit('There is no such thing here.');
   if (floor.corpse) return emit(`That is ${floor.name} — search it for belongings.`);
   const take = Math.min(qty, floor.qty);
-  addItem(p, floor.item.id, take);
+  const metadata = floor.instances
+    ? floor.instances.splice(0, take)
+    : { condition: floor.condition, quality: floor.quality };
+  addItem(p, floor.item.id, take, metadata);
   floor.qty -= take;
   if (floor.qty <= 0) {
     game.floorItems.get(p.room).splice(game.floorItems.get(p.room).indexOf(floor), 1);

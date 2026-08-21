@@ -260,9 +260,15 @@ const NTH_POOLS = {
   supernatural: ['augmentation', 'debilitation', 'targeted_magic', 'utility_magic', 'warding_magic'],
 };
 
-// DR-style circle requirement tables (Elanthipedia, 1-10 band). Ranks are the
-// band value; the engine scales them to the target circle so circle 10 demands
-// exactly the source-game table while earlier circles stay progressive.
+// Eligibility exceptions are guild-specific in the source tables. Thievery
+// is a soft survival requirement for Thieves, while guilds such as Barbarians
+// explicitly restrict it from Nth-skill credit.
+const NTH_ADDITIONS = {
+  thief: { survival: ['thievery'] },
+};
+
+// DR-style circle requirement tables (Elanthipedia, 1-10 band). Each rank is
+// the per-circle increment for that band, not the cumulative circle-10 total.
 // Rows: { skill, rank, hard } for named skills; { nth, set, rank } for Nth-of-skillset.
 const CIRCLE_TABLES = {
   barbarian: [
@@ -276,7 +282,7 @@ const CIRCLE_TABLES = {
     { skill: 'evasion', rank: 3, hard: true },
     { nth: 1, set: 'survival', rank: 2 }, { nth: 2, set: 'survival', rank: 2 },
     { nth: 3, set: 'survival', rank: 2 }, { nth: 4, set: 'survival', rank: 1 },
-    { skill: 'tactics', rank: 1 },
+    { skill: 'tactics', rank: 1, hard: true },
     { nth: 1, set: 'lore', rank: 2 },
   ],
   bard: [
@@ -371,7 +377,6 @@ const CIRCLE_TABLES = {
     { skill: 'parry', rank: 1, hard: true },
     { nth: 1, set: 'armor', rank: 2 },
     { nth: 1, set: 'lore', rank: 1 }, { nth: 2, set: 'lore', rank: 1 }, { nth: 3, set: 'lore', rank: 1 },
-    { nth: 2, set: 'lore', rank: 2 },
   ],
   trader: [
     { nth: 1, set: 'armor', rank: 2 }, { nth: 2, set: 'armor', rank: 1 },
@@ -385,7 +390,7 @@ const CIRCLE_TABLES = {
   ],
   warmage: [
     { skill: 'summoning', rank: 3, hard: true },
-    { skill: 'targeted_magic', rank: 4, hard: true },
+    { skill: 'targeted_magic', rank: 4 },
     { nth: 1, set: 'magic', rank: 4 }, { nth: 2, set: 'magic', rank: 4 }, { nth: 3, set: 'magic', rank: 3 },
     { skill: 'parry', rank: 2, hard: true },
     { nth: 1, set: 'weapon', rank: 3 },
@@ -398,9 +403,19 @@ const CIRCLE_TABLES = {
   ],
 };
 
-// Ranks required for a band value at the target circle (1-10 band, scaled).
+// Cumulative ranks required within the 1-10 band. For example, a band value
+// of 4 requires 40 ranks at circle 10 (matching the source cumulative tables).
 function needFor(band, circle) {
-  return Math.max(1, Math.ceil(band * circle / 10));
+  return Math.max(1, band * circle);
+}
+
+function nthCandidates(guildId, table, set) {
+  const hardSkills = new Set(
+    table.filter((r) => r.skill && r.hard).map((r) => r.skill),
+  );
+  const additions = NTH_ADDITIONS[guildId]?.[set] || [];
+  return [...(NTH_POOLS[set] || []), ...additions]
+    .filter((id, idx, all) => all.indexOf(id) === idx && !hardSkills.has(id));
 }
 
 function nthLabel(n) {
@@ -424,7 +439,9 @@ export function circleRequirements(guild, skills, targetCircle) {
       const rank = (skills[r.skill] || {}).rank || 0;
       if (rank < need) missing.push(`${r.skill} at least rank ${need} (you have ${rank})`);
     } else {
-      const ranks = (NTH_POOLS[r.set] || []).map((id) => (skills[id] || {}).rank || 0).sort((a, b) => b - a);
+      const ranks = nthCandidates(guild.id, table, r.set)
+        .map((id) => (skills[id] || {}).rank || 0)
+        .sort((a, b) => b - a);
       const have = ranks[r.nth - 1] || 0;
       if (have < need) missing.push(`${nthLabel(r.nth)} ${r.set} at least rank ${need} (your ${nthLabel(r.nth)} is ${have})`);
     }
@@ -461,11 +478,14 @@ export function circleRequirementNeeds(guild, skills, targetCircle) {
       const rank = (skills[r.skill] || {}).rank || 0;
       if (rank < need) out.push({ skill: r.skill, need });
     } else {
-      const ranked = (NTH_POOLS[r.set] || [])
+      const candidates = nthCandidates(guild.id, table, r.set);
+      const ranked = candidates
         .map((id) => ({ id, rank: (skills[id] || {}).rank || 0 }))
         .sort((a, b) => b.rank - a.rank);
       const weak = ranked[r.nth - 1];
-      if (weak && weak.rank < need) out.push({ skill: weak.id, need });
+      if (weak && weak.rank < need) {
+        out.push({ skill: weak.id, need, set: r.set, nth: r.nth, candidates });
+      }
     }
   }
   return out;
@@ -473,12 +493,54 @@ export function circleRequirementNeeds(guild, skills, targetCircle) {
 
 // Spell difficulty tiers (DR): a spell's circle gate maps to how many ranks
 // of its skill you must command before it obeys. Intro spells come freely;
-// the high circles demand real mastery (the circle-10 rank cap is 40).
-export const SPELL_TIER_RANKS = { intro: 0, basic: 10, intermediate: 25, advanced: 40, esoteric: 60 };
+// the high circles demand real mastery. Gates stay at or below the highest
+// rank a character can train when the earliest spell in that tier unlocks.
+export const SPELL_TIER_RANKS = { intro: 0, basic: 10, intermediate: 24, advanced: 32, esoteric: 44 };
 
 export function spellTierFor(minCircle) {
+  if (minCircle >= 10) return 'esoteric';
   if (minCircle >= 7) return 'advanced';
-  if (minCircle >= 4) return 'intermediate';
+  if (minCircle >= 5) return 'intermediate';
   if (minCircle >= 2) return 'basic';
   return 'intro';
+}
+
+// ---- Spell-slot economy (compressed parity) ----
+// Each known spell holds slots by tier; the budget grows with circle and the
+// guild's magic tier (primary attunes fastest, tertiary slowest). A free
+// magical feat at circle 2 grants +2 slots. Holding limits are soft: release
+// is free, so sequencing choices dissolve by circle 10.
+export const SPELL_SLOT_COSTS = { intro: 2, basic: 6, intermediate: 10, advanced: 14, esoteric: 18 };
+
+export function guildMagicTier(guild) {
+  // Primary magic guilds (Cleric, Moon Mage, Warrior Mage) ×1.0; secondary
+  // (Bard, Empath, Necromancer) ×0.85; tertiary (Paladin, Ranger, Trader) ×0.72.
+  const primary = new Set(['cleric', 'moonmage', 'warmage']);
+  const secondary = new Set(['bard', 'empath', 'necromancer']);
+  if (primary.has(guild.id)) return 'primary';
+  if (secondary.has(guild.id)) return 'secondary';
+  return 'tertiary';
+}
+
+export function guildSlotRate(guild) {
+  return { primary: 1, secondary: 0.85, tertiary: 0.72 }[guildMagicTier(guild)] || 0.72;
+}
+
+export function spellSlotsTotal(guild, circle) {
+  if (!guild || !guild.magic) return 0;
+  const feat = circle >= 2 ? 2 : 0; // free magical feat at circle 2
+  return Math.round((2 + 6 * circle) * guildSlotRate(guild)) + feat;
+}
+
+export function spellSlotCost(spell) {
+  return SPELL_SLOT_COSTS[spellTierFor(spell.minCircle)] || 6;
+}
+
+export function spellSlotsUsed(guild, circle, forgottenIds) {
+  const forgotten = new Set(forgottenIds || []);
+  let used = 0;
+  for (const s of guild.spells || []) {
+    if (s.minCircle <= circle && !forgotten.has(s.id)) used += spellSlotCost(s);
+  }
+  return used;
 }

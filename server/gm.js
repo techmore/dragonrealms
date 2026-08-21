@@ -1,8 +1,7 @@
 // Game Master read-only inspector: world, DB, live players, and per-player
-// streams. Mounted at /api/gm/* behind the existing API auth. All endpoints
-// are READ-ONLY (GET) — they never mutate game state (there's already a
-// /api/debug test fixture for changing things).
-// Enable with the same DR_ENABLE_API=1 flag.
+// streams. Mounted at /api/gm/* behind a dedicated GM secret. A normal game
+// session is deliberately never sufficient. Enable with DR_ENABLE_API=1 and
+// configure DR_GM_TOKEN.
 
 import { roomById, ZONES, ROOMS } from '../data/world.js';
 import { NPCS, npcById } from '../data/npcs.js';
@@ -14,25 +13,30 @@ import { SKILLS } from '../data/skills.js';
 import { KHRI } from '../data/khri.js';
 import { db } from './db.js';
 import { loadPlayer } from './player.js';
-import { validateSession } from './auth.js';
+import { bearerToken, secretMatches } from './http-auth.js';
+
+const SENSITIVE_DB_TABLES = new Set(['accounts', 'sessions']);
+const SENSITIVE_DB_IDENTIFIERS = new Set(['accounts', 'sessions', 'pass_hash', 'salt', 'token']);
+const MAX_DB_ROWS = 500;
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(obj));
 }
 
-// GM access: a bearer token that is either the DR_GM_TOKEN secret or any
-// valid game account session. Without it the console is closed.
-function authorized(req) {
-  const m = /^Bearer\s+(\S+)$/i.exec(req.headers.authorization || '');
-  if (!m) return false;
-  const token = m[1];
-  if (process.env.DR_GM_TOKEN && token === process.env.DR_GM_TOKEN) return true;
-  return Boolean(validateSession(token));
+export function isGmToken(token, configuredToken = process.env.DR_GM_TOKEN) {
+  return secretMatches(token, configuredToken);
 }
 
-export function gmRequest(req, res, game) {
-  if (!authorized(req)) return json(res, 401, { ok: false, error: 'Unauthorized — set a GM token (DR_GM_TOKEN) or log in.' });
+export function gmRequest(req, res, game, { gmToken = process.env.DR_GM_TOKEN } = {}) {
+  const supplied = bearerToken(req);
+  if (!supplied) return json(res, 401, { ok: false, error: 'Missing GM bearer token.' });
+  if (typeof gmToken !== 'string' || gmToken.length === 0) {
+    return json(res, 503, { ok: false, error: 'GM access is not configured.' });
+  }
+  if (!isGmToken(supplied, gmToken)) {
+    return json(res, 403, { ok: false, error: 'This credential is not authorized for GM access.' });
+  }
   const url = new URL(req.url, `http://${req.headers.host}`);
   const parts = url.pathname.replace(/^\/api\/gm\/?/, '').split('/').filter(Boolean);
   const which = parts[0];
@@ -140,30 +144,166 @@ function gmSkills(res) {
   return json(res, 200, { ok: true, skills: Object.entries(SKILLS).map(([id, s]) => ({ id, name: s.name, cat: s.cat, guildSkill: s.guildSkill || null })) });
 }
 
-// Read-only DB browser: list tables, dump a table, or run a sandboxed SELECT
-// (single statement, must have LIMIT, no write keywords).
+// Read-only DB browser: authentication tables are absent from both the table
+// browser and the deliberately conservative SELECT surface. Queries may read
+// normal game tables, but may not use CTEs, subqueries, compound SELECTs,
+// SQLite internals, or more than MAX_DB_ROWS rows.
 function gmDb(res, game, table, q) {
-  const known = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((r) => r.name);
-  if (!table && !q) return json(res, 200, { ok: true, tables: known });
+  const known = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+    .all().map((r) => r.name);
+  const browsable = known.filter((name) => !SENSITIVE_DB_TABLES.has(name.toLowerCase()));
+  if (!table && !q) return json(res, 200, { ok: true, tables: browsable });
   if (q) {
     const stmt = String(q).trim();
-    if (!/^select\b/i.test(stmt)) return json(res, 400, { ok: false, error: 'Only SELECT queries are allowed.' });
-    if (/;?\s*(insert|update|delete|drop|alter|attach|pragma|vacuum)\b/i.test(stmt)) {
-      return json(res, 400, { ok: false, error: 'Write/DDL keywords are not allowed.' });
-    }
-    if (!/\blimit\s+\d+/i.test(stmt)) return json(res, 400, { ok: false, error: 'Queries must include a LIMIT.' });
+    const validation = validateSelect(stmt, new Set(browsable.map((name) => name.toLowerCase())));
+    if (!validation.ok) return json(res, validation.forbidden ? 403 : 400, { ok: false, error: validation.error });
     try {
       return json(res, 200, { ok: true, rows: db.prepare(stmt).all() });
     } catch (e) {
       return json(res, 400, { ok: false, error: String(e.message) });
     }
   }
-  if (!known.includes(table)) return json(res, 400, { ok: false, error: `Unknown table "${table}".` });
+  if (SENSITIVE_DB_TABLES.has(String(table).toLowerCase())) {
+    return json(res, 403, { ok: false, error: 'That table contains authentication secrets and cannot be browsed.' });
+  }
+  if (!browsable.includes(table)) return json(res, 400, { ok: false, error: `Unknown table "${table}".` });
   try {
-    return json(res, 200, { ok: true, table, rows: db.prepare(`SELECT * FROM ${table} LIMIT 200`).all() });
+    const identifier = `"${table.replaceAll('"', '""')}"`;
+    return json(res, 200, { ok: true, table, rows: db.prepare(`SELECT * FROM ${identifier} LIMIT 200`).all() });
   } catch (e) {
     return json(res, 400, { ok: false, error: String(e.message) });
   }
+}
+
+function validateSelect(sql, allowedTables) {
+  let tokens;
+  try {
+    tokens = sqlTokens(sql);
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+  const words = tokens.filter((t) => t.type === 'word').map((t) => t.value.toLowerCase());
+  if (words[0] !== 'select') return { ok: false, error: 'Only SELECT queries are allowed.' };
+  if (tokens.some((t) => t.value === ';')) return { ok: false, error: 'Queries must contain exactly one statement.' };
+  if (words.filter((word) => word === 'select').length !== 1 || words.some((word) => ['with', 'union', 'intersect', 'except'].includes(word))) {
+    return { ok: false, error: 'CTEs, subqueries, and compound SELECTs are not allowed.' };
+  }
+  if (words.some((word) => ['insert', 'update', 'delete', 'drop', 'alter', 'attach', 'detach', 'pragma', 'vacuum', 'reindex', 'analyze'].includes(word))) {
+    return { ok: false, error: 'Write, DDL, and PRAGMA keywords are not allowed.' };
+  }
+  if (words.some((word) => SENSITIVE_DB_IDENTIFIERS.has(word))) {
+    return { ok: false, forbidden: true, error: 'Authentication tables and secret columns cannot be queried.' };
+  }
+  if (words.some((word) => word.startsWith('sqlite_') || word.startsWith('pragma_'))) {
+    return { ok: false, forbidden: true, error: 'SQLite internals cannot be queried.' };
+  }
+
+  const relationIndexes = [];
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (tokens[i].type === 'word' && ['from', 'join'].includes(tokens[i].value.toLowerCase())) relationIndexes.push(i + 1);
+  }
+  for (const index of relationIndexes) {
+    const relation = relationAt(tokens, index);
+    if (!relation || !allowedTables.has(relation)) {
+      return { ok: false, forbidden: true, error: 'Queries may only read browsable game tables.' };
+    }
+  }
+
+  // A top-level comma after FROM is an implicit join. Refuse it rather than
+  // risk accepting a second relation that bypasses the explicit JOIN check.
+  const fromIndex = tokens.findIndex((t) => t.type === 'word' && t.value.toLowerCase() === 'from');
+  if (fromIndex >= 0) {
+    let depth = 0;
+    for (let i = fromIndex + 1; i < tokens.length; i += 1) {
+      const token = tokens[i];
+      if (token.value === '(') depth += 1;
+      if (token.value === ')') depth -= 1;
+      if (depth === 0 && token.type === 'word' && ['where', 'group', 'order', 'having', 'limit'].includes(token.value.toLowerCase())) break;
+      if (depth === 0 && token.value === ',') {
+        return { ok: false, error: 'Use explicit JOIN syntax instead of comma joins.' };
+      }
+    }
+  }
+
+  const limitIndex = tokens.findLastIndex((t) => t.type === 'word' && t.value.toLowerCase() === 'limit');
+  const limit = limitIndex >= 0 && tokens[limitIndex + 1]?.type === 'number'
+    ? Number(tokens[limitIndex + 1].value) : NaN;
+  if (!Number.isSafeInteger(limit) || limit < 0) return { ok: false, error: 'Queries must include a numeric LIMIT.' };
+  if (limit > MAX_DB_ROWS) return { ok: false, error: `LIMIT cannot exceed ${MAX_DB_ROWS}.` };
+  const afterLimit = tokens.slice(limitIndex + 2);
+  if (afterLimit.length && !(
+    afterLimit.length === 2
+    && afterLimit[0].type === 'word'
+    && afterLimit[0].value.toLowerCase() === 'offset'
+    && afterLimit[1].type === 'number'
+  )) return { ok: false, error: 'LIMIT must be the final clause (optionally followed by a numeric OFFSET).' };
+  return { ok: true };
+}
+
+function relationAt(tokens, start) {
+  const first = tokens[start];
+  if (!first || first.type !== 'word') return null;
+  if (tokens[start + 1]?.value === '.') {
+    if (first.value.toLowerCase() !== 'main' || tokens[start + 2]?.type !== 'word') return null;
+    return tokens[start + 2].value.toLowerCase();
+  }
+  return first.value.toLowerCase();
+}
+
+function sqlTokens(sql) {
+  const tokens = [];
+  for (let i = 0; i < sql.length;) {
+    const ch = sql[i];
+    if (/\s/.test(ch)) { i += 1; continue; }
+    if (ch === '-' && sql[i + 1] === '-') {
+      i += 2;
+      while (i < sql.length && sql[i] !== '\n') i += 1;
+      continue;
+    }
+    if (ch === '/' && sql[i + 1] === '*') {
+      const end = sql.indexOf('*/', i + 2);
+      if (end < 0) throw new Error('Unterminated SQL comment.');
+      i = end + 2;
+      continue;
+    }
+    if (ch === "'") {
+      i += 1;
+      while (i < sql.length) {
+        if (sql[i] === "'" && sql[i + 1] === "'") { i += 2; continue; }
+        if (sql[i] === "'") { i += 1; break; }
+        i += 1;
+      }
+      if (sql[i - 1] !== "'") throw new Error('Unterminated SQL string.');
+      tokens.push({ type: 'string', value: '' });
+      continue;
+    }
+    if (ch === '"' || ch === '`' || ch === '[') {
+      const close = ch === '[' ? ']' : ch;
+      let value = '';
+      i += 1;
+      let closed = false;
+      while (i < sql.length) {
+        if (sql[i] === close) {
+          if (close !== ']' && sql[i + 1] === close) { value += close; i += 2; continue; }
+          i += 1;
+          closed = true;
+          break;
+        }
+        value += sql[i];
+        i += 1;
+      }
+      if (!closed) throw new Error('Unterminated quoted SQL identifier.');
+      tokens.push({ type: 'word', value });
+      continue;
+    }
+    const word = /^[A-Za-z_][A-Za-z0-9_$]*/.exec(sql.slice(i));
+    if (word) { tokens.push({ type: 'word', value: word[0] }); i += word[0].length; continue; }
+    const number = /^\d+/.exec(sql.slice(i));
+    if (number) { tokens.push({ type: 'number', value: number[0] }); i += number[0].length; continue; }
+    tokens.push({ type: 'symbol', value: ch });
+    i += 1;
+  }
+  return tokens;
 }
 
 function gmCharacters(res) {
@@ -221,7 +361,7 @@ function gmAdmin(res, game, action) {
         players: game.players.size,
         rooms: Object.keys(ROOMS).length,
         uptimeMs: (game.uptimeAt ? Date.now() - game.uptimeAt : null),
-        gmTokenConfigured: Boolean(process.env.DR_GM_TOKEN),
+        gmTokenConfigured: true,
       });
     }
     case 'reload': {

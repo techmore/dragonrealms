@@ -190,12 +190,15 @@ export class CombatManager {
       if (s.exp > 0) s.exp = Math.max(0, s.exp - Math.floor(s.exp * 0.25));
     }
     if (player.tdpPool > 0) player.tdpPool = Math.floor(player.tdpPool * 0.75);
+    const deathRoom = player.room;
     const corpse = this.game.dropCorpse(player);
     player.hp = Math.floor(player.maxHp * 0.5);
     player.room = 'temple';
     player.corpses = [];
     player.heldMana = 0;
     player.prepared = null;
+    // Rite of Departure anchor: one item may be drawn from this corpse later.
+    player.lastCorpse = corpse ? { uid: corpse.uid, room: deathRoom } : null;
     const belongings = corpse
       ? ' Your belongings lie with your corpse where you fell — return to reclaim them.'
       : ' You were carrying nothing of worth.';

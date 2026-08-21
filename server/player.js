@@ -1,7 +1,7 @@
 // Player characters: creation, persistence, skills, inventory, equipment.
 import { db } from './db.js';
 import { raceById } from '../data/races.js';
-import { guildById } from '../data/guilds.js';
+import { guildById, spellsFor } from '../data/guilds.js';
 import { SKILLS, expToNextRank } from '../data/skills.js';
 import { itemById } from '../data/items.js';
 
@@ -27,6 +27,83 @@ export function baseStatsFor(raceId) {
 }
 
 export const CITIES = { crossing: 'square', riverhaven: 'rh_square' };
+
+const PERSISTED_TIMESTAMPS = [
+  'warhornAt', 'potionAt', 'scavengeAt', 'glyphAt', 'beseechAt',
+  'sacrificeAt', 'telescopeAt', 'linkAt', 'slipAt', 'devoteAt',
+];
+
+function parsePersistentState(raw) {
+  try {
+    const value = JSON.parse(raw || '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistentStateFor(p) {
+  const cooldowns = {};
+  for (const key of PERSISTED_TIMESTAMPS) {
+    if (Number.isFinite(p[key]) && p[key] > 0) cooldowns[key] = p[key];
+  }
+  return {
+    version: 1,
+    abilities: Array.isArray(p.abilities) ? p.abilities : [],
+    lastForgetAt: Number.isFinite(p.lastForgetAt) ? p.lastForgetAt : 0,
+    forgedQuality: p.forgedQuality && typeof p.forgedQuality === 'object' ? p.forgedQuality : {},
+    expLocks: p.expLocks && typeof p.expLocks === 'object' ? p.expLocks : {},
+    crimeHeat: Number.isFinite(p.crimeHeat) ? p.crimeHeat : 0,
+    jailUntil: Number.isFinite(p.jailUntil) ? p.jailUntil : 0,
+    stocksUntil: Number.isFinite(p.stocksUntil) ? p.stocksUntil : 0,
+    innerFire: Number.isFinite(p.innerFire) ? p.innerFire : 100,
+    voice: Number.isFinite(p.voice) ? p.voice : 40,
+    companion: p.companion || null,
+    familiar: p.familiar || null,
+    cambrinth: p.cambrinth || null,
+    chafferNext: Boolean(p.chafferNext),
+    scripts: p.scripts && typeof p.scripts === 'object' ? p.scripts : {},
+    spellsKnown: Array.isArray(p.spellsKnown) ? p.spellsKnown : [],
+    spellsForgotten: Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [],
+    debt: Number.isFinite(p.debt) ? p.debt : 0,
+    cooldowns,
+  };
+}
+
+// Slotted gear is individually durable and therefore never stacks. Loose
+// materials, ammunition, consumables, and commodities retain the compact
+// quantity-row representation used by older databases and clients.
+export function isStackableItem(item) {
+  return Boolean(item) && !item.slot;
+}
+
+function finiteQuality(value) {
+  const quality = Number(value);
+  return Number.isFinite(quality) && quality > 0 ? quality : null;
+}
+
+function finiteCondition(value) {
+  const condition = Number(value);
+  return Number.isFinite(condition)
+    ? Math.max(20, Math.min(100, Math.round(condition)))
+    : 100;
+}
+
+export function instanceMetadata(value = {}) {
+  return {
+    condition: finiteCondition(value.condition),
+    quality: finiteQuality(value.quality),
+  };
+}
+
+function withInstanceMetadata(item, value = {}) {
+  const metadata = instanceMetadata(value);
+  return {
+    ...item,
+    condition: metadata.condition,
+    ...(metadata.quality === null ? {} : { quality: metadata.quality }),
+  };
+}
 
 export function createCharacter(accountId, { name, race, guild, city = 'crossing' }) {
   const clean = String(name || '').trim();
@@ -67,6 +144,9 @@ export function createCharacter(accountId, { name, race, guild, city = 'crossing
 export function loadPlayer(charId) {
   const row = db.prepare('SELECT * FROM characters WHERE id = ?').get(charId);
   if (!row) return null;
+  const persisted = parsePersistentState(row.persistent_state);
+  const cooldowns = persisted.cooldowns && typeof persisted.cooldowns === 'object'
+    ? persisted.cooldowns : {};
 
   const player = {
     charId: row.id,
@@ -87,7 +167,7 @@ export function loadPlayer(charId) {
     stance: row.stance || 'balanced',
     pvpStance: row.pvp_stance || 'guarded',
     rexp: row.rexp || 0,
-    stamina: row.stamina || 0,
+    stamina: row.stamina ?? 0,
     warrant: (() => { try { return row.warrant ? JSON.parse(row.warrant) : null; } catch { return null; } })(),
     patron: row.patron || null,
     element: row.element || null,
@@ -110,6 +190,14 @@ export function loadPlayer(charId) {
     equipment: {},
     quest: null,
     aliases: {},
+    scripts: persisted.scripts && typeof persisted.scripts === 'object' ? persisted.scripts : {},
+    // Learned-spell registry. Legacy characters (and new ones) derive their
+    // circle curriculum on load; from there the slot economy governs grants.
+    spellsKnown: guildById(row.guild).magic
+      ? spellsFor(guildById(row.guild), row.circle).map((s) => s.id)
+      : [],
+    spellsForgotten: Array.isArray(persisted.spellsForgotten) ? persisted.spellsForgotten : [],
+    debt: Number.isFinite(persisted.debt) ? persisted.debt : 0,
     buffs: {},
     // runtime
     online: false,
@@ -120,16 +208,36 @@ export function loadPlayer(charId) {
     heldMana: 0,
     cambrinth: null,
     prepared: null,
-    innerFire: 100,
+    innerFire: Number.isFinite(persisted.innerFire) ? persisted.innerFire : 100,
     maxInnerFire: 100,
-    voice: 40,
-    abilities: [],
-    lastForgetAt: 0,
-    warhornAt: 0,
+    voice: Number.isFinite(persisted.voice) ? persisted.voice : 40,
+    abilities: Array.isArray(persisted.abilities) ? persisted.abilities : [],
+    lastForgetAt: Number.isFinite(persisted.lastForgetAt) ? persisted.lastForgetAt : 0,
+    forgedQuality: persisted.forgedQuality && typeof persisted.forgedQuality === 'object' ? persisted.forgedQuality : {},
+    expLocks: persisted.expLocks && typeof persisted.expLocks === 'object' ? persisted.expLocks : {},
+    crimeHeat: Number.isFinite(persisted.crimeHeat) ? persisted.crimeHeat : 0,
+    jailUntil: Number.isFinite(persisted.jailUntil) ? persisted.jailUntil : 0,
+    stocksUntil: Number.isFinite(persisted.stocksUntil) ? persisted.stocksUntil : 0,
+    companion: persisted.companion || null,
+    familiar: persisted.familiar || null,
+    cambrinth: persisted.cambrinth || null,
+    chafferNext: Boolean(persisted.chafferNext),
   };
+  for (const key of PERSISTED_TIMESTAMPS) {
+    player[key] = Number.isFinite(cooldowns[key]) ? cooldowns[key] : 0;
+  }
 
-  const q = db.prepare('SELECT creature_id, count, done FROM character_quest WHERE character_id = ?').get(charId);
-  if (q) player.quest = { creatureId: q.creature_id, count: q.count, done: Boolean(q.done) };
+  const q = db.prepare('SELECT creature_id, count, done, state FROM character_quest WHERE character_id = ?').get(charId);
+  if (q) {
+    try {
+      const state = JSON.parse(q.state || '{}');
+      player.quest = state && state.kind
+        ? state
+        : { kind: 'kill', source: 'crier', creatureId: q.creature_id, count: q.count, done: Boolean(q.done) };
+    } catch {
+      player.quest = { kind: 'kill', source: 'crier', creatureId: q.creature_id, count: q.count, done: Boolean(q.done) };
+    }
+  }
   for (const a of db.prepare('SELECT name, command FROM aliases WHERE character_id = ?').all(charId)) {
     player.aliases[a.name] = a.command;
   }
@@ -137,19 +245,46 @@ export function loadPlayer(charId) {
   for (const s of db.prepare('SELECT skill_id, rank, exp FROM skills WHERE character_id = ?').all(charId)) {
     player.skills[s.skill_id] = { rank: s.rank, exp: s.exp };
   }
-  for (const inv of db.prepare('SELECT id, item_id, qty FROM inventory WHERE character_id = ?').all(charId)) {
+  for (const inv of db.prepare('SELECT id, item_id, qty, condition, quality FROM inventory WHERE character_id = ? ORDER BY id').all(charId)) {
     const item = itemById(inv.item_id);
-    if (item) player.inventory.push({ id: inv.id, item, qty: inv.qty });
+    if (!item) continue;
+    if (isStackableItem(item)) {
+      player.inventory.push({ id: inv.id, item, qty: inv.qty });
+      continue;
+    }
+
+    // Old saves could stack multiple copies of the same weapon/armor and kept
+    // one type-wide forgedQuality value. Split those rows on first load and
+    // seed each legacy copy with that value. New instances are independent.
+    const metadata = instanceMetadata({
+      condition: inv.condition,
+      quality: inv.quality ?? persisted.forgedQuality?.[item.id],
+    });
+    const copies = Math.max(1, inv.qty || 1);
+    db.prepare('UPDATE inventory SET qty=1, condition=?, quality=? WHERE id=?')
+      .run(metadata.condition, metadata.quality, inv.id);
+    player.inventory.push({ id: inv.id, item, qty: 1, ...metadata });
+    for (let copy = 1; copy < copies; copy += 1) {
+      const info = db.prepare('INSERT INTO inventory (character_id, item_id, qty, condition, quality) VALUES (?,?,1,?,?)')
+        .run(charId, item.id, metadata.condition, metadata.quality);
+      player.inventory.push({ id: Number(info.lastInsertRowid), item, qty: 1, ...metadata });
+    }
   }
-  for (const eq of db.prepare('SELECT slot, item_id, condition FROM equipment WHERE character_id = ?').all(charId)) {
+  for (const eq of db.prepare('SELECT slot, item_id, condition, quality FROM equipment WHERE character_id = ?').all(charId)) {
     const item = itemById(eq.item_id);
-    if (item) player.equipment[eq.slot] = { ...item, condition: eq.condition ?? 100 };
+    if (item) {
+      player.equipment[eq.slot] = withInstanceMetadata(item, {
+        condition: eq.condition,
+        quality: eq.quality ?? persisted.forgedQuality?.[item.id],
+      });
+    }
   }
 
   // Stamina is derived from Con and Fitness, then capped by what you carry.
   player.maxStamina = maxStaminaFor(player);
   player.maxStaminaEff = maxStaminaEff(player);
-  if (!(row.stamina > 0)) player.stamina = player.maxStaminaEff;
+  if (!persisted.version && !(row.stamina > 0)) player.stamina = player.maxStaminaEff;
+  else player.stamina = Math.max(0, Math.min(player.maxStaminaEff, player.stamina));
 
   return player;
 }
@@ -178,18 +313,19 @@ export function savePlayer(p) {
     UPDATE characters SET
       circle=?, str=?, con=?, ref=?, agi=?, cha=?, dis=?, wis=?, int=?,
       unspent_stat=?, mana=?, tdp=?, tdp_pool=?, stance=?, pvp_stance=?, rexp=?,
-      soul=?, empathic_stain=?, devotion=?, exp_pools=?, home_city=?, silver=?, bank=?, room=?, hp=?, max_hp=?, warrant=?, patron=?, element=?, caravan=?, link=?, achievements=?, techniques=?
+      stamina=?, soul=?, empathic_stain=?, devotion=?, exp_pools=?, home_city=?, silver=?, bank=?, room=?, hp=?, max_hp=?, warrant=?, patron=?, element=?, caravan=?, link=?, achievements=?, techniques=?, persistent_state=?
     WHERE id=?
   `).run(
     p.circle, p.stats.str, p.stats.con, p.stats.ref, p.stats.agi, p.stats.cha,
     p.stats.dis, p.stats.wis, p.stats.int, p.unspentStat, p.mana, p.tdp || 0,
     p.tdpPool || 0, p.stance || 'balanced', p.pvpStance || 'guarded', p.rexp || 0,
-    p.soul ?? 50, p.empathicStain || 0, p.devotion ?? 30,
+    p.stamina ?? 0, p.soul ?? 50, p.empathicStain || 0, p.devotion ?? 30,
     JSON.stringify(p.expPools || {}), p.homeCity || 'crossing',
     p.silver, p.bank, p.room, p.hp, p.maxHp, p.warrant ? JSON.stringify(p.warrant) : null,
     p.patron || null, p.element || null, p.caravan ? JSON.stringify(p.caravan) : null,
     p.empathLink ? JSON.stringify(p.empathLink) : null,
-    JSON.stringify(p.achievements || []), JSON.stringify(p.techniques || []), p.charId
+    JSON.stringify(p.achievements || []), JSON.stringify(p.techniques || []),
+    JSON.stringify(persistentStateFor(p)), p.charId
   );
   const ins = db.prepare(`
     INSERT INTO skills (character_id, skill_id, rank, exp) VALUES (?,?,?,?)
@@ -199,15 +335,24 @@ export function savePlayer(p) {
 
   // Persist equipment condition (durability) alongside everything else.
   for (const [slot, item] of Object.entries(p.equipment || {})) {
-    db.prepare('UPDATE equipment SET condition=? WHERE character_id=? AND slot=?')
-      .run(item.condition ?? 100, p.charId, slot);
+    const metadata = instanceMetadata(item);
+    db.prepare('UPDATE equipment SET condition=?, quality=? WHERE character_id=? AND slot=?')
+      .run(metadata.condition, metadata.quality, p.charId, slot);
+  }
+  for (const entry of p.inventory || []) {
+    if (isStackableItem(entry.item)) continue;
+    const metadata = instanceMetadata(entry);
+    db.prepare('UPDATE inventory SET condition=?, quality=? WHERE id=? AND character_id=?')
+      .run(metadata.condition, metadata.quality, entry.id, p.charId);
   }
 
   if (p.quest) {
     db.prepare(`
-      INSERT INTO character_quest (character_id, creature_id, count, done) VALUES (?,?,?,?)
-      ON CONFLICT(character_id) DO UPDATE SET creature_id=excluded.creature_id, count=excluded.count, done=excluded.done
-    `).run(p.charId, p.quest.creatureId || '', p.quest.count || 0, p.quest.done ? 1 : 0);
+      INSERT INTO character_quest (character_id, creature_id, count, done, state) VALUES (?,?,?,?,?)
+      ON CONFLICT(character_id) DO UPDATE SET creature_id=excluded.creature_id, count=excluded.count, done=excluded.done, state=excluded.state
+    `).run(p.charId, p.quest.creatureId || '', p.quest.count || 0, p.quest.done ? 1 : 0, JSON.stringify(p.quest));
+  } else {
+    db.prepare('DELETE FROM character_quest WHERE character_id=?').run(p.charId);
   }
 }
 
@@ -285,9 +430,10 @@ export function unlockAchievement(p, id) {
 // REXP) and while resting; while active it doubles exp drain (DR-authentic).
 export const REXP_CAP = 120;
 
-// Skills can't out-rank your circle too far (circle 10 -> rank 40 cap).
+// Skills can train through the next circle's 1-10-band requirement ceiling.
+// A circle-9 character must be able to reach rank 40 before circling to 10.
 export function maxRankFor(circle) {
-  return circle * 4;
+  return (circle + 1) * 4;
 }
 
 export function bankRexp(p, offlineMs) {
@@ -371,15 +517,40 @@ export function applyExpToSkill(p, s, amount) {
   return leveled;
 }
 
-// The server pulse: drains every field pool into ranks.
-export function pulseExp(p) {
+// Field-exp grouping (DR's ten pulse groups, compressed): each skill belongs
+// to one of ten groups; a group converts only on its own 30-second phase, so
+// different skills bank→rank on staggered schedules. Deterministic hash keeps
+// assignments stable across restarts without a data table.
+export function expGroupFor(skillId) {
+  let h = 0;
+  const id = String(skillId);
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h % 10;
+}
+
+// How much of a skill's pooled exp converts on its group's pulse, by the
+// skill's standing in the guild: primaries convert fully, secondaries retain
+// a tail, tertiaries more so (DR retention-by-skillset, compressed).
+export function poolConversionRate(p, skillId) {
+  if (p.guild?.primary?.includes(skillId)) return 1;
+  if (p.guild?.secondary?.includes(skillId)) return 0.8;
+  return 0.65;
+}
+
+// The server pulse: on each 30s tick, only one of the ten groups converts.
+// `tick` derives from wall clock (stateless across restarts). Omitting tick
+// flushes every group immediately (logout/save paths).
+export function pulseExp(p, tick) {
   if (!p.expPools) return 0;
   let pulsed = 0;
+  const phase = tick === undefined ? null : ((tick % 10) + 10) % 10;
   for (const [skillId, pool] of Object.entries(p.expPools)) {
     if (pool <= 0) { delete p.expPools[skillId]; continue; }
+    if (phase !== null && expGroupFor(skillId) !== phase) continue;
     const s = p.skills[skillId];
     if (!s) { delete p.expPools[skillId]; continue; }
-    const drain = Math.min(pool, expToNextRank(s.rank) * 2);
+    const rate = poolConversionRate(p, skillId);
+    const drain = Math.min(pool, Math.max(1, Math.round(pool * rate)));
     p.expPools[skillId] = pool - drain;
     if (p.expPools[skillId] <= 0) delete p.expPools[skillId];
     pulsed += drain;
@@ -408,39 +579,108 @@ export function removeAlias(p, name) {
   return { ok: true };
 }
 
-export function addItem(p, itemId, qty = 1) {
+// ---- Per-character DR scripts (client automation, server-persisted) ----
+const SCRIPT_NAME_RE = /^[a-z0-9_]{1,24}$/;
+const SCRIPT_MAX_BODY = 8000;
+const SCRIPT_MAX_COUNT = 50;
+
+function writeScriptsNow(p) {
+  db.prepare('UPDATE characters SET persistent_state=? WHERE id=?')
+    .run(JSON.stringify(persistentStateFor(p)), p.charId);
+}
+
+export function putScript(p, name, body) {
+  const n = String(name || '').toLowerCase();
+  if (!SCRIPT_NAME_RE.test(n)) return { ok: false, error: 'Script names must be 1-24 letters, numbers or underscores.' };
+  const text = String(body || '');
+  if (!text.trim()) return { ok: false, error: 'Script needs a body.' };
+  if (text.length > SCRIPT_MAX_BODY) return { ok: false, error: `Script too large (max ${SCRIPT_MAX_BODY} characters).` };
+  if (!p.scripts[n] && Object.keys(p.scripts).length >= SCRIPT_MAX_COUNT) {
+    return { ok: false, error: `Too many saved scripts (max ${SCRIPT_MAX_COUNT}).` };
+  }
+  p.scripts[n] = text;
+  writeScriptsNow(p);
+  return { ok: true };
+}
+
+export function delScript(p, name) {
+  const n = String(name || '').toLowerCase();
+  if (!p.scripts[n]) return { ok: false, error: 'No such script.' };
+  delete p.scripts[n];
+  writeScriptsNow(p);
+  return { ok: true };
+}
+
+export function addItem(p, itemId, qty = 1, metadata = null) {
   const item = itemById(itemId);
   if (!item) return false;
-  if (p) p.handsDirty = true;
-  const existing = p.inventory.find((i) => i.item.id === itemId);
-  if (existing) {
-    existing.qty += qty;
-    db.prepare('UPDATE inventory SET qty=? WHERE id=?').run(existing.qty, existing.id);
-  } else {
+  p.handsDirty = true;
+  qty = Math.max(1, Math.floor(Number(qty)) || 1);
+  if (isStackableItem(item)) {
+    const existing = p.inventory.find((i) => i.item.id === itemId);
+    if (existing) {
+      existing.qty += qty;
+      db.prepare('UPDATE inventory SET qty=? WHERE id=?').run(existing.qty, existing.id);
+    } else {
+      const info = db.prepare('INSERT INTO inventory (character_id, item_id, qty) VALUES (?,?,?)')
+        .run(p.charId, itemId, qty);
+      p.inventory.push({ id: Number(info.lastInsertRowid), item, qty });
+    }
+    return true;
+  }
+
+  const metadataList = Array.isArray(metadata) ? metadata : null;
+  for (let copy = 0; copy < qty; copy += 1) {
+    const instance = instanceMetadata(metadataList ? metadataList[copy] : metadata || {});
     const info = db.prepare('INSERT INTO inventory (character_id, item_id, qty) VALUES (?,?,?)')
-      .run(p.charId, itemId, qty);
-    p.inventory.push({ id: Number(info.lastInsertRowid), item, qty });
+      .run(p.charId, itemId, 1);
+    db.prepare('UPDATE inventory SET condition=?, quality=? WHERE id=?')
+      .run(instance.condition, instance.quality, Number(info.lastInsertRowid));
+    p.inventory.push({ id: Number(info.lastInsertRowid), item, qty: 1, ...instance });
   }
   return true;
+}
+
+// Remove concrete inventory rows and return transfer-safe payloads. Callers
+// that only consume/destroy items can keep using removeItem's boolean API.
+export function removeItemInstances(p, itemId, qty = 1, preferredEntry = null) {
+  qty = Math.max(1, Math.floor(Number(qty)) || 1);
+  const matching = p.inventory.filter((entry) => entry.item.id === itemId);
+  if (!matching.length) return [];
+  if (preferredEntry && matching.includes(preferredEntry)) {
+    matching.splice(matching.indexOf(preferredEntry), 1);
+    matching.unshift(preferredEntry);
+  }
+
+  p.handsDirty = true;
+  const removed = [];
+  let remaining = qty;
+  for (const inv of matching) {
+    if (remaining <= 0) break;
+    const take = Math.min(remaining, inv.qty);
+    const payload = { id: inv.item.id, qty: take };
+    if (!isStackableItem(inv.item)) Object.assign(payload, instanceMetadata(inv));
+    removed.push(payload);
+    inv.qty -= take;
+    remaining -= take;
+    if (inv.qty <= 0) {
+      db.prepare('DELETE FROM inventory WHERE id=?').run(inv.id);
+      p.inventory = p.inventory.filter((i) => i.id !== inv.id);
+    } else {
+      db.prepare('UPDATE inventory SET qty=? WHERE id=?').run(inv.qty, inv.id);
+    }
+  }
+  return removed;
 }
 
 export function removeItem(p, itemId, qty = 1) {
-  const inv = p.inventory.find((i) => i.item.id === itemId);
-  if (!inv) return false;
-  p.handsDirty = true;
-  inv.qty -= qty;
-  if (inv.qty <= 0) {
-    db.prepare('DELETE FROM inventory WHERE id=?').run(inv.id);
-    p.inventory = p.inventory.filter((i) => i.id !== inv.id);
-  } else {
-    db.prepare('UPDATE inventory SET qty=? WHERE id=?').run(inv.qty, inv.id);
-  }
-  return true;
+  return removeItemInstances(p, itemId, qty).length > 0;
 }
 
 export function countItems(p, itemId) {
-  const inv = p.inventory.find((i) => i.item.id === itemId);
-  return inv ? inv.qty : 0;
+  return p.inventory
+    .filter((i) => i.item.id === itemId)
+    .reduce((total, inv) => total + inv.qty, 0);
 }
 
 export function equipItem(p, invEntry) {
@@ -451,17 +691,18 @@ export function equipItem(p, invEntry) {
   }
   const slot = item.slot;
   if (!slot) return { ok: false, error: 'That cannot be equipped.' };
+  const metadata = instanceMetadata(invEntry);
   const existing = p.equipment[slot];
-  if (existing && existing.id !== item.id) {
+  if (existing) {
     delete p.equipment[slot];
     db.prepare('DELETE FROM equipment WHERE character_id=? AND slot=?').run(p.charId, slot);
-    addItem(p, existing.id, 1);
+    addItem(p, existing.id, 1, existing);
   }
-  p.equipment[slot] = { ...item, condition: 100 };
-  removeItem(p, item.id, 1);
+  p.equipment[slot] = withInstanceMetadata(item, metadata);
+  removeItemInstances(p, item.id, 1, invEntry);
   p.handsDirty = true;
-  db.prepare('INSERT INTO equipment (character_id, slot, item_id, condition) VALUES (?,?,?,100)')
-    .run(p.charId, slot, item.id);
+  db.prepare('INSERT INTO equipment (character_id, slot, item_id, condition, quality) VALUES (?,?,?,?,?)')
+    .run(p.charId, slot, item.id, metadata.condition, metadata.quality);
   return { ok: true, slot };
 }
 
@@ -470,7 +711,8 @@ export function unequipItem(p, slot) {
   if (!item) return { ok: false, error: 'Nothing equipped there.' };
   delete p.equipment[slot];
   db.prepare('DELETE FROM equipment WHERE character_id=? AND slot=?').run(p.charId, slot);
-  addItem(p, item.id, 1);
+  addItem(p, item.id, 1, item);
+  p.handsDirty = true;
   return { ok: true, item };
 }
 
@@ -484,6 +726,10 @@ export function conditionMult(item) {
   return item ? 0.6 + 0.4 * ((item.condition ?? 100) / 100) : 1;
 }
 
+export function qualityMult(item) {
+  return finiteQuality(item?.quality) || 1;
+}
+
 // A piece of equipped gear takes wear; it cannot fall below 20 ("well-worn").
 export function wearCondition(p, slot, chance) {
   const item = p.equipment[slot];
@@ -495,7 +741,7 @@ export function wearCondition(p, slot, chance) {
 export function totalArmor(p) {
   let total = 0;
   for (const item of Object.values(p.equipment)) {
-    if (item.type === 'armor') total += item.armor;
+    if (item.type === 'armor') total += Math.floor(item.armor * conditionMult(item) * qualityMult(item));
   }
   return total;
 }

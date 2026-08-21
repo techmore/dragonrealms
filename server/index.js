@@ -1,52 +1,24 @@
 // Dragon Realms server entry point.
 import { createServer } from 'node:http';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { migrate, closeDb } from './db.js';
 import { Game } from './game.js';
 import { attachWebSocket } from './session.js';
-import { apiRequest } from './api.js';
-import { gmRequest } from './gm.js';
-import { createStaticHandler } from './static.js';
+import { createHttpHandler } from './http.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const API_ENABLED = process.env.DR_ENABLE_API === '1';
-const PUBLIC_DIR = join(__dirname, '..', 'public');
+const DEBUG_API_ENABLED = process.env.DR_ENABLE_DEBUG_API === '1';
 
 migrate();
 const game = new Game();
 game.init();
 
-const staticHandler = createStaticHandler(PUBLIC_DIR);
-
-const server = createServer((req, res) => {
-  try {
-    const path = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
-    if (path === '/api/gm' || path.startsWith('/api/gm/')) {
-      if (!API_ENABLED) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('Not found');
-        return;
-      }
-      gmRequest(req, res, game);
-      return;
-    }
-    if (path === '/api' || path.startsWith('/api/')) {
-      if (!API_ENABLED) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('Not found');
-        return;
-      }
-      apiRequest(req, res, game).catch(() => res.destroy());
-      return;
-    }
-    staticHandler(req, res);
-  } catch {
-    res.writeHead(500);
-    res.end('error');
-  }
-});
+const server = createServer(createHttpHandler(game, {
+  apiEnabled: API_ENABLED,
+  debugApiEnabled: DEBUG_API_ENABLED,
+  gmToken: process.env.DR_GM_TOKEN,
+  debugToken: process.env.DR_DEBUG_TOKEN,
+}));
 
 attachWebSocket(server, game);
 
@@ -57,7 +29,7 @@ server.listen(PORT, () => {
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
     console.log('\nShutting down...');
-    game.combat.stopTicker();
+    game.stop();
     for (const p of game.players.values()) {
       try { game.persistPlayer(p); } catch {}
     }

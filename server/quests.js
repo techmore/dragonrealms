@@ -68,7 +68,25 @@ export const quests = {
     }
     p.quest = q;
     game.persistPlayer(p);
+    this.pushQuest(p);
     return q;
+  },
+
+  // Serializable quest state for the client's Journal window.
+  questSummary(p) {
+    if (!p.quest) return null;
+    const q = p.quest;
+    return {
+      kind: q.kind,
+      source: q.source,
+      done: Boolean(q.done),
+      desc: this.questDescription(p),
+    };
+  },
+
+  pushQuest(p) {
+    if (!p.ws) return;
+    try { p.ws.send(JSON.stringify({ t: 'quest', quest: this.questSummary(p) })); } catch {}
   },
 
   questDescription(p) {
@@ -103,6 +121,7 @@ export const quests = {
         p.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1mQuest complete!\x1b[0m Return to the town crier and say "claim" to collect your reward.` }));
       }
       game.persistPlayer(p);
+      this.pushQuest(p);
       return;
     }
     if (q.kind === 'recover' && !q.found && creatureId === q.creatureId) {
@@ -112,6 +131,7 @@ export const quests = {
         gainSkillExp(p, 'perception', 8);
         p.ws.send(JSON.stringify({ t: 'msg', msg: `\nYou pry the filth from the remains — there it is: ${q.trinket.name}! (Return to the crier and say "claim".)` }));
         game.persistPlayer(p);
+        this.pushQuest(p);
       }
     }
   },
@@ -129,6 +149,7 @@ export const quests = {
       p.ws.send(JSON.stringify({ t: 'msg', msg: `The crier's work is underway — ${q.count - q.skinned} more creature(s) to skin.` }));
     }
     game.persistPlayer(p);
+    this.pushQuest(p);
   },
 
   // A delivery completes when the runner stands in the target room.
@@ -142,6 +163,7 @@ export const quests = {
     gainSkillExp(p, 'appraisal', 10);
     gainSkillExp(p, 'athletics', 8);
     game.persistPlayer(p);
+    this.pushQuest(p);
     return { ok: true, msg: `\n${q.target.name} takes ${q.target.parcel} with a nod of thanks. "The crier will settle your pay." Return to the town square and say "claim".` };
   },
 
@@ -162,6 +184,7 @@ export const quests = {
     if (fromLeader && p.guild.guildSkill && SKILLS[p.guild.guildSkill]) gainSkillExp(p, p.guild.guildSkill, 20);
     p.quest = null;
     game.persistPlayer(p);
+    this.pushQuest(p);
     unlockAchievement(p, 'first_quest');
     if (fromLeader) {
       return { ok: true, msg: `Your guild leader nods. "Work well done." You pocket ${silver} silvers and your ${SKILLS[p.guild.guildSkill].name} sharpens.${skillExp}` };

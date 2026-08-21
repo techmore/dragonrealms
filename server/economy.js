@@ -3,7 +3,10 @@ import { roomById } from '../data/world.js';
 import { npcById } from '../data/npcs.js';
 import { ITEMS, itemById } from '../data/items.js';
 import { commodityPrice, commodityById, commodityHoldings } from '../data/commodities.js';
-import { addItem, removeItem, countItems, gainSkillExp, unlockAchievement } from './player.js';
+import {
+  addItem, removeItem, removeItemInstances, countItems, gainSkillExp,
+  unlockAchievement, isStackableItem, instanceMetadata,
+} from './player.js';
 import { db } from './db.js';
 
 function pad(s, n) {
@@ -14,6 +17,15 @@ function pad(s, n) {
 function weaponString(item) {
   if (item.type !== 'weapon') return '';
   return `${item.dmg[0]}-${item.dmg[1]}`;
+}
+
+function vaultMetadata(raw) {
+  try {
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 export const economy = {
@@ -123,27 +135,37 @@ export const economy = {
     if (!this.bankerIn(p)) return { ok: false, msg: 'There is no banker here.' };
     const entry = p.inventory.find((e) => e.item.id === itemName || e.item.name.includes(itemName));
     if (!entry) return { ok: false, msg: 'You do not have that.' };
-    qty = Math.max(1, Math.min(entry.qty, Math.floor(qty) || 1));
-    removeItem(p, entry.item.id, qty);
+    qty = Math.max(1, Math.min(countItems(p, entry.item.id), Math.floor(qty) || 1));
+    const removed = removeItemInstances(p, entry.item.id, qty, entry);
+    const prior = db.prepare('SELECT qty, metadata FROM vault WHERE character_id=? AND item_id=?')
+      .get(p.charId, entry.item.id);
+    const metadata = isStackableItem(entry.item)
+      ? []
+      : [...vaultMetadata(prior?.metadata), ...removed.map(instanceMetadata)];
     db.prepare(`
-      INSERT INTO vault (character_id, item_id, qty) VALUES (?,?,?)
-      ON CONFLICT(character_id, item_id) DO UPDATE SET qty=qty+excluded.qty
-    `).run(p.charId, entry.item.id, qty);
+      INSERT INTO vault (character_id, item_id, qty, metadata) VALUES (?,?,?,?)
+      ON CONFLICT(character_id, item_id) DO UPDATE SET qty=excluded.qty, metadata=excluded.metadata
+    `).run(p.charId, entry.item.id, (prior?.qty || 0) + qty, JSON.stringify(metadata));
     return { ok: true, msg: `You store ${qty > 1 ? `${qty}x ` : ''}${entry.item.name} in your vault.` };
   },
 
   vaultRetrieve(p, itemName, qty = 1) {
     if (!this.bankerIn(p)) return { ok: false, msg: 'There is no banker here.' };
-    const row = db.prepare('SELECT item_id, qty FROM vault WHERE character_id=? AND item_id=?').get(p.charId, itemName);
-    const found = row || db.prepare('SELECT item_id, qty FROM vault WHERE character_id=?').all(p.charId)
+    const row = db.prepare('SELECT item_id, qty, metadata FROM vault WHERE character_id=? AND item_id=?').get(p.charId, itemName);
+    const found = row || db.prepare('SELECT item_id, qty, metadata FROM vault WHERE character_id=?').all(p.charId)
       .find((r) => { const it = itemById(r.item_id); return it && it.name.includes(itemName); });
     if (!found) return { ok: false, msg: 'Your vault holds nothing like that.' };
     qty = Math.max(1, Math.min(found.qty, Math.floor(qty) || 1));
-    addItem(p, found.item_id, qty);
+    const it = itemById(found.item_id);
+    const storedMetadata = vaultMetadata(found.metadata);
+    const retrievedMetadata = it && !isStackableItem(it)
+      ? Array.from({ length: qty }, (_, i) => instanceMetadata(storedMetadata[i] || {}))
+      : null;
+    addItem(p, found.item_id, qty, retrievedMetadata);
     const left = found.qty - qty;
     if (left <= 0) db.prepare('DELETE FROM vault WHERE character_id=? AND item_id=?').run(p.charId, found.item_id);
-    else db.prepare('UPDATE vault SET qty=? WHERE character_id=? AND item_id=?').run(left, p.charId, found.item_id);
-    const it = itemById(found.item_id);
+    else db.prepare('UPDATE vault SET qty=?, metadata=? WHERE character_id=? AND item_id=?')
+      .run(left, JSON.stringify(storedMetadata.slice(qty)), p.charId, found.item_id);
     return { ok: true, msg: `You retrieve ${qty > 1 ? `${qty}x ` : ''}${it ? it.name : found.item_id} from your vault.` };
   },
 
@@ -175,7 +197,7 @@ export const economy = {
   },
 
   commodityTrade(p, side, name, qty) {
-    if (p.room !== 'commodity_pit') return { ok: false, msg: 'The board only moves at the Grain Pit, west of Market Way.' };
+    if (p.room !== 'commodity_pit') return { ok: false, msg: 'The board only moves at the Grain Pit, north of Market Way.' };
     const def = commodityById(name);
     if (!def) return { ok: false, msg: 'No such commodity. The pit trades grain, wool, silk, and spices.' };
     qty = Math.max(1, Math.min(200, Math.floor(qty) || 1));

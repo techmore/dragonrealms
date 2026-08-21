@@ -1,7 +1,7 @@
-// Live spectator relay: a connected session may subscribe to another online
-// player's message stream (room/msg/combat/notice/error/prompt) and watch the
-// session unfold in real time. Used by the web spectator page and the bot
-// watcher. Spectators never mutate the game — the relay is one-way.
+// Live spectator relay for authenticated game masters. Player streams include
+// typed commands, so ordinary accounts cannot subscribe without a future,
+// explicit player-consent model. The session router validates the configured
+// GM credential and marks the session; these guards keep direct callers safe.
 import { weaponOf } from './player.js';
 import { roomById, ZONES } from '../data/world.js';
 
@@ -16,6 +16,8 @@ const DIRS = {
 
 // GM world feed: every online player's messages, tagged with the source.
 export function subscribeWorld(session) {
+  if (!session.gmAuthorized) return { ok: false, msg: 'GM authorization is required to watch the world feed.' };
+  unsubscribe(session);
   worldWatchers.add(session);
   session.spectating = '*world*';
   return { ok: true, msg: 'You are now watching the entire world feed.' };
@@ -29,6 +31,7 @@ function mirror(obj) {
 }
 
 export function subscribe(session, playerName) {
+  if (!session.gmAuthorized) return { ok: false, msg: 'GM authorization is required to watch a live player stream.' };
   const n = String(playerName || '').trim();
   if (!n) return { ok: false, msg: 'Spectate whom? Provide a player name.' };
   const target = [...session.game.players.values()].find((p) => p.name.toLowerCase() === n.toLowerCase());
@@ -36,6 +39,7 @@ export function subscribe(session, playerName) {
   if (session.player && session.player.charId === target.charId) {
     return { ok: false, msg: 'You cannot spectate yourself.' };
   }
+  unsubscribe(session);
   let set = watchers.get(target.charId);
   if (!set) {
     set = new Set();
@@ -63,7 +67,10 @@ export function subscribe(session, playerName) {
 }
 
 export function unsubscribe(session) {
-  for (const set of watchers.values()) set.delete(session);
+  for (const [charId, set] of watchers) {
+    set.delete(session);
+    if (set.size === 0) watchers.delete(charId);
+  }
   worldWatchers.delete(session);
   session.spectating = null;
 }

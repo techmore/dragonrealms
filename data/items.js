@@ -45,6 +45,8 @@ export const ITEMS = {
   steel_shield:  { id: 'steel_shield', name: 'a steel tower shield', type: 'armor', slot: 'shield', skill: 'shield_usage', armor: 42, value: 700, req: 6, burden: 2, desc: 'A great tower shield of interlocking steel.' },
 
   // --- Misc ---
+  stick:         { id: 'stick', name: 'a dry stick', type: 'misc', slot: null, value: 2, desc: 'A dry stick suitable for kindling.' },
+  branch:        { id: 'branch', name: 'a fallen branch', type: 'misc', slot: null, value: 4, desc: 'A sturdy fallen branch that should burn well.' },
   ration:        { id: 'ration', name: 'a dried ration', type: 'consumable', slot: null, value: 5, restore: 15, desc: 'A chewy ration that restores a little vigor.' },
   salve:         { id: 'salve', name: 'a healing salve', type: 'consumable', slot: null, value: 40, restore: 40, desc: 'A pungent salve that closes wounds.' },
   herb_mint:     { id: 'herb_mint', name: 'a sprig of trailmint', type: 'consumable', slot: null, value: 6, restore: 12, desc: 'A fragrant sprig that steadies the nerves.' },

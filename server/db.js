@@ -61,6 +61,7 @@ export function migrate() {
       link TEXT,
       achievements TEXT NOT NULL DEFAULT '[]',
       techniques TEXT NOT NULL DEFAULT '[]',
+      persistent_state TEXT NOT NULL DEFAULT '{}',
       soul INTEGER NOT NULL DEFAULT 50,
       empathic_stain INTEGER NOT NULL DEFAULT 0,
       devotion INTEGER NOT NULL DEFAULT 30,
@@ -85,7 +86,9 @@ export function migrate() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
       item_id TEXT NOT NULL,
-      qty INTEGER NOT NULL DEFAULT 1
+      qty INTEGER NOT NULL DEFAULT 1,
+      condition INTEGER,
+      quality REAL
     );
 
     CREATE TABLE IF NOT EXISTS equipment (
@@ -93,6 +96,7 @@ export function migrate() {
       slot TEXT NOT NULL,
       item_id TEXT NOT NULL,
       condition INTEGER NOT NULL DEFAULT 100,
+      quality REAL,
       PRIMARY KEY (character_id, slot)
     );
 
@@ -100,7 +104,8 @@ export function migrate() {
       character_id INTEGER PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,
       creature_id TEXT NOT NULL,
       count INTEGER NOT NULL,
-      done INTEGER NOT NULL DEFAULT 0
+      done INTEGER NOT NULL DEFAULT 0,
+      state TEXT NOT NULL DEFAULT '{}'
     );
 
     CREATE TABLE IF NOT EXISTS aliases (
@@ -114,6 +119,7 @@ export function migrate() {
       character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
       item_id TEXT NOT NULL,
       qty INTEGER NOT NULL DEFAULT 1,
+      metadata TEXT NOT NULL DEFAULT '[]',
       PRIMARY KEY (character_id, item_id)
     );
   `);
@@ -133,6 +139,7 @@ export function migrate() {
     ['link', 'TEXT'],
     ['achievements', "TEXT NOT NULL DEFAULT '[]'"],
     ['techniques', "TEXT NOT NULL DEFAULT '[]'"],
+    ['persistent_state', "TEXT NOT NULL DEFAULT '{}'"],
     ['soul', 'INTEGER NOT NULL DEFAULT 50'],
     ['empathic_stain', 'INTEGER NOT NULL DEFAULT 0'],
     ['devotion', 'INTEGER NOT NULL DEFAULT 30'],
@@ -146,6 +153,22 @@ export function migrate() {
   // Equipment condition (durability).
   try {
     db.exec('ALTER TABLE equipment ADD COLUMN condition INTEGER NOT NULL DEFAULT 100');
+  } catch { /* column already exists */ }
+  // Item instances carry their own durability and crafting quality. Nullable
+  // columns preserve legacy stack rows without manufacturing meaningless
+  // metadata for commodities and consumables.
+  for (const [table, col, def] of [
+    ['inventory', 'condition', 'INTEGER'],
+    ['inventory', 'quality', 'REAL'],
+    ['equipment', 'quality', 'REAL'],
+    ['vault', 'metadata', "TEXT NOT NULL DEFAULT '[]'"],
+  ]) {
+    try {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+    } catch { /* column already exists */ }
+  }
+  try {
+    db.exec("ALTER TABLE character_quest ADD COLUMN state TEXT NOT NULL DEFAULT '{}'");
   } catch { /* column already exists */ }
 }
 

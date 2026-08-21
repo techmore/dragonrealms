@@ -8,11 +8,24 @@ import { raceById } from '../data/races.js';
 import { roomById } from '../data/world.js';
 import { db } from './db.js';
 import { handleCommand } from './commands/index.js';
+import { bearerToken, headerToken, secretMatches } from './http-auth.js';
 
 const COMMANDS_PER_SEC = 20;
 const MAX_BODY = 16 * 1024;
 
-const apiSessions = new Map(); // token -> {token, accountId, username, player, cmdTimes}
+// API runtime sessions belong to a specific Game instance. Keeping them in a
+// per-game map prevents a token used by a test/secondary server from retaining
+// or controlling a Player object owned by another world.
+const apiSessionsByGame = new WeakMap();
+
+function sessionsFor(game) {
+  let sessions = apiSessionsByGame.get(game);
+  if (!sessions) {
+    sessions = new Map();
+    apiSessionsByGame.set(game, sessions);
+  }
+  return sessions;
+}
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -43,21 +56,44 @@ function readBody(req) {
   });
 }
 
-function bearer(req) {
-  const h = req.headers.authorization || '';
-  const m = /^Bearer\s+(\S+)$/i.exec(h);
-  return m ? m[1] : null;
+function ownsPlayer(game, s) {
+  return Boolean(s.player && game.players.get(s.player.charId) === s.player);
 }
 
-function apiSession(req) {
-  const token = bearer(req);
+function releasePlayer(game, s) {
+  const p = s.player;
+  s.player = null;
+  if (!p || game.players.get(p.charId) !== p) return false;
+  return game.removePlayer(p);
+}
+
+function sweepInvalidSessions(game, sessions, currentToken) {
+  for (const [token, s] of sessions) {
+    if (token === currentToken) continue;
+    if (validateSession(token)) continue;
+    releasePlayer(game, s);
+    sessions.delete(token);
+  }
+}
+
+function apiSession(req, game) {
+  const token = bearerToken(req);
   if (!token) return null;
+  const sessions = sessionsFor(game);
+  // API clients have no socket-close event. Opportunistically retire revoked
+  // or expired tokens so an abandoned driver cannot hold a character forever.
+  sweepInvalidSessions(game, sessions, token);
   const v = validateSession(token);
-  if (!v) return null;
-  let s = apiSessions.get(token);
+  if (!v) {
+    const stale = sessions.get(token);
+    if (stale) releasePlayer(game, stale);
+    sessions.delete(token);
+    return null;
+  }
+  let s = sessions.get(token);
   if (!s) {
     s = { token, accountId: v.accountId, username: v.username, player: null, cmdTimes: [] };
-    apiSessions.set(token, s);
+    sessions.set(token, s);
   }
   return s;
 }
@@ -118,20 +154,42 @@ function apiState(game, p) {
 }
 
 function enterWorld(game, s, charId) {
+  const active = game.players.get(charId);
+  if (active && active !== s.player) {
+    return {
+      ok: false,
+      error: 'That character is already active in another session. Log it out before trying again.',
+    };
+  }
+
+  if (active === s.player) {
+    active.ws.msgs = [];
+    return { ok: true, player: active };
+  }
+
+  // Availability is checked before releasing the old character, so a failed
+  // switch leaves the caller's current character intact.
+  releasePlayer(game, s);
   const p = loadPlayer(charId);
-  p.online = true;
   p.ws = virtualSocket();
-  p.corpses = [];
+  if (!game.addPlayer(p)) {
+    return {
+      ok: false,
+      error: 'That character is already active in another session. Log it out before trying again.',
+    };
+  }
   s.player = p;
-  game.addPlayer(p);
   const r = raceById(p.race.id);
   p.ws.msgs.push({ t: 'enter', msg: `\nYou are ${p.name}, a ${r.name} of the ${p.guild.name} guild.` });
   game.look(p);
   game.status(p);
-  return p;
+  return { ok: true, player: p };
 }
 
-export async function apiRequest(req, res, game) {
+export async function apiRequest(req, res, game, {
+  debugApiEnabled = process.env.DR_ENABLE_DEBUG_API === '1',
+  debugToken = process.env.DR_DEBUG_TOKEN,
+} = {}) {
   if (req.method === 'OPTIONS') return json(res, 204, {});
   const url = new URL(req.url, `http://${req.headers.host}`);
   const path = url.pathname.replace(/\/+$/, '') || '/api';
@@ -156,13 +214,14 @@ export async function apiRequest(req, res, game) {
   }
 
   // ---- Authenticated endpoints ----
-  const s = apiSession(req);
+  const s = apiSession(req, game);
   if (!s) return json(res, 401, { ok: false, error: 'Missing or invalid token.' });
 
   switch (`${req.method} ${path}`) {
     case 'POST /api/logout': {
+      releasePlayer(game, s);
       logoutSession(s.token);
-      apiSessions.delete(s.token);
+      sessionsFor(game).delete(s.token);
       return json(res, 200, { ok: true });
     }
     case 'GET /api/characters': {
@@ -184,29 +243,41 @@ export async function apiRequest(req, res, game) {
     case 'POST /api/enter': {
       const row = db.prepare('SELECT id FROM characters WHERE id=? AND account_id=?').get(Number(body.charId), s.accountId);
       if (!row) return json(res, 404, { ok: false, error: 'Not a valid character for this account.' });
-      const p = enterWorld(game, s, row.id);
+      const entered = enterWorld(game, s, row.id);
+      if (!entered.ok) return json(res, 409, entered);
+      const p = entered.player;
       return json(res, 200, { ok: true, messages: p.ws.msgs, state: apiState(game, p) });
     }
     case 'POST /api/command': {
-      if (!s.player || !game.players.has(s.player.charId)) {
+      if (!ownsPlayer(game, s)) {
         return json(res, 200, { ok: false, error: 'No active character. POST /api/enter first.' });
       }
       if (!rateLimit(s)) return json(res, 429, { ok: false, error: 'Rate limit exceeded (20 commands/sec).' });
       const p = s.player;
       p.ws.msgs = [];
-      handleCommand(game, p, String(body.command || ''));
+      // HTTP drivers are real player sessions too; enforce the same
+      // roundtime policy as WebSocket input.
+      handleCommand(game, p, String(body.command || ''), 0, { applyRT: true });
       return json(res, 200, { ok: true, messages: p.ws.msgs, state: apiState(game, p) });
     }
     case 'GET /api/state': {
-      if (!s.player || !game.players.has(s.player.charId)) {
+      if (!ownsPlayer(game, s)) {
         return json(res, 200, { ok: false, error: 'No active character. POST /api/enter first.' });
       }
       return json(res, 200, { ok: true, state: apiState(game, s.player) });
     }
     case 'POST /api/debug': {
-      // Test-only fixture endpoint: arrange deterministic states for analysis.
+      // Test-only fixture endpoint. It requires both a game-account session
+      // (validated above) and a distinct debug service secret.
+      if (!debugApiEnabled) return json(res, 404, { ok: false, error: 'Unknown API endpoint.' });
+      if (typeof debugToken !== 'string' || debugToken.length === 0) {
+        return json(res, 503, { ok: false, error: 'Debug API is enabled but DR_DEBUG_TOKEN is not configured.' });
+      }
+      if (!secretMatches(headerToken(req, 'x-dr-debug-token'), debugToken)) {
+        return json(res, 403, { ok: false, error: 'A valid debug credential is required.' });
+      }
       const p = s.player;
-      if (!p || !game.players.has(p.charId)) {
+      if (!ownsPlayer(game, s)) {
         return json(res, 200, { ok: false, error: 'No active character. POST /api/enter first.' });
       }
       const d = body || {};

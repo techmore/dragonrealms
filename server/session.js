@@ -3,13 +3,14 @@ import { WebSocketServer } from 'ws';
 import {
   registerAccount, loginAccount, validateSession, logoutSession, pruneExpiredSessions,
 } from './auth.js';
-import { MAX_CHARS } from './player.js';
+import { MAX_CHARS, putScript, delScript } from './player.js';
 import { raceById } from '../data/races.js';
 import { guildById } from '../data/guilds.js';
 import { db } from './db.js';
 import { handleCommand } from './commands/index.js';
 import { sendChargenMenu, doCharSelect, doCharCreate, doAlloc, doEnter } from './chargen.js';
 import { subscribe, unsubscribe, subscribeWorld, forward, forwardCommand } from './spectate.js';
+import { isGmToken } from './gm.js';
 
 const INPUT_MAX = 20; // commands per second
 
@@ -26,6 +27,8 @@ export function attachWebSocket(httpServer, game) {
       player: null,
       charCreate: null,     // {name, race, guild, stats, pool}
       cmdTimestamps: [],
+      gmAuthorized: false,
+      stateBeforeSpectate: null,
       game,
     };
     // Wrap the socket's send so any message the player emits (rooms, combat,
@@ -59,12 +62,19 @@ export function attachWebSocket(httpServer, game) {
 
     socket.on('close', () => {
       unsubscribe(session);
-      if (session.player) game.removePlayer(session.player);
-      if (session.token) logoutSession(session.token);
+      // A dropped network connection is not an explicit logout. Keep the
+      // account token valid so the reconnecting client can resume it. Also
+      // avoid an old socket evicting a newer connection for the same player.
+      if (session.player && game.players.get(session.player.charId) === session.player) {
+        game.removePlayer(session.player);
+      }
     });
   });
 
-  setInterval(pruneExpiredSessions, 60 * 60 * 1000).unref();
+  const pruneTimer = setInterval(pruneExpiredSessions, 60 * 60 * 1000);
+  pruneTimer.unref();
+  wss.once('close', () => clearInterval(pruneTimer));
+  return wss;
 }
 
 function route(session, msg) {
@@ -91,36 +101,100 @@ function route(session, msg) {
       doEnter(session);
       break;
     case 'spectate': {
+      if (!authorizeGmStream(session, msg.gmToken)) {
+        return session.send({ t: 'error', msg: 'GM authorization is required to watch a live player stream.' });
+      }
       const res = subscribe(session, msg.name);
       if (!res.ok) return session.send({ t: 'error', msg: res.msg });
-      session.state = 'spectating';
+      enterSpectatingState(session);
       session.send({ t: 'notice', msg: res.msg });
       break;
     }
     case 'worldwatch': {
+      if (!authorizeGmStream(session, msg.gmToken)) {
+        return session.send({ t: 'error', msg: 'GM authorization is required to watch the world feed.' });
+      }
       const res = subscribeWorld(session);
-      session.state = 'spectating';
+      if (!res.ok) return session.send({ t: 'error', msg: res.msg });
+      enterSpectatingState(session);
       session.send({ t: 'notice', msg: res.msg });
       break;
     }
     case 'unspectate': {
+      if (session.state !== 'spectating') {
+        return session.send({ t: 'notice', msg: 'You are not spectating anyone.' });
+      }
       unsubscribe(session);
+      session.state = session.stateBeforeSpectate || (session.accountId ? 'charselect' : 'login');
+      session.stateBeforeSpectate = null;
       session.send({ t: 'notice', msg: 'You are no longer spectating.' });
       break;
     }
+    case 'logout':
+      doLogout(session);
+      break;
     case 'input':
       rateLimit(session);
-      if (session.state === 'playing' && session.player) {
+      if (session.state === 'playing' && session.player &&
+          session.game.players.get(session.player.charId) === session.player) {
         forwardCommand(session.player, msg.line);
         handleCommand(session.game, session.player, msg.line, 0, { applyRT: true });
+      } else if (session.state === 'playing') {
+        session.send({ t: 'error', msg: 'This character is no longer active in this session.' });
       }
       break;
     case 'ping':
       session.send({ t: 'pong' });
       break;
+    case 'scripts_put': {
+      rateLimit(session);
+      const p = session.player;
+      if (session.state !== 'playing' || !p) break;
+      const res = putScript(p, msg.name, msg.body);
+      if (!res.ok) session.send({ t: 'error', msg: res.error });
+      session.send({ t: 'scripts', scripts: p.scripts || {} });
+      break;
+    }
+    case 'scripts_del': {
+      rateLimit(session);
+      const p = session.player;
+      if (session.state !== 'playing' || !p) break;
+      delScript(p, msg.name);
+      session.send({ t: 'scripts', scripts: p.scripts || {} });
+      break;
+    }
     default:
       session.send({ t: 'error', msg: 'Unknown message type.' });
   }
+}
+
+function authorizeGmStream(session, suppliedToken) {
+  if (session.gmAuthorized) return true;
+  session.gmAuthorized = isGmToken(suppliedToken);
+  return session.gmAuthorized;
+}
+
+function enterSpectatingState(session) {
+  if (session.state !== 'spectating') session.stateBeforeSpectate = session.state;
+  session.state = 'spectating';
+}
+
+function doLogout(session) {
+  unsubscribe(session);
+  if (session.player && session.game.players.get(session.player.charId) === session.player) {
+    session.game.removePlayer(session.player);
+  }
+  if (session.token) logoutSession(session.token);
+  session.state = 'login';
+  session.token = null;
+  session.accountId = null;
+  session.username = null;
+  session.player = null;
+  session.charCreate = null;
+  session.gmAuthorized = false;
+  session.stateBeforeSpectate = null;
+  session.send({ t: 'notice', msg: 'You have logged out.' });
+  session.send({ t: 'login_prompt', msg: 'login/register' });
 }
 
 async function doLogin(session, u, p) {
@@ -144,6 +218,12 @@ function doTokenLogin(session, token) {
 }
 
 function startAccountSession(session, info) {
+  // Re-authenticating on an existing socket is also a character switch. Drop
+  // only this session's owned runtime before presenting the new account menu.
+  if (session.player && session.game.players.get(session.player.charId) === session.player) {
+    session.game.removePlayer(session.player);
+  }
+  session.player = null;
   session.token = info.token;
   session.accountId = info.accountId;
   session.username = info.username;

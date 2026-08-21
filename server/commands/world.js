@@ -5,7 +5,8 @@ import { roomById } from '../../data/world.js';
 import { creatureById } from '../../data/creatures.js';
 import { npcById } from '../../data/npcs.js';
 import { barbarianAbilityById, FORGET_COOLDOWN_MS } from '../../data/abilities.js';
-import { gainSkillExp } from '../player.js';
+import { gainSkillExp, addItem } from '../player.js';
+import { itemById } from '../../data/items.js';
 import { setAlias, removeAlias, setRoundtime } from '../player.js';
 import { pad, matchSkill, findNpcByName, findInventoryItem, broadcastRoom, gameTime } from './util.js';
 
@@ -21,14 +22,14 @@ const HELP = `
   Items:     get <item>  |  drop <item>  |  inventory (i)  |  wear/wield <item>  |  remove <item>  |  use <item>  |  repair <item>  (gear wears with use)
   Death:     die in battle and you awaken at the temple — your gear lies with your corpse; search <corpse>, get <item> from corpse
   Shops:     list  |  buy <item> [qty]  |  sell <item> [qty]  |  deposit/withdraw <silvers>  |  vault/store/retrieve  |  pit  |  heal  |  auction offer/buy  (Auction Hall, north of the pit)
-  Training:  train <skill>  (pay silvers to advance guild skills)  |  train <stat> twice (Fane of Training, east of Temple Row)  |  circle
+  Training:  train <skill>  (pay silvers to advance guild skills)  |  train <stat> twice (Fane of Training, south of Temple Row)  |  circle
   TDPs:      tdp  |  raise <stat>  |  tdptrain <skill>
   Quests:    quest  |  claim  |  deliver  |  ask <leader> task
   Stances:   stance aggressive | defensive | guarded | balanced  (costs stance points)
   PvP:       duel <player> [blood|blow|pain] [reason] | accept/decline <player> | surrender | assault <player> (OPEN targets only) | recall warrant | pvp stance open|guarded|closed  (duels wilds only)
   Wilds:     forage  |  hunt  |  track  |  ladder  |  hide  |  ambush <creature>  |  rest  (recover)
   Skills:    perform  |  appraise <item>  |  study  (temple library)
-   Crafting:  craft <recipe>  (Tilted Retort)  |  forge <recipe>  (Ember Forge)  |  shape <recipe>  (Ember Forge, Engineering)  |  tailor <recipe>  (Needle & Thread, south of West Road)
+   Crafting:  craft <recipe>  (Tilted Retort)  |  forge <recipe>  (Ember Forge)  |  shape <recipe>  (Ember Forge, Engineering)  |  tailor <recipe>  (Needle & Thread, off West Road)
   Crime:     steal <npc>  (lift coin, town)  |  pick <strongbox>  |  plead guilty|innocent  (if jailed)
   Scripting: alias <name> <command>  |  use ";" to chain commands  (client: macro / timer)
   NPCs:      ask <npc> <topic>  (try "ask crier help")
@@ -46,6 +47,69 @@ export const commands = {
   claim(ctx) { claim(ctx); },
   deliver(ctx) { deliver(ctx); },
 
+  // The Rite of Departure: after death, the temple can draw one item from
+  // your corpse to the altar for a fee (DR's DEPART ITEM, compressed).
+  depart(ctx) {
+    const { game, p, arg1, emit } = ctx;
+    const fee = 10 * p.circle;
+    if (!arg1) {
+      return emit(`The priests offer the Rite of Departure: for ${fee} silvers they will draw one item from your last corpse to the temple altar. "depart <item>" — once per death.`);
+    }
+    if (p.room !== 'temple') return emit('The rite is performed only at the Temple of the Pantheon.');
+    if (!p.lastCorpse) return emit('You have no recent death for the rite to reach.');
+    const pile = game.floorItems.get(p.lastCorpse.room);
+    const corpse = pile ? pile.find((f) => f.uid === p.lastCorpse.uid) : null;
+    if (!corpse) return emit('Your old corpse is gone — scattered to the winds. The rite has nothing to reach.');
+    if (corpse.departed) return emit('The rite has already been sung over this corpse.');
+    if (p.silver < fee) return emit(`The rite demands ${fee} silvers, and you are short.`);
+    const n = arg1.toLowerCase();
+    const idx = corpse.items.findIndex((i) => itemById(i.id) && (itemById(i.id).name.toLowerCase().includes(n) || i.id.includes(n)));
+    let moved = null;
+    if (idx >= 0) {
+      const it = corpse.items[idx];
+      addItem(p, it.id, it.qty, it);
+      corpse.items.splice(idx, 1);
+      moved = itemById(it.id).name;
+    } else {
+      const eIdx = corpse.equipment.findIndex((e) => itemById(e.id) && (itemById(e.id).name.toLowerCase().includes(n) || e.id.includes(n)));
+      if (eIdx >= 0) {
+        const eq = corpse.equipment[eIdx];
+        addItem(p, eq.id, 1, eq);
+        corpse.equipment.splice(eIdx, 1);
+        moved = itemById(eq.id).name;
+      }
+    }
+    if (!moved) return emit(`The priests peer across the veil: no such thing lies on that corpse ("search" there will list it).`);
+    p.silver -= fee;
+    corpse.departed = true;
+    game.persistPlayer(p);
+    emit(`The priests chant, and the veil thins — ${moved} settles onto the altar, drawn from your fallen body. You pay ${fee} silvers and carry it off.`);
+  },
+
+  // Town debts: unpaid fines follow you; guards garnish on sight.
+  debts(ctx) {
+    const { p, emit } = ctx;
+    const debt = p.debt || 0;
+    if (!debt) return emit('You owe the town nothing. Your ledger is clean.');
+    emit(`You owe the town ${debt} silvers in outstanding costs. Guards garnish a quarter of your purse on sight; clear it at the bank with "paydebt <amount>".`);
+  },
+
+  paydebt(ctx) {
+    const { game, p, arg1, emit } = ctx;
+    const debt = p.debt || 0;
+    if (!debt) return emit('You owe the town nothing.');
+    const room = roomById(p.room);
+    if (!room || !room.npcs || !room.npcs.includes('banker')) return emit('Debts are settled at the bank, where the ledgers live.');
+    const amt = Math.max(0, Math.min(Math.floor(parseInt(arg1, 10) || 0), debt, p.silver));
+    if (!amt) return emit(`Usage: paydebt <amount> (you owe ${debt}; you carry ${p.silver}).`);
+    p.silver -= amt;
+    p.debt = debt - amt;
+    game.persistPlayer(p);
+    emit(p.debt === 0
+      ? `You lay ${amt} silvers on the counter. The clerk stamps your ledger PAID. "Your name is clean again."`
+      : `You pay ${amt} toward your debt. ${p.debt} silvers remain outstanding.`);
+  },
+
   plead(ctx) {
     const { game, p, emit } = ctx;
     if (p.room !== 'jail') return emit('You are not in jail.');
@@ -55,14 +119,16 @@ export const commands = {
       return emit(`The jailer looks up. "Guilty or innocent, thief?${remaining ? ` (${remaining}s left if you wait)` : ''}"`);
     }
     if (plea === 'guilty') {
-      const fine = 5 + p.circle * 5 + (p.warrant ? p.circle * 10 : 0);
+      const zoneMult = game.justiceZone(p) === 'strict' ? 1.5 : 1;
+      const fine = Math.round((5 + p.circle * 5 + (p.warrant ? p.circle * 10 : 0)) * zoneMult);
       const paid = Math.min(p.silver, fine);
       p.silver -= paid;
+      if (paid < fine) p.debt = (p.debt || 0) + (fine - paid);
       p.jailUntil = 0;
       const stocks = p.warrant ? 10 : 0; // murder earns the stocks
       p.warrant = null;
       p.room = 'square';
-      emit(`You plead guilty. The fine is ${fine} silvers — you pay ${paid}${paid < fine ? ' (the rest from your debts)' : ''}. Jailer Grum unlocks the door: "Mind your hands."`);
+      emit(`You plead guilty. The fine is ${fine} silvers — you pay ${paid}${paid < fine ? `, and the remaining ${fine - paid} silvers stand as town debt ("debts")` : ''}. Jailer Grum unlocks the door: "Mind your hands."`);
       if (stocks > 0) {
         p.stocksUntil = Date.now() + stocks * 1000;
         emit(`A crowd has gathered — for murder you are set in the stocks for ${stocks}s before you may move.`);
@@ -123,7 +189,10 @@ export const commands = {
 
   ladder(ctx) {
     const { game, p, arg1, emit } = ctx;
-    if (arg1 && !['province', 'city'].includes(arg1.toLowerCase())) return emit('Usage: ladder — or "ladder province" / "ladder city" to group.');
+    const VALID = ['province', 'city', 'undead', 'construct', 'beast', 'humanoid', 'spirit', 'skins', 'boxes'];
+    if (arg1 && !VALID.includes(arg1.toLowerCase())) {
+      return emit('Usage: ladder — or "ladder province|city" to group, or "ladder undead|construct|beast|humanoid|spirit|skins|boxes" to specialize.');
+    }
     emit(game.ladder(arg1 ? arg1.toLowerCase() : null));
   },
 
@@ -421,7 +490,7 @@ function askResponse(game, p, npc, topic) {
         return `\nThe Crossing has four hunting grounds:\n  Old Sewers (down from Temple Row) — rats and kobolds\n  Old Woods (west gate) — goblins and wolves\n  Whispering Marsh (east gate) — wisps\n  Deep Wilds (north from the woods) — forest trolls\nHunt what you can handle, and sell the hides in the market.`;
       }
       if (topic === 'guilds') {
-        return `\nEleven guilds have halls in the Guild District (east of the square). Visit your own hall to train skills and circle up.`;
+        return `\nEleven guilds have halls in the Guild District (west of the green). Visit your own hall to train skills and circle up.`;
       }
       if (topic === 'skills') {
         return `\nSkills grow through use — fight to learn weapons and defense, cast to learn magic, and skin your kills to learn skinning. Use "skills" and "exp" to track progress.`;

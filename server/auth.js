@@ -1,8 +1,9 @@
 // Secure account management: registration, login, sessions.
-// Passwords are hashed with scrypt (salt + per-user params). Login is
-// rate-limited with lockout after repeated failures.
+// Passwords are hashed with scrypt and a per-user salt. Expensive password
+// work runs off the event loop behind a small queue, while repeated failures
+// retain the account lockout policy.
 import {
-  randomBytes, scryptSync, timingSafeEqual, createHash,
+  randomBytes, scrypt, timingSafeEqual, createHash,
 } from 'node:crypto';
 import { db } from './db.js';
 
@@ -10,17 +11,94 @@ const SCRYPT_KEYLEN = 64;
 const MAX_ATTEMPTS = 5;
 const LOCK_MS = 10 * 60 * 1000; // 10 minute lockout
 const SESSION_MS = 12 * 60 * 60 * 1000; // 12 hour session
+const INVALID_LOGIN = 'Incorrect username or password.';
+const BUSY_LOGIN = 'Authentication service is busy. Try again shortly.';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// scrypt is intentionally more expensive than ordinary request work. Bound
+// both active libuv jobs and retained waiters so a burst cannot consume an
+// unbounded amount of native-worker or application memory.
+export const AUTH_WORK_LIMIT = 2;
+export const AUTH_QUEUE_LIMIT = 32;
+let activeAuthWork = 0;
+const authWorkQueue = [];
 
-function hashPassword(password, salt) {
-  return scryptSync(password, salt, SCRYPT_KEYLEN).toString('hex');
+class AuthWorkBusyError extends Error {
+  constructor() {
+    super(BUSY_LOGIN);
+    this.code = 'AUTH_WORK_BUSY';
+  }
 }
 
-function verifyPassword(password, salt, expectedHex) {
+function drainAuthWork() {
+  while (activeAuthWork < AUTH_WORK_LIMIT && authWorkQueue.length) {
+    const job = authWorkQueue.shift();
+    activeAuthWork++;
+    Promise.resolve()
+      .then(job.work)
+      .then(job.resolve, job.reject)
+      .finally(() => {
+        activeAuthWork--;
+        drainAuthWork();
+      });
+  }
+}
+
+function scheduleAuthWork(work) {
+  if (activeAuthWork >= AUTH_WORK_LIMIT && authWorkQueue.length >= AUTH_QUEUE_LIMIT) {
+    return Promise.reject(new AuthWorkBusyError());
+  }
+  return new Promise((resolve, reject) => {
+    authWorkQueue.push({ work, resolve, reject });
+    drainAuthWork();
+  });
+}
+
+// This is useful operational telemetry as well as a deterministic way to
+// assert the resource bound without exposing passwords, salts, or hashes.
+export function authWorkStats() {
+  return {
+    active: activeAuthWork,
+    queued: authWorkQueue.length,
+    activeLimit: AUTH_WORK_LIMIT,
+    queueLimit: AUTH_QUEUE_LIMIT,
+  };
+}
+
+function derivePassword(password, salt) {
+  return scheduleAuthWork(() => new Promise((resolve, reject) => {
+    scrypt(password, salt, SCRYPT_KEYLEN, (error, key) => {
+      if (error) reject(error);
+      else resolve(key);
+    });
+  }));
+}
+
+async function hashPassword(password, salt) {
+  return (await derivePassword(password, salt)).toString('hex');
+}
+
+async function verifyPassword(password, salt, expectedHex) {
   const expected = Buffer.from(expectedHex, 'hex');
-  const actual = scryptSync(password, salt, SCRYPT_KEYLEN);
+  const actual = await derivePassword(password, salt);
   return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+// Unknown users do the same scrypt work as real users, avoiding the former
+// fast-path timing signal. The value is a precomputed scrypt result for the
+// fixed dummy salt; it is never used to authenticate an account.
+const DUMMY_SALT = 'dragon-realms-auth-dummy-v1';
+const DUMMY_HASH = 'e49c72118266e4c63ba65f54af600aeb4c179d04ebca9c9f7ded712c87db09b82d3bb86a0dd4cb7b5c7e2788fa6de8ed1829c70d5cd79e2bfc0f52b104ba8ecc';
+
+function boundedPassword(password) {
+  // Registered passwords are capped at 128 characters, so a 129-character
+  // prefix can never authenticate and prevents giant login payloads from
+  // becoming giant native-worker inputs.
+  return String(password ?? '').slice(0, 129);
+}
+
+function busyResult(error) {
+  if (error?.code === 'AUTH_WORK_BUSY') return { ok: false, error: BUSY_LOGIN };
+  throw error;
 }
 
 function sessionToken() {
@@ -33,18 +111,24 @@ export function normalizeName(name) {
 
 export async function registerAccount(username, password) {
   const name = normalizeName(username);
+  const suppliedPassword = String(password ?? '');
   if (name.length < 3 || name.length > 24) {
     return { ok: false, error: 'Username must be 3-24 characters (letters, numbers, _ or -).' };
   }
-  if (!password || password.length < 8) {
+  if (typeof password !== 'string' || suppliedPassword.length < 8) {
     return { ok: false, error: 'Password must be at least 8 characters.' };
   }
-  if (password.length > 128) {
+  if (suppliedPassword.length > 128) {
     return { ok: false, error: 'Password is too long.' };
   }
 
   const salt = randomBytes(16).toString('hex');
-  const hash = hashPassword(password, salt);
+  let hash;
+  try {
+    hash = await hashPassword(suppliedPassword, salt);
+  } catch (error) {
+    return busyResult(error);
+  }
 
   try {
     const info = db.prepare(
@@ -60,9 +144,14 @@ export async function registerAccount(username, password) {
 export async function loginAccount(username, password) {
   const name = normalizeName(username);
   const row = db.prepare('SELECT * FROM accounts WHERE username = ?').get(name);
+  const suppliedPassword = boundedPassword(password);
   if (!row) {
-    await sleep(300); // constant-time-ish response for unknown accounts
-    return { ok: false, error: 'Incorrect username or password.' };
+    try {
+      await verifyPassword(suppliedPassword, DUMMY_SALT, DUMMY_HASH);
+    } catch (error) {
+      return busyResult(error);
+    }
+    return { ok: false, error: INVALID_LOGIN };
   }
 
   const now = Date.now();
@@ -71,17 +160,41 @@ export async function loginAccount(username, password) {
     return { ok: false, error: `Account locked. Try again in ${mins} minute(s).` };
   }
 
-  if (!verifyPassword(password, row.salt, row.pass_hash)) {
-    const attempts = row.failed_attempts + 1;
-    let lockedUntil = 0;
-    let error = `Incorrect username or password. (${MAX_ATTEMPTS - attempts} attempts left)`;
+  let passwordMatches;
+  try {
+    passwordMatches = await verifyPassword(suppliedPassword, row.salt, row.pass_hash);
+  } catch (error) {
+    return busyResult(error);
+  }
+
+  if (!passwordMatches) {
+    // The read occurs before asynchronous scrypt work, so increment in SQL to
+    // prevent concurrent failures from losing updates and bypassing lockout.
+    const updated = db.prepare(`
+      UPDATE accounts
+      SET failed_attempts = MIN(failed_attempts + 1, ?),
+          locked_until = CASE
+            WHEN failed_attempts + 1 >= ? THEN MAX(locked_until, ?)
+            ELSE 0
+          END
+      WHERE id = ?
+      RETURNING failed_attempts, locked_until
+    `).get(MAX_ATTEMPTS, MAX_ATTEMPTS, now + LOCK_MS, row.id);
+    const attempts = updated?.failed_attempts ?? row.failed_attempts + 1;
+    let error = INVALID_LOGIN;
     if (attempts >= MAX_ATTEMPTS) {
-      lockedUntil = now + LOCK_MS;
       error = 'Too many failed attempts. Account locked for 10 minutes.';
     }
-    db.prepare('UPDATE accounts SET failed_attempts = ?, locked_until = ? WHERE id = ?')
-      .run(attempts, lockedUntil, row.id);
     return { ok: false, error };
+  }
+
+  // A concurrent failure may have locked the account while this password was
+  // being derived. Observe that lock before resetting counters or issuing a
+  // session, matching the sequential behavior of the old synchronous path.
+  const current = db.prepare('SELECT locked_until FROM accounts WHERE id = ?').get(row.id);
+  if (current?.locked_until > Date.now()) {
+    const mins = Math.ceil((current.locked_until - Date.now()) / 60000);
+    return { ok: false, error: `Account locked. Try again in ${mins} minute(s).` };
   }
 
   db.prepare('UPDATE accounts SET failed_attempts = 0, locked_until = 0 WHERE id = ?').run(row.id);

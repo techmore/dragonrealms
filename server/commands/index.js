@@ -8,22 +8,42 @@ import { commands as shops } from './shops.js';
 import { commands as character } from './character.js';
 import { commands as world } from './world.js';
 
-const COMMAND_MODULES = [combat, magic, items, shops, character, world];
-const REGISTRY = Object.assign({}, ...COMMAND_MODULES);
+const COMMAND_MODULES = [
+  ['combat', combat], ['magic', magic], ['items', items],
+  ['shops', shops], ['character', character], ['world', world],
+];
+
+export function mergeCommandModules(modules) {
+  const registry = Object.create(null);
+  const owners = new Map();
+  for (const [moduleName, commands] of modules) {
+    for (const [verb, handler] of Object.entries(commands)) {
+      if (Object.hasOwn(registry, verb)) {
+        throw new Error(`Duplicate command "${verb}" in ${owners.get(verb)} and ${moduleName}`);
+      }
+      registry[verb] = handler;
+      owners.set(verb, moduleName);
+    }
+  }
+  return registry;
+}
+
+const REGISTRY = mergeCommandModules(COMMAND_MODULES);
 
 import { setRoundtime, roundtimeLeft } from '../player.js';
 
 // Commands that take roundtime (DR): each sets its own RT when it runs, and
 // is refused while RT is still counting down. Movement, passive reads, and
-// everything not in this set stay free during RT. `applyRT` is only enabled
-// from the real WS session (session.js) — tests and the simulator drive the
-// engine directly and are unaffected.
+// everything not in this set stay free during RT. `applyRT` is enabled by
+// both network session types (WebSocket and HTTP API); direct engine tests
+// and the simulator remain unaffected.
 export const RT_BLOCK = new Set([
   'attack', 'cast', 'berserk', 'roar', 'meditate', 'form', 'whirlwind', 'stomp', 'choke',
   'mageslash', 'dispel', 'backstab', 'snipe', 'slip', 'smite', 'impede', 'ambush', 'hide',
   'forage', 'scavenge', 'track', 'hunt', 'skin', 'steal', 'pick', 'study', 'perform', 'appraise',
+  'unlock', 'sing', 'appr', 'forge', 'shape', 'tailor', 'craft',
   'repair', 'use', 'drink', 'eat', 'khri', 'predict', 'harness', 'perceive', 'charge', 'invoke',
-  'focus', 'animate', 'ritual', 'devotion', 'beseech', 'enchante', 'glyph', 'summon', 'sacrifice',
+  'focus', 'animate', 'ritual', 'beseech', 'enchante', 'glyph', 'summon', 'sacrifice',
   'advance', 'retreat', 'flee',
 ]);
 

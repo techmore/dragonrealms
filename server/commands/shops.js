@@ -35,7 +35,7 @@ export const commands = {
 
   pit(ctx) {
     const { game, p, emit } = ctx;
-    if (p.room !== 'commodity_pit') return emit('The pit hall stands west of Market Way.');
+    if (p.room !== 'commodity_pit') return emit('The pit hall stands off Market Way.');
     emit(game.commodityBoard(p));
   },
 
@@ -120,7 +120,7 @@ export const commands = {
 
   speculate(ctx) {
     const { game, p, emit } = ctx;
-    if (p.room !== 'commodity_pit') return emit('Speculation happens at the Grain Pit, west of Market Way.');
+    if (p.room !== 'commodity_pit') return emit('Speculation happens at the Grain Pit, off Market Way.');
     const stake = 50;
     if (p.silver < stake) return emit(`Speculation costs ${stake} silvers, and you are short.`);
     p.silver -= stake;

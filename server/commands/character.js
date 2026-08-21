@@ -1,5 +1,5 @@
 // Character commands: stats, skills, TDPs, training, circling, khri, slots.
-import { guildById, circleRequirements, circleRequirementSummary, guildTrainedSkills, trainableSkills, spellsFor, guildTitle, capstoneFor } from '../../data/guilds.js';
+import { guildById, circleRequirements, circleRequirementSummary, guildTrainedSkills, trainableSkills, spellsFor, guildTitle, capstoneFor, spellSlotCost, spellSlotsTotal, spellSlotsUsed, guildMagicTier } from '../../data/guilds.js';
 import { SKILLS, CATEGORIES, totalRanks, expToNextRank, mindstate, skillTier } from '../../data/skills.js';
 import { manaTypeFor } from '../../data/mana.js';
 import { roomById } from '../../data/world.js';
@@ -52,7 +52,7 @@ export const commands = {
   raise(ctx) {
     const { p, arg1, emit } = ctx;
     if (p.room !== 'fane') {
-      return emit('TDPs are spent at the Fane of Training, east of Temple Row. Type "train <stat>" twice there to commit.');
+      return emit('TDPs are spent at the Fane of Training, south of Temple Row. Type "train <stat>" twice there to commit.');
     }
     if (!arg1) return emit('Usage: train <stat> (twice) — spends TDPs to permanently raise a stat.');
     const stat = STAT_NAMES.includes(arg1.toLowerCase()) ? arg1.toLowerCase() : null;
@@ -87,7 +87,7 @@ export const commands = {
     // Stat training at the Fane of Training (DR: TRAIN twice to confirm).
     const statArg = STAT_NAMES.includes(arg1.toLowerCase()) ? arg1.toLowerCase() : null;
     if (statArg) {
-      if (p.room !== 'fane') return emit('Stat training happens at the Fane of Training, east of Temple Row.');
+      if (p.room !== 'fane') return emit('Stat training happens at the Fane of Training, south of Temple Row.');
       if (p.stats[statArg] >= MAX_STAT) return emit('That stat is already at maximum.');
       if (p.trainPending !== statArg) {
         p.trainPending = statArg;
@@ -121,11 +121,27 @@ export const commands = {
     const { p, say, emit } = ctx;
     const guild = p.guild;
     if (!guild.magic) return emit('Your guild forswears magic.');
-    const rate = SLOT_RATES[guild.id] || 60;
-    const used = spellsFor(guild, p.circle).length;
-    const total = Math.max(3, Math.floor(rate * p.circle / 12));
-    const later = (guild.spells || []).filter((s) => s.minCircle > p.circle).length;
-    say(`\nSpell slots: ${used} of ${total} filled (${rate} slot rate @150 circles, ${guild.name} tier).\n${later ? `You will learn ${later} more by circle 10.` : 'All your spells are known.'}`);
+    const forgotten = Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [];
+    const total = spellSlotsTotal(guild, p.circle);
+    const used = spellSlotsUsed(guild, p.circle, forgotten);
+    const feat = p.circle >= 2 ? 2 : 0;
+    let msg = `\nSpell slots: ${used} of ${total} used (${guildMagicTier(guild)}-magic tier)${feat ? ' — includes your +2 circle-2 feat' : ''}.`;
+    const held = (guild.spells || []).filter((s) => s.minCircle <= p.circle && !forgotten.includes(s.id));
+    msg += held.length
+      ? '\nHeld:\n' + held.map((s) => `  ${s.name} — ${spellSlotCost(s)} slots, ${s.mana} mana`).join('\n')
+      : '\nYou hold no spells — learn one at your guild hall.';
+    // Forgotten or over-budget unlocks: relearnable at the hall when room allows.
+    const awaiting = (guild.spells || []).filter((s) => s.minCircle <= p.circle && forgotten.includes(s.id));
+    if (awaiting.length) {
+      msg += '\nAwaiting at your guild hall:';
+      for (const s of awaiting) {
+        const fits = used + spellSlotCost(s) <= total;
+        msg += `\n  ${s.name} — ${spellSlotCost(s)} slots${fits ? ' — "learn ' + s.name.toLowerCase() + '"' : ' — no room; forget something smaller first'}`;
+      }
+    }
+    const later = (guild.spells || []).filter((s) => s.minCircle > p.circle);
+    if (later.length) msg += `\nYou will reach: ${later.map((s) => `${s.name} (circle ${s.minCircle})`).join(', ')}.`;
+    say(msg);
   },
 
   rexp(ctx) {
@@ -144,7 +160,7 @@ export const commands = {
 
   respec(ctx) {
     const { p, emit } = ctx;
-    if (p.room !== 'fane') return emit('Respecs are granted at the Fane of Training, east of Temple Row.');
+    if (p.room !== 'fane') return emit('Respecs are granted at the Fane of Training, south of Temple Row.');
     const base = baseStatsFor(p.race.id);
     const spent = STAT_NAMES.reduce((s, n) => s + (p.stats[n] - base[n]), 0);
     if (spent <= 0) return emit('You have not spent any stat points yet — nothing to reroll.');
@@ -267,6 +283,23 @@ function circleUp(ctx) {
   const gained = tdpAwardFor(target);
   p.tdp += gained;
   let msg = `\nThe guild leader nods slowly. "Rise, ${p.name}. You are now a ${guildTitle(p.guild, target)}."\nYour vitality grows with your station. You gain ${gained} \x1b[1mTDPs\x1b[0m (${target >= 10 ? '100 base' : '50 base'} + circle bonus).`;
+  // Spell-slot economy: curriculum spells auto-grant while they fit the
+  // budget; otherwise they wait as learnable at the hall ("learn <spell>").
+  if (p.guild.magic) {
+    const forgotten = Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [];
+    for (const s of p.guild.spells || []) {
+      if (s.minCircle > target || forgotten.includes(s.id)) continue;
+      const used = spellSlotsUsed(p.guild, target, forgotten) + spellSlotCost(s);
+      if (used <= spellSlotsTotal(p.guild, target)) {
+        msg += `\n\n\x1b[1m${s.name}\x1b[0m is now yours ("slots" shows your budget).`;
+      } else {
+        if (!Array.isArray(p.spellsForgotten)) p.spellsForgotten = [];
+        p.spellsForgotten.push(s.id);
+        msg += `\n\nYour spell slots are full — ${s.name} awaits at your guild hall ("learn ${s.name.toLowerCase()}").`;
+      }
+    }
+    p.spellsKnown = spellsFor(p.guild, target).filter((s) => !p.spellsForgotten.includes(s.id)).map((s) => s.id);
+  }
   if (target >= 10) {
     const cap = capstoneFor(p.guild);
     if (cap) msg += `\n\n\x1b[1mYou have attained your guild capstone: ${cap.name}!\x1b[0m\n${cap.desc}`;

@@ -2,14 +2,26 @@
 import { createCharacter, loadPlayer, STAT_NAMES, MAX_STAT } from './player.js';
 import { RACES, raceById } from '../data/races.js';
 import { GUILDS, guildById } from '../data/guilds.js';
+import { manaTypeFor } from '../data/mana.js';
 import { db } from './db.js';
 
 function sendChargenMenu(session) {
   const races = Object.values(RACES).map((r) => `${r.id} - ${r.name}: ${r.desc}`).join('\n');
   const guilds = Object.values(GUILDS).map((g) => `${g.id} - ${g.name}: ${g.desc}`).join('\n');
+  // Structured twins of the prose lists: the client renders selection cards
+  // with stat modifiers and mana type; the prose stays for terminal purists.
+  const raceData = Object.values(RACES).map((r) => ({ id: r.id, name: r.name, desc: r.desc, stats: r.stats }));
+  const guildData = Object.values(GUILDS).map((g) => ({
+    id: g.id, name: g.name, desc: g.desc,
+    magic: Boolean(g.magic),
+    mana: manaTypeFor(g).type,
+    manaName: manaTypeFor(g).def.name,
+  }));
   session.send({
     t: 'charcreate',
     msg: `\nYou are a new soul in the Crossing.\n\n\x1b[1mChoose a race:\x1b[0m\n${races}\n\n\x1b[1mChoose a guild:\x1b[0m\n${guilds}\n\nName, race, and guild can be sent as: charcreate {name, race, guild}.`,
+    races: raceData,
+    guilds: guildData,
   });
 }
 
@@ -40,7 +52,9 @@ function doCharCreate(session, name, race, guild, city = 'crossing') {
   }
 
   const p = loadPlayer(charId);
-  p.online = true;
+  // Character creation owns only the allocation draft. Runtime ownership is
+  // claimed when the player actually enters the world.
+  p.online = false;
   p.ws = session.socket;
   session.player = p;
   session.state = 'charcreate_playing';
@@ -76,18 +90,38 @@ function doEnter(session) {
   if (p.unspentStat > 0) {
     session.send({ t: 'notice', msg: `Note: ${p.unspentStat} unspent point(s) remain. You can allocate them later with "alloc".` });
   }
-  session.state = 'playing';
-  enterWorld(session, p.charId);
+  // Keep the allocation draft object: reloading here would discard stat
+  // points assigned between character creation and entry.
+  enterWorld(session, p.charId, p);
 }
 
-function enterWorld(session, charId) {
-  const p = loadPlayer(charId);
-  p.online = true;
+function enterWorld(session, charId, candidate = null) {
+  const active = session.game.players.get(charId);
+  if (active && active !== candidate && active !== session.player) {
+    session.send({
+      t: 'error',
+      msg: 'That character is already active in another session. Log it out before trying again.',
+    });
+    return false;
+  }
+
+  const p = active === session.player ? active : (candidate || loadPlayer(charId));
+  const previous = session.player;
+  if (previous && previous !== p && session.game.players.get(previous.charId) === previous) {
+    session.game.removePlayer(previous);
+  }
+
   p.ws = session.socket;
   p.corpses = [];
+  if (!session.game.addPlayer(p)) {
+    session.send({
+      t: 'error',
+      msg: 'That character is already active in another session. Log it out before trying again.',
+    });
+    return false;
+  }
   session.player = p;
   session.state = 'playing';
-  session.game.addPlayer(p);
 
   const r = raceById(p.race.id);
   session.send({
@@ -96,6 +130,12 @@ function enterWorld(session, charId) {
   });
   session.game.look(p);
   session.game.status(p);
+  // Journal seed: the client's quest window opens with current state (or stays
+  // hidden when there is no active task).
+  import('./quests.js').then(({ quests }) => quests.pushQuest(p)).catch(() => {});
+  // Script library: the client's saved DR scripts follow the character.
+  session.send({ t: 'scripts', scripts: p.scripts || {} });
+  return true;
 }
 
 function pad(s, n) {

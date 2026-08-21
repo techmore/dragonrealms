@@ -1,6 +1,14 @@
 // Magic commands: casting, preparation, mana, cambrinth, familiars.
 import { roomById } from '../../data/world.js';
-import { spellsFor, spellById, spellTierFor, SPELL_TIER_RANKS } from '../../data/guilds.js';
+import { spellsFor, spellById, spellTierFor, SPELL_TIER_RANKS, spellSlotCost, spellSlotsTotal, spellSlotsUsed } from '../../data/guilds.js';
+
+// A spell is castable when your guild's curriculum reaches it and you have
+// not forgotten it. The slot budget is enforced where spells are granted
+// (circle-up and learn), so direct circle changes stay in sync automatically.
+function knownSpell(p, spell) {
+  if (spell.minCircle > p.circle) return false;
+  return !Array.isArray(p.spellsForgotten) || !p.spellsForgotten.includes(spell.id);
+}
 import { SKILLS } from '../../data/skills.js';
 import { manaTypeFor, manaCycle, roomManaLevel, manaDescriptor, safeOverchannelPct, backfireChance } from '../../data/mana.js';
 import { gainSkillExp, skillRank, removeItem, addItem, unlockAchievement, setRoundtime } from '../player.js';
@@ -16,6 +24,7 @@ export const commands = {
     const spell = resolved || spellsFor(guild, p.circle)[0];
     if (!spell) return emit('You do not know any spells yet.');
     if (spell.minCircle > p.circle) return emit(`You learn ${spell.name} at circle ${spell.minCircle}.`);
+    if (!knownSpell(p, spell)) return emit(`You have not yet learned ${spell.name}. Your guild hall can teach it ("learn ${spell.name.toLowerCase()}").`);
     const pct = Math.min(300, Math.max(100, parseInt(arg2, 10) || 100));
     p.prepared = { spellId: spell.id, pct };
     const safe = safeOverchannelPct(skillRank(p, 'primary_magic'));
@@ -41,6 +50,7 @@ export const commands = {
     const targetName = prepared ? arg1 : (resolved ? arg2 : arg1);
     if (!spell) return emit('You do not know any spells yet.');
     if (spell.minCircle > p.circle) return emit(`You learn ${spell.name} at circle ${spell.minCircle}.`);
+    if (!knownSpell(p, spell)) return emit(`You have not yet learned ${spell.name}. Your guild hall can teach it ("learn ${spell.name.toLowerCase()}").`);
     // Spell difficulty tiers (DR): command the skill before the spell obeys.
     const tier = spellTierFor(spell.minCircle);
     const req = SPELL_TIER_RANKS[tier];
@@ -113,7 +123,7 @@ export const commands = {
     if (['heal', 'flee', 'teleport', 'buff'].includes(spell.kind)) {
       const combat = game.combat.getFor(p);
       if (combat) {
-        combat.cast(spell, null, mult);
+        combat.cast(spell, null, { powerMult: mult, manaCost: cost });
         game.status(p);
       } else if (spell.kind === 'heal') {
         const skill = skillRank(p, spell.skill);
@@ -160,29 +170,44 @@ export const commands = {
         return emit('There is nothing to cast at. Try "attack <creature>" first.');
       }
     }
-    // Cost modifiers (lunar gating, insight, techniques) travel with the
-    // spell so the engine's own charge reflects them.
-    const baseMana = spell.mana;
-    if (cost !== Math.ceil(baseMana * mult)) {
-      combat.cast({ ...spell, mana: cost }, uid, 1);
-    } else {
-      combat.cast(spell, uid, mult);
-    }
+    // The engine owns the single mana debit. Potency travels separately so
+    // lunar/technique cost modifiers cannot erase overchannel scaling.
+    combat.cast(spell, uid, { powerMult: mult, manaCost: cost });
     game.status(p);
   },
 
   spells(ctx) {
-    const { p, say, emit } = ctx;
+    const { p, say } = ctx;
+    const guild = p.guild;
+    if (!guild.magic) return say('Your guild forswears magic.');
+    const isKnown = (s) => Array.isArray(p.spellsKnown) && p.spellsKnown.includes(s.id);
+    const known = (guild.spells || []).filter(isKnown);
+    const pending = (guild.spells || []).filter((s) => s.minCircle <= p.circle && !isKnown(s));
+    const later = (guild.spells || []).filter((s) => s.minCircle > p.circle);
+    let msg = known.length
+      ? 'Spells you hold:\n' + known.map((s) => `  ${s.name} — ${s.mana} mana (${s.desc})`).join('\n')
+      : 'You hold no spells yet.';
+    if (pending.length) msg += `\nAwaiting at your hall ("learn <spell>"): ${pending.map((s) => s.name).join(', ')}.`;
+    if (later.length) msg += `\nYou will reach: ${later.map((s) => `${s.name} (circle ${s.minCircle})`).join(', ')}.`;
+    say(`\n${msg}`);
+  },
+
+  // Learn a circle-reached spell at the guild hall, spending slot capacity.
+  // (Routed through combat.js's `learn` verb for magic guilds — see learnSpell.)
+
+  // Forget a held spell, freeing its slots. Free to relearn later.
+  forget(ctx) {
+    const { game, p, arg1, emit } = ctx;
     const guild = p.guild;
     if (!guild.magic) return emit('Your guild forswears magic.');
-    const known = spellsFor(guild, p.circle);
-    const later = (guild.spells || []).filter((s) => s.minCircle > p.circle);
-    let msg = `\nSpells known at circle ${p.circle}:`;
-    msg += known.length
-      ? '\n' + known.map((s) => `  ${s.name} — ${s.mana} mana (${s.desc})`).join('\n')
-      : '  none yet.';
-    if (later.length) msg += `\nYou will learn: ${later.map((s) => `${s.name} (circle ${s.minCircle})`).join(', ')}.`;
-    say(msg);
+    const spell = spellById(guild, arg1);
+    if (!spell || !knownSpell(p, spell)) return emit('You do not hold that spell.');
+    p.spellsKnown = (p.spellsKnown || []).filter((id) => id !== spell.id);
+    p.spellsForgotten = Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [];
+    if (!p.spellsForgotten.includes(spell.id)) p.spellsForgotten.push(spell.id);
+    game.persistPlayer(p);
+    const freed = spellSlotCost(spell);
+    emit(`You let ${spell.name} fade from memory (${spellSlotsUsed(guild, p.circle, p.spellsForgotten)}/${spellSlotsTotal(guild, p.circle)} spell slots, ${freed} freed). Your hall will teach it again whenever you ask.`);
   },
 
   perceive(ctx) {
@@ -467,6 +492,37 @@ export const commands = {
       : 'You beseech the sun — its warmth seeps into your bones, mending you as you fight.');
   },
 };
+
+// Spell learning for magic guilds, routed from combat.js's `learn` verb
+// (barbarians keep it for abilities). Teaches a circle-reached spell at the
+// guild hall while the slot budget allows.
+export function learnSpell(ctx) {
+  const { game, p, arg1, emit } = ctx;
+  const guild = p.guild;
+  if (!guild.magic) return emit('Your guild forswears magic.');
+  const spell = spellById(guild, arg1);
+  if (!spell) {
+    const names = (guild.spells || []).map((s) => s.name.toLowerCase()).join(', ');
+    return emit(`Your guild teaches: ${names}. ("slots" shows your budget.)`);
+  }
+  const room = roomById(p.room);
+  if (!room || !(room.id === `hall_${guild.id}` || room.id === 'rh_guilds')) {
+    return emit('You must stand in your own guild hall to learn spells.');
+  }
+  if (spell.minCircle > p.circle) return emit(`Your masters will not teach ${spell.name} until circle ${spell.minCircle}.`);
+  const forgotten = Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [];
+  if (!forgotten.includes(spell.id)) return emit(`You already hold ${spell.name}.`);
+  const total = spellSlotsTotal(guild, p.circle);
+  const used = spellSlotsUsed(guild, p.circle, forgotten);
+  const cost = spellSlotCost(spell);
+  if (used + cost > total) {
+    return emit(`No room in your mind: ${spell.name} needs ${cost} slots, you have ${total - used} free. Forget a spell first ("forget <spell>").`);
+  }
+  p.spellsForgotten = forgotten.filter((id) => id !== spell.id);
+  if (!p.spellsKnown.includes(spell.id)) p.spellsKnown.push(spell.id);
+  game.persistPlayer(p);
+  emit(`Your masters walk you through the forms. \x1b[1m${spell.name}\x1b[0m is yours (${used + cost}/${total} spell slots).`);
+}
 
 function cambrinth(ctx, action) {
   const { p, cmd, arg1, emit } = ctx;

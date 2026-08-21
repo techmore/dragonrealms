@@ -45,7 +45,7 @@ export const ROOMS = {
   tg_n: {
     id: 'tg_n', zone: 'town', name: 'Town Green North',
     desc: 'The northern edge of the green gives way to a broad avenue of shops and inns. Lanterns sway over the heads of the crowd, and the great North Gate looms in the distance.',
-    exits: { s: 'square', nw: 'square', ne: 'tg_ne', n: 'carousel_way' },
+    exits: { s: 'square', nw: 'north_road', ne: 'tg_ne', n: 'carousel_way' },
   },
   carousel_way: {
     id: 'carousel_way', zone: 'town', name: 'North Avenue',
@@ -60,7 +60,7 @@ export const ROOMS = {
   hall_street: {
     id: 'hall_street', zone: 'town', name: 'Hall Street',
     desc: 'A short street climbing gently east. The sturdy facade of the Town Hall rises ahead, its clock ticking solemnly over the lintel.',
-    exits: { s: 'carousel', e: 'town_hall', w: 'carousel' },
+    exits: { s: 'carousel', e: 'town_hall' },
   },
   town_hall: {
     id: 'town_hall', zone: 'town', name: 'Town Hall',
@@ -80,7 +80,7 @@ export const ROOMS = {
   jadewater_way: {
     id: 'jadewater_way', zone: 'town', name: 'Jadewater Way',
     desc: 'Two rooms east of the North Gate stands a grand manor set back from the road, its wrought-iron gates standing open.',
-    exits: { w: 'north_road', e: 'jadewater' },
+    exits: { w: 'north_road', nw: 'north_gate', e: 'jadewater' },
   },
   jadewater: {
     id: 'jadewater', zone: 'town', name: 'Jadewater Mansion',
@@ -169,7 +169,7 @@ export const ROOMS = {
   bank_plaza: {
     id: 'bank_plaza', zone: 'town', name: 'Court of the Bank', npcs: ['banker', 'quartermaster'],
     desc: 'A cobbled court before the low, iron-doored facade of the First Provincial Bank. Guards clatter by with wagons of bound steel. A ramp on the bank\'s east side climbs to the Market Plaza, and the road continues east toward the East Gate.',
-    exits: { w: 'market_way', e: 'east_road', n: 'order_hq' },
+    exits: { w: 'market_way', e: 'east_road', n: 'order_hq', s: 'market_end' },
   },
   order_hq: {
     id: 'order_hq', zone: 'town', name: 'Order Headquarters',
@@ -186,7 +186,7 @@ export const ROOMS = {
   east_road: {
     id: 'east_road', zone: 'town', name: 'East Road',
     desc: 'A wide road heading east past the market. The cold mist of the marsh hangs low over the fields ahead, and to the south a bridge spans the river toward the Tatting Street homes.',
-    exits: { w: 'bank_plaza', e: 'east_gate', s: 'longbow' },
+    exits: { w: 'bank_plaza', e: 'east_gate', s: 'longbow', nw: 'tg_se' },
   },
   east_gate: {
     id: 'east_gate', zone: 'town', name: 'East Gate', npcs: ['guard'],
@@ -270,7 +270,7 @@ export const ROOMS = {
   strand: {
     id: 'strand', zone: 'town', name: 'The Strand',
     desc: 'A tree-lined river walk along the banks of the Segoltha. Boats bob at the piers and gulls wheel overhead. The Strand Communal Center stands among the trees to the south, and a bank stair climbs toward the far southwestern reaches.',
-    exits: { n: 'south_road', s: 'strand_communal', e: 'sw_road' },
+    exits: { n: 'south_road', s: 'strand_communal', e: 'sw_road', ne: 'tg_sw' },
   },
   strand_communal: {
     id: 'strand_communal', zone: 'town', name: 'Strand Communal Center',
@@ -292,7 +292,7 @@ export const ROOMS = {
   tg_nw: {
     id: 'tg_nw', zone: 'town', name: 'Town Green Northwest',
     desc: 'The northwestern corner of the green, where a quiet, tree-lined road curves toward the temple quarter of the city.',
-    exits: { se: 'square', n: 'tg_n', w: 'nw_road' },
+    exits: { se: 'square', w: 'nw_road' },
   },
   nw_road: {
     id: 'nw_road', zone: 'town', name: 'Northwest Road',
@@ -362,7 +362,7 @@ export const ROOMS = {
   middens: {
     id: 'middens', zone: 'town', name: 'The Middens',
     desc: 'A sprawling junkyard where the town throws what it cannot sell. Rusted pikes, cracked amphorae, and heaps of nameless scrap lie in drifts. Scavengers pick through the refuse for anything worth a copper.',
-    exits: { n: 'east_road' },
+    exits: { n: 'east_gate' },
   },
   docks: {
     id: 'docks', zone: 'town', name: 'The Docks', npcs: ['dockmaster'],
@@ -492,7 +492,7 @@ export const ROOMS = {
   rh_square: {
     id: 'rh_square', zone: 'riverhaven', name: 'Riverhaven Town Square', npcs: ['towncrier'],
     desc: 'A broad square of red cobbles by the river. Fishing boats bob at the piers, gulls wheel overhead, and the smells of river mud and woodsmoke fill the air. Streets lead off in every direction.',
-    exits: { e: 'rh_market', s: 'rh_temple', w: 'rh_guilds', n: 'rh_ferry' },
+    exits: { e: 'rh_market', s: 'rh_temple', w: 'rh_guilds', n: 'rh_ferry', se: 'pier' },
   },
   rh_market: {
     id: 'rh_market', zone: 'riverhaven', name: 'Riverside Market', npcs: ['shopkeeper', 'weaponsmith', 'armorer', 'quartermaster', 'banker'],

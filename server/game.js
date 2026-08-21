@@ -11,7 +11,8 @@ import { bankRexp, pulseExp, unlockAchievement } from './player.js';
 import { manaRegenRate } from '../data/mana.js';
 import { VOICE_POOL } from '../data/abilities.js';
 import {
-  savePlayer, addItem, removeItem, unequipItem, skillRank, gainSkillExp,
+  savePlayer, addItem, removeItemInstances, isStackableItem,
+  instanceMetadata, skillRank, gainSkillExp,
 } from './player.js';
 import { CombatManager } from './combat-manager.js';
 import { economy } from './economy.js';
@@ -139,15 +140,29 @@ export class Game {
       }
     }, 60 * 1000);
     this.autosaveTicker.unref();
-    // Field-exp pulse: banked pool drains into ranks (DR pulse feel).
+    // Field-exp pulse: banked pools drain into ranks on staggered group
+    // phases (ten groups over five minutes, DR retention feel). Wall-clock
+    // tick keeps phases stable across restarts.
     this.pulseTicker = setInterval(() => {
+      const tick = Math.floor(Date.now() / (30 * 1000));
       for (const p of this.players.values()) {
         try {
-          if (pulseExp(p) > 0) savePlayer(p);
+          if (pulseExp(p, tick) > 0) savePlayer(p);
         } catch (e) { console.error('pulse error', e); }
       }
     }, 30 * 1000);
     this.pulseTicker.unref();
+  }
+
+  // Stop every background system as one idempotent lifecycle operation.
+  // Production shutdown and tests share this so no timer is forgotten when a
+  // new recurring subsystem is added.
+  stop() {
+    this.combat.stopTicker();
+    for (const key of ['respawnTicker', 'manaTicker', 'weatherTicker', 'autosaveTicker', 'pulseTicker']) {
+      if (this[key]) clearInterval(this[key]);
+      this[key] = null;
+    }
   }
 
   // Attunement pulses: magic guilds regenerate mana in steady pulses, faster
@@ -242,10 +257,18 @@ export class Game {
     );
   }
 
-  dropFloor(roomId, itemId, qty = 1) {
+  dropFloor(roomId, itemId, qty = 1, transferred = null) {
     const item = itemById(itemId);
     if (!item) return;
-    this.floorItems.get(roomId).push({ uid: creatureUid(), item, qty });
+    if (isStackableItem(item)) {
+      this.floorItems.get(roomId).push({ uid: creatureUid(), item, qty });
+      return;
+    }
+    const instances = Array.isArray(transferred) ? transferred : [];
+    for (let copy = 0; copy < qty; copy += 1) {
+      const metadata = instanceMetadata(instances[copy] || transferred || {});
+      this.floorItems.get(roomId).push({ uid: creatureUid(), item, qty: 1, ...metadata });
+    }
   }
 
   floorItemsIn(roomId) {
@@ -259,11 +282,24 @@ export class Game {
 
   // ---------- Player death: a corpse with your belongings stays where you fell ----------
   dropCorpse(p) {
-    const items = p.inventory.map(({ item, qty }) => ({ id: item.id, qty }));
-    const equipment = Object.keys(p.equipment).map((slot) => ({ slot, id: p.equipment[slot].id }));
+    const items = p.inventory.map((entry) => ({
+      id: entry.item.id,
+      qty: entry.qty,
+      ...(isStackableItem(entry.item) ? {} : instanceMetadata(entry)),
+    }));
+    const equipment = Object.keys(p.equipment).map((slot) => ({
+      slot,
+      id: p.equipment[slot].id,
+      ...instanceMetadata(p.equipment[slot]),
+    }));
     if (!items.length && !equipment.length) return null;
-    for (const slot of Object.keys(p.equipment)) unequipItem(p, slot);
-    for (const inv of [...p.inventory]) removeItem(p, inv.item.id, inv.qty);
+    // Move the rows as a unit. Unequipping first would temporarily merge gear
+    // with carried copies and could detach one instance's quality/condition.
+    db.prepare('DELETE FROM inventory WHERE character_id=?').run(p.charId);
+    db.prepare('DELETE FROM equipment WHERE character_id=?').run(p.charId);
+    p.inventory = [];
+    p.equipment = {};
+    p.handsDirty = true;
     const corpse = {
       uid: creatureUid(), corpse: true, owner: p.name, ownerCharId: p.charId,
       name: `${p.name}'s corpse`, qty: 1,
@@ -297,7 +333,7 @@ export class Game {
     const invIdx = corpse.items.findIndex((i) => itemById(i.id) && (itemById(i.id).name.toLowerCase().includes(n) || i.id.includes(n)));
     if (invIdx >= 0) {
       const it = corpse.items[invIdx];
-      addItem(p, it.id, it.qty);
+      addItem(p, it.id, it.qty, it);
       corpse.items.splice(invIdx, 1);
       this.clearEmptyCorpse(p, corpse);
       return { ok: true, msg: `You take ${it.qty > 1 ? `${it.qty}x ` : ''}${itemById(it.id).name} from the corpse.` };
@@ -305,7 +341,7 @@ export class Game {
     const eqIdx = corpse.equipment.findIndex((e) => itemById(e.id) && (itemById(e.id).name.toLowerCase().includes(n) || e.id.includes(n)));
     if (eqIdx >= 0) {
       const it = corpse.equipment[eqIdx];
-      addItem(p, it.id, 1);
+      addItem(p, it.id, 1, it);
       corpse.equipment.splice(eqIdx, 1);
       this.clearEmptyCorpse(p, corpse);
       return { ok: true, msg: `You retrieve ${itemById(it.id).name} from the corpse.` };
@@ -321,23 +357,38 @@ export class Game {
   }
 
   addPlayer(p) {
+    const owner = this.players.get(p.charId);
+    if (owner === p) return true;
+    if (owner) return false;
     this.players.set(p.charId, p);
     p.online = true;
     p.corpses = [];
     p.loginAt = Date.now();
+    return true;
   }
 
   removePlayer(p) {
-    this.players.delete(p.charId);
+    // A delayed close from an older socket must never evict or save over the
+    // runtime that currently owns this character.
+    if (this.players.get(p.charId) !== p) return false;
     p.online = false;
     this.stopRest(p);
     if (p.loginAt) bankRexp(p, Date.now() - p.loginAt);
     this.combat.disconnect(p);
-    this.persistPlayer(p);
+    try {
+      this.persistPlayer(p);
+    } finally {
+      this.players.delete(p.charId);
+    }
+    return true;
   }
 
   persistPlayer(p) {
+    // Persistence is an owner operation. In particular, a stale HTTP/WS
+    // session retaining an older Player object cannot overwrite live state.
+    if (this.players.get(p.charId) !== p) return false;
     savePlayer(p);
+    return true;
   }
 
   // ---------- Movement ----------
@@ -360,16 +411,19 @@ export class Game {
     if (p.room === 'jail') {
       const left = this.timeLeftInJail(p);
       if (left > 0) return { ok: false, msg: `The cell door is barred. ${left}s until your sentence is served (or "plead guilty").` };
-      // The judge's verdict: costs deducted on release (heat-scaled fine).
+      // The judge's verdict: costs deducted on release (heat-scaled fine,
+      // harsher in strict zones). Unpaid costs become town debt.
       const heat = p.crimeHeat || 0;
-      const fine = 5 + heat * 5;
+      const zoneMult = this.justiceZone(p) === 'strict' ? 1.5 : 1;
+      const fine = Math.round((5 + heat * 5) * zoneMult);
       const paid = Math.min(p.silver, fine);
       p.silver -= paid;
+      if (paid < fine) p.debt = (p.debt || 0) + (fine - paid);
       const hadWarrant = Boolean(p.warrant);
       p.jailUntil = 0;
       p.crimeHeat = 0;
       p.warrant = null;
-      p.ws.send(JSON.stringify({ t: 'msg', msg: `The judge's verdict is read: ${fine} silvers in town costs. You pay ${paid}${paid < fine ? ' (the rest from your debts)' : ''} and the cell door opens.${hadWarrant ? ' Your warrant is cleared.' : ''}` }));
+      p.ws.send(JSON.stringify({ t: 'msg', msg: `The judge's verdict is read: ${fine} silvers in town costs. You pay ${paid}${paid < fine ? ` — the remaining ${fine - paid} silvers stand as town debt` : ''} and the cell door opens.${hadWarrant ? ' Your warrant is cleared.' : ''}` }));
     }
     this.stopRest(p);
     p.hidden = false;
@@ -525,8 +579,20 @@ export class Game {
     this.persistPlayer(p);
   }
 
-  // A wanted player who walks past a guard is taken.
+  // A wanted player who walks past a guard is taken. Debtors are garnished.
   pursueWarrant(p) {
+    if (this.guardInRoom(p)) {
+      const debt = p.debt || 0;
+      if (!p.warrant && debt > 0) {
+        const take = Math.min(p.silver, Math.ceil(debt * 0.25));
+        if (take > 0) {
+          p.silver -= take;
+          p.debt = debt - take;
+          p.ws.send(JSON.stringify({ t: 'msg', msg: `A guard eyes you at the guardhouse ledger. "You still owe the town ${p.debt} silvers." He takes ${take} from your purse toward it.` }));
+          this.persistPlayer(p);
+        }
+      }
+    }
     if (!p.warrant || !this.guardInRoom(p)) return;
     p.silver = Math.max(0, p.silver - Math.floor(p.silver * 0.3));
     p.jailUntil = Date.now() + 120 * 1000;
@@ -624,6 +690,17 @@ export class Game {
   guardInRoom(p) {
     const room = roomById(p.room);
     return Boolean(room && room.npcs && room.npcs.includes('guard'));
+  }
+
+  // Justice zones (DR-flavored, compressed): lawless wilds have no law to
+  // break; the Guild District judges harshly; everywhere settled is standard.
+  justiceZone(p) {
+    const room = roomById(p.room);
+    if (!room) return 'none';
+    if (this.isWild(room.id)) return 'none';
+    if (room.zone !== 'town' && room.zone !== 'riverhaven') return 'none';
+    if (room.id === 'guild_district') return 'strict';
+    return 'standard';
   }
 
   // A guard spots the theft: jail, confiscation, and a pending plea.
@@ -778,11 +855,17 @@ export class Game {
     if (p.room !== 'auction_house') return { ok: false, msg: 'Lots are posted at the Merchants\' Auction Hall, north of the Grain Pit.' };
     const entry = p.inventory.find((e) => e.item.id === itemName || e.item.name.includes(itemName));
     if (!entry) return { ok: false, msg: 'You do not have that to offer.' };
-    qty = Math.max(1, Math.min(entry.qty, Math.floor(qty) || 1));
+    qty = Math.max(1, Math.min(
+      p.inventory.filter((e) => e.item.id === entry.item.id).reduce((sum, e) => sum + e.qty, 0),
+      Math.floor(qty) || 1,
+    ));
     if (!(price > 0)) return { ok: false, msg: 'Set a price in silvers: "auction offer <item> [qty] for <price>".' };
-    removeItem(p, entry.item.id, qty);
+    const instances = removeItemInstances(p, entry.item.id, qty, entry);
     const id = this.auctions.length ? Math.max(...this.auctions.map((a) => a.id)) + 1 : 1;
-    this.auctions.push({ id, seller: p.charId, sellerName: p.name, itemId: entry.item.id, itemName: entry.item.name, qty, price, at: Date.now() });
+    this.auctions.push({
+      id, seller: p.charId, sellerName: p.name, itemId: entry.item.id,
+      itemName: entry.item.name, qty, price, instances, at: Date.now(),
+    });
     gainSkillExp(p, 'trading', 6);
     return { ok: true, msg: `You chalk your lot on the board: ${entry.item.name}${qty > 1 ? ` x${qty}` : ''} at ${price} silvers. (listing #${id})` };
   }
@@ -796,7 +879,7 @@ export class Game {
     if (p.silver < lot.price) return { ok: false, msg: `That lot costs ${lot.price} silvers; you have ${p.silver}.` };
     p.silver -= lot.price;
     this.auctions = this.auctions.filter((a) => a !== lot);
-    addItem(p, lot.itemId, lot.qty);
+    addItem(p, lot.itemId, lot.qty, lot.instances || null);
     const seller = this.players.get(lot.seller);
     if (seller && seller.online) {
       seller.silver += lot.price;

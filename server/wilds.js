@@ -41,9 +41,9 @@ export const wilds = {
       const leveled = gainSkillExp(p, 'foraging', 3);
       return { ok: true, msg: `You comb the ground but find nothing useful.${leveled ? ' Your Foraging improved!' : ''}` };
     }
-    const pool = ['herb_mint', 'herb_mint', 'herb_root', 'herb_root', 'potion_heal'];
+    const pool = ['stick', 'stick', 'branch', 'herb_mint', 'herb_mint', 'herb_root', 'herb_root'];
     const roll = Math.random();
-    const itemId = roll < 0.02 ? 'potion_heal' : pool[Math.floor(Math.random() * 3)];
+    const itemId = roll < 0.02 ? 'potion_heal' : pool[Math.floor(Math.random() * pool.length)];
     addItem(p, itemId, 1);
     const leveled = gainSkillExp(p, 'foraging', 8);
     const item = itemById(itemId);
@@ -101,7 +101,17 @@ export const wilds = {
   // what each kind of prey yields (gems, coin, boxes, skins). With 'province'
   // the zones group under their province (the Crossing lands vs Riverhaven);
   // with 'city' the grounds group by which town they hang from.
-  ladder(province = null) {
+  // Specialized views filter by creature kind or loot tag (LADDER_FILTERS).
+  ladder(filter = null) {
+    const LADDER_FILTERS = {
+      undead: (d) => (d.kinds || []).includes('undead'),
+      construct: (d) => (d.kinds || []).includes('construct'),
+      beast: (d) => (d.kinds || []).includes('beast'),
+      humanoid: (d) => (d.kinds || []).includes('humanoid'),
+      spirit: (d) => (d.kinds || []).includes('spirit'),
+      skins: (d) => (d.lootTags || []).includes('skins'),
+      boxes: (d) => (d.lootTags || []).includes('box'),
+    };
     const TAG_NAMES = { skins: 'skins', gems: 'gems', coin: 'coin', box: 'boxes', named: 'rare loot' };
     const PROVINCES = {
       crossing: ['sewers', 'woods', 'marsh', 'deepwoods', 'camp', 'cinder', 'blackwood'],
@@ -111,12 +121,13 @@ export const wilds = {
       'the Crossing': ['sewers', 'woods', 'marsh', 'deepwoods', 'camp', 'cinder', 'blackwood'],
       Riverhaven: ['riverhaven'],
     };
+    const kindFilter = LADDER_FILTERS[filter];
     const groups = {};
     for (const [zoneId, zone] of Object.entries(ZONES)) {
-      if (province === 'province') {
+      if (!kindFilter && filter === 'province') {
         const prov = Object.entries(PROVINCES).find(([, zones]) => zones.includes(zoneId))?.[0] || 'crossing';
         (groups[prov] ||= []).push([zoneId, zone]);
-      } else if (province === 'city') {
+      } else if (!kindFilter && filter === 'city') {
         const city = Object.entries(CITY_ZONES).find(([, zones]) => zones.includes(zoneId))?.[0] || 'the Crossing';
         (groups[city] ||= []).push([zoneId, zone]);
       } else {
@@ -132,6 +143,7 @@ export const wilds = {
           for (const defId of room.spawns || []) {
             const def = creatureById(defId);
             if (def && !creatures[def.id]) {
+              if (kindFilter && !kindFilter(def)) continue;
               const tags = (def.lootTags || []).map((t) => TAG_NAMES[t] || t).join(', ');
               creatures[def.id] = `${def.teaches ? `teaches ${def.teaches[0]}–${def.teaches[1]}` : `circle ${def.circle}`}${tags ? ` · drops: ${tags}` : ''}`;
             }
@@ -140,12 +152,32 @@ export const wilds = {
       }
       const entries = Object.entries(creatures);
       if (entries.length) {
-        const label = province === 'province' && gid === 'crossing' ? 'Crossing lands' : gid === 'riverhaven' ? 'Riverhaven' : ZONES[gid]?.name || gid;
+        const label = !kindFilter && filter === 'province' && gid === 'crossing' ? 'Crossing lands' : gid === 'riverhaven' ? 'Riverhaven' : ZONES[gid]?.name || gid;
         rows.push(`\x1b[1m${label}\x1b[0m`);
         for (const [id, t] of entries) rows.push(`  ${pad(creatureById(id).name.replace(/^a /, ''), 26)} ${t}`);
       }
     }
-    return rows.length ? `\nHunting ladder (skill ranks a creature teaches best):\n${rows.join('\n')}${province ? '\n\n("ladder" alone lists every zone)' : ''}` : 'The hunting grounds are empty.';
+    if (kindFilter) {
+      // Flat, rank-sorted view for the specialized ladders.
+      const flat = [];
+      for (const [zoneId, zone] of Object.entries(ZONES)) {
+        for (const room of Object.values(ROOMS)) {
+          if (room.zone !== zoneId) continue;
+          for (const defId of room.spawns || []) {
+            const def = creatureById(defId);
+            if (def && kindFilter(def) && !flat.some(([id]) => id === def.id)) {
+              const tags = (def.lootTags || []).map((t) => TAG_NAMES[t] || t).join(', ');
+              flat.push([def.id, `${def.teaches ? `teaches ${def.teaches[0]}–${def.teaches[1]}` : `circle ${def.circle}`}${tags ? ` · drops: ${tags}` : ''}`, def.teaches ? def.teaches[0] : def.circle * 4]);
+            }
+          }
+        }
+      }
+      flat.sort((x, y) => x[2] - y[2]);
+      if (!flat.length) return 'No creatures match that ladder yet. Try "ladder" for the full list.';
+      const body = flat.map(([id, t]) => `  ${pad(creatureById(id).name.replace(/^a /, ''), 26)} ${t}`).join('\n');
+      return `\nHunting ladder — ${filter}:\n${body}\n\n("ladder" alone lists every zone; also "ladder skins|boxes|beast|humanoid|spirit|construct")`;
+    }
+    return rows.length ? `\nHunting ladder (skill ranks a creature teaches best):\n${rows.join('\n')}${filter ? '\n\n("ladder" alone lists every zone)' : ''}` : 'The hunting grounds are empty.';
   },
 
   // Blowing a warhorn calls beasts to the room (15-minute timer).

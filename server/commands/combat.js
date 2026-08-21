@@ -6,6 +6,7 @@ import { gainSkillExp, skillRank, stancePoints, STANCES, STANCE_COSTS, setRoundt
 import { weaponReach } from '../combat.js';
 import { pad } from './util.js';
 import { skinCreature } from './skin.js';
+import { learnSpell } from './magic.js';
 
 const STANCE_DESC = {
   aggressive: 'You strike harder, but guard worse.',
@@ -286,6 +287,7 @@ function abilities(ctx) {
 
 function learn(ctx) {
   const { game, p, arg1, emit } = ctx;
+  if (p.guild.magic) return learnSpell(ctx);
   if (p.guild.id !== 'barbarian') return emit('Only barbarians learn inner fire abilities.');
   if (roomById(p.room).id !== 'hall_barbarian') return emit('Abilities are taught at the barbarian guildhall.');
   if (!arg1) return emit('Learn what? See "abilities".');

@@ -7,7 +7,7 @@ import { roomById } from '../data/world.js';
 import { SKILLS, CATEGORIES } from '../data/skills.js';
 import {
   weaponOf, skillRank, effectiveRank, totalArmor, gainSkillExp, defenseSkillOf,
-  countItems, removeItem, addItem, totalBurden, maxStaminaEff, conditionMult,
+  countItems, removeItem, addItem, totalBurden, maxStaminaEff, conditionMult, qualityMult,
   wearCondition, setRoundtime, MASTERY_SETS,
 } from './player.js';
 import { itemById } from '../data/items.js';
@@ -224,8 +224,7 @@ export class Combat {
     let dmg;
     if (w) {
       dmg = rand(w.dmg[0], w.dmg[1]) + Math.floor(this.player.stats.str * 0.12);
-      const forged = this.player.forgedQuality && this.player.forgedQuality[w.id];
-      if (forged) dmg = Math.floor(dmg * forged);
+      dmg = Math.floor(dmg * qualityMult(w));
       // A worn blade bites less (durability).
       dmg = Math.floor(dmg * conditionMult(w));
       wearCondition(this.player, 'hand', 0.012);
@@ -430,7 +429,7 @@ export class Combat {
     // Armor is condition-scaled: worn gear guards less (durability).
     const armor = Object.entries(this.player.equipment)
       .filter(([, piece]) => piece.type === 'armor')
-      .reduce((tot, [, piece]) => tot + Math.floor(piece.armor * conditionMult(piece)), 0);
+      .reduce((tot, [, piece]) => tot + Math.floor(piece.armor * conditionMult(piece) * qualityMult(piece)), 0);
     // Glyph of Faith: the ward stiffens what you wear while it holds.
     const effArmor = this.player.buffs && this.player.buffs.glyph_ward > 0 ? Math.floor(armor * 1.1) : armor;
     dmg = Math.max(1, Math.floor(dmg * (1 - effArmor / (effArmor + 80))));
@@ -522,8 +521,9 @@ export class Combat {
     let dmg;
     if (w) {
       dmg = rand(w.dmg[0], w.dmg[1]) + Math.floor(p.stats.str * 0.12);
-      const forged = p.forgedQuality && p.forgedQuality[w.id];
-      if (forged) dmg = Math.floor(dmg * forged);
+      dmg = Math.floor(dmg * qualityMult(w));
+      dmg = Math.floor(dmg * conditionMult(w));
+      wearCondition(p, 'hand', 0.012);
     } else {
       dmg = rand(3, 7) + Math.floor(p.stats.str * 0.1);
     }
@@ -598,9 +598,15 @@ export class Combat {
   }
 
   // --- Spells ---
-  cast(spell, targetUid, mult = 1) {
+  cast(spell, targetUid, casting = 1) {
     const p = this.player;
-    let cost = Math.ceil(spell.mana * mult);
+    // Command casts may carry a mana cost altered by lunar conditions or a
+    // technique. Keep that charge separate from the power multiplier so a
+    // discount never flattens an overchannelled spell back to 100% power.
+    // The numeric form remains supported for direct engine callers.
+    const options = casting && typeof casting === 'object' ? casting : null;
+    const mult = options ? (options.powerMult ?? 1) : casting;
+    let cost = options?.manaCost ?? Math.ceil(spell.mana * mult);
     // Dim devotion makes holy magic thirstier.
     if (p.guild.id === 'cleric' && spell.skill === 'holy_magic' && (p.devotion ?? 30) < 20) {
       cost = Math.ceil(cost * 1.25);
@@ -659,6 +665,13 @@ export class Combat {
       this.teleportSpell();
       return;
     }
+    if (spell.kind === 'buff') {
+      p.buffs = p.buffs || {};
+      p.buffs[spell.buff.key] = (p.buffs[spell.buff.key] || 0) + spell.buff.ticks;
+      this.say(`You cast ${spell.name}! ${buffDesc(spell.buff.key)}`);
+      afterCast();
+      return;
+    }
 
     const target = this.enemies.find((e) => e.uid === targetUid && !e.dead);
     if (!target) { this.say('Your spell fizzles without a target.'); return; }
@@ -692,12 +705,6 @@ export class Combat {
         p.hp = Math.min(p.maxHp, p.hp + steal);
         this.say(`You cast ${spell.name}! ${cap(target.def.name)} is drained for ${dmg} damage and you drink ${steal} life!`);
         target.hp -= dmg;
-        break;
-      }
-      case 'buff': {
-        p.buffs = p.buffs || {};
-        p.buffs[spell.buff.key] = (p.buffs[spell.buff.key] || 0) + spell.buff.ticks;
-        this.say(`You cast ${spell.name}! ${buffDesc(spell.buff.key)}`);
         break;
       }
       case 'sleep': {
