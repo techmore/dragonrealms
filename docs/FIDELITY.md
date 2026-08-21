@@ -332,3 +332,56 @@ tiers) permanently blocked at compressed scale.
 
 Pick A, B, or C. A is the fidelity-first choice but is a game-feel earthquake
 and should follow a playtest of the §6 learning re-shape, not precede it.
+
+---
+
+## 8. Implementation plan — remaining exp-system gaps (D8/D9/D10)
+
+> **Status: PROPOSED.** One coherent "exp fidelity pass 2"; land after the
+> flat-cap baseline sweep settles.
+
+### 8.1 Offline drain (D10)
+
+At login, each skill's pool drains `min(1, minutesOut / 360)` (÷480 for
+characters warned in the last six months — we have no warnings; use 360),
+and the drained bits convert through the normal pulse path immediately.
+Below 30 minutes offline, nothing drains. Source: `Experience.md`,
+"Experience drain at login" table (30 min → 8.33% … 6 h → 100%).
+
+Implementation: record `lastLogoutAt` on logout/save; in `enterWorld`,
+for each pool move `fraction × pool` bits through `applyExpToSkill` (with
+REXP tripling if active — DR applies REXP to drained exp). Additive,
+~15 lines in `server/player.js` + a save-path timestamp.
+
+### 8.2 Bonus pools (D9)
+
+Experience 3.0 seeded every skillset with a bonus pool worth 60,300 bits
+(plus remainder-ranks); while it lasts, every bit absorbed from field exp
+pulls an equal bit from the bonus pool — doubling effective learning.
+New characters start full.
+
+Implementation: per-skillset balances keyed to our six categories
+(`data/skills.js` CATEGORIES → weapon/armor/magic/survival/lore/guild);
+seed 60,300 (+remainder allowance) at chargen; in `pulseExp`, after
+converting `drain` bits, consume `min(bonus, drain)` extra bits from the
+skillset's bonus pool and apply them too. `exp bonus` command reports
+remaining pools in DR phrasing ("Your Lore pool could fill N empty skills
+to 200 ranks…"). Touch points: `player.js` (state + pulse), `chargen.js`
+(seed), `commands/character.js` (report), persistence (new column or
+persistent_state key).
+
+### 8.3 REXP structure (D8 remainder)
+
+Adopt DR's shape minus subscriptions: pool cap 6 h (360 units), usage cap
+4 h per personal 23.5 h cycle, 20 s consumed per converting group-pulse
+(already shipped), banking only after 5 consecutive minutes not draining
+(already 2:1). Light/deep sleep: `sleep` once stops field-exp gain but
+keeps draining (uses REXP); `sleep sleep` banks REXP instead. Defer unless
+playtest asks — smallest fidelity return of the three.
+
+### 8.4 Order & verification
+
+D10 → D9 → (optional) D8. Each lands with: unit tests (drain fractions,
+bonus-pool doubling exhaustion, seed amounts), `npm test`, verify-docs,
+audit-data, and a before/after sim spot check — bonus pools especially
+will compress early-circle pacing (that doubling is authentic).
