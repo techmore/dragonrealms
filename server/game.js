@@ -71,6 +71,7 @@ export class Game {
     // Weather drifts every few game-hours; seasons follow the real calendar.
     this.weather = { kind: 'fair', until: Date.now() + 5 * 60 * 1000 };
     this.weatherTicker = null;
+    this.uptimeAt = Date.now(); // surfaced read-only via /api/gm/admin/status
   }
 
   // Roll a fresh weather state when the current one lapses.

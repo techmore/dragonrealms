@@ -90,11 +90,17 @@ GM API (`server/gm.js`, mounted at `/api/gm/*`, bearer = the exact dedicated
   guilds | races | skills | characters | player/<name> | players-online |
   admin/status | admin/reload | db` (DB browser: table list/dump or a
   bounded `SELECT … LIMIT n`; authentication tables/columns, SQLite internals,
-  compound queries, and write/DDL keywords are rejected).
+  compound queries, and write/DDL keywords are rejected). `admin/status`
+  reports `uptimeMs` (from `game.uptimeAt`, set at boot) plus `proc`
+  (RSS/heap/CPU counters, node/pid/platform) and `dbBytes`; the online view
+  includes `maxHp` so clients can render HP fractions.
 
 Clients: `public/gm.html` + `gm-console.js` (GM console: world map, player
 inspector, live per-player + world-wide streams) and `public/admin.html`
-(the admin dash landing page). A native macOS menu-bar/Dock app
+(ops dashboard: uptime/process load + latency & population sparklines,
+world census vitals, live roster with HP bars, zone NPC/spawn drill-down
+with live room queries, embedded player-view watch via `/?spectate=`,
+jobs log tailer, world reload). A native macOS menu-bar/Dock app
 (`admin/main.swift`, built by `scripts/build-admin-app.sh`) starts/stops the
 world and opens these pages: `open bin/admin/dragonrealms-admin`.
 

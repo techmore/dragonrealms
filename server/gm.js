@@ -346,7 +346,7 @@ function gmPlayer(res, game, name) {
 function onlineView(game) {
   return [...game.players.values()].map((p) => ({
     name: p.name, race: p.race.id, guild: p.guild.id, circle: p.circle,
-    room: p.room, hp: p.hp, inCombat: Boolean(p.combatId),
+    room: p.room, hp: p.hp, maxHp: p.maxHp, inCombat: Boolean(p.combatId),
   }));
 }
 
@@ -356,12 +356,30 @@ function onlineView(game) {
 function gmAdmin(res, game, action) {
   switch (action) {
     case 'status': {
+      const mem = process.memoryUsage();
+      const cpu = process.cpuUsage();
+      let dbBytes = null;
+      try {
+        const pc = db.prepare('PRAGMA page_count').get();
+        const ps = db.prepare('PRAGMA page_size').get();
+        if (pc && ps) dbBytes = Number(Object.values(pc)[0]) * Number(Object.values(ps)[0]);
+      } catch {}
       return json(res, 200, {
         ok: true, online: true,
         players: game.players.size,
         rooms: Object.keys(ROOMS).length,
         uptimeMs: (game.uptimeAt ? Date.now() - game.uptimeAt : null),
         gmTokenConfigured: true,
+        proc: {
+          pid: process.pid,
+          node: process.version,
+          platform: `${process.platform}-${process.arch}`,
+          rssBytes: mem.rss,
+          heapUsedBytes: mem.heapUsed,
+          cpuUserUs: cpu.user,
+          cpuSystemUs: cpu.system,
+        },
+        dbBytes,
       });
     }
     case 'reload': {
