@@ -77,7 +77,8 @@ function nearestSpawnRoom(from) {
 class LiveSim {
   constructor(guild) {
     this.guild = guild;
-    this.name = NAME_BASE + guild[0].toUpperCase() + guild.slice(1);
+    // Player names are letters-only server-side; strip everything else.
+    this.name = (NAME_BASE + guild[0].toUpperCase() + guild.slice(1)).replace(/[^a-zA-Z]/g, '');
     this.user = `sim_${guild}`;
     this.ws = null;
     this.phase = 'connect';
@@ -174,6 +175,7 @@ class LiveSim {
         this.onText(stripAnsi(String(m.msg || '')));
         break;
       case 'error':
+        log(`[${this.guild}] server error: ${m.msg}`);
         if (/Not a valid character/.test(String(m.msg)) && this.phase !== 'playing') {
           this.send({ t: 'charselect', id: 'new' });
         }
