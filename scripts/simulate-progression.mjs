@@ -16,6 +16,13 @@ const { circleRequirements, circleRequirementNeeds, trainableSkills } = await im
 const { CREATURES } = await import('../data/creatures.js');
 
 const GUILD = process.argv[2] || 'warmage';
+
+// Mirror all output to the /jobs.html live viewer (public/live/sim-<guild>.log).
+const { liveJob } = await import('./live-log.mjs');
+const jobLog = liveJob('sim-' + GUILD);
+const baseLog = console.log.bind(console);
+console.log = (...a) => { baseLog(...a); try { jobLog(a.join(' ')); } catch {} };
+
 migrate();
 const game = new Game();
 game.init();

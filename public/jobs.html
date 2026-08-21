@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dragon Realms — Live Jobs</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-monospace, Menlo, monospace; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px 20px; }
+    h1 { color: var(--amber); font-size: 20px; }
+    .sub { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
+    .jobs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .jobs button {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+      color: var(--text); padding: 6px 12px; cursor: pointer; font: inherit; font-size: 12px;
+    }
+    .jobs button.active { border-color: var(--amber); color: var(--amber); }
+    #log {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+      padding: 12px; font-size: 12px; line-height: 1.5; white-space: pre-wrap;
+      min-height: 420px; max-height: 70vh; overflow-y: auto;
+    }
+    .live { color: var(--green); }
+    .idle { color: var(--dim); }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>&#128200; Live jobs</h1>
+    <div class="sub">Tail output of long-running scripts (sims, verify runs). Scripts append to
+      <code>public/live/&lt;job&gt;.log</code>; this page polls every 2 s. <span id="state" class="idle">idle</span></div>
+    <div class="jobs" id="jobs"></div>
+    <div id="log">no job selected</div>
+  </main>
+  <script>
+    const logEl = document.getElementById('log');
+    const stateEl = document.getElementById('state');
+    const jobsEl = document.getElementById('jobs');
+    let current = null;
+    let lastSize = -1;
+
+    async function listJobs() {
+      try {
+        const r = await fetch('/live/index.json', { cache: 'no-store' });
+        const names = await r.json();
+        jobsEl.innerHTML = '';
+        for (const name of names) {
+          const b = document.createElement('button');
+          b.textContent = name;
+          if (name === current) b.classList.add('active');
+          b.onclick = () => { current = name; lastSize = -1; listJobs(); };
+          jobsEl.appendChild(b);
+        }
+      } catch {}
+    }
+
+    async function poll() {
+      if (!current) return;
+      try {
+        const r = await fetch('/live/' + current + '.log', { cache: 'no-store' });
+        const text = await r.text();
+        if (text.length !== lastSize) {
+          const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 30;
+          logEl.textContent = text || '(empty)';
+          if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+          lastSize = text.length;
+        }
+        const growing = await fetch('/live/' + current + '.log', { method: 'HEAD', cache: 'no-store' });
+        const len = Number(growing.headers.get('content-length') || 0);
+        const fresh = Date.now() - Number(growing.headers.get('last-modified') || 0) < 15000;
+        stateEl.className = fresh ? 'live' : 'idle';
+        stateEl.textContent = fresh ? '● live — appending' : '○ idle (last write ' + Math.round((Date.now() - Number(growing.headers.get('last-modified') || 0)) / 1000) + 's ago)';
+        void len;
+      } catch { stateEl.textContent = 'no log yet'; }
+    }
+
+    setInterval(listJobs, 5000);
+    setInterval(poll, 2000);
+    listJobs().then(() => {
+      current = document.querySelector('.jobs button')?.textContent || null;
+      if (current) listJobs();
+      poll();
+    });
+  </script>
+</body>
+</html>

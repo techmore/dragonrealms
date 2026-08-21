@@ -10,6 +10,7 @@ const MIME = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.json': 'application/json',
+  '.log': 'text/plain; charset=utf-8',
 };
 
 export function createStaticHandler(publicDir) {
