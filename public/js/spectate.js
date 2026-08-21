@@ -104,6 +104,9 @@ function watch(name) {
   localStorage.setItem('dr_gm_token', tokenInput.value.trim());
   watching = n;
   infoEl.textContent = `watching ${n}`;
+  const banner = document.getElementById('viewing-banner');
+  document.getElementById('banner-name').textContent = n;
+  banner.hidden = false;
   terminal.innerHTML = '';
   if (ws && ws.readyState === WebSocket.OPEN) sendSpectate();
   history.replaceState(null, '', `?name=${encodeURIComponent(n)}`);
@@ -114,4 +117,11 @@ nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') watch(name
 tokenInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') watch(nameInput.value); });
 
 connect();
-if (initial) { watching = initial; infoEl.textContent = `watching ${initial}`; }
+// Deep link (?name=…): start watching immediately when a GM token is already
+// stored (e.g. arrived from the admin roster's Watch button).
+if (initial && tokenInput.value.trim()) {
+  watch(initial);
+} else if (initial) {
+  watching = initial;
+  infoEl.textContent = `watching ${initial} — enter the GM token to connect`;
+}

@@ -215,7 +215,7 @@ const state = {
   pendingErrand: null,
 };
 
-const ws = new WebSocket('ws://localhost:3000/ws');
+const ws = new WebSocket('ws://localhost:3000/ws?bot=1');
 const send = (o) => {
   if (o.t === 'input') log(`cmd: ${o.line}`);
   ws.send(JSON.stringify(o));

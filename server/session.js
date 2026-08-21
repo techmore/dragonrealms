@@ -18,6 +18,9 @@ export function attachWebSocket(httpServer, game) {
   const wss = new WebSocketServer({ server: httpServer, maxPayload: 4096 });
 
   wss.on('connection', (socket, req) => {
+    // Bots self-identify at connect time (?bot=1) so status surfaces can
+    // distinguish them from human adventurers.
+    const isBot = /^\?bot=1/.test(req.url.split('?')[1] ? '?' + req.url.split('?')[1] : '');
     const session = {
       socket,
       state: 'login',       // login | charselect | charcreate | charcreate_playing | playing
@@ -25,6 +28,7 @@ export function attachWebSocket(httpServer, game) {
       accountId: null,
       username: null,
       player: null,
+      isBot,
       charCreate: null,     // {name, race, guild, stats, pool}
       cmdTimestamps: [],
       gmAuthorized: false,
@@ -99,6 +103,8 @@ function route(session, msg) {
       break;
     case 'enter':
       doEnter(session);
+      // Tag after entry so status surfaces (health, GM console) can flag bots.
+      if (session.player && session.isBot) session.player.isBot = true;
       break;
     case 'spectate': {
       if (!authorizeGmStream(session, msg.gmToken)) {

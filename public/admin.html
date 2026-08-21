@@ -9,6 +9,7 @@
     body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-monospace, Menlo, monospace; }
     .admin { max-width: 780px; margin: 0 auto; padding: 24px 20px; }
     h1 { color: var(--amber); }
+    .sub { color: var(--dim); font-size: 12px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 16px; }
     a.card {
       display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
@@ -17,15 +18,47 @@
     a.card:hover { border-color: var(--amber); }
     a.card .t { color: var(--amber); font-weight: bold; display: block; margin-bottom: 4px; }
     a.card .d { color: var(--dim); font-size: 11px; }
-    #status { margin-top: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 12px; }
-    #status .ok { color: var(--green); }
-    #status .down { color: var(--red); }
+
+    #status {
+      margin-top: 20px; background: var(--panel); border: 1px solid var(--line);
+      border-radius: 8px; padding: 12px; font-size: 13px;
+    }
+    #status .ok { color: var(--green); font-weight: bold; }
+    #status .down { color: var(--red); font-weight: bold; }
+    #roster { margin-top: 10px; }
+    .row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 4px; border-top: 1px solid var(--line); font-size: 12px;
+    }
+    .row:first-child { border-top: none; }
+    .row .nm { min-width: 130px; font-weight: bold; }
+    .row .cl { color: var(--dim); flex: 1; }
+    .badge { background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-size: 10px; color: var(--dim); }
+    .badge.bot { color: var(--amber); border-color: var(--amber); }
+    .watch {
+      background: none; border: 1px solid var(--line); border-radius: 5px; color: var(--text);
+      padding: 3px 9px; cursor: pointer; font: inherit; font-size: 11px;
+    }
+    .watch:hover { border-color: var(--amber); color: var(--amber); }
+    #gm-token-row { margin-top: 14px; font-size: 12px; }
+    #gm-token-row input {
+      background: var(--bg); color: var(--text); border: 1px solid var(--line);
+      border-radius: 5px; padding: 4px 8px; width: 240px; font: inherit;
+    }
   </style>
 </head>
 <body>
   <main class="admin">
     <h1>&#128009; Dragon Realms — Admin</h1>
-    <p class="sub">Monitoring and inspection. Read-only world tools live in the <b>GM Console</b>; the server itself runs via <code>npm start</code> or the <code>dragonrealms.service</code> unit (see <code>deploy/</code>).</p>
+    <p class="sub">Monitoring and inspection. The server runs via <code>npm start</code> or the <code>dragonrealms.service</code> unit (see <code>deploy/</code>).</p>
+
+    <div id="status"><span class="sub">checking server…</span></div>
+    <div id="roster"></div>
+
+    <div id="gm-token-row">
+      GM token (stored locally, used by Watch):
+      <input id="gm-token" type="password" placeholder="DR_GM_TOKEN" autocomplete="off" spellcheck="false">
+    </div>
 
     <div class="cards">
       <a class="card" href="/gm.html"><span class="t">&#128269; GM Console</span><span class="d">Read-only inspector: world, DB, live streams, world feed</span></a>
@@ -34,20 +67,45 @@
       <a class="card" href="/ROADMAP.html"><span class="t">&#128200; Roadmap</span><span class="d">Feature tracker and status</span></a>
       <a class="card" href="/SKILLS.html"><span class="t">&#128220; Skills reference</span><span class="d">All skills, categories, training</span></a>
     </div>
-
-    <div id="status"><span class="sub">checking server…</span></div>
   </main>
+
   <script>
-    (async () => {
-      const el = document.getElementById('status');
+    const statusEl = document.getElementById('status');
+    const rosterEl = document.getElementById('roster');
+    const tokenEl = document.getElementById('gm-token');
+    tokenEl.value = localStorage.getItem('dr_gm_token') || '';
+    tokenEl.addEventListener('change', () => localStorage.setItem('dr_gm_token', tokenEl.value.trim()));
+
+    function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+    function render(h) {
+      const online = h.online || [];
+      const bots = online.filter((p) => p.bot).length;
+      const humans = online.length - bots;
+      statusEl.innerHTML = `<span class="ok">&#9679; World online</span> — ${online.length} connected (${humans} adventurer${humans === 1 ? '' : 's'}, ${bots} bot${bots === 1 ? '' : 's'})`;
+      rosterEl.innerHTML = online.length ? online.map((p) => `
+        <div class="row">
+          <span class="nm">${esc(p.name)}${p.bot ? ' <span class="badge bot">BOT</span>' : ''}</span>
+          <span class="cl">${esc(p.guild || '?')} · circle ${p.circle}</span>
+          <button class="watch" data-name="${esc(p.name)}">&#128065; Watch</button>
+        </div>`).join('')
+        : '<div class="sub" style="margin-top:8px">nobody connected</div>';
+      rosterEl.querySelectorAll('.watch').forEach((b) => b.addEventListener('click', () => {
+        window.open('/spectate.html?name=' + encodeURIComponent(b.dataset.name), '_blank');
+      }));
+    }
+
+    async function poll() {
       try {
-        const r = await fetch('/api/health');
-        const h = await r.json();
-        el.innerHTML = `<span class="ok">&#9679; World online</span> — ${h.players || 0} player(s) connected`;
+        const r = await fetch('/api/health', { cache: 'no-store' });
+        render(await r.json());
       } catch {
-        el.innerHTML = `<span class="down">&#9679; World offline</span> — start it with the menu-bar app or npm start`;
+        statusEl.innerHTML = '<span class="down">&#9679; World offline</span> — start it with <code>npm start</code> or <code>systemctl start dragonrealms</code>';
+        rosterEl.innerHTML = '';
       }
-    })();
+    }
+    poll();
+    setInterval(poll, 3000);
   </script>
 </body>
 </html>

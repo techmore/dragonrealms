@@ -25,10 +25,25 @@
     <span id="watch-info" class="watch-info"></span>
   </div>
 
+  <div id="viewing-banner" hidden>
+    &#128065; VIEWING ONLY — you are watching <b id="banner-name"></b>.
+    Read-only: nothing you type reaches them. Their typed commands are shown as <code>&gt; …</code> echoes.
+  </div>
+
   <div id="terminal" aria-live="polite"></div>
 
   <div id="hint">GM-only live stream of the adventurer's session — including their typed commands.
     Enter the configured <code>DR_GM_TOKEN</code>; it is stored only in this browser's local storage.</div>
+
+  <style>
+    #viewing-banner {
+      position: sticky; top: 0; z-index: 5;
+      background: color-mix(in srgb, var(--amber) 18%, var(--panel));
+      border-top: 1px solid var(--amber); border-bottom: 1px solid var(--amber);
+      color: var(--text); font-size: 12px; padding: 6px 14px;
+    }
+    #viewing-banner b { color: var(--amber); }
+  </style>
 
   <script type="module" src="/js/spectate.js"></script>
 </body>
