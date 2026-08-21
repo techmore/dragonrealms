@@ -41,8 +41,15 @@ export const SKILLS = {
   },
   blunt: {
     id: 'blunt', name: 'Small Blunt', cat: CATEGORIES.WEAPON, range: 'Melee',
-    subskills: ['Clubs', 'Gavels', 'Mallets', 'Maces', 'War Hammers'],
-    training: 'Fight with clubs, maces, and war hammers.',
+    subskills: ['Clubs', 'Gavels', 'Mallets', 'Maces'],
+    training: 'Fight with clubs, gavels, and maces.',
+  },
+  // DR3: Large Blunt (2.0 "Heavy Blunt") — morning stars, hammers, ball and
+  // chains, heavy maces (Elanthipedia "Large Blunt skill").
+  large_blunt: {
+    id: 'large_blunt', name: 'Large Blunt', cat: CATEGORIES.WEAPON, range: 'Melee',
+    subskills: ['Morning Stars', 'War Hammers', 'Ball and Chains', 'Heavy Maces'],
+    training: 'Fight with morning stars, war hammers, and heavy maces.',
   },
   twohanded_blunt: {
     id: 'twohanded_blunt', name: 'Two-Handed Blunt', cat: CATEGORIES.WEAPON, range: 'Melee',

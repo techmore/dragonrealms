@@ -35,7 +35,7 @@ const CREATURE_HIT = [
 // DR weapon classes -> roundtime table (minimums from Elanthipedia Roundtime,
 // base a touch higher, reduced by Effective Strength toward the minimum).
 const WEAPON_CLASS = {
-  small_edged: 'light', blunt: 'light', offhand: 'light', brawling: 'brawling',
+  small_edged: 'light', blunt: 'light', large_blunt: 'heavy', offhand: 'light', brawling: 'brawling',
   medium_edged: 'medium',
   large_edged: 'heavy',
   twohanded_edged: 'twohanded', twohanded_blunt: 'twohanded', polearm: 'twohanded', staff: 'twohanded',

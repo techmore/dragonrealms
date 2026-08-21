@@ -97,7 +97,7 @@ export const CREATURES = {
     desc: 'A hulking, mossy troll whose regeneration knit wounds even as you watch. It stinks of rot and rage.',
     teaches: [10, 24],
     stats: { str: 20, con: 18, ref: 10, agi: 8 },
-    weapon: { skill: 'blunt', dmg: [14, 26], speed: 7 },
+    weapon: { skill: 'large_blunt', dmg: [14, 26], speed: 7 },
     armor: 30, defense: 20, regen: 4,
     loot: ['troll_hide', 'iron_ore'], lootTags: ['skins', 'gems'], gems: ['garnet'], exp: 520, aggressive: true,
   },

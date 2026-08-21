@@ -8,7 +8,7 @@ export const GUILDS = {
     desc: 'Lone wolves of the wild, barbarians channel raw fury into overwhelming violence. They shun magic and trust the axe, the bow, and the howl of battle.',
     magic: false,
     primary: ['large_edged', 'twohanded_edged', 'twohanded_blunt', 'light_armor', 'fitness', 'evasion'],
-    secondary: ['blunt', 'thrown', 'perception', 'foraging'],
+    secondary: ['blunt', 'large_blunt', 'thrown', 'perception', 'foraging'],
     guildSkill: "expertise",
     spell: null,
     spells: [],
@@ -250,7 +250,7 @@ export function spellById(guild, nameOrId) {
 // (source-game rules: mastery skills and Sorcery/Thievery never count).
 const NTH_POOLS = {
   weapon: [
-    'small_edged', 'medium_edged', 'large_edged', 'twohanded_edged', 'blunt', 'twohanded_blunt',
+    'small_edged', 'medium_edged', 'large_edged', 'twohanded_edged', 'blunt', 'large_blunt', 'twohanded_blunt',
     'slings', 'bow', 'crossbow', 'staff', 'polearm', 'thrown', 'heavy_thrown', 'brawling',
   ],
   armor: ['light_armor', 'chain_armor', 'brigandine', 'plate_armor', 'shield_usage'],

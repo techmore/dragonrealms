@@ -39,10 +39,17 @@ Sub-skills: Greatswords, Greataxes, Flamberges, Claymores
 
 ### Small Blunt — Melee
 
-Fight with clubs, maces, and war hammers.
+Fight with clubs, gavels, and maces.
 
-Sub-skills: Clubs, Gavels, Mallets, Maces, War Hammers
+Sub-skills: Clubs, Gavels, Mallets, Maces
 > _primary for Cleric, Empath, Necromancer, Trader, Warrior Mage · secondary for Barbarian_
+
+### Large Blunt — Melee
+
+Fight with morning stars, war hammers, and heavy maces.
+
+Sub-skills: Morning Stars, War Hammers, Ball and Chains, Heavy Maces
+> _secondary for Barbarian_
 
 ### Two-Handed Blunt — Melee
 

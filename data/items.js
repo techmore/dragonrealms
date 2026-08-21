@@ -16,7 +16,7 @@ export const ITEMS = {
   club:          { id: 'club', name: 'a stout club', type: 'weapon', slot: 'hand', skill: 'blunt', dmg: [4, 10], speed: 4, value: 15, burden: 0, desc: 'A simple, reliable club.' },
   // Tiered weapons (req = minimum circle to wield)
   steel_sword:   { id: 'steel_sword', name: 'a steel longsword', type: 'weapon', slot: 'hand', skill: 'medium_edged', dmg: [12, 22], speed: 5, value: 420, req: 3, burden: 1, desc: 'A fine steel longsword, well-tempered and true.' },
-  steel_mace:    { id: 'steel_mace', name: 'a steel war mace', type: 'weapon', slot: 'hand', skill: 'blunt', dmg: [10, 19], speed: 5, value: 300, req: 3, burden: 1, desc: 'A heavy steel mace that crushes armor.' },
+  steel_mace:    { id: 'steel_mace', name: 'a steel war mace', type: 'weapon', slot: 'hand', skill: 'large_blunt', dmg: [10, 19], speed: 5, value: 300, req: 3, burden: 1, desc: 'A heavy steel mace that crushes armor.' },
   steel_greatsword: { id: 'steel_greatsword', name: 'a steel greatsword', type: 'weapon', slot: 'hand', skill: 'twohanded_edged', dmg: [20, 34], speed: 8, value: 700, req: 5, burden: 3, desc: 'A massive steel blade fit for a veteran.' },
   yew_longbow:   { id: 'yew_longbow', name: 'a yew longbow', type: 'weapon', slot: 'hand', skill: 'bow', dmg: [10, 20], speed: 5, value: 420, req: 4, burden: 1, desc: 'A tall yew bow with a long, deadly draw.' },
   war_crossbow:  { id: 'war_crossbow', name: 'a war crossbow', type: 'weapon', slot: 'hand', skill: 'crossbow', dmg: [14, 26], speed: 6, value: 520, req: 6, burden: 2, desc: 'A heavy crossbow that punches through mail.' },
