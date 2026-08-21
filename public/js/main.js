@@ -130,6 +130,12 @@ function onMessage(msg) {
       break;
     case 'charselect':
       if (gameState.spectating) break;
+      // Deep-linked spectate must survive session resume: a stored game
+      // token skips login_prompt entirely, landing straight here.
+      if (autoSpectate && hasStoredGmToken()) {
+        import('./spectate-mode.js').then((m) => m.enterSpectate(autoSpectate));
+        break;
+      }
       gameState.value = 'charselect';
       terminal.append(msg.msg, 'ch-notice');
       welcome.showWelcome('charselect', msg.msg);
@@ -137,6 +143,10 @@ function onMessage(msg) {
       break;
     case 'charcreate':
       if (gameState.spectating) break;
+      if (autoSpectate && hasStoredGmToken()) {
+        import('./spectate-mode.js').then((m) => m.enterSpectate(autoSpectate));
+        break;
+      }
       gameState.value = 'charcreate';
       gameState.inChargen = true;
       welcome.enterChargen(msg);
