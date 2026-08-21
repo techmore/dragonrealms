@@ -45,6 +45,9 @@ scripts/
   client-corpus.mjs    capture/replay/diff harness for behavior preservation
   client-regression.mjs 18-check CDP suite (headless Chromium)
   simulate-progression.mjs  headless grind to circle 10 per guild
+  live-sim.mjs          progression sims over the REAL wire protocol (WS
+                        sessions, no bot flag) — indistinguishable players
+                        that exercise auth/chargen/dispatch; watchable live
 ```
 
 ## Command architecture
