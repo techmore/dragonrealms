@@ -41,6 +41,19 @@ test('404 for missing files', () => {
   assert.equal(res.calls[0][1], 404);
 });
 
+test('pretty URL: extensionless path falls back to <path>.html', () => {
+  const res = fakeRes();
+  handle(req('/admin'), res);
+  assert.equal(res.calls[0][1], 200);
+  assert.match(String(res.calls[0][2]['Content-Type']), /^text\/html/);
+});
+
+test('extensionless miss still 404s (no phantom .html)', () => {
+  const res = fakeRes();
+  handle(req('/nope'), res);
+  assert.equal(res.calls[0][1], 404);
+});
+
 test('blocks path traversal', () => {
   const res = fakeRes();
   handle(req('/..%2f..%2fserver%2fauth.js'), res);

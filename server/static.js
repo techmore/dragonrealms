@@ -18,7 +18,12 @@ export function createStaticHandler(publicDir) {
     try {
       let path = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
       if (path === '/') path = '/index.html';
-      const filePath = join(publicDir, path);
+      let filePath = join(publicDir, path);
+      // Pretty URLs: an extensionless miss falls back to <path>.html
+      // (/admin -> admin.html). Traversal guards below are unchanged.
+      if (!existsSync(filePath) && !extname(path)) {
+        filePath = join(publicDir, `${path}.html`);
+      }
       if (!filePath.startsWith(publicDir) || !existsSync(filePath)) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('Not found');
