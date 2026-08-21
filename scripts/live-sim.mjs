@@ -86,6 +86,13 @@ class LiveSim {
     this.creatures = []; this.exits = [];
     this.pathQueue = [];
     this.kills = 0; this.hunts = 0;
+    this.mode = 'hunt';          // hunt | goHall | hallwait | training
+    this.modeAt = Date.now();
+    this.trainQueue = [];        // [{skill, need, have}]
+    this.killsAtVisit = 0;
+    this.circles = 0;
+    this.armed = false;
+    this.armStage = null;        // null | 'go' | 'buy'
     this.startedAt = Date.now();
     this.lastCmdAt = 0;
     this.logPath = new URL(`../public/live/sim-${guild}.log`, import.meta.url);
@@ -151,6 +158,7 @@ class LiveSim {
         this.phase = 'playing';
         log(`[${this.guild}] ${this.name} entered the world`);
         this.appendLog(`=== live sim ${this.name} (${RACE} ${this.guild}) started ${new Date().toISOString()} ===`);
+        this.setMode('armUp'); // every adventurer arms up first
         break;
       case 'room':
         this.onRoom(m);
@@ -160,6 +168,10 @@ class LiveSim {
         break;
       case 'combat':
         if (/dies|slumps|corpse/i.test(String(m.msg))) this.kills += 1;
+        break;
+      case 'msg':
+      case 'notice':
+        this.onText(stripAnsi(String(m.msg || '')));
         break;
       case 'error':
         if (/Not a valid character/.test(String(m.msg)) && this.phase !== 'playing') {
@@ -185,25 +197,141 @@ class LiveSim {
     if (hp) { this.hp = Number(hp[1]); this.maxHp = Number(hp[2]); }
     const circle = /Circle\s*(\d+)/.exec(plain);
     if (circle) this.circle = Number(circle[1]);
+    const rt = /RT:\s*(\d+)/.exec(plain);
+    this.rt = rt ? Number(rt[1]) : 0;
     this.inCombat = /\[COMBAT\]/.test(plain);
+    this.restingFlag = /\[Resting\]/.test(plain);
+  }
+
+  // Guild/leveling validation: parse circle attempts, missing-skill lists,
+  // and TDP exhaustion straight from the player-facing prose.
+  onText(text) {
+    if (this.phase !== 'playing') return;
+    if (this.mode === 'armUp') {
+      if (/You buy|you purchas/i.test(text)) {
+        this.cmd('wield club');
+        this.armed = true;
+        log(`[${this.guild}] bought and wielded a club`);
+        this.setMode('hunt');
+        return;
+      }
+      if (/no shopkeeper|do not have|out of stock/i.test(text)) {
+        this.armed = true;
+        this.setMode('hunt');
+        return;
+      }
+    }
+    if (/Rise, /.test(text) && /now a /.test(text)) {
+      this.circles += 1;
+      this.appendLog(`*** CIRCLE-UP OK -> circle ${this.circle + 1} (guild/leveling path works) ***`);
+      log(`[${this.guild}] ${this.name} CIRCLED UP -> circle ${this.circle + 1}`);
+      this.setMode('hunt');
+      this.killsAtVisit = this.kills;
+      return;
+    }
+    if (/not yet ready to circle/.test(text)) {
+      const re = /([a-z0-9' ]+?)\s+at least rank (\d+)\s+\(you have (\d+)\)/g;
+      let m2; const list = [];
+      while ((m2 = re.exec(text))) list.push({ skill: m2[1].trim(), need: +m2[2], have: +m2[3] });
+      if (list.length) {
+        list.sort((a, b) => (b.need - b.have) - (a.need - a.have));
+        this.trainQueue = list;
+        this.setMode('training');
+        log(`[${this.guild}] circle blocked: ${list.map((x) => `${x.skill} ${x.have}/${x.need}`).join(', ')}`);
+      }
+      return;
+    }
+    if (this.mode === 'training' && /costs \d+ TDPs; you have \d+\./.test(text)) {
+      // Out of TDPs for the front skill — drop it; empty queue means hunt more.
+      this.trainQueue.shift();
+      if (!this.trainQueue.length) { this.setMode('hunt'); this.killsAtVisit = this.kills; }
+    }
+  }
+
+  setMode(mode) {
+    this.mode = mode;
+    this.modeAt = Date.now();
   }
 
   async tick() {
     if (this.phase !== 'playing' || this.done) return;
 
-    // hurt badly mid-fight -> flee; hurt with no fight -> rest up
+    // survival always wins
     const frac = this.maxHp ? this.hp / this.maxHp : 1;
     if (this.inCombat && frac < 0.3) return this.cmd('flee');
-    if (!this.inCombat && frac < 0.6 && !this.creatures.length) return this.cmd('rest');
-    if (!this.inCombat && frac < 0.9 && this.resting) return; // keep resting
-    this.resting = frac < 0.9 && !this.creatures.length;
 
+    // Rest when hurt — issue 'rest' ONCE, then let the [Resting] prompt flag
+    // carry it (spamming rest just floods "You are already resting.").
+    if (this.resting) {
+      if (frac >= 0.75 || this.creatures.length || Date.now() - this.restSince > 30000) {
+        this.resting = false;
+        if (this.restingFlag) this.cmd('stand');
+      } else return;
+    }
+    if (!this.inCombat && frac < 0.5 && !this.creatures.length && !this.restingFlag
+        && Date.now() - (this.restSince || 0) > 5000) {
+      this.resting = true;
+      this.restSince = Date.now();
+      return this.cmd('rest');
+    }
+
+    // fight whatever is here, whatever we were doing
     if (this.creatures.length) {
+      if (this.rt > 0) return; // roundtime — wait it out like a player would
       this.hunts += 1;
       return this.cmd(`attack ${this.creatures[0]}`);
     }
 
-    // nothing here: walk to the nearest room with spawns
+    // a stuck non-hunt mode self-heals after 30s
+    if (this.mode !== 'hunt' && Date.now() - this.modeAt > 30000) this.setMode('hunt');
+
+    if (this.mode === 'armUp') {
+      if (!this.pathQueue.length && !this.armStage) {
+        if (!this.room) return;
+        const p = bfsPath(this.room, 'bazaar');
+        if (!p) { this.armed = true; return this.setMode('hunt'); }
+        this.pathQueue = p;
+      }
+      if (this.pathQueue.length) return this.cmd(this.pathQueue.shift());
+      if (this.room === 'bazaar' && !this.armStage) {
+        this.armStage = 'buy';
+        return this.cmd('buy club');
+      }
+      return this.setMode('hunt');
+    }
+
+    if (this.mode === 'goHall') {
+      if (this.pathQueue.length) return this.cmd(this.pathQueue.shift());
+      if (this.room === 'hall_' + this.guild) {
+        this.setMode('hallwait');
+        return this.cmd('circle');
+      }
+      return this.setMode('hunt'); // lost the path — resume hunting
+    }
+
+    if (this.mode === 'hallwait') return; // circle response inbound
+
+    if (this.mode === 'training') {
+      if (this.room !== 'hall_' + this.guild) return this.setMode('goHall');
+      const q = this.trainQueue[0];
+      if (!q) {
+        this.setMode('hallwait');
+        return this.cmd('circle'); // requirements may be met now
+      }
+      return this.cmd(`tdptrain ${q.skill}`);
+    }
+
+    // hunt mode: walk spawn routes; every few kills, visit the hall to
+    // circle and spend TDPs — the full player progression loop.
+    if (this.kills - this.killsAtVisit >= 6 || Date.now() - this.modeAt > 90000) {
+      const hall = 'hall_' + this.guild;
+      const path = bfsPath(this.room, hall);
+      if (path) {
+        log(`[${this.guild}] heading to guild hall to circle`);
+        this.pathQueue = path;
+        return this.setMode('goHall');
+      }
+    }
     if (this.pathQueue.length) return this.cmd(this.pathQueue.shift());
     if (this.room) {
       const target = nearestSpawnRoom(this.room);
@@ -214,7 +342,7 @@ class LiveSim {
 
   progressLine() {
     const mins = Math.round((Date.now() - this.startedAt) / 60000);
-    return `  hunt ${this.hunts}: circle ${this.circle}, hp ${this.hp}/${this.maxHp}, kills ${this.kills}, ticks ${mins}m`;
+    return `  hunt ${this.hunts}: circle ${this.circle}, hp ${this.hp}/${this.maxHp}, kills ${this.kills}, circles ${this.circles}, ticks ${mins}m`;
   }
 
   finish(reason) {
@@ -222,7 +350,7 @@ class LiveSim {
     this.done = true;
     this.appendLog(this.progressLine());
     this.appendLog(`=== Results (${GUILDS[this.guild]?.name || this.guild}) ===`);
-    this.appendLog(`  ${reason}: reached circle ${this.circle}, ${this.kills} kills in ${Math.round((Date.now() - this.startedAt) / 60000)}m`);
+    this.appendLog(`  ${reason}: reached circle ${this.circle} after ${this.circles} circle-ups, ${this.kills} kills in ${Math.round((Date.now() - this.startedAt) / 60000)}m`);
     try { this.ws.close(); } catch {}
     log(`[${this.guild}] finished: ${reason}`);
   }

@@ -91,7 +91,10 @@ export function roomAreaOf(text) {
 export function parsePrompt(text) {
   const plain = stripAnsi(text);
   const hp = /HP:\s*(\d+)\s*\/\s*(\d+)/i.exec(plain);
+  // Barbarians channel inner fire instead of mana — same gauge, honest label.
   const mana = /Mana:\s*(\d+)\s*\/\s*(\d+)/i.exec(plain);
+  const fire = /Fire:\s*(\d+)\s*\/\s*(\d+)/i.exec(plain);
+  const mental = mana || fire;
   const stamina = /Stamina:\s*(\d+)\s*\/\s*(\d+)/i.exec(plain);
   const rt = /RT:\s*(\d+)/i.exec(plain);
   const circle = /Circle\s*(\d+)/i.exec(plain);
@@ -100,7 +103,8 @@ export function parsePrompt(text) {
   if (!hp && !circle) { $('status-strip').hidden = true; return; }
   promptState = {
     hp: hp ? [Number(hp[1]), Number(hp[2])] : null,
-    mana: mana ? [Number(mana[1]), Number(mana[2])] : null,
+    mana: mental ? [Number(mental[1]), Number(mental[2])] : null,
+    mentalLabel: mana ? 'Mana' : fire ? 'Inner Fire' : null,
     stamina: stamina ? [Number(stamina[1]), Number(stamina[2])] : null,
     circle: circle ? Number(circle[1]) : null,
     silver: silver ? Number(silver[1]) : null,
@@ -128,9 +132,9 @@ export function renderStatusStrip() {
   } else {
     clearGauge('strip-hp-wrap', 'strip-hp-fill', 'strip-hp-label', 'HP');
   }
-  const mana = promptState.mana;
-  $('strip-mana-wrap').hidden = !mana;
-  if (mana) setGauge('strip-mana-wrap', 'strip-mana-fill', 'strip-mana-label', 'Mana', mana, false);
+  const mental = promptState.mana;
+  $('strip-mana-wrap').hidden = !mental;
+  if (mental) setGauge('strip-mana-wrap', 'strip-mana-fill', 'strip-mana-label', promptState.mentalLabel || 'Mana', mental, false);
   const stamina = promptState.stamina;
   $('strip-stamina-wrap').hidden = !stamina;
   if (stamina) setGauge('strip-stamina-wrap', 'strip-stamina-fill', 'strip-stamina-label', 'Stamina', stamina, false);
