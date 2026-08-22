@@ -419,11 +419,10 @@
           if (!S.world) loadWorld();
         } else if (st.code === 401 || st.code === 403) {
           S.gm = 'locked';
-          // A stored token the server rejects is dead weight — drop it so the
-          // failure is loud instead of a permanent silent lock.
-          localStorage.removeItem('dr_gm_token');
-          tokenEl.value = '';
-          S.token = '';
+          // Keep the stored token. A 401 here is usually a world restart or a
+          // brief unavailability, not a revoked credential — wiping storage
+          // logs the operator out of every GM surface for no reason. The dash
+          // shows 'locked' and retries; the token proves itself on recovery.
         }
         else if (st.code === 503) S.gm = 'notconf';
         else S.gm = 'err';
