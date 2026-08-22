@@ -653,8 +653,8 @@ export const ROOMS = {
     exits: { up: 'sewers_4' },
   },
   woods_path: {
-    id: 'woods_path', zone: 'woods', name: 'Siergelde Road', spawns: ['goblin'],
-    desc: 'A rutted trail winds between towering pines toward the Siergelde Ruins. Shadows flicker between the trunks. A rough track climbs into the southern hills.',
+    id: 'woods_path', zone: 'woods', name: 'Siergelde Road', spawns: ['goblin', 'marsh_hog'],
+    desc: 'A rutted trail winds between towering pines toward the Siergelde Ruins. Shadows flicker between the trunks, and the mud is churned where hogs root for mast. A rough track climbs into the southern hills.',
     exits: { n: 'trav_grove_15', s: 'woods_1', e: 'camp_path' },
   },
   woods_1: {
@@ -678,8 +678,8 @@ export const ROOMS = {
     exits: { n: 'marsh_1' },
   },
   deep_1: {
-    id: 'deep_1', zone: 'deepwoods', name: 'Deep Wood', spawns: ['troll'],
-    desc: 'The oaks here are vast and dark, their roots older than the town. Something heavy breathes nearby.',
+    id: 'deep_1', zone: 'deepwoods', name: 'Deep Wood', spawns: ['marsh_hog', 'troll'],
+    desc: 'The oaks here are vast and dark, their roots older than the town. Hog-rooted mud pocks the shadowline where the big things begin. Something heavy breathes nearby.',
     exits: { n: 'woods_2', e: 'deep_2' },
   },
   deep_2: {
