@@ -15,8 +15,8 @@ sim-verified against cumulative source band tables. The EXP, TDP, and rank-cap
 systems are source-shaped but deliberately compressed for a circle-10 game;
 they are not full production parity. Both starting cities exist and every
 guild has a fidelity v1. Remaining work includes live-player pacing, deeper
-guild trees, complete stance allocation, crafting disciplines, and the
-large-lift items in *Next Up*.
+guild trees, complete stance allocation, deeper crafting discipline trees, and
+the large-lift items in *Next Up*.
 
 ---
 
@@ -124,7 +124,7 @@ Nth-of-skillset pools, 1–10 bands scaled per circle). See the matrix below.
 | Powers: Berserk (Barbarian), Backstab (Thief) | ✅ |
 | 15 creature types (12 base + 3 named rares) across 7 zones | ✅ |
 | Creature auto-engage on aggressive spawns | ✅ |
-| **Combat stances** (aggressive / defensive / guarded presets) | 🚧 preset offense/defense effects live; custom evasion/parry/shield allocation and meaningful bonus-point effects pending |
+| **Combat stances** (aggressive / defensive / guarded presets) | 🚧 preset offense/defense effects live; guild bonus stance points guard in combat; custom evasion/parry/shield allocation pending |
 | **PvP duels** (challenge/accept, wilds only, concede/defeat) | ✅ |
 | **Ambush from hiding** (`hide` → `ambush`; thieves hide mid-fight) | ✅ |
 | **Hunting ladder** (creature teaching bands; `ladder` command; over-levelled prey teaches little) | ✅ |
@@ -224,6 +224,10 @@ The web client is the surface for automation. All scripting is **client-side**
 | **DR-style window manager** (each pane collapsible + show/hideable, `Windows` menu, persisted) | ✅ |
 | **Room contents DR phrasing** (`Here:` creatures/players · `You also see <objects>.`) | ✅ |
 | **Combat window with live status line** (target HP/range + `COMBAT · RT ns`) | ✅ |
+| **Creature vitality prose** (combat pane reads `is <vitality word>`; exact hp only in the hover tooltip) | ✅ |
+| **Paper doll** (hands-doll SVG: gear condition tints regions red, player HP pales/bruises the figure toward near death) | ✅ |
+| **Vitality words, not numbers** (HP/mana/stamina gauges read the DR word ladder — `in good shape` → `near death` — exact figures in tooltips) | ✅ |
+| **RT blocks on the input bar** (red second-blocks overlay the left edge while roundtime binds; typing always allowed) | ✅ |
 | **EXP (Thoughts) window** with `N skills learning` count | ✅ |
 | **Hands bar** (Hand / Worn / Carried from the `hands` message) | ✅ |
 | **EXP + INFO toolbar buttons** (docked exp/info panels) | ✅ |
@@ -266,7 +270,7 @@ Magic tertiary).
 | Choke | 🚧 live (circle 5 gate, single-target grip, halved foe damage for 5 ticks) |
 | Dual Load: fire two arrows (201 Bows + 30 agi/ref + Eagle form) | 🚧 live (learnable at circle 7, bow only, 2× ammo per shot, 1.5× damage) |
 | Magic Resistance: premier anti-magic edge (Serenity, Dispel, Mage's Lash) | ✅ innate ward scales with Defending; Serenity (purge + magic ward), Dispel (silence foe magic), Mage's Lash (reflect) live |
-| Bonus stance points: +1 per 60 Defending ranks | 🚧 totals are calculated and displayed; bonuses do not yet change allocation or combat outcomes |
+| Bonus stance points: +1 per 60 Defending ranks | 🚧 totals are calculated and displayed and guard in combat (`stanceEdge` raises defense against incoming blows); custom stance allocation still pending |
 | Expertise skill + Barbarian combos: ANALYZE FLAME/ACCURACY/DAMAGE…, ACM Expertise checks | 🚧 `analyze <flame\|accuracy\|damage>` live (trains Expertise, 3-part combo grants an advantage); ACM check cooldown reduction pending |
 | Barbarian items: chakrel, warhorns (15-min spawn boost), warpaint, roar helms | ✅ warhorn (spawns beasts, 15-min timer), chakrel (neck slot, −5 meditation cost), warpaint (+15% damage), roar helm (half voice cost, stronger roars) all live |
 | Faithful circle requirements: the authentic DR band table (Weapon primary; Survival+Armor secondary; Lore+Magic tertiary) | ✅ (live in the band-table engine) |
@@ -287,7 +291,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 | Mana-type system: Elemental (Bard, Warrior Mage), Holy (Cleric, Paladin), Life (Empath, Ranger), Lunar (Moon Mage; Trader reserved), Necromantic (Necromancer), none (Barbarian, Thief) | 🚧 types + cycles + cambrinth live for casting guilds; Trader magic/Starlight Aura and attunement nuances pending |
 | Spell-slot progressions per guild: primary magic 89–91 slots @150 (Cleric, Moon Mage, Warrior Mage), secondary magic 55–76 (Bard, Empath, Necromancer), tertiary magic 60–61 (Paladin, Ranger, Trader); free magical feats at circle 2 | ✅ compressed parity: tier-scaled budgets (primary > secondary > tertiary), per-tier slot costs, +2 feat at circle 2; `learn`/`forget` at the hall; over-budget unlocks await at the hall |
 | Nth-skill + hard/soft requirement engine | ✅ cumulative DR 1–10 tables; hard named skills never double-count toward Nth; mastery skills excluded; guild-specific Thievery eligibility; cross-system invariants tested; organic exp sources live for tactics, scholarship, performance, appraisal, outdoorsmanship (foraging), athletics, hunting, scouting, backstab, defending, parry, thievery (steal), locksmithing (strongboxes), empathy, arcana |
-| Crafting skills + disciplines: Forging (Weaponsmithing/Armorsmithing/Blacksmithing), Enchanting (Artificing/Binding/Invoking), Alchemy (Remedies/Poison/Cooking), Outfitting (Tailoring/Artistry), Engineering (Tinkering/Shaping/Carving) | 🚧 Alchemy + Forging v1 live (ore → quality steel); full disciplines pending |
+| Crafting skills + disciplines: Forging (Weaponsmithing/Armorsmithing/Blacksmithing), Enchanting (Artificing/Binding/Invoking), Alchemy (Remedies/Poison/Cooking), Outfitting (Tailoring/Artistry), Engineering (Tinkering/Shaping/Carving) | 🚧 all five disciplines have a v1 live (Enchanting: `imbue` at the Enchanting Society binds crafted pieces with wisp motes into magic-edged gear); full discipline trees pending |
 | Guild crafting affiliations: free technique slots per guild (e.g. 3× Armorsmithing Paladin, 2× Remedies+1× Cooking Empath) | ✅ affinity grants +quality edge and a bonus technique slot; `technique` at any craft station lists/learns rank-gated techniques (quality +3, order pay +25%, brew success/potency) |
 | Stamina + burden pools (prerequisite for War Stomp, berserks, heavy gear) | ✅ stamina pool (Con + Fitness); weapon/armor burden shrinks it and slows recovery; maneuvers/ambush/backstab/whirlwind/stomp/choke/snipe spend wind |
 | Magic techniques / analogous patterns / metaspells | 🚧 five techniques live (Aether Efficiency −10% mana, Deep Harness +30%, Resonant Attunement, Meditation +20% regen, Cold Casting +15 safe ceiling), slots by circle; patterns/metaspells pending |
@@ -472,7 +476,7 @@ Paladin, Ranger, Thief, Trader, Warrior Mage) as documented on Elanthipedia.
 
 | Feature | Status |
 |---|---|
-| 5 crafting skills × 3 disciplines (~25 techniques each): Forging (Blacksmithing/Armorsmithing/Weaponsmithing), Engineering (Carving/Shaping/Tinkering), Outfitting (Tailoring/Artistry/Jewelry), Alchemy (Remedies/Reactants/Cooking), Enchanting (Artificing/Binding/Invoking) | ⬜ |
+| 5 crafting skills × 3 disciplines (~25 techniques each): Forging (Blacksmithing/Armorsmithing/Weaponsmithing), Engineering (Carving/Shaping/Tinkering), Outfitting (Tailoring/Artistry/Jewelry), Alchemy (Remedies/Reactants/Cooking), Enchanting (Artificing/Binding/Invoking) | 🚧 all five disciplines have a v1 live at their stations — Forging, Alchemy, Outfitting, Engineering craft rolls, plus Enchanting (`imbue` at the Enchanting Society: crafted base piece + wisp motes → gear with a `magicEdge`); full discipline trees (~25 techniques each) pending |
 | Technique slots: 13 general per skill (rank-gated 25–1200), careers (12) + hobbies (6), 3 guild bonus slots | ✅ compressed: rank-gated slots per crafting skill (1 + rank/10, +1 guild-affinity bonus, cap 6); `technique` at any craft station lists/learns |
 | Guild bonus disciplines (e.g. Empath Remedies×2+Cooking, Paladin Armorsmithing×3, Thief Carving×2+Reactants) | ⬜ |
 | Workflow: gather materials → craft → quality roll; quality ladder (practically worthless → masterfully-crafted, quality scales damage) | ✅ full workflow live at four stations; quality on instances scales damage/armor and shows in appraise; techniques push the ladder higher |
@@ -524,9 +528,9 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 - **Stage 9 — Circle-10 Parity 🚧** — all guilds reach circle 10 under the corrected simulator; capstones live; active-time economy and live playtests remain.
 
 - **Stage 10 — Barbarian Fidelity 🚧** — inner fire, four ability classes, paths, masteries, Expertise combos, warpaint, and roar helms live; the full berserk/form/roar families and registers remain (Pillar 11).
-- **Stage 11 — Cross-Guild Systems 🚧** — full DR skill set, mana types + cambrinth, spell-slot budgets with learn/forget, Nth-skill engine, alchemy + forging live; crafting disciplines pending (Pillar 12).
+- **Stage 11 — Cross-Guild Systems 🚧** — full DR skill set, mana types + cambrinth, spell-slot budgets with learn/forget, Nth-skill engine, and v1 of all five craft disciplines (incl. Enchanting `imbue`) live; deeper discipline trees pending (Pillar 12).
 - **Stage 12 — Guild Fidelity 🚧** — every guild has a live fidelity v1 (enchantes, devotion, wound-taking, prediction, risen, soul, companions/beseeches, khri, commodity pits, familiars); deeper per-guild trees pending (Pillars 13–22).
-- **Stage 13 — World & Systems Fidelity 🚧** — Riverhaven (with its own wilds), hunting ladder + specialized views, task quests, justice loop live; provinces, the full crime set, and crafting disciplines pending (Pillars 23–27).
+- **Stage 13 — World & Systems Fidelity 🚧** — Riverhaven (with its own wilds), hunting ladder + specialized views, task quests, justice loop, and v1 craft disciplines live; provinces and the full crime set pending (Pillars 23–27).
 
 ## Next Up (prioritized backlog)
 
@@ -541,7 +545,7 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 - ~~Duel reasons; justice-zone variants + DEPART ITEM (P27)~~ ✅ justice zones (lawless/standard/strict), Rite of Departure
 
 **P3 — breadth & polish**
-- Crafting disciplines (Engineering/Outfitting/Enchanting) + technique slots (P26) — ✅ all four disciplines craftable with rank-gated technique slots (quality/order/brew effects); Enchanting discipline remains
+- Crafting disciplines (Engineering/Outfitting/Enchanting) + technique slots (P26) — ✅ v1 of all five disciplines live with rank-gated technique slots (quality/order/brew effects); Enchanting `imbue` at the Enchanting Society binds crafted pieces + wisp motes into magic-edged gear; deeper discipline trees remain
 - ~~Masterful-craft durability, work orders + maker's mark (P26)~~ ✅ work orders with quality gates + maker's marks live; durability system already on instances
 - Deeper per-guild trees: full khri family, enchante segue + area effects,
   cleric infusion/resurrection, empath shift, astral travel, risen states,
@@ -557,6 +561,14 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
   10** and reports pacing, TDPs, silver economy, and per-circle milestones.
 - `node scripts/build-skills-doc.mjs` — regenerates `public/SKILLS.html` (the
   full skill reference) from the live game data.
+- `node scripts/mapper-agent.mjs` — logs in as a player and walks route JSON
+  files step-by-step, recording per-step results (`public/live/mapper-<run>.log`
+  + `mapper-latest-summary.json`). The walker-finds-breaks / fixer-consults-map
+  loop for validating world edits against known-good routes.
+- **Server ops** — single-world guard: boot probes the port and refuses a
+  duplicate world (which would desync GM tokens and sessions); the resolved GM
+  token is published to `/tmp/dr-world-token-<port>.json` (mode 0600) for the
+  menu-bar app and Watch deep links.
 - `npm test` — the complete headless domain, HTTP API, security, and static
   suites (`server/api.js`, enable the runtime API with `DR_ENABLE_API=1`).
 
