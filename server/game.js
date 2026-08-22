@@ -19,6 +19,7 @@ import { economy } from './economy.js';
 import { wilds } from './wilds.js';
 import { quests } from './quests.js';
 import { status as statusView } from './status.js';
+import * as pvp from './pvp.js';
 
 const RESPAWN_MS = 25 * 1000;
 const MANA_PULSE_MS = 6 * 1000;
@@ -469,80 +470,13 @@ export class Game {
   }
 
   // ---------- PvP duels ----------
-  canDuelHere(p) {
-    const room = roomById(p.room);
-    return Boolean(room && room.zone !== 'town' && room.zone !== 'riverhaven');
-  }
+  canDuelHere(p) { return pvp.canDuelHere(this, p); }
 
-  challengeDuel(p, targetName, end = 'blood', reason = '') {
-    if (!this.canDuelHere(p)) return { ok: false, msg: 'The town guards do not permit duels here. Take it to the wilds.' };
-    if (p.combatId) return { ok: false, msg: 'You are already in combat.' };
-    // Paladins may not strike first (code of honor).
-    if (p.guild.id === 'paladin') {
-      p.soul = Math.max(0, (p.soul ?? 50) - 5);
-      p.ws.send(JSON.stringify({ t: 'msg', msg: 'Your oath forbids striking first. Your soul dims slightly. (-5 soul)' }));
-    }
-    const n = targetName.toLowerCase();
-    const target = [...this.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === n);
-    if (!target) return { ok: false, msg: 'There is no such adventurer here.' };
-    if (target.combatId) return { ok: false, msg: `${target.name} is already in combat.` };
-    if (!['blood', 'blow', 'pain'].includes(end)) end = 'blood';
-    const endLabel = { blood: 'first blood runs', blow: 'the first solid blow lands', pain: 'one side is badly hurt' }[end];
+  challengeDuel(p, targetName, end = 'blood', reason = '') { return pvp.challengeDuel(this, p, targetName, end, reason); }
 
-    if (target.pvpStance === 'closed') {
-      return { ok: false, msg: `${target.name} stands CLOSED to all challenges.` };
-    }
-    const reasonLine = reason ? ` — "${reason}"` : '';
-    if (target.pvpStance === 'open') {
-      // OPEN: no consent needed — the duel begins at once.
-      const res = this.combat.startDuel(p, target, end);
-      if (!res.ok) return { ok: false, msg: res.error };
-      res.combat.say(`\n\x1b[1mThe duel begins! ${p.name} faces ${target.name} (ends when ${endLabel}).${reasonLine}\x1b[0m`);
-      res.combat.startAttack();
-      this.status(p);
-      this.status(target);
-      return { ok: true, msg: `${target.name} stands OPEN — the duel begins! (Ends when ${endLabel}.)${reasonLine}` };
-    }
+  acceptDuel(p, initiatorName) { return pvp.acceptDuel(this, p, initiatorName); }
 
-    const key = `${p.charId}|${target.charId}`;
-    this.pendingDuels.set(key, { initiator: p.charId, target: target.charId, createdAt: Date.now(), end, reason });
-    target.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1m${p.name} challenges you to a duel!\x1b[0m (ends when ${endLabel})${reasonLine} Type "accept ${p.name}" or "decline ${p.name}".` }));
-    return { ok: true, msg: `You challenge ${target.name} to a duel (ends when ${endLabel})${reasonLine}. They must "accept" it to begin.` };
-  }
-
-  acceptDuel(p, initiatorName) {
-    const n = initiatorName.toLowerCase();
-    const initiator = [...this.players.values()].find((o) => o.name.toLowerCase() === n);
-    if (!initiator) return { ok: false, msg: 'There is no such adventurer here.' };
-    const key = `${initiator.charId}|${p.charId}`;
-    const pending = this.pendingDuels.get(key);
-    if (!pending) return { ok: false, msg: 'You have no pending duel with them.' };
-    this.pendingDuels.delete(key);
-    if (Date.now() - pending.createdAt > 60 * 1000) return { ok: false, msg: 'That duel offer has expired.' };
-    if (initiator.room !== p.room) return { ok: false, msg: 'They are no longer in the room.' };
-    if (initiator.combatId || p.combatId) return { ok: false, msg: 'Someone has already entered combat.' };
-    if (!this.canDuelHere(p)) return { ok: false, msg: 'The town guards do not permit duels here.' };
-
-    const res = this.combat.startDuel(initiator, p, pending.end || 'blood');
-    if (!res.ok) return { ok: false, msg: res.error };
-    const combat = res.combat;
-    const endLabel = { blood: 'first blood runs', blow: 'the first solid blow lands', pain: 'one side is badly hurt' }[combat.duelEnd] || 'first blood runs';
-    combat.say(`\n\x1b[1mThe duel begins! ${initiator.name} faces ${p.name} (ends when ${endLabel}).\x1b[0m`);
-    combat.startAttack();
-    this.status(initiator);
-    this.status(p);
-    return { ok: true, msg: `The duel begins! Fight with "stance" and "retreat" to yield.` };
-  }
-
-  declineDuel(p, initiatorName) {
-    const n = initiatorName.toLowerCase();
-    const initiator = [...this.players.values()].find((o) => o.name.toLowerCase() === n);
-    if (!initiator) return { ok: false, msg: 'There is no such adventurer here.' };
-    const key = `${initiator.charId}|${p.charId}`;
-    if (!this.pendingDuels.delete(key)) return { ok: false, msg: 'You have no pending duel with them.' };
-    initiator.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} declines your duel.` }));
-    return { ok: true, msg: `You decline the duel.` };
-  }
+  declineDuel(p, initiatorName) { return pvp.declineDuel(this, p, initiatorName); }
 
   // ---------- Assaults & warrants ----------
   isTownRoom(roomId) {
@@ -780,63 +714,10 @@ export class Game {
   questDescription(p) { return quests.questDescription(p); }
 
   // ---------- Parties (DR hunt credit) ----------
-  partyInvite(p, targetName) {
-    if (p.combatId) return { ok: false, msg: 'Not in the middle of a fight.' };
-    const target = [...this.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === (targetName || '').toLowerCase());
-    if (!target) return { ok: false, msg: 'There is no such adventurer here.' };
-    if (target.party) return { ok: false, msg: `${target.name} is already in a party.` };
-    target.pendingParty = p.charId;
-    target.ws.send(JSON.stringify({ t: 'msg', msg: `\n${p.name} asks you to join their party. Type "party join" to accept.` }));
-    return { ok: true, msg: `${target.name} has been asked. They can "party join" to accept.` };
-  }
-
-  partyJoin(p) {
-    const leaderId = p.pendingParty;
-    if (!leaderId) return { ok: false, msg: 'You have no pending party invitation.' };
-    const leader = this.players.get(leaderId);
-    if (!leader || leader.party && leader.party.members.length >= 5) {
-      return { ok: false, msg: 'The invitation has lapsed or the party is full.' };
-    }
-    const id = leader.party ? leader.party.id : `party_${leaderId}_${Date.now()}`;
-    const members = leader.party ? [...leader.party.members] : [leaderId];
-    if (members.length >= 5) return { ok: false, msg: 'The party is full (5).' };
-    members.push(p.charId);
-    const party = { id, leader: leaderId, members };
-    leader.party = party;
-    p.party = party;
-    p.pendingParty = null;
-    for (const mid of members) {
-      const m = this.players.get(mid);
-      if (m) m.party = party;
-    }
-    return { ok: true, msg: `You join ${leader.name}'s party. Hunt credit is shared in the same room.` };
-  }
-
-  partyLeave(p) {
-    if (!p.party) return { ok: false, msg: 'You are not in a party.' };
-    const id = p.party.id;
-    const leader = this.players.get(p.party.leader);
-    const members = (leader && leader.party && leader.party.id === id ? leader.party.members : []).filter((m) => m !== p.charId);
-    if (leader && leader.party && leader.party.id === id) {
-      if (members.length <= 1) leader.party = null;
-      else leader.party = { id, leader: leader.charId, members };
-    }
-    p.party = null;
-    for (const mid of members) {
-      const m = this.players.get(mid);
-      if (m) m.party = leader && leader.party ? leader.party : null;
-    }
-    return { ok: true, msg: 'You leave the party.' };
-  }
-
-  partyStatus(p) {
-    if (!p.party) return { ok: false, msg: 'You are not in a party. "party <playername>" to invite, "party join" to accept.' };
-    const names = p.party.members.map((mid) => {
-      const m = this.players.get(mid);
-      return m ? m.name : '?';
-    });
-    return { ok: true, msg: `\nParty (${names.length}/5): ${names.join(', ')}. Kill credit and quest progress are shared in the same room.` };
-  }
+  partyInvite(p, targetName) { return pvp.partyInvite(this, p, targetName); }
+  partyJoin(p) { return pvp.partyJoin(this, p); }
+  partyLeave(p) { return pvp.partyLeave(this, p); }
+  partyStatus(p) { return pvp.partyStatus(this, p); }
 
   // ---------- Auction house (player trading) ----------
   auctionPrune() {
@@ -844,54 +725,9 @@ export class Game {
     this.auctions = this.auctions.filter((a) => now - a.at < 3600 * 1000);
   }
 
-  auctionList(p) {
-    if (p.room !== 'auction_house') return { ok: false, msg: 'The auction board hangs in the Merchants\' Auction Hall, north of the Grain Pit.' };
-    this.auctionPrune();
-    if (!this.auctions.length) return { ok: true, msg: 'The auction board is bare. Post a lot with "auction offer <item> [qty] for <price>" (at the hall).' };
-    const lines = this.auctions.map((a) => `  #${a.id}  ${a.itemName}${a.qty > 1 ? ` x${a.qty}` : ''} — ${a.price} silvers (by ${a.sellerName})`);
-    return { ok: true, msg: `\nThe auction board reads:\n${lines.join('\n')}\n\nSay "auction buy <#>". Listings lapse after an hour.` };
-  }
-
-  auctionOffer(p, itemName, qty, price) {
-    if (p.room !== 'auction_house') return { ok: false, msg: 'Lots are posted at the Merchants\' Auction Hall, north of the Grain Pit.' };
-    const entry = p.inventory.find((e) => e.item.id === itemName || e.item.name.includes(itemName));
-    if (!entry) return { ok: false, msg: 'You do not have that to offer.' };
-    qty = Math.max(1, Math.min(
-      p.inventory.filter((e) => e.item.id === entry.item.id).reduce((sum, e) => sum + e.qty, 0),
-      Math.floor(qty) || 1,
-    ));
-    if (!(price > 0)) return { ok: false, msg: 'Set a price in silvers: "auction offer <item> [qty] for <price>".' };
-    const instances = removeItemInstances(p, entry.item.id, qty, entry);
-    const id = this.auctions.length ? Math.max(...this.auctions.map((a) => a.id)) + 1 : 1;
-    this.auctions.push({
-      id, seller: p.charId, sellerName: p.name, itemId: entry.item.id,
-      itemName: entry.item.name, qty, price, instances, at: Date.now(),
-    });
-    gainSkillExp(p, 'trading', 6);
-    return { ok: true, msg: `You chalk your lot on the board: ${entry.item.name}${qty > 1 ? ` x${qty}` : ''} at ${price} silvers. (listing #${id})` };
-  }
-
-  auctionBuy(p, listingId) {
-    if (p.room !== 'auction_house') return { ok: false, msg: 'The auction board hangs in the Merchants\' Auction Hall.' };
-    this.auctionPrune();
-    const lot = this.auctions.find((a) => a.id === listingId);
-    if (!lot) return { ok: false, msg: 'No such lot is still on the board.' };
-    if (lot.seller === p.charId) return { ok: false, msg: 'You cannot buy your own lot.' };
-    if (p.silver < lot.price) return { ok: false, msg: `That lot costs ${lot.price} silvers; you have ${p.silver}.` };
-    p.silver -= lot.price;
-    this.auctions = this.auctions.filter((a) => a !== lot);
-    addItem(p, lot.itemId, lot.qty, lot.instances || null);
-    const seller = this.players.get(lot.seller);
-    if (seller && seller.online) {
-      seller.silver += lot.price;
-      if (seller.ws) seller.ws.send(JSON.stringify({ t: 'msg', msg: `Your lot sold at auction: ${lot.itemName}${lot.qty > 1 ? ` x${lot.qty}` : ''} for ${lot.price} silvers.` }));
-    } else {
-      // Offline sellers are paid into the bank.
-      db.prepare('UPDATE characters SET bank = bank + ? WHERE id = ?').run(lot.price, lot.seller);
-    }
-    gainSkillExp(p, 'trading', 8);
-    return { ok: true, msg: `You buy ${lot.itemName}${lot.qty > 1 ? ` x${lot.qty}` : ''} for ${lot.price} silvers.` };
-  }
+  auctionList(p) { return pvp.auctionList(this, p); }
+  auctionOffer(p, itemName, qty, price) { return pvp.auctionOffer(this, p, itemName, qty, price); }
+  auctionBuy(p, listingId) { return pvp.auctionBuy(this, p, listingId); }
 
   guildTrainer(p) { return statusView.guildTrainer(p); }
   status(p) { statusView.status(this, p); }
