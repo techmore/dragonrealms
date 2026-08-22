@@ -7,7 +7,7 @@ import { roomById } from '../data/world.js';
 import { SKILLS, CATEGORIES } from '../data/skills.js';
 import {
   weaponOf, skillRank, effectiveRank, totalArmor, gainSkillExp, defenseSkillOf,
-  countItems, removeItem, addItem, totalBurden, maxStaminaEff, conditionMult, qualityMult,
+  countItems, removeItem, addItem, totalBurden, netBurden, maxStaminaEff, conditionMult, qualityMult,
   wearCondition, setRoundtime, MASTERY_SETS, stancePoints, roundtimeLeft,
 } from './player.js';
 import { itemById } from '../data/items.js';
@@ -116,6 +116,7 @@ export class Combat {
     this.specialCd = { whirlwind: 0, stomp: 0, choke: 0, analyze: 0, impede: 0 };
     this.analyzeCombo = 0;
     this.analyzeTicks = 0;
+    this.analyzeBonus = 1;
   }
 
   get aliveEnemies() {
@@ -150,10 +151,11 @@ export class Combat {
     return false;
   }
 
-  // Stamina gate: big efforts need wind; burden makes them pricier.
+  // Stamina gate: big efforts need wind; encumbrance beyond your strong
+  // back's allowance makes them pricier.
   spendStamina(amount) {
     const p = this.player;
-    const burden = totalBurden(p);
+    const burden = netBurden(p);
     const cost = amount + (burden >= 3 ? 3 : burden >= 1 ? 1 : 0);
     if ((p.stamina ?? 0) < cost) {
       this.say(burden > 0
@@ -236,7 +238,7 @@ export class Combat {
     if (this.berserk) dmg = Math.floor(dmg * 1.5);
     if (this.dragonTicks > 0) dmg = Math.floor(dmg * 1.25);
     if (this.rageTicks > 0) dmg = Math.floor(dmg * (this.roarHelm ? 1.4 : 1.25));
-    if (this.analyzeTicks > 0) dmg = Math.floor(dmg * 1.25);
+    if (this.analyzeTicks > 0) dmg = Math.floor(dmg * 1.25 * (this.analyzeBonus || 1));
     if (this.mark && this.mark.uid === target.uid && this.mark.rounds > 0) {
       this.mark.rounds -= 1;
       dmg += this.mark.bonus;
@@ -325,7 +327,10 @@ export class Combat {
         this.say('The wolf\'s spirit lingers — it bonds with you as a companion!');
       }
     }
-    this.say(`You fell ${target.def.name}! Its corpse slumps to the ground. Type "skin ${target.def.name.replace(/^a /, '').split(' ')[0]}" to harvest it.`);
+    // Hint with the creature's distinctive noun ("rat", not "sewer") — the
+    // skin matcher accepts any word of the name, but the noun is unambiguous.
+    const skinNoun = target.def.name.replace(/^(a|an|the) /, '').split(' ').pop();
+    this.say(`You fell ${target.def.name}! Its corpse slumps to the ground. Type "skin ${skinNoun}" to harvest it.`);
     const coins = target.def.circle * (2 + Math.floor(Math.random() * 4));
     this.player.silver += coins;
     this.say(`You pry ${coins} silvers from the corpse.`);
@@ -364,9 +369,12 @@ export class Combat {
     let atk = e.def.circle * 4 + e.def.stats.str * 0.06 + e.def.stats.ref * 0.05;
     let def = defenseSkillOf(this.player) + this.player.stats.ref * 0.05;
     const stance = this.player.stance || 'balanced';
-    if (stance === 'defensive') def = Math.floor(def * 1.2);
-    else if (stance === 'guarded') def = Math.floor(def * 1.1);
-    else if (stance === 'aggressive') def = Math.floor(def * 0.8);
+    // Tactics ranks sharpen every stance's edge (DR: Tactics governs combat
+    // maneuvering): +0.4% stance effect per rank, capped at +20%.
+    const tacMult = 1 + Math.min(0.2, skillRank(this.player, 'tactics') * 0.004);
+    if (stance === 'defensive') def = Math.floor(def * 1.2 * tacMult);
+    else if (stance === 'guarded') def = Math.floor(def * 1.1 * tacMult);
+    else if (stance === 'aggressive') def = Math.floor(def / (1.2 * tacMult)); // offense stance trades defense; tactics softens the trade
     def += Combat.stanceEdge(this.player); // bonus stance points guard better
     if (capstoneActive(this.player, 'moonmage')) def = Math.floor(def * 1.2);
     if (this.player.buffs && this.player.buffs.shadow > 0) def = Math.floor(def * 1.15);
@@ -865,7 +873,11 @@ export class Combat {
     const leveled = gainSkillExp(p, 'expertise', 10);
     if (this.analyzeCombo >= 3) {
       this.analyzeCombo = 0;
-      this.analyzeTicks = 10;
+      // Expertise extends the analyzed window (+1 tick per 10 ranks, cap +10)
+      // and deepens it slightly: each rank adds a sliver of bonus damage.
+      const exp = skillRank(p, 'expertise');
+      this.analyzeTicks = 10 + Math.min(10, Math.floor(exp / 10));
+      this.analyzeBonus = 1 + Math.min(0.1, exp * 0.001);
       this.say(`You finish your ${kind} combo — with expert skill you end the attack and maneuver into a better position! Your blows will strike truer!`);
     } else {
       this.say(`You study the flow of battle (${kind} combo ${this.analyzeCombo}/3).${leveled ? ' Your Expertise improved!' : ''}`);
@@ -1206,6 +1218,8 @@ export class Combat {
     if (this.player.buffs && this.player.buffs.glyph_ward > 0) this.player.buffs.glyph_ward -= 1;
     if (this.player.buffs && this.player.buffs.glyph_valor > 0) this.player.buffs.glyph_valor -= 1;
     if (this.player.buffs && this.player.buffs.glyph_shield > 0) this.player.buffs.glyph_shield -= 1;
+    if (this.player.buffs && this.player.buffs.keen > 0) this.player.buffs.keen -= 1;
+    if (this.player.buffs && this.player.buffs.vigor > 0) this.player.buffs.vigor -= 1;
     if (this.serenityTicks > 0) {
       this.serenityTicks -= 1;
       if (this.serenityTicks <= 0) this.say('Your Serenity ward fades.');
@@ -1289,8 +1303,8 @@ export class Combat {
       this.rageTicks -= 1;
       if (this.rageTicks <= 0) this.say('The rage fades from your blood.');
     }
-    // Wind catches: burden slows recovery (heavy gear fights hard to wind you).
-    const burd = totalBurden(this.player);
+    // Wind catches: encumbrance beyond your allowance slows recovery.
+    const burd = netBurden(this.player);
     const staminaCap = maxStaminaEff(this.player);
     this.player.stamina = Math.min(staminaCap, (this.player.stamina ?? staminaCap) + (burd >= 2 ? 1 : 2));
     if (this.player.hp <= 0) return;

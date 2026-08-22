@@ -9,7 +9,7 @@ export const NPCS = {
   guard: {
     id: 'guard', name: 'a town guard', role: 'info',
     desc: 'A grim guard in a steel helm, hand resting on his sword.',
-    greeting: 'Keep the peace, and the Crossing will keep you. Dangerous things lurk past the gates.',
+    greeting: 'Keep the peace, and the Crossing will keep you. New to the walls? Ask me "hunting" and I\'ll point you at what the gates hold back.',
   },
   shopkeeper: {
     id: 'shopkeeper', name: 'Marlene, the general storekeeper', role: 'shop',

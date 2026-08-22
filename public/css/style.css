@@ -1638,6 +1638,12 @@ body.in-combat #inputbar { border-top-color: color-mix(in srgb, var(--red) 65%, 
 @media (max-width: 560px) {
   .cg-choice-grid { grid-template-columns: 1fr; gap: 0; }
   .cg-flavor { min-height: 0; }
+
+  /* Narrow screens: the rail windows shrink to compact cards so the story
+     stream keeps the space (audit P1#8 — panels crowding the log). */
+  #leftrail > .dwin { flex-basis: 132px; height: 132px; padding-right: 10px; }
+  #leftrail > .dwin .dwin-body { font-size: 10.5px; }
+  #hands-bar, #fe-tracker { max-height: 96px; }
 }
 
 @media (max-width: 820px) and (pointer: coarse) {
