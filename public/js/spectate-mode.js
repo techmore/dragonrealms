@@ -18,6 +18,15 @@ export function enterSpectate(name) {
     terminal.append('Spectate whom? Provide a player name.', 'ch-error');
     return;
   }
+  // Trusted-launcher/dash handoff: #gm=<token> in the URL is stored once and
+  // stripped, so Watch links work even when localStorage wasn't pre-seeded.
+  try {
+    const m = location.hash.match(/^#gm=([A-Za-z0-9%]+)$/);
+    if (m) {
+      localStorage.setItem('dr_gm_token', decodeURIComponent(m[1]));
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  } catch {}
   let gmToken = '';
   try { gmToken = localStorage.getItem('dr_gm_token') || ''; } catch {}
   if (!gmToken) {

@@ -12,6 +12,14 @@ import { setToken } from './net.js';
 
 // "?spectate=Name" deep-link: watch that player once a GM credential is stored.
 const autoSpectate = new URLSearchParams(location.search).get('spectate') || '';
+// A #gm=<token> fragment may carry the credential itself (dash Watch links).
+try {
+  const m = location.hash.match(/^#gm=([A-Za-z0-9%]+)$/);
+  if (m) {
+    localStorage.setItem('dr_gm_token', decodeURIComponent(m[1]));
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+} catch {}
 function hasStoredGmToken() {
   try { return Boolean(localStorage.getItem('dr_gm_token')); } catch { return false; }
 }

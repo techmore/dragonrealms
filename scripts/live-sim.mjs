@@ -94,6 +94,7 @@ class LiveSim {
     this.circles = 0;
     this.armed = false;
     this.armStage = null;        // null | 'go' | 'buy'
+    this.lastTdpMsg = null;
     this.startedAt = Date.now();
     this.lastCmdAt = 0;
     this.logPath = new URL(`../public/live/sim-${guild}.log`, import.meta.url);
@@ -163,7 +164,10 @@ class LiveSim {
         this.phase = 'playing';
         log(`[${this.guild}] ${this.name} entered the world`);
         this.appendLog(`=== live sim ${this.name} (${RACE} ${this.guild}) started ${new Date().toISOString()} ===`);
-        this.setMode('armUp'); // every adventurer arms up first
+        // Re-entering characters wake where they logged out (often a dungeon).
+        // Probe the inventory: a wielded weapon means skip arming and hunt.
+        this.armProbe = true;
+        this.cmd('inventory');
         break;
       case 'room':
         this.onRoom(m);
@@ -236,6 +240,18 @@ class LiveSim {
       this.killsAtVisit = this.kills;
       return;
     }
+    // Inventory probe on entry: "Worn: a stout club" means already armed.
+    if (this.armProbe && /Worn:|carrying/i.test(text)) {
+      this.armProbe = false;
+      if (/club|sword|staff|bow|dagger|mace|axe/.test(text)) {
+        this.armed = true;
+        log(`[${this.guild}] already armed — straight to hunting`);
+        this.setMode('hunt');
+        return;
+      }
+      this.setMode('armUp');
+      return;
+    }
     if (/not yet ready to circle/.test(text)) {
       const re = /([a-z0-9' ]+?)\s+at least rank (\d+)\s+\(you have (\d+)\)/g;
       let m2; const list = [];
@@ -250,8 +266,18 @@ class LiveSim {
     }
     if (this.mode === 'training' && /costs \d+ TDPs; you have \d+\./.test(text)) {
       // Out of TDPs for the front skill — drop it; empty queue means hunt more.
+      this.lastTdpMsg = text.match(/costs \d+ TDPs; you have \d+/)?.[0] || 'exhausted';
       this.trainQueue.shift();
       if (!this.trainQueue.length) { this.setMode('hunt'); this.killsAtVisit = this.kills; }
+      return;
+    }
+    // Successful training: "You invest N TDPs in X — it now sits at rank M."
+    if (this.mode === 'training' && /You invest \d+ TDPs/.test(text)) {
+      const q = this.trainQueue[0];
+      if (q) q.have = Number(/rank (\d+)/.exec(text)?.[1] ?? q.have + 1);
+      // Requirement met? Drop it and move on.
+      if (q && q.have >= q.need) this.trainQueue.shift();
+      if (!this.trainQueue.length) { this.setMode('hallwait'); this.killsAtVisit = this.kills; return this.cmd('circle'); }
     }
   }
 
@@ -268,14 +294,16 @@ class LiveSim {
     if (this.inCombat && frac < 0.3) return this.cmd('flee');
 
     // Rest when hurt — issue 'rest' ONCE, then let the [Resting] prompt flag
-    // carry it (spamming rest just floods "You are already resting.").
+    // carry it (spamming rest just floods "You are already resting."). The
+    // rest threshold is 35%: resting at half health every other fight stalls
+    // progression (observed in the first live pair — hunts froze at 5).
     if (this.resting) {
       if (frac >= 0.75 || this.creatures.length || Date.now() - this.restSince > 30000) {
         this.resting = false;
         if (this.restingFlag) this.cmd('stand');
       } else return;
     }
-    if (!this.inCombat && frac < 0.5 && !this.creatures.length && !this.restingFlag
+    if (!this.inCombat && frac < 0.35 && !this.creatures.length && !this.restingFlag
         && Date.now() - (this.restSince || 0) > 5000) {
       this.resting = true;
       this.restSince = Date.now();
@@ -289,14 +317,19 @@ class LiveSim {
       return this.cmd(`attack ${this.creatures[0]}`);
     }
 
-    // a stuck non-hunt mode self-heals after 30s
-    if (this.mode !== 'hunt' && Date.now() - this.modeAt > 30000) this.setMode('hunt');
+    // a stuck non-hunt mode self-heals after 30s (armUp gets 90s — it has to
+    // walk across town and back)
+    const healAfter = this.mode === 'armUp' ? 90000 : 30000;
+    if (this.mode !== 'hunt' && Date.now() - this.modeAt > healAfter) {
+      this.appendLog(`[watchdog] ${new Date().toISOString()} ${this.mode} stalled >${healAfter / 1000}s — resuming hunt`);
+      this.setMode('hunt');
+    }
 
     if (this.mode === 'armUp') {
       if (!this.pathQueue.length && !this.armStage) {
         if (!this.room) return;
         const p = bfsPath(this.room, 'bazaar');
-        if (!p) { this.armed = true; return this.setMode('hunt'); }
+        if (!p) { this.armed = true; this.appendLog(`[armUp] no path to bazaar from ${this.room} — hunting barehanded`); return this.setMode('hunt'); }
         this.pathQueue = p;
       }
       if (this.pathQueue.length) return this.cmd(this.pathQueue.shift());
@@ -349,7 +382,7 @@ class LiveSim {
 
   progressLine() {
     const mins = Math.round((Date.now() - this.startedAt) / 60000);
-    return `  hunt ${this.hunts}: circle ${this.circle}, hp ${this.hp}/${this.maxHp}, kills ${this.kills}, circles ${this.circles}, ticks ${mins}m`;
+    return `  hunt ${this.hunts}: circle ${this.circle}, hp ${this.hp}/${this.maxHp}, kills ${this.kills}, circles ${this.circles}, ticks ${mins}m [mode ${this.mode}, room ${this.room}, tdpSeen ${this.lastTdpMsg ?? '-'}]`;
   }
 
   finish(reason) {

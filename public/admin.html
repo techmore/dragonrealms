@@ -821,8 +821,10 @@
       pvName = name;
       pvOfflineNotified = false;
       $('pv-name').textContent = name;
-      const url = '/?spectate=' + encodeURIComponent(name);
-      $('pv-newtab').href = url;
+      // Hand the token through the fragment too: the embedded client may load
+      // before the storage write lands, and a fresh tab has no shared state.
+      const url = '/?spectate=' + encodeURIComponent(name) + '#gm=' + encodeURIComponent(S.token);
+      $('pv-newtab').href = '/?spectate=' + encodeURIComponent(name);
       $('pv-frame').src = url;
       $('pv').hidden = false;
       renderPv();
