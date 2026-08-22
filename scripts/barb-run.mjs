@@ -140,6 +140,7 @@ function buildScript({ fromRoom, arena }) {
     L.push(`FIGHT_${sp.replace(/\W/g, '_')}:`);
     L.push(`  put attack ${nounOf(sp)}`);
     L.push('  wait');
+    L.push('  put analyze'); // barb expertise lives here (combo study)
     L.push('  pause 3');
     L.push('  iflt hp 40 goto REST');
     L.push('  goto SCAN');
@@ -327,13 +328,24 @@ async function main() {
   const knownChar = (r.characters || []).find((c) => c.name === CHAR_NAME);
   log(`authed as ${USER} (${knownChar ? 'existing' : 'new'} character slot)`);
 
-  // 2. WebSocket session like the web client.
-  ws = new WebSocket(ORIGIN);
-  ws.onmessage = async (ev) => {
-    let m; try { m = JSON.parse(ev.data); } catch { return; }
-    await onMessage(m);
-  };
-  ws.onclose = () => { if (!state.done) { log('socket closed by server'); finish('disconnected'); } };
+  // 2. WebSocket session like the web client. Reconnects (fresh token,
+  // same character) if the server bounces mid-run.
+  let reconnects = 0;
+  function connect() {
+    ws = new WebSocket(ORIGIN);
+    ws.onmessage = async (ev) => {
+      let m; try { m = JSON.parse(ev.data); } catch { return; }
+      await onMessage(m);
+    };
+    ws.onclose = () => {
+      if (state.done) return;
+      if (++reconnects > 5) return finish('disconnected (no reconnection left)');
+      log(`socket closed — reconnecting (${reconnects})`);
+      state.runner?.stop(); state.runner = null;
+      setTimeout(connect, 2500);
+    };
+  }
+  connect();
 
   function onMessage(m) {
     switch (m.t) {
