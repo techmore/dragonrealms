@@ -310,8 +310,11 @@ class LiveSim {
       return this.cmd('rest');
     }
 
-    // fight whatever is here, whatever we were doing
-    if (this.creatures.length) {
+    // fight whatever is here, whatever we were doing — EXCEPT while arming up:
+    // a level-1 character in the sewers with rats respawning on every tick can
+    // never walk out to buy a weapon if fights preempt the walk. Barehanded
+    // punches still land while pathing.
+    if (this.creatures.length && this.mode !== 'armUp') {
       if (this.rt > 0) return; // roundtime — wait it out like a player would
       this.hunts += 1;
       return this.cmd(`attack ${this.creatures[0]}`);
