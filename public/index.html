@@ -54,21 +54,42 @@
       <section class="dwin" data-window="hands-bar" id="hands-container">
         <div class="dwin-head rail-kicker">HANDS<button class="dwin-collapse" data-collapse="hands-bar" title="Collapse hands" aria-label="Collapse hands" aria-expanded="true">&#9660;</button></div>
         <div class="dwin-body" id="hands-bar">
-          <svg id="hands-doll" viewBox="0 0 120 220" role="img" aria-label="Equipment paper doll" class="paper-doll">
+          <svg id="hands-doll" viewBox="0 0 140 230" role="img" aria-label="Equipment paper doll" class="paper-doll">
             <!-- head -->
-            <g data-slot="head" class="pd-region"><circle cx="60" cy="24" r="14"/><text x="96" y="28">head</text></g>
-            <!-- torso -->
-            <g data-slot="torso" class="pd-region"><path d="M42 42 h36 v52 h-36 z"/><text x="96" y="70">body</text></g>
-            <!-- arms -->
-            <g data-slot="arms" class="pd-region"><path d="M30 44 h10 v46 h-10 z M80 44 h10 v46 h-10 z"/></g>
-            <!-- hands (weapon) -->
-            <g data-slot="hand" class="pd-region"><circle cx="35" cy="98" r="8"/><circle cx="85" cy="98" r="8"/><text x="96" y="102">hands</text></g>
-            <!-- shield (off arm) -->
-            <g data-slot="shield" class="pd-region"><ellipse cx="20" cy="80" rx="9" ry="12"/><text x="4" y="66">shld</text></g>
-            <!-- legs -->
-            <g data-slot="legs" class="pd-region"><path d="M45 96 h13 v50 h-13 z M62 96 h13 v50 h-13 z"/></g>
+            <g data-slot="head" class="pd-region">
+              <path d="M60 8 c9 0 14 6 14 15 c0 9 -5 16 -14 16 c-9 0 -14 -7 -14 -16 c0 -9 5 -15 14 -15 z"/>
+              <text x="104" y="28">head</text>
+            </g>
+            <!-- neck + torso (shoulders taper to waist) -->
+            <g data-slot="torso" class="pd-region">
+              <path d="M50 42 h20 v6 h0 c10 2 18 4 22 8 l6 26 c1 5 -2 8 -6 7 l-8 -3 v24 h-28 v-24 l-8 3 c-4 1 -7 -2 -6 -7 l6 -26 c4 -4 12 -6 22 -8 z"/>
+              <text x="104" y="76">body</text>
+            </g>
+            <!-- arms: shoulder pauldrons down to gauntlets -->
+            <g data-slot="arms" class="pd-region">
+              <path d="M46 48 l-10 6 -4 30 3 12 6 0 -2 -14 4 -26 z"/>
+              <path d="M74 48 l10 6 4 30 -3 12 -6 0 2 -14 -4 -26 z"/>
+            </g>
+            <!-- hands (weapon side filled by hand slot) -->
+            <g data-slot="hand" class="pd-region">
+              <circle cx="36" cy="102" r="6"/>
+              <circle cx="84" cy="102" r="6"/>
+              <text x="104" y="106">hands</text>
+            </g>
+            <!-- shield strapped to off arm -->
+            <g data-slot="shield" class="pd-region">
+              <path d="M22 72 q10 -4 14 0 q3 12 -7 22 q-10 -10 -7 -22 z"/>
+              <text x="4" y="66">shld</text>
+            </g>
+            <!-- legs: two tapered limbs from the hip plate -->
+            <g data-slot="legs" class="pd-region">
+              <path d="M48 112 h11 v44 h-13 l2 -44 z M62 112 h11 l2 44 h-13 z"/>
+            </g>
             <!-- feet -->
-            <g data-slot="feet" class="pd-region"><path d="M43 148 h16 v8 h-16 z M61 148 h16 v8 h-16 z"/><text x="96" y="156">feet</text></g>
+            <g data-slot="feet" class="pd-region">
+              <path d="M44 158 h15 v8 h-17 q-1 -6 2 -8 z M61 158 h15 q3 2 2 8 h-17 z"/>
+              <text x="104" y="166">feet</text>
+            </g>
           </svg>
           <div id="hands-hand" class="hands-item">Hand: &#8212;</div>
           <div id="hands-worn" class="hands-item"></div>

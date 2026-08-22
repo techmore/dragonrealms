@@ -40,10 +40,12 @@ export const status = {
         .map(([, i]) => i.name);
       const carried = p.inventory.reduce((s, e) => s + e.qty, 0);
       // Per-slot map for the client's paper doll (head/torso/shield/feet/...).
+      // Each entry carries the display name plus condition so the doll can
+      // tint damaged gear red (DR shows wear on appraise; we surface it live).
       const slots = {};
       for (const [slot, i] of Object.entries(p.equipment)) {
         if (!slots[slot]) slots[slot] = [];
-        slots[slot].push(i.name);
+        slots[slot].push({ name: i.name, cond: Math.round(i.condition ?? 100) });
       }
       p.ws.send(JSON.stringify({
         t: 'hands',

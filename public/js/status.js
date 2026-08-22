@@ -55,19 +55,24 @@ export function renderHands(msg) {
   $('hands-hand').textContent = `Hand: ${hand}`;
   $('hands-worn').textContent = msg.worn && msg.worn.length ? `Worn: ${msg.worn.join(', ')}` : '';
   $('hands-carried').textContent = `Carried: ${msg.carried || 0}`;
-  // Paper doll: fill regions whose slot has gear; title tooltip names it.
-  // First real hands data force-reveals the window (survives the empty-window
-  // auto-hide and a player's previously hidden layout) so new players see it.
+  // Paper doll: fill regions whose slot has gear; tooltip names the item and
+  // its condition. Damaged gear (<60 condition) gains a red tint via
+  // pd-damaged + --pd-cond so wear reads at a glance.
   const slots = msg.slots || {};
   const doll = $('hands-doll');
   if (doll) {
     for (const g of doll.querySelectorAll('.pd-region')) {
       const slot = g.dataset.slot;
       const items = slots[slot] || [];
+      const names = items.map((it) => (typeof it === 'string' ? it : it.name));
+      const cond = items.length ? Math.min(...items.map((it) => (typeof it === 'string' ? 100 : it.cond))) : 100;
       g.classList.toggle('pd-filled', items.length > 0);
-      g.setAttribute('aria-label', `${DOLL_SLOT_LABELS[slot] || slot}: ${items.join(', ') || 'empty'}`);
+      g.classList.toggle('pd-damaged', items.length > 0 && cond < 60);
+      if (items.length) g.style.setProperty('--pd-cond', String(cond));
+      else g.style.removeProperty('--pd-cond');
+      g.setAttribute('aria-label', `${DOLL_SLOT_LABELS[slot] || slot}: ${names.join(', ') || 'empty'}`);
       const title = g.querySelector('title') || document.createElementNS('http://www.w3.org/2000/svg', 'title');
-      title.textContent = `${DOLL_SLOT_LABELS[slot] || slot}: ${items.join(', ') || 'empty'}`;
+      title.textContent = `${DOLL_SLOT_LABELS[slot] || slot}: ${names.join(', ') || 'empty'}${items.length ? ` (${cond}% condition)` : ''}`;
       if (!title.parentNode) g.appendChild(title);
     }
     if (!dollSeen && Object.keys(slots).length) {
