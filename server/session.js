@@ -14,7 +14,7 @@ import { isGmToken } from './gm.js';
 
 const INPUT_MAX = 20; // commands per second
 
-export function attachWebSocket(httpServer, game) {
+export function attachWebSocket(httpServer, game, { gmToken } = {}) {
   const wss = new WebSocketServer({ server: httpServer, maxPayload: 4096 });
 
   wss.on('connection', (socket, req) => {
@@ -28,6 +28,7 @@ export function attachWebSocket(httpServer, game) {
       accountId: null,
       username: null,
       player: null,
+      gmToken,              // the world's resolved GM credential for this server
       isBot,
       charCreate: null,     // {name, race, guild, stats, pool}
       cmdTimestamps: [],
@@ -176,10 +177,9 @@ function route(session, msg) {
 
 function authorizeGmStream(session, suppliedToken) {
   if (session.gmAuthorized) return true;
-  session.gmAuthorized = isGmToken(suppliedToken);
+  session.gmAuthorized = isGmToken(suppliedToken, session.gmToken);
   return session.gmAuthorized;
 }
-
 function enterSpectatingState(session) {
   if (session.state !== 'spectating') session.stateBeforeSpectate = session.state;
   session.state = 'spectating';

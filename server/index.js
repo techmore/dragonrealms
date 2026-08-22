@@ -11,13 +11,19 @@ const PORT = Number(process.env.PORT || 3000);
 // Local-play defaults: a bare `node server/index.js` (no env) still gets the
 // test API and a STABLE local GM token, so the menu-bar app, dash handoff,
 // and Watch links never race a rotating credential. Set DR_GM_TOKEN to
-// override; the chosen token is published to /tmp/dr-world-token.json below.
-const LOCAL_TOKEN_FILE = '/tmp/dr-world-token.json';
+// override; the chosen token is published to /tmp/dr-world-token-<port>.json
+// (per port — parallel worlds on different ports never clobber each other).
+const LOCAL_TOKEN_FILE = `/tmp/dr-world-token-${PORT}.json`;
 function resolveGmToken() {
   if (process.env.DR_GM_TOKEN) return process.env.DR_GM_TOKEN;
   try {
     const prev = JSON.parse(readFileSync(LOCAL_TOKEN_FILE, 'utf8'));
     if (prev?.token && prev.port === PORT) return prev.token; // keep it stable across restarts
+  } catch {}
+  // Legacy single-file location (pre per-port keying).
+  try {
+    const legacy = JSON.parse(readFileSync('/tmp/dr-world-token.json', 'utf8'));
+    if (legacy?.token && legacy.port === PORT) return legacy.token;
   } catch {}
   return 'dr-local-' + Math.random().toString(36).slice(2, 10);
 }
@@ -56,7 +62,7 @@ const server = createServer(createHttpHandler(game, {
   debugToken: process.env.DR_DEBUG_TOKEN,
 }));
 
-attachWebSocket(server, game);
+attachWebSocket(server, game, { gmToken: GM_TOKEN });
 
 server.listen(PORT, () => {
   console.log(`Dragon Realms listening on http://localhost:${PORT}`);

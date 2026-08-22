@@ -1,10 +1,9 @@
 [
   {
-    "name": "home-to-square (music_shop->square)",
-    "steps": [
-      "w",
-      "se",
-      "e"
+    "name": "home-to-square (square->square)",
+    "steps": [],
+    "rooms": [
+      "square"
     ]
   },
   {
@@ -15,113 +14,146 @@
       "w",
       "w",
       "w"
+    ],
+    "rooms": [
+      "square",
+      "tg_w",
+      "guild_district",
+      "haldofurd_barn",
+      "west_road",
+      "west_gate"
     ]
   },
   {
     "name": "siergelde-road (west_gate->woods_path)",
     "steps": [
       "s"
+    ],
+    "rooms": [
+      "west_gate",
+      "woods_path"
     ]
   },
   {
     "name": "woods-clearing (woods_path->woods_1)",
     "steps": [
-      "n",
-      "e",
-      "e",
-      "e",
-      "e",
-      "e",
-      "s",
-      "s",
-      "s",
-      "e",
-      "s",
-      "s",
-      "w",
-      "n",
-      "e"
+      "s"
+    ],
+    "rooms": [
+      "woods_path",
+      "woods_1"
     ]
   },
   {
     "name": "wolf-dens (woods_1->woods_2)",
     "steps": [
-      "n"
+      "s"
+    ],
+    "rooms": [
+      "woods_1",
+      "woods_2"
     ]
   },
   {
     "name": "deep-wood (woods_2->deep_1)",
     "steps": [
-      "n"
+      "s"
+    ],
+    "rooms": [
+      "woods_2",
+      "deep_1"
     ]
   },
   {
     "name": "troll-mounds (deep_1->deep_2)",
     "steps": [
       "e"
+    ],
+    "rooms": [
+      "deep_1",
+      "deep_2"
     ]
   },
   {
     "name": "blackwood (deep_2->black_1)",
     "steps": [
       "e"
+    ],
+    "rooms": [
+      "deep_2",
+      "black_1"
     ]
   },
   {
     "name": "back-to-mounds (black_1->deep_2)",
     "steps": [
       "w"
+    ],
+    "rooms": [
+      "black_1",
+      "deep_2"
     ]
   },
   {
     "name": "back-to-deep-wood (deep_2->deep_1)",
     "steps": [
       "w"
+    ],
+    "rooms": [
+      "deep_2",
+      "deep_1"
     ]
   },
   {
     "name": "back-to-dens (deep_1->woods_2)",
     "steps": [
-      "s"
+      "n"
+    ],
+    "rooms": [
+      "deep_1",
+      "woods_2"
     ]
   },
   {
     "name": "back-to-clearing (woods_2->woods_1)",
     "steps": [
-      "s"
+      "n"
+    ],
+    "rooms": [
+      "woods_2",
+      "woods_1"
     ]
   },
   {
     "name": "camp-trail (woods_1->camp_path)",
     "steps": [
-      "s",
-      "s",
-      "e",
-      "e",
-      "se",
-      "ne",
-      "w",
       "n",
-      "w",
-      "se",
-      "w",
-      "w",
-      "w",
-      "w",
-      "s",
       "e"
+    ],
+    "rooms": [
+      "woods_1",
+      "woods_path",
+      "camp_path"
     ]
   },
   {
     "name": "bandit-hollow (camp_path->camp_hollow)",
     "steps": [
       "e"
+    ],
+    "rooms": [
+      "camp_path",
+      "camp_hollow"
     ]
   },
   {
     "name": "captains-den (camp_hollow->camp_den)",
     "steps": [
       "n"
+    ],
+    "rooms": [
+      "camp_hollow",
+      "camp_den"
     ]
   },
   {
@@ -129,6 +161,11 @@
     "steps": [
       "d",
       "n"
+    ],
+    "rooms": [
+      "camp_den",
+      "cinder_1",
+      "cinder_2"
     ]
   },
   {
@@ -136,6 +173,11 @@
     "steps": [
       "s",
       "up"
+    ],
+    "rooms": [
+      "cinder_2",
+      "cinder_1",
+      "camp_den"
     ]
   },
   {
@@ -143,12 +185,21 @@
     "steps": [
       "s",
       "w"
+    ],
+    "rooms": [
+      "camp_den",
+      "camp_hollow",
+      "camp_path"
     ]
   },
   {
     "name": "trail-to-woods-path (camp_path->woods_path)",
     "steps": [
       "w"
+    ],
+    "rooms": [
+      "camp_path",
+      "woods_path"
     ]
   },
   {
@@ -163,24 +214,48 @@
       "se",
       "e",
       "e"
+    ],
+    "rooms": [
+      "woods_path",
+      "west_gate",
+      "west_road",
+      "haldofurd_barn",
+      "guild_district",
+      "tg_w",
+      "square",
+      "tg_se",
+      "east_road",
+      "east_gate"
     ]
   },
   {
     "name": "marsh-edge (east_gate->marsh_1)",
     "steps": [
       "e"
+    ],
+    "rooms": [
+      "east_gate",
+      "marsh_1"
     ]
   },
   {
     "name": "bog-hollow (marsh_1->marsh_2)",
     "steps": [
       "s"
+    ],
+    "rooms": [
+      "marsh_1",
+      "marsh_2"
     ]
   },
   {
     "name": "marsh-back (marsh_2->marsh_1)",
     "steps": [
       "n"
+    ],
+    "rooms": [
+      "marsh_2",
+      "marsh_1"
     ]
   },
   {
@@ -190,6 +265,13 @@
       "w",
       "w",
       "nw"
+    ],
+    "rooms": [
+      "marsh_1",
+      "east_gate",
+      "east_road",
+      "tg_se",
+      "square"
     ]
   },
   {
@@ -198,12 +280,22 @@
       "nw",
       "n",
       "n"
+    ],
+    "rooms": [
+      "square",
+      "tg_nw",
+      "nw_road",
+      "temple_row"
     ]
   },
   {
     "name": "sewer-entrance (temple_row->sewers_1)",
     "steps": [
       "d"
+    ],
+    "rooms": [
+      "temple_row",
+      "sewers_1"
     ]
   },
   {
@@ -211,6 +303,11 @@
     "steps": [
       "n",
       "n"
+    ],
+    "rooms": [
+      "sewers_1",
+      "sewers_2",
+      "sewers_3"
     ]
   },
   {
@@ -218,6 +315,11 @@
     "steps": [
       "d",
       "d"
+    ],
+    "rooms": [
+      "sewers_3",
+      "sewers_4",
+      "sewers_5"
     ]
   },
   {
@@ -225,6 +327,11 @@
     "steps": [
       "up",
       "up"
+    ],
+    "rooms": [
+      "sewers_5",
+      "sewers_4",
+      "sewers_3"
     ]
   },
   {
@@ -232,12 +339,21 @@
     "steps": [
       "s",
       "s"
+    ],
+    "rooms": [
+      "sewers_3",
+      "sewers_2",
+      "sewers_1"
     ]
   },
   {
     "name": "sewer-up (sewers_1->temple_row)",
     "steps": [
       "up"
+    ],
+    "rooms": [
+      "sewers_1",
+      "temple_row"
     ]
   },
   {
@@ -246,39 +362,70 @@
       "s",
       "s",
       "se"
+    ],
+    "rooms": [
+      "temple_row",
+      "nw_road",
+      "tg_nw",
+      "square"
     ]
   },
   {
     "name": "ranger-quarter (square->hall_ranger)",
     "steps": [
       "w",
-      "nw",
-      "e",
-      "s",
-      "e",
-      "sw",
-      "nw",
       "w",
-      "w"
+      "w",
+      "w",
+      "w",
+      "s",
+      "s",
+      "se",
+      "s"
+    ],
+    "rooms": [
+      "square",
+      "tg_w",
+      "guild_district",
+      "haldofurd_barn",
+      "west_road",
+      "west_gate",
+      "woods_path",
+      "woods_1",
+      "pine_needle_path",
+      "hall_ranger"
     ]
   },
   {
     "name": "pine-needle-path (hall_ranger->pine_needle_path)",
     "steps": [
       "n"
+    ],
+    "rooms": [
+      "hall_ranger",
+      "pine_needle_path"
     ]
   },
   {
-    "name": "path-to-woods (pine_needle_->woods_1)",
+    "name": "path-to-woods (pine_needle_path->woods_1)",
     "steps": [
-      "n"
+      "nw"
+    ],
+    "rooms": [
+      "pine_needle_path",
+      "woods_1"
     ]
   },
   {
     "name": "woods-back-to-ranger (woods_1->hall_ranger)",
     "steps": [
-      "s",
+      "se",
       "s"
+    ],
+    "rooms": [
+      "woods_1",
+      "pine_needle_path",
+      "hall_ranger"
     ]
   },
   {
@@ -293,6 +440,18 @@
       "w",
       "se",
       "e"
+    ],
+    "rooms": [
+      "hall_ranger",
+      "hall_moonmage",
+      "oxenwaithe_road",
+      "oxenwaithe_bridge",
+      "hall_bard",
+      "academy",
+      "music_shop",
+      "bards_walk",
+      "tg_w",
+      "square"
     ]
   },
   {
@@ -304,6 +463,15 @@
       "sw",
       "s",
       "e"
+    ],
+    "rooms": [
+      "square",
+      "tg_ne",
+      "ne_road",
+      "gateyard",
+      "hall_empath",
+      "hall_barbarian",
+      "hall_paladin"
     ]
   },
   {
@@ -315,6 +483,15 @@
       "w",
       "w",
       "sw"
+    ],
+    "rooms": [
+      "hall_paladin",
+      "hall_barbarian",
+      "hall_empath",
+      "gateyard",
+      "ne_road",
+      "tg_ne",
+      "square"
     ]
   }
 ]
