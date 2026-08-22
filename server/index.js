@@ -1,5 +1,6 @@
 // Dragon Realms server entry point.
 import { createServer } from 'node:http';
+import net from 'node:net';
 import { writeFileSync, readFileSync } from 'node:fs';
 import { migrate, closeDb } from './db.js';
 import { Game } from './game.js';
@@ -23,6 +24,26 @@ function resolveGmToken() {
 const GM_TOKEN = resolveGmToken();
 const API_ENABLED = process.env.DR_ENABLE_API !== '0'; // on by default for local play
 const DEBUG_API_ENABLED = process.env.DR_ENABLE_DEBUG_API === '1';
+
+// Single-world guard: probe the port BEFORE bootstrapping anything. A second
+// world on :3000 desyncs GM tokens, splits sessions, and logs operators out.
+// (An 'error' listener on the http server is not enough — the WSS attached to
+// it can surface the failure as an unhandled event first.)
+function portInUse(port) {
+  return new Promise((resolve) => {
+    const probe = net.connect({ port, host: '127.0.0.1' });
+    probe.once('connect', () => { probe.destroy(); resolve(true); });
+    probe.once('error', () => { resolve(false); });
+  });
+}
+
+const busy = await portInUse(PORT);
+if (busy && process.env.DR_ALLOW_SECOND_WORLD !== '1') {
+  console.error(`Dragon Realms: port ${PORT} already has a world running.`);
+  console.error(`Refusing to start a duplicate — two worlds would desync GM ` +
+    `tokens and sessions. Kill the other process or set PORT=<other>.`);
+  process.exit(1);
+}
 
 migrate();
 const game = new Game();
@@ -50,11 +71,7 @@ server.listen(PORT, () => {
 
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
-    console.log('\nShutting down...');
     game.stop();
-    for (const p of game.players.values()) {
-      try { game.persistPlayer(p); } catch {}
-    }
     closeDb();
     process.exit(0);
   });
