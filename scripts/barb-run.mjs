@@ -28,6 +28,7 @@ const SCRIPT_NAME = 'huntbarb';
 
 const { ROOMS } = await import('../data/world.js');
 const { creatureById } = await import('../data/creatures.js');
+const { SKILLS } = await import('../data/skills.js');
 const { createRunner } = await import('../public/js/script-engine.js');
 import WebSocket from 'ws';
 
@@ -184,16 +185,44 @@ const DEFAULT_TRAIN = ['expertise', 'parry', 'evasion', 'light_armor', 'blunt',
 // Circle-failure prose looks like:
 //   expertise at least rank 8 (you have 5)
 //   2nd weapon at least rank 8 (your 2nd is 0)
-// Parse it into a targeted tdptrain list.
-function trainListFromMissing(raw) {
-  const list = new Set();
-  for (const m of raw.matchAll(/^\s*-?\s*([a-z_]+) at least rank \d+/gm)) {
-    if (!/^(1st|2nd|3rd|4th|5th|6th|7th|8th|9th)$/.test(m[1])) list.add(m[1]);
+// Parse it into a targeted tdptrain list. Skills whose LIVE rank already
+// meets the need are dropped, and set candidates train cheapest-first —
+// otherwise a rank-61 blunt burns 187 TDPs re-satisfying the 1st-weapon
+// slot while the 2nd weapon sits at 1.
+const NAME_TO_ID = new Map(Object.values(SKILLS).map((s) => [s.name.toLowerCase(), s.id]));
+function trainListFromMissing(raw, ranks = {}) {
+  const wanted = []; // {id, need}
+  for (const m of raw.matchAll(/^\s*-?\s*([a-z_]+) at least rank (\d+)/gm)) {
+    if (!/^(1st|2nd|3rd|4th|5th|6th|7th|8th|9th)$/.test(m[1])) {
+      wanted.push({ id: m[1], need: Number(m[2]) });
+    }
   }
-  for (const m of raw.matchAll(/\d+(?:st|nd|rd|th) (weapon|armor|survival|lore) at least rank/gm)) {
-    for (const c of SET_CANDIDATES[m[1]] || []) list.add(c);
+  for (const m of raw.matchAll(/\d+(?:st|nd|rd|th) (weapon|armor|survival|lore) at least rank (\d+)/gm)) {
+    for (const c of SET_CANDIDATES[m[1]] || []) {
+      wanted.push({ id: c, need: Number(m[2]) });
+    }
   }
-  return [...list];
+  const seen = new Set();
+  return wanted
+    .filter(({ id, need }) => {
+      if (seen.has(id)) return false;
+      seen.add(id);
+      const have = ranks[id];
+      return have === undefined || have < need; // unknown = untrained, keep
+    })
+    .sort((a, b) => (ranks[a.id] ?? 0) - (ranks[b.id] ?? 0))
+    .map((w) => w.id);
+}
+
+// Parse the `exp` panel into { skillId: rank } so training can skip skills
+// that already clear their circle requirement.
+function parseRanks(expText) {
+  const ranks = {};
+  for (const m of expText.matchAll(/^  ([A-Za-z' -]+?)\s{2,}rank (\d+)/gm)) {
+    const id = NAME_TO_ID.get(m[1].trim().toLowerCase());
+    if (id) ranks[id] = Number(m[2]);
+  }
+  return ranks;
 }
 
 function buildCircleScript({ fromRoom, arena, train }) {
@@ -229,7 +258,8 @@ const state = {
   lastFleeAt: 0, lastSendAt: 0, done: false,
   runner: null, scriptVerified: false,
   huntSrc: null, circleSrc: null, curSrc: null, curName: null,
-  arena: null, lastHallAt: 0, killsAtVisit: 0, lastTrainList: '',
+  arena: null, lastHallAt: 0, killsAtVisit: 0,
+  lastTrainList: null, lastMissingRaw: null, pendingExpParse: false, ranks: {},
 };
 let ws;
 
@@ -263,7 +293,8 @@ function refreshCycleScripts() {
   // Keep any circle-failure-retargeted curriculum; falling back to the
   // default here would undo the retarget and the dedupe would block it
   // from ever being applied again.
-  const train = state.lastTrainList ? state.lastTrainList.split(',') : undefined;
+  const train = Array.isArray(state.lastTrainList) && state.lastTrainList.length
+    ? state.lastTrainList : undefined;
   state.circleSrc = buildCircleScript({ fromRoom: state.room, arena, train });
   send({ t: 'scripts_put', name: SCRIPT_NAME, body: state.huntSrc });
   send({ t: 'scripts_put', name: SCRIPT_NAME + 'circle', body: state.circleSrc });
@@ -406,17 +437,29 @@ async function main() {
           }, 3000);
         }
         if (/dies|slumps|lifeless|stops moving|collapses/.test(text)) state.kills += 1;
-        // Circle failure lists exactly what's short — fold it into the
-        // saved circle-trip script so the next visit trains the right things.
+        // Circle failure lists exactly what's short — snapshot the request,
+        // refresh live ranks via `exp`, then retarget when ranks arrive.
         if (/not yet ready to circle/.test(text)) {
-          const parsed = trainListFromMissing(text);
-          if (parsed.length && parsed.join() !== state.lastTrainList) {
-            state.lastTrainList = parsed.join();
-            state.circleSrc = buildCircleScript({
-              fromRoom: state.room, arena: { id: state.arena }, train: parsed,
-            });
-            send({ t: 'scripts_put', name: SCRIPT_NAME + 'circle', body: state.circleSrc });
-            log(`circle blocked — retargeted curriculum: ${parsed.slice(0, 8).join(', ')}${parsed.length > 8 ? ` +${parsed.length - 8}` : ''}`);
+          state.lastMissingRaw = text;
+          state.pendingExpParse = true;
+          cmd('exp');
+          feedRunner(text, m.t);
+          break;
+        }
+        if (state.pendingExpParse && /^Experience/.test(text.trim())) {
+          state.ranks = { ...state.ranks, ...parseRanks(text) };
+          state.pendingExpParse = false;
+          if (state.lastMissingRaw) {
+            const parsed = trainListFromMissing(state.lastMissingRaw, state.ranks);
+            state.lastMissingRaw = null;
+            if (parsed.length && parsed.join() !== (state.lastTrainList || []).join()) {
+              state.lastTrainList = parsed;
+              state.circleSrc = buildCircleScript({
+                fromRoom: state.room, arena: { id: state.arena }, train: parsed,
+              });
+              send({ t: 'scripts_put', name: SCRIPT_NAME + 'circle', body: state.circleSrc });
+              log(`circle blocked — retargeted (${parsed.length} skills, cheapest-first): ${parsed.slice(0, 8).join(', ')}${parsed.length > 8 ? ` +${parsed.length - 8}` : ''}`);
+            }
           }
         }
         feedRunner(text, m.t);
