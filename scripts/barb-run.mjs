@@ -259,7 +259,11 @@ function refreshCycleScripts() {
   if (!state.room || !state.arena) return;
   const arena = { id: state.arena };
   state.huntSrc = buildScript({ fromRoom: state.room, arena });
-  state.circleSrc = buildCircleScript({ fromRoom: state.room, arena });
+  // Keep any circle-failure-retargeted curriculum; falling back to the
+  // default here would undo the retarget and the dedupe would block it
+  // from ever being applied again.
+  const train = state.lastTrainList ? state.lastTrainList.split(',') : undefined;
+  state.circleSrc = buildCircleScript({ fromRoom: state.room, arena, train });
   send({ t: 'scripts_put', name: SCRIPT_NAME, body: state.huntSrc });
   send({ t: 'scripts_put', name: SCRIPT_NAME + 'circle', body: state.circleSrc });
 }
@@ -413,10 +417,14 @@ async function main() {
         const huntOk = hunt === state.huntSrc;
         const circleOk = circle === state.circleSrc;
         if (huntOk && circleOk) {
-          state.scriptVerified = true;
-          log(`scripts verified on the account (login-tied storage works, ` +
-            `${Object.keys(m.scripts).length} in library)`);
-        } else {
+          if (!state.scriptVerified) {
+            state.scriptVerified = true;
+            log(`scripts verified on the account (login-tied storage works, ` +
+              `${Object.keys(m.scripts).length} in library)`);
+          }
+        } else if (!huntOk && !circleOk) {
+          // Fully divergent: only worth shouting about. One-sided mismatches
+          // are just the intermediate echo between our two scripts_put calls.
           log('WARN: account snapshot differs from what was saved — running local copies');
         }
         // Whatever the round-trip says, get moving: execute the SERVER copy
