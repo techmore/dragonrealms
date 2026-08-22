@@ -34,7 +34,10 @@ export function subscribe(session, playerName) {
   if (!session.gmAuthorized) return { ok: false, msg: 'GM authorization is required to watch a live player stream.' };
   const n = String(playerName || '').trim();
   if (!n) return { ok: false, msg: 'Spectate whom? Provide a player name.' };
-  const target = [...session.game.players.values()].find((p) => p.name.toLowerCase() === n.toLowerCase());
+  // Match by name (case-insensitive) or by character id — ids are stable and
+  // unambiguous, so tooling can target them even across renames.
+  const target = [...session.game.players.values()].find((p) =>
+    p.name.toLowerCase() === n.toLowerCase() || String(p.charId) === n);
   if (!target) return { ok: false, msg: `No adventurer named "${n}" is online right now.` };
   if (session.player && session.player.charId === target.charId) {
     return { ok: false, msg: 'You cannot spectate yourself.' };

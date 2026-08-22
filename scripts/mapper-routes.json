@@ -1,0 +1,249 @@
+[
+  {
+    "name": "green-spokes",
+    "steps": [
+      "e",
+      "e"
+    ]
+  },
+  {
+    "name": "bazaar-back",
+    "steps": [
+      "w",
+      "w"
+    ]
+  },
+  {
+    "name": "west-gate",
+    "steps": [
+      "w",
+      "w",
+      "w",
+      "w",
+      "w"
+    ]
+  },
+  {
+    "name": "siergelde-road",
+    "steps": [
+      "s"
+    ]
+  },
+  {
+    "name": "woods-run",
+    "steps": [
+      "n",
+      "e",
+      "e",
+      "e",
+      "e",
+      "e",
+      "s",
+      "s",
+      "s",
+      "e",
+      "s",
+      "s",
+      "w",
+      "n",
+      "e"
+    ]
+  },
+  {
+    "name": "wolf-dens",
+    "steps": [
+      "n"
+    ]
+  },
+  {
+    "name": "deep-wood",
+    "steps": [
+      "n"
+    ]
+  },
+  {
+    "name": "troll-mounds",
+    "steps": [
+      "e"
+    ]
+  },
+  {
+    "name": "blackwood",
+    "steps": [
+      "e"
+    ]
+  },
+  {
+    "name": "blackwood-return",
+    "steps": [
+      "w",
+      "w",
+      "s",
+      "s",
+      "s",
+      "s",
+      "e",
+      "e",
+      "se",
+      "ne",
+      "w",
+      "n",
+      "w",
+      "se",
+      "e"
+    ]
+  },
+  {
+    "name": "camp-trail",
+    "steps": [
+      "e",
+      "e"
+    ]
+  },
+  {
+    "name": "captains-den",
+    "steps": [
+      "n"
+    ]
+  },
+  {
+    "name": "cinder-descent",
+    "steps": [
+      "d",
+      "n"
+    ]
+  },
+  {
+    "name": "cinder-exit",
+    "steps": [
+      "s",
+      "up",
+      "s",
+      "w",
+      "w",
+      "n",
+      "e",
+      "e",
+      "e",
+      "e",
+      "e"
+    ]
+  },
+  {
+    "name": "east-gate",
+    "steps": [
+      "se",
+      "e",
+      "e"
+    ]
+  },
+  {
+    "name": "marsh-edge",
+    "steps": [
+      "e"
+    ]
+  },
+  {
+    "name": "bog-hollow",
+    "steps": [
+      "s"
+    ]
+  },
+  {
+    "name": "marsh-return",
+    "steps": [
+      "n",
+      "w",
+      "w",
+      "w",
+      "nw"
+    ]
+  },
+  {
+    "name": "temple-row",
+    "steps": [
+      "nw",
+      "n",
+      "n"
+    ]
+  },
+  {
+    "name": "sewer-entrance",
+    "steps": [
+      "d"
+    ]
+  },
+  {
+    "name": "sewer-junction",
+    "steps": [
+      "n",
+      "n"
+    ]
+  },
+  {
+    "name": "lower-drains",
+    "steps": [
+      "d",
+      "d"
+    ]
+  },
+  {
+    "name": "sewer-exit-full",
+    "steps": [
+      "up",
+      "up",
+      "s",
+      "s",
+      "up",
+      "s",
+      "s",
+      "se"
+    ]
+  },
+  {
+    "name": "ranger-quarter",
+    "steps": [
+      "w",
+      "nw",
+      "e",
+      "s",
+      "e",
+      "sw",
+      "nw",
+      "w",
+      "w"
+    ]
+  },
+  {
+    "name": "pine-needle-path",
+    "steps": [
+      "n",
+      "n"
+    ]
+  },
+  {
+    "name": "ranger-to-square",
+    "steps": [
+      "e",
+      "e",
+      "se",
+      "ne",
+      "w",
+      "n",
+      "w",
+      "se",
+      "e"
+    ]
+  },
+  {
+    "name": "herald-street",
+    "steps": [
+      "ne",
+      "e",
+      "e",
+      "sw",
+      "s",
+      "e"
+    ]
+  }
+]

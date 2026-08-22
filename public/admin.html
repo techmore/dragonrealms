@@ -629,10 +629,10 @@
           <span class="cl">${esc(p.race ? p.race + ' · ' : '')}${esc(p.guild || '?')} · circle ${esc(p.circle)}${p.room != null ? ` · room ${esc(p.room)}` : ''}</span>
           ${hpBarHtml(p)}
           ${p.inCombat ? '<span class="badge fight">\u2694 FIGHT</span>' : ''}
-          <button class="watch" data-name="${esc(p.name)}" title="watch their live interface here">\u{1F441} Watch</button>
+          <button class="watch" data-name="${esc(p.name)}" data-charid="${esc(p.charId || '')}" title="watch their live interface here">\u{1F441} Watch</button>
           <button class="watch tab" data-name="${esc(p.name)}" title="open the full client in a new tab">\u2197</button>
         </div>`).join('');
-      el.querySelectorAll('.watch:not(.tab)').forEach((b) => b.addEventListener('click', () => openPlayerView(b.dataset.name)));
+      el.querySelectorAll('.watch:not(.tab)').forEach((b) => b.addEventListener('click', () => openPlayerView(b.dataset.name, b.dataset.charId)));
       el.querySelectorAll('.watch.tab').forEach((b) => b.addEventListener('click', () => {
         window.open('/?spectate=' + encodeURIComponent(b.dataset.name), '_blank');
       }));
@@ -811,7 +811,7 @@
     let pvName = null;
     let pvOfflineNotified = false;
 
-    function openPlayerView(name) {
+    function openPlayerView(name, charId) {
       if (!S.token) {
         toast('Live watch is GM-only \u2014 enter DR_GM_TOKEN first.');
         tokenEl.focus();
@@ -823,8 +823,10 @@
       $('pv-name').textContent = name;
       // Hand the token through the fragment too: the embedded client may load
       // before the storage write lands, and a fresh tab has no shared state.
-      const url = '/?spectate=' + encodeURIComponent(name) + '#gm=' + encodeURIComponent(S.token);
-      $('pv-newtab').href = '/?spectate=' + encodeURIComponent(name);
+      // The spectate target prefers the stable charId when the server knows it.
+      const target = charId || name;
+      const url = '/?spectate=' + encodeURIComponent(target) + '#gm=' + encodeURIComponent(S.token);
+      $('pv-newtab').href = '/?spectate=' + encodeURIComponent(target);
       $('pv-frame').src = url;
       $('pv').hidden = false;
       renderPv();

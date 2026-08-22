@@ -345,7 +345,7 @@ function gmPlayer(res, game, name) {
 
 function onlineView(game) {
   return [...game.players.values()].map((p) => ({
-    name: p.name, race: p.race.id, guild: p.guild.id, circle: p.circle,
+    name: p.name, charId: p.charId, race: p.race.id, guild: p.guild.id, circle: p.circle,
     room: p.room, hp: p.hp, maxHp: p.maxHp, inCombat: Boolean(p.combatId),
   }));
 }
