@@ -70,7 +70,7 @@ async function loadWorld() {
     <div class="gm-zone">
       <div class="gm-zone-name">${z.name} <span class="gm-dim">(${z.rooms.length})</span></div>
       <div class="gm-rooms">${z.rooms.map((r) => `
-        <button class="gm-room" data-id="${r.id}">${r.name}</button>
+        <button class="gm-room" data-id="${r.id}" title="${r.address || r.id}">${r.name}</button>
       `).join('')}</div>
     </div>
   `).join('');
@@ -84,6 +84,7 @@ async function loadRoom(id) {
   el.innerHTML = `
     <div class="gm-t">[[${r.room.name}, ${r.zone.name}]]</div>
     <div class="gm-desc">${r.room.desc}</div>
+    <div class="gm-meta">address: ${r.room.address || r.room.id}</div>
     <div class="gm-meta">exits: ${Object.keys(r.room.exits || {}).join(', ') || 'none'}</div>
     <div class="gm-meta">creatures: ${r.creatures.length ? r.creatures.map((c) => `${c.name} (${c.hp}/${c.maxHp})`).join(', ') : 'none'}</div>
     <div class="gm-meta">players: ${r.players.length ? r.players.join(', ') : 'none'}</div>

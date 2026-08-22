@@ -4,7 +4,9 @@
     "steps": [],
     "rooms": [
       "square"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:green:square",
+    "toAddr": "zoluren:crossing:green:square"
   },
   {
     "name": "west-gate (square->west_gate)",
@@ -13,26 +15,72 @@
       "w",
       "w",
       "w",
+      "w",
+      "w",
+      "w",
+      "w",
       "w"
     ],
     "rooms": [
       "square",
+      "dens_square_tg_w_0",
+      "dens_square_tg_w_1",
       "tg_w",
+      "dens_guild_district_tg_w_1",
+      "dens_guild_district_tg_w_0",
       "guild_district",
       "haldofurd_barn",
       "west_road",
       "west_gate"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:green:square",
+    "toAddr": "zoluren:crossing:west:west_gate"
   },
   {
     "name": "siergelde-road (west_gate->woods_path)",
     "steps": [
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
       "s"
     ],
     "rooms": [
       "west_gate",
+      "trav_grove_16",
+      "trav_grove_0",
+      "trav_grove_1",
+      "trav_grove_2",
+      "trav_grove_3",
+      "trav_grove_4",
+      "trav_grove_5",
+      "trav_grove_6",
+      "trav_grove_7",
+      "trav_grove_8",
+      "trav_grove_9",
+      "trav_grove_10",
+      "trav_grove_11",
+      "trav_grove_12",
+      "trav_grove_13",
+      "trav_grove_14",
+      "trav_grove_15",
       "woods_path"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:west:west_gate",
+    "toAddr": "zoluren:crossing:northwest:woods_path"
   },
   {
     "name": "woods-clearing (woods_path->woods_1)",
@@ -42,7 +90,9 @@
     "rooms": [
       "woods_path",
       "woods_1"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:woods_path",
+    "toAddr": "zoluren:crossing:northwest:woods_1"
   },
   {
     "name": "wolf-dens (woods_1->woods_2)",
@@ -52,7 +102,9 @@
     "rooms": [
       "woods_1",
       "woods_2"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:woods_1",
+    "toAddr": "zoluren:crossing:northwest:woods_2"
   },
   {
     "name": "deep-wood (woods_2->deep_1)",
@@ -62,7 +114,9 @@
     "rooms": [
       "woods_2",
       "deep_1"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:woods_2",
+    "toAddr": "zoluren:crossing:northwest:deep_1"
   },
   {
     "name": "troll-mounds (deep_1->deep_2)",
@@ -72,7 +126,9 @@
     "rooms": [
       "deep_1",
       "deep_2"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:deep_1",
+    "toAddr": "zoluren:crossing:northwest:deep_2"
   },
   {
     "name": "blackwood (deep_2->black_1)",
@@ -82,7 +138,9 @@
     "rooms": [
       "deep_2",
       "black_1"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:deep_2",
+    "toAddr": "zoluren:crossing:northwest:black_1"
   },
   {
     "name": "back-to-mounds (black_1->deep_2)",
@@ -92,7 +150,9 @@
     "rooms": [
       "black_1",
       "deep_2"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:black_1",
+    "toAddr": "zoluren:crossing:northwest:deep_2"
   },
   {
     "name": "back-to-deep-wood (deep_2->deep_1)",
@@ -102,7 +162,9 @@
     "rooms": [
       "deep_2",
       "deep_1"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:deep_2",
+    "toAddr": "zoluren:crossing:northwest:deep_1"
   },
   {
     "name": "back-to-dens (deep_1->woods_2)",
@@ -112,7 +174,9 @@
     "rooms": [
       "deep_1",
       "woods_2"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:deep_1",
+    "toAddr": "zoluren:crossing:northwest:woods_2"
   },
   {
     "name": "back-to-clearing (woods_2->woods_1)",
@@ -122,7 +186,9 @@
     "rooms": [
       "woods_2",
       "woods_1"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:woods_2",
+    "toAddr": "zoluren:crossing:northwest:woods_1"
   },
   {
     "name": "camp-trail (woods_1->camp_path)",
@@ -134,7 +200,9 @@
       "woods_1",
       "woods_path",
       "camp_path"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:woods_1",
+    "toAddr": "zoluren:crossing:northwest:camp_path"
   },
   {
     "name": "bandit-hollow (camp_path->camp_hollow)",
@@ -144,7 +212,9 @@
     "rooms": [
       "camp_path",
       "camp_hollow"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:camp_path",
+    "toAddr": "zoluren:crossing:northwest:camp_hollow"
   },
   {
     "name": "captains-den (camp_hollow->camp_den)",
@@ -154,7 +224,9 @@
     "rooms": [
       "camp_hollow",
       "camp_den"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:camp_hollow",
+    "toAddr": "zoluren:crossing:northwest:camp_den"
   },
   {
     "name": "cinder-descent (camp_den->cinder_2)",
@@ -166,7 +238,9 @@
       "camp_den",
       "cinder_1",
       "cinder_2"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:camp_den",
+    "toAddr": "zoluren:crossing:northwest:cinder_2"
   },
   {
     "name": "cinder-exit-den (cinder_2->camp_den)",
@@ -178,7 +252,9 @@
       "cinder_2",
       "cinder_1",
       "camp_den"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:cinder_2",
+    "toAddr": "zoluren:crossing:northwest:camp_den"
   },
   {
     "name": "exit-to-trail (camp_den->camp_path)",
@@ -190,7 +266,9 @@
       "camp_den",
       "camp_hollow",
       "camp_path"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:camp_den",
+    "toAddr": "zoluren:crossing:northwest:camp_path"
   },
   {
     "name": "trail-to-woods-path (camp_path->woods_path)",
@@ -200,33 +278,77 @@
     "rooms": [
       "camp_path",
       "woods_path"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:camp_path",
+    "toAddr": "zoluren:crossing:northwest:woods_path"
   },
   {
     "name": "east-gate (woods_path->east_gate)",
     "steps": [
-      "n",
+      "s",
+      "se",
+      "s",
+      "e",
       "e",
       "e",
       "e",
       "e",
       "e",
       "se",
+      "ne",
+      "w",
+      "n",
+      "w",
+      "w",
+      "w",
+      "se",
+      "se",
+      "se",
+      "e",
+      "e",
+      "e",
+      "se",
+      "se",
+      "se",
+      "e",
+      "e",
       "e",
       "e"
     ],
     "rooms": [
       "woods_path",
-      "west_gate",
-      "west_road",
-      "haldofurd_barn",
-      "guild_district",
+      "woods_1",
+      "pine_needle_path",
+      "hall_ranger",
+      "dens_hall_moonmage_hall_ranger_1",
+      "dens_hall_moonmage_hall_ranger_0",
+      "hall_moonmage",
+      "dens_hall_moonmage_oxenwaithe_road_0",
+      "dens_hall_moonmage_oxenwaithe_road_1",
+      "oxenwaithe_road",
+      "oxenwaithe_bridge",
+      "hall_bard",
+      "academy",
+      "music_shop",
+      "dens_bards_walk_music_shop_1",
+      "dens_bards_walk_music_shop_0",
+      "bards_walk",
+      "dens_bards_walk_tg_w_0",
+      "dens_bards_walk_tg_w_1",
       "tg_w",
+      "dens_square_tg_w_1",
+      "dens_square_tg_w_0",
       "square",
+      "dens_square_tg_se_0",
+      "dens_square_tg_se_1",
       "tg_se",
+      "dens_east_road_tg_se_1",
+      "dens_east_road_tg_se_0",
       "east_road",
       "east_gate"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:woods_path",
+    "toAddr": "zoluren:crossing:east:east_gate"
   },
   {
     "name": "marsh-edge (east_gate->marsh_1)",
@@ -236,7 +358,9 @@
     "rooms": [
       "east_gate",
       "marsh_1"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:east:east_gate",
+    "toAddr": "zoluren:crossing:east:marsh_1"
   },
   {
     "name": "bog-hollow (marsh_1->marsh_2)",
@@ -246,7 +370,9 @@
     "rooms": [
       "marsh_1",
       "marsh_2"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:east:marsh_1",
+    "toAddr": "zoluren:crossing:east:marsh_2"
   },
   {
     "name": "marsh-back (marsh_2->marsh_1)",
@@ -256,7 +382,9 @@
     "rooms": [
       "marsh_2",
       "marsh_1"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:east:marsh_2",
+    "toAddr": "zoluren:crossing:east:marsh_1"
   },
   {
     "name": "marsh-home (marsh_1->square)",
@@ -264,29 +392,49 @@
       "w",
       "w",
       "w",
+      "w",
+      "w",
+      "nw",
+      "nw",
       "nw"
     ],
     "rooms": [
       "marsh_1",
       "east_gate",
       "east_road",
+      "dens_east_road_tg_se_0",
+      "dens_east_road_tg_se_1",
       "tg_se",
+      "dens_square_tg_se_1",
+      "dens_square_tg_se_0",
       "square"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:east:marsh_1",
+    "toAddr": "zoluren:crossing:green:square"
   },
   {
     "name": "temple-row (square->temple_row)",
     "steps": [
       "nw",
+      "nw",
+      "nw",
+      "n",
+      "n",
       "n",
       "n"
     ],
     "rooms": [
       "square",
+      "dens_square_tg_nw_0",
+      "dens_square_tg_nw_1",
       "tg_nw",
+      "dens_nw_road_tg_nw_1",
+      "dens_nw_road_tg_nw_0",
       "nw_road",
       "temple_row"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:green:square",
+    "toAddr": "zoluren:crossing:northwest:temple_row"
   },
   {
     "name": "sewer-entrance (temple_row->sewers_1)",
@@ -296,7 +444,9 @@
     "rooms": [
       "temple_row",
       "sewers_1"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:temple_row",
+    "toAddr": "zoluren:crossing:northwest:sewers_1"
   },
   {
     "name": "sewer-junction (sewers_1->sewers_3)",
@@ -308,7 +458,9 @@
       "sewers_1",
       "sewers_2",
       "sewers_3"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:sewers_1",
+    "toAddr": "zoluren:crossing:northwest:sewers_3"
   },
   {
     "name": "lower-drains (sewers_3->sewers_5)",
@@ -320,7 +472,9 @@
       "sewers_3",
       "sewers_4",
       "sewers_5"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:sewers_3",
+    "toAddr": "zoluren:crossing:northwest:sewers_5"
   },
   {
     "name": "sewer-climb-out (sewers_5->sewers_3)",
@@ -332,7 +486,9 @@
       "sewers_5",
       "sewers_4",
       "sewers_3"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:sewers_5",
+    "toAddr": "zoluren:crossing:northwest:sewers_3"
   },
   {
     "name": "sewer-exit (sewers_3->sewers_1)",
@@ -344,7 +500,9 @@
       "sewers_3",
       "sewers_2",
       "sewers_1"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:sewers_3",
+    "toAddr": "zoluren:crossing:northwest:sewers_1"
   },
   {
     "name": "sewer-up (sewers_1->temple_row)",
@@ -354,21 +512,33 @@
     "rooms": [
       "sewers_1",
       "temple_row"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:sewers_1",
+    "toAddr": "zoluren:crossing:northwest:temple_row"
   },
   {
     "name": "home-from-temple (temple_row->square)",
     "steps": [
       "s",
       "s",
+      "s",
+      "s",
+      "se",
+      "se",
       "se"
     ],
     "rooms": [
       "temple_row",
       "nw_road",
+      "dens_nw_road_tg_nw_0",
+      "dens_nw_road_tg_nw_1",
       "tg_nw",
+      "dens_square_tg_nw_1",
+      "dens_square_tg_nw_0",
       "square"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:temple_row",
+    "toAddr": "zoluren:crossing:green:square"
   },
   {
     "name": "ranger-quarter (square->hall_ranger)",
@@ -376,25 +546,47 @@
       "w",
       "w",
       "w",
+      "nw",
+      "nw",
+      "nw",
+      "e",
+      "e",
+      "e",
+      "s",
+      "e",
+      "sw",
+      "nw",
       "w",
       "w",
-      "s",
-      "s",
-      "se",
-      "s"
+      "w",
+      "w",
+      "w",
+      "w"
     ],
     "rooms": [
       "square",
+      "dens_square_tg_w_0",
+      "dens_square_tg_w_1",
       "tg_w",
-      "guild_district",
-      "haldofurd_barn",
-      "west_road",
-      "west_gate",
-      "woods_path",
-      "woods_1",
-      "pine_needle_path",
+      "dens_bards_walk_tg_w_1",
+      "dens_bards_walk_tg_w_0",
+      "bards_walk",
+      "dens_bards_walk_music_shop_0",
+      "dens_bards_walk_music_shop_1",
+      "music_shop",
+      "academy",
+      "hall_bard",
+      "oxenwaithe_bridge",
+      "oxenwaithe_road",
+      "dens_hall_moonmage_oxenwaithe_road_1",
+      "dens_hall_moonmage_oxenwaithe_road_0",
+      "hall_moonmage",
+      "dens_hall_moonmage_hall_ranger_0",
+      "dens_hall_moonmage_hall_ranger_1",
       "hall_ranger"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:green:square",
+    "toAddr": "zoluren:crossing:northwest:hall_ranger"
   },
   {
     "name": "pine-needle-path (hall_ranger->pine_needle_path)",
@@ -404,7 +596,9 @@
     "rooms": [
       "hall_ranger",
       "pine_needle_path"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:hall_ranger",
+    "toAddr": "zoluren:crossing:northwest:pine_needle_path"
   },
   {
     "name": "path-to-woods (pine_needle_path->woods_1)",
@@ -414,7 +608,9 @@
     "rooms": [
       "pine_needle_path",
       "woods_1"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:pine_needle_path",
+    "toAddr": "zoluren:crossing:northwest:woods_1"
   },
   {
     "name": "woods-back-to-ranger (woods_1->hall_ranger)",
@@ -426,72 +622,470 @@
       "woods_1",
       "pine_needle_path",
       "hall_ranger"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:woods_1",
+    "toAddr": "zoluren:crossing:northwest:hall_ranger"
   },
   {
     "name": "ranger-home (hall_ranger->square)",
     "steps": [
       "e",
       "e",
+      "e",
+      "e",
+      "e",
+      "e",
       "se",
       "ne",
       "w",
       "n",
       "w",
+      "w",
+      "w",
       "se",
+      "se",
+      "se",
+      "e",
+      "e",
       "e"
     ],
     "rooms": [
       "hall_ranger",
+      "dens_hall_moonmage_hall_ranger_1",
+      "dens_hall_moonmage_hall_ranger_0",
       "hall_moonmage",
+      "dens_hall_moonmage_oxenwaithe_road_0",
+      "dens_hall_moonmage_oxenwaithe_road_1",
       "oxenwaithe_road",
       "oxenwaithe_bridge",
       "hall_bard",
       "academy",
       "music_shop",
+      "dens_bards_walk_music_shop_1",
+      "dens_bards_walk_music_shop_0",
       "bards_walk",
+      "dens_bards_walk_tg_w_0",
+      "dens_bards_walk_tg_w_1",
       "tg_w",
+      "dens_square_tg_w_1",
+      "dens_square_tg_w_0",
       "square"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:northwest:hall_ranger",
+    "toAddr": "zoluren:crossing:green:square"
   },
   {
     "name": "herald-street (square->hall_paladin)",
     "steps": [
       "ne",
+      "ne",
+      "ne",
       "e",
       "e",
-      "sw",
+      "e",
+      "e",
+      "e",
+      "e",
+      "e",
       "s",
-      "e"
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s"
     ],
     "rooms": [
       "square",
+      "dens_square_tg_ne_0",
+      "dens_square_tg_ne_1",
       "tg_ne",
+      "dens_ne_road_tg_ne_1",
+      "dens_ne_road_tg_ne_0",
       "ne_road",
+      "trav_ne_road_gateyard_0",
+      "trav_ne_road_gateyard_1",
+      "trav_ne_road_gateyard_2",
       "gateyard",
-      "hall_empath",
-      "hall_barbarian",
+      "trav_gateyard_herald_st_0",
+      "trav_gateyard_herald_st_1",
+      "trav_gateyard_herald_st_2",
+      "herald_st",
+      "herald_mid",
+      "herald_s",
       "hall_paladin"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:green:square",
+    "toAddr": "zoluren:crossing:east:hall_paladin"
   },
   {
     "name": "paladin-home (hall_paladin->square)",
     "steps": [
-      "w",
       "n",
-      "ne",
+      "n",
+      "n",
+      "n",
+      "n",
+      "n",
+      "n",
       "w",
       "w",
+      "w",
+      "w",
+      "w",
+      "w",
+      "w",
+      "sw",
+      "sw",
       "sw"
     ],
     "rooms": [
       "hall_paladin",
-      "hall_barbarian",
-      "hall_empath",
+      "herald_s",
+      "herald_mid",
+      "herald_st",
+      "trav_gateyard_herald_st_2",
+      "trav_gateyard_herald_st_1",
+      "trav_gateyard_herald_st_0",
       "gateyard",
+      "trav_ne_road_gateyard_2",
+      "trav_ne_road_gateyard_1",
+      "trav_ne_road_gateyard_0",
       "ne_road",
+      "dens_ne_road_tg_ne_0",
+      "dens_ne_road_tg_ne_1",
       "tg_ne",
+      "dens_square_tg_ne_1",
+      "dens_square_tg_ne_0",
       "square"
-    ]
+    ],
+    "fromAddr": "zoluren:crossing:east:hall_paladin",
+    "toAddr": "zoluren:crossing:green:square"
+  },
+  {
+    "name": "to-docks (square->docks)",
+    "steps": [
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "s",
+      "e",
+      "e",
+      "e",
+      "s",
+      "s",
+      "s"
+    ],
+    "rooms": [
+      "square",
+      "dens_square_tg_s_0",
+      "dens_square_tg_s_1",
+      "tg_s",
+      "dens_stockyard_tg_s_1",
+      "dens_stockyard_tg_s_0",
+      "stockyard",
+      "dens_south_road_stockyard_1",
+      "dens_south_road_stockyard_0",
+      "south_road",
+      "dens_market_end_south_road_1",
+      "dens_market_end_south_road_0",
+      "market_end",
+      "dens_docks_market_end_1",
+      "dens_docks_market_end_0",
+      "docks"
+    ],
+    "fromAddr": "zoluren:crossing:green:square",
+    "toAddr": "zoluren:crossing:east:docks"
+  },
+  {
+    "name": "barge-to-riverhaven (docks->rh_square)",
+    "steps": [
+      "s",
+      "s",
+      "s",
+      "w"
+    ],
+    "rooms": [
+      "docks",
+      "dens_docks_pier_0",
+      "dens_docks_pier_1",
+      "pier",
+      "rh_square"
+    ],
+    "fromAddr": "zoluren:crossing:east:docks",
+    "toAddr": "zoluren:riverhaven:green:rh_square"
+  },
+  {
+    "name": "rh-market (rh_square->rh_market)",
+    "steps": [
+      "e"
+    ],
+    "rooms": [
+      "rh_square",
+      "rh_market"
+    ],
+    "fromAddr": "zoluren:riverhaven:green:rh_square",
+    "toAddr": "zoluren:riverhaven:east:rh_market"
+  },
+  {
+    "name": "rh-enchanting (rh_market->rh_enchanting)",
+    "steps": [
+      "n"
+    ],
+    "rooms": [
+      "rh_market",
+      "rh_enchanting"
+    ],
+    "fromAddr": "zoluren:riverhaven:east:rh_market",
+    "toAddr": "zoluren:riverhaven:east:rh_enchanting"
+  },
+  {
+    "name": "rh-noble-inn (rh_enchanting->rh_noble_inn)",
+    "steps": [
+      "s",
+      "e"
+    ],
+    "rooms": [
+      "rh_enchanting",
+      "rh_market",
+      "rh_noble_inn"
+    ],
+    "fromAddr": "zoluren:riverhaven:east:rh_enchanting",
+    "toAddr": "zoluren:riverhaven:east:rh_noble_inn"
+  },
+  {
+    "name": "rh-back-to-square (rh_noble_inn->rh_square)",
+    "steps": [
+      "w",
+      "w"
+    ],
+    "rooms": [
+      "rh_noble_inn",
+      "rh_market",
+      "rh_square"
+    ],
+    "fromAddr": "zoluren:riverhaven:east:rh_noble_inn",
+    "toAddr": "zoluren:riverhaven:green:rh_square"
+  },
+  {
+    "name": "rh-temple (rh_square->rh_temple)",
+    "steps": [
+      "s"
+    ],
+    "rooms": [
+      "rh_square",
+      "rh_temple"
+    ],
+    "fromAddr": "zoluren:riverhaven:green:rh_square",
+    "toAddr": "zoluren:riverhaven:south:rh_temple"
+  },
+  {
+    "name": "rh-temple-garden (rh_temple->rh_temple_garden)",
+    "steps": [
+      "s"
+    ],
+    "rooms": [
+      "rh_temple",
+      "rh_temple_garden"
+    ],
+    "fromAddr": "zoluren:riverhaven:south:rh_temple",
+    "toAddr": "zoluren:riverhaven:southwest:rh_temple_garden"
+  },
+  {
+    "name": "rh-garden-back (rh_temple_garden->rh_temple)",
+    "steps": [
+      "n"
+    ],
+    "rooms": [
+      "rh_temple_garden",
+      "rh_temple"
+    ],
+    "fromAddr": "zoluren:riverhaven:southwest:rh_temple_garden",
+    "toAddr": "zoluren:riverhaven:south:rh_temple"
+  },
+  {
+    "name": "rh-guilds-street (rh_temple->rh_guilds)",
+    "steps": [
+      "n",
+      "w"
+    ],
+    "rooms": [
+      "rh_temple",
+      "rh_square",
+      "rh_guilds"
+    ],
+    "fromAddr": "zoluren:riverhaven:south:rh_temple",
+    "toAddr": "zoluren:riverhaven:south:rh_guilds"
+  },
+  {
+    "name": "rh-barbarian-hall (rh_guilds->rh_hall_barbarian)",
+    "steps": [
+      "w"
+    ],
+    "rooms": [
+      "rh_guilds",
+      "rh_hall_barbarian"
+    ],
+    "fromAddr": "zoluren:riverhaven:south:rh_guilds",
+    "toAddr": "zoluren:riverhaven:south:rh_hall_barbarian"
+  },
+  {
+    "name": "rh-bard-hall (rh_hall_barbarian->rh_hall_bard)",
+    "steps": [
+      "e",
+      "s"
+    ],
+    "rooms": [
+      "rh_hall_barbarian",
+      "rh_guilds",
+      "rh_hall_bard"
+    ],
+    "fromAddr": "zoluren:riverhaven:south:rh_hall_barbarian",
+    "toAddr": "zoluren:riverhaven:southwest:rh_hall_bard"
+  },
+  {
+    "name": "rh-cleric-hall (rh_hall_bard->rh_hall_cleric)",
+    "steps": [
+      "n",
+      "nw"
+    ],
+    "rooms": [
+      "rh_hall_bard",
+      "rh_guilds",
+      "rh_hall_cleric"
+    ],
+    "fromAddr": "zoluren:riverhaven:southwest:rh_hall_bard",
+    "toAddr": "zoluren:riverhaven:south:rh_hall_cleric"
+  },
+  {
+    "name": "rh-empath-hall (rh_hall_cleric->rh_hall_empath)",
+    "steps": [
+      "se",
+      "ne"
+    ],
+    "rooms": [
+      "rh_hall_cleric",
+      "rh_guilds",
+      "rh_hall_empath"
+    ],
+    "fromAddr": "zoluren:riverhaven:south:rh_hall_cleric",
+    "toAddr": "zoluren:riverhaven:south:rh_hall_empath"
+  },
+  {
+    "name": "rh-moonmage-hall (rh_hall_empath->rh_hall_moonmage)",
+    "steps": [
+      "sw",
+      "sw"
+    ],
+    "rooms": [
+      "rh_hall_empath",
+      "rh_guilds",
+      "rh_hall_moonmage"
+    ],
+    "fromAddr": "zoluren:riverhaven:south:rh_hall_empath",
+    "toAddr": "zoluren:riverhaven:southwest:rh_hall_moonmage"
+  },
+  {
+    "name": "rh-academy (rh_hall_moonmage->rh_academy)",
+    "steps": [
+      "ne",
+      "n"
+    ],
+    "rooms": [
+      "rh_hall_moonmage",
+      "rh_guilds",
+      "rh_academy"
+    ],
+    "fromAddr": "zoluren:riverhaven:southwest:rh_hall_moonmage",
+    "toAddr": "zoluren:riverhaven:south:rh_academy"
+  },
+  {
+    "name": "rh-ferry-landing (rh_academy->rh_ferry)",
+    "steps": [
+      "s",
+      "e",
+      "n"
+    ],
+    "rooms": [
+      "rh_academy",
+      "rh_guilds",
+      "rh_square",
+      "rh_ferry"
+    ],
+    "fromAddr": "zoluren:riverhaven:south:rh_academy",
+    "toAddr": "zoluren:crossing:northwest:rh_ferry"
+  },
+  {
+    "name": "rh-wilds-head (rh_ferry->rh_wilds_1)",
+    "steps": [
+      "sw"
+    ],
+    "rooms": [
+      "rh_ferry",
+      "rh_wilds_1"
+    ],
+    "fromAddr": "zoluren:crossing:northwest:rh_ferry",
+    "toAddr": "zoluren:crossing:northwest:rh_wilds_1"
+  },
+  {
+    "name": "home-from-riverhaven (rh_wilds_1->square)",
+    "steps": [
+      "ne",
+      "e",
+      "se",
+      "s",
+      "e",
+      "e",
+      "e",
+      "e",
+      "e",
+      "e",
+      "se",
+      "ne",
+      "w",
+      "n",
+      "w",
+      "w",
+      "w",
+      "se",
+      "se",
+      "se",
+      "e",
+      "e",
+      "e"
+    ],
+    "rooms": [
+      "rh_wilds_1",
+      "rh_ferry",
+      "woods_1",
+      "pine_needle_path",
+      "hall_ranger",
+      "dens_hall_moonmage_hall_ranger_1",
+      "dens_hall_moonmage_hall_ranger_0",
+      "hall_moonmage",
+      "dens_hall_moonmage_oxenwaithe_road_0",
+      "dens_hall_moonmage_oxenwaithe_road_1",
+      "oxenwaithe_road",
+      "oxenwaithe_bridge",
+      "hall_bard",
+      "academy",
+      "music_shop",
+      "dens_bards_walk_music_shop_1",
+      "dens_bards_walk_music_shop_0",
+      "bards_walk",
+      "dens_bards_walk_tg_w_0",
+      "dens_bards_walk_tg_w_1",
+      "tg_w",
+      "dens_square_tg_w_1",
+      "dens_square_tg_w_0",
+      "square"
+    ],
+    "fromAddr": "zoluren:crossing:northwest:rh_wilds_1",
+    "toAddr": "zoluren:crossing:green:square"
   }
 ]

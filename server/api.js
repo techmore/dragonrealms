@@ -279,8 +279,16 @@ export async function apiRequest(req, res, game, {
       if (!secretMatches(headerToken(req, 'x-dr-debug-token'), debugToken)) {
         return json(res, 403, { ok: false, error: 'A valid debug credential is required.' });
       }
-      const p = s.player;
-      if (!ownsPlayer(game, s)) {
+      // Fixture effects must reach the character even when it is bound to a
+      // WS session rather than this HTTP session (mapper/bot drivers). Find
+      // the account's active player anywhere in the game.
+      let p = s.player && ownsPlayer(game, s) ? s.player : null;
+      if (!p) {
+        for (const cand of game.players.values()) {
+          if (cand.accountId === s.accountId) { p = cand; break; }
+        }
+      }
+      if (!p) {
         return json(res, 200, { ok: false, error: 'No active character. POST /api/enter first.' });
       }
       const d = body || {};

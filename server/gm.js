@@ -4,6 +4,7 @@
 // configure DR_GM_TOKEN.
 
 import { roomById, ZONES, ROOMS } from '../data/world.js';
+import { addressOf } from '../data/grid.js';
 import { NPCS, npcById } from '../data/npcs.js';
 import { ITEMS } from '../data/items.js';
 import { CREATURES } from '../data/creatures.js';
@@ -52,6 +53,7 @@ export function gmRequest(req, res, game, { gmToken = process.env.DR_GM_TOKEN } 
     case 'races': return gmRaces(res);
     case 'skills': return gmSkills(res);
     case 'characters': return gmCharacters(res);
+    case 'highscores': return gmHighScores(res, url);
     case 'player': return gmPlayer(res, game, parts[1]);
     case 'players-online': return json(res, 200, { ok: true, players: onlineView(game) });
     case 'admin': return gmAdmin(res, game, parts[1]);
@@ -88,7 +90,7 @@ function gmWorld(res, game) {
   for (const [id, z] of Object.entries(ZONES)) {
     const rooms = Object.values(ROOMS).filter((r) => r.zone === id);
     zones.push({ id, name: z.name, rooms: rooms.map((r) => ({
-      id: r.id, name: r.name, exits: r.exits,
+      id: r.id, name: r.name, exits: r.exits, address: addressOf(r.id),
       npcs: r.npcs || [], spawns: r.spawns || [], tavern: r.tavern,
     })) });
   }
@@ -102,7 +104,7 @@ function gmRoom(res, game, id) {
   const floor = game.floorItemsIn ? game.floorItemsIn(room.id) : [];
   const present = [...game.players.values()].filter((p) => p.room === room.id).map((p) => p.name);
   return json(res, 200, {
-    ok: true, room,
+    ok: true, room, address: addressOf(room.id),
     zone: ZONES[room.zone],
     creatures: creatures.map((c) => ({ name: c.def.name, hp: c.hp, maxHp: c.maxHp, aggressive: c.def.aggressive })),
     players: present,
@@ -313,6 +315,23 @@ function gmCharacters(res) {
     .all()
     .map((r) => ({ ...r }));
   return json(res, 200, { ok: true, characters: chars });
+}
+
+// High scores: characters ranked by circle, then total skill ranks. Supports
+// ?page=N&perPage=M pagination and ?sort=skill for skill-rank ordering.
+function gmHighScores(res, url) {
+  const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
+  const perPage = Math.min(100, Math.max(10, parseInt(url.searchParams.get('perPage'), 10) || 25));
+  const sort = url.searchParams.get('sort') === 'skill' ? 'skill' : 'circle';
+  const total = db.prepare('SELECT COUNT(*) c FROM characters').get().c;
+  const order = sort === 'skill' ? 'ranks DESC, c.circle DESC' : 'c.circle DESC, ranks DESC';
+  const rows = db.prepare(`
+    SELECT c.id, c.name, c.race, c.guild, c.circle, c.silver, a.username,
+      COALESCE((SELECT SUM(s.rank) FROM skills s WHERE s.character_id = c.id), 0) AS ranks
+    FROM characters c JOIN accounts a ON a.id = c.account_id
+    ORDER BY ${order}
+    LIMIT ? OFFSET ?`).all(perPage, (page - 1) * perPage);
+  return json(res, 200, { ok: true, page, perPage, total, sort, characters: rows });
 }
 
 function gmPlayer(res, game, name) {

@@ -27,7 +27,9 @@ func configuredOrRandomGMToken() -> String {
 // (server/index.js). Prefer it over our own token so "Copy GM Token" and the
 // Open-Dash handoff match whatever world is actually answering on :3000.
 func liveWorldToken() -> String? {
-    guard let data = FileManager.default.contents(atPath: "/tmp/dr-world-token.json"),
+    // Per-port token file (server/index.js publishes dr-world-token-<port>.json).
+    let path = "/tmp/dr-world-token-\(PORT).json"
+    guard let data = FileManager.default.contents(atPath: path),
           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let token = obj["token"] as? String, !token.isEmpty
     else { return nil }
@@ -81,6 +83,11 @@ final class World {
         var env = ProcessInfo.processInfo.environment
         env["DR_ENABLE_API"] = "1"
         env["DR_GM_TOKEN"] = GMTOKEN
+        // Mapper/bot audit harness needs the debug fixtures (teleport,
+        // clearCombat) and a stable secret. Configurable via env; the mapper
+        // agent reads the same value from DR_MAPPER_DEBUG.
+        env["DR_ENABLE_DEBUG_API"] = "1"
+        env["DR_DEBUG_TOKEN"] = ProcessInfo.processInfo.environment["DR_DEBUG_TOKEN"] ?? "mapper-debug-1"
         t.environment = env
         t.currentDirectoryURL = URL(fileURLWithPath: ROOT)
         // pipe output to a log file

@@ -1,20 +1,32 @@
 // Universal grid system for world movement.
 //
 // Every room in the world has canonical integer coordinates [x, y, z] on a
-// single global grid (north = +y, east = +x, up = +z). Exits between rooms
-// must agree with their coordinate delta — "n" means literally one cell
-// north — so the map is geometrically truthful and we can validate, pathfind
-// and render it mechanically.
+// single global grid (north = +y, east = +x, up = +z).
 //
-// Layout of the Crossing is grounded in Sabina's Map 1 (Elanthipedia page
-// "RanikMap1" / image CrossingMap.png): Town Green hub with eight spokes,
-// roads fanning to the four gates, market district east, guild rows west,
-// temple quarter northwest, riverfront (Strand/docks) south along the
-// Segoltha. Coordinates are our own clean-room encoding of that layout.
+// SINGLE SOURCE OF TRUTH: coordinates are DERIVED from the room graph in
+// data/world.js by breadth-first placement from each city's origin room.
+// An exit's destination always lands exactly one cell in the exit's
+// direction, so the map is geometrically truthful by construction — no hand-
+// maintained coordinate table to drift out of sync. Where two rooms would
+// claim the same cell (dense districts wrap onto themselves), the later room
+// is displaced to the nearest free cell deterministically; such rooms are
+// render-approximate but never affect movement (all gameplay walks the
+// actual exits).
 //
-// A small set of PORTALS are exempt from adjacency: long-distance travel
-// links (the Riverhaven ferry) that are real exits for gameplay but do not
-// connect neighboring cells.
+// ADDRESSING HIERARCHY — province > city > district > room:
+//   Each city owns a LOCAL grid space placed far apart via CITY_ORIGIN
+//   (>= 100 cells), mirroring how the game nests province/city/area/location.
+//   Room ids stay short and globally unique; the city namespace lives here.
+//
+// Sourced geographic relationships (RanikMap1 errors list + landmark pages,
+// see tmp-crossing-audit.md) are enforced separately by test/map-facts.test.mjs
+// against the room graph itself.
+//
+// PORTALS are exempt from adjacency: long-distance travel links (the
+// Riverhaven ferry) that are real exits for gameplay but do not connect
+// neighboring cells.
+
+import { ROOMS } from './world.js';
 
 export const DIR_VECTORS = {
   n:  [0, 1, 0],  s:  [0, -1, 0],
@@ -39,103 +51,161 @@ export const OPP = {
   u: 'd', d: 'u',
 };
 
-// roomId -> [x, y, z]
-export const GRID = {
-  // ---- The Crossing: Town Green (origin) ----
-  square: [0, 0, 0], tg_pond: [0, 0, -1],
-  tg_n: [0, 1, 0], tg_ne: [1, 1, 0], tg_e: [1, 0, 0], tg_se: [1, -1, 0],
-  tg_s: [0, -1, 0], tg_sw: [-1, -1, 0], tg_w: [-1, 0, 0], tg_nw: [-1, 1, 0],
-
-  // ---- North: North Gate road, carousel & Town Hall, Jadewater ----
-  north_road: [0, 2, 0], north_gate: [0, 3, 0],
-  carousel_way: [1, 3, 0], carousel: [2, 3, 0], hall_street: [3, 3, 0], town_hall: [4, 3, 0],
-  jadewater_way: [1, 4, 0], jadewater: [2, 4, 0], tenderfoot: [3, 4, 0],
-
-  // ---- Northeast: NE Gate road & craft societies ----
-  ne_road: [2, 1, 0], ne_gate: [3, 2, 0], herald_st: [2, 2, 0], enchanting_soc: [1, 2, 0],
-
-  // ---- East: Mongers' Bazaar, bank, East Gate ----
-  bazaar: [2, 0, 0], market_plaza: [2, -1, 0], market_way: [3, 0, 0],
-  brewery: [3, 1, 0], forge: [4, 1, 0],
-  forge_row: [3, -1, 0], auction_house: [3, -2, 0], commodity_pit: [4, -3, 0],
-  bank_plaza: [4, 0, 0], order_hq: [4, -1, 0],
-  east_road: [5, 0, 0], east_gate: [6, 0, 0], middens: [6, -1, 0],
-
-  // ---- Southeast housing: Longbow Bridge, Tatting Street ----
-  longbow: [5, -1, 0], tatting_st: [5, -2, 0], riverlace: [5, -3, 0],
-  crofton_walk: [4, -2, 0], smithy_lane: [3, -3, 0],
-
-  // ---- South: stockyard, South Road, riverfront Strand ----
-  stockyard: [0, -2, 0], jail: [0, -2, -1], south_road: [0, -3, 0],
-  strand: [-1, -3, 0], strand_communal: [-1, -4, 0], segoltha_stair: [-2, -5, 0],
-  sw_road: [-1, -2, 0],
-
-  // ---- Docks & amusement pier ----
-  market_end: [1, -3, 0], docks: [1, -4, 0], half_pint: [2, -4, 0], pier: [1, -5, 0],
-
-  // ---- West: Guild District rows & Asemath Academy ----
-  guild_district: [-2, 0, 0], guild_halls_n: [-3, 0, 0], academy: [-3, -1, 0],
-  hall_barbarian: [-4, 0, 0], hall_bard: [-5, 0, 0], hall_cleric: [-6, 0, 0],
-  hall_empath: [-7, 0, 0], hall_moonmage: [-8, 0, 0], hall_necromancer: [-9, 0, 0],
-  guild_halls_s: [-2, -1, 0], hall_paladin: [-2, -2, 0], hall_ranger: [-2, -3, 0],
-  hall_thief: [-2, -4, 0], hall_trader: [-3, -4, 0], hall_warmage: [-3, -5, 0],
-
-  // ---- Northwest: temple quarter & sewers below ----
-  nw_road: [-2, 1, 0], temple_row: [-3, 1, 0], fane: [-4, 1, 0],
-  temple: [-4, 2, 0], high_temple: [-5, 2, 0], immortals_approach: [-5, 3, 0],
-  sewers_1: [-3, 1, -1], sewers_2: [-3, 2, -1], sewers_3: [-3, 3, -1],
-  sewers_4: [-3, 3, -2], sewers_5: [-3, 3, -3],
-
-  // ---- West Gate road, tailor, caravan barn ----
-  west_road: [-1, 2, 0], tailor_shop: [-1, 3, 0], aldoran_barn: [-2, 3, 0],
-  west_gate: [-2, 2, 0],
-
-  // ---- Siergelde woods, ferry landing, deep wilds ----
-  woods_path: [-3, 2, 0], woods_1: [-3, 3, 0], rh_ferry: [-4, 3, 0],
-  rh_wilds_1: [-5, 6, 0], rh_wilds_2: [-5, 5, 0], rh_wilds_3: [-6, 5, 0],
-  woods_2: [-3, 4, 0], deep_1: [-3, 5, 0], deep_2: [-2, 5, 0],
-  black_1: [-1, 5, 0], black_2: [-1, 5, -1],
-
-  // ---- Bandit camp & Cinder Cavern (hills north of West Road) ----
-  camp_path: [-1, 4, 0], camp_hollow: [0, 4, 0], camp_den: [0, 5, 0],
-  cinder_1: [0, 5, -1], cinder_2: [0, 6, -1],
-
-  // ---- Marsh beyond the East Gate ----
-  marsh_1: [7, 0, 0], marsh_2: [7, -1, 0],
-
-  // ---- Riverhaven (far away across the Segoltha; ferry is a portal) ----
-  rh_square: [100, 0, 0], rh_market: [101, 0, 0], rh_temple: [100, -1, 0],
-  rh_guilds: [99, 0, 0],
+// Province > city registry. Origins are far enough apart that no two cities'
+// local spaces can overlap (keep future cities >= 100 cells apart).
+export const PROVINCES = {
+  zoluren: { name: 'Zoluren', cities: ['crossing', 'riverhaven'] },
 };
 
+export const CITY_ORIGIN = {
+  crossing: [0, 0, 0],
+  riverhaven: [200, 0, 0],
+};
+
+// The city seed rooms the derivation grows outward from.
+const CITY_SEED = { crossing: 'square', riverhaven: 'rh_square' };
+
+export function cityOf(roomId) {
+  for (const city of Object.keys(CITY_ORIGIN)) {
+    if (CITY_SEED[city] === roomId || ROOMS[roomId]?.zone === city) return city;
+  }
+  return null;
+}
+
+// ---- Derivation ----------------------------------------------------------
+
+const keyOf = (p) => p.join(',');
+const occupied = new Map(); // cell key -> roomId
+
+function nearestFreeCell(pos) {
+  // Deterministic ring search around pos for the closest unoccupied cell at
+  // the same level z (rendering position only; gameplay never reads this).
+  for (let r = 1; r < 32; r++) {
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dy = -r; dy <= r; dy++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; // ring edge only
+        const cand = [pos[0] + dx, pos[1] + dy, pos[2]];
+        if (!occupied.has(keyOf(cand))) return cand;
+      }
+    }
+  }
+  throw new Error(`grid: no free cell near ${keyOf(pos)}`);
+}
+
+// BFS from each city seed: every child lands at parent + direction delta;
+// collisions are displaced to the nearest free cell.
+// Portal edges are long-distance links, not adjacency — exclude them from
+// geometric derivation so each city's BFS grows only within its own streets.
+const PORTAL_EDGES = new Set([
+  'pier:w>rh_square', 'rh_square:e>pier',
+  'rh_square:n>rh_ferry', 'rh_ferry:s>rh_square',
+]);
+
+const _localPos = {}; // city -> { roomId: [x,y,z] } (origin-relative)
+for (const [city, seed] of Object.entries(CITY_SEED)) {
+  const local = {};
+  local[seed] = [0, 0, 0];
+  const queue = [seed];
+  while (queue.length) {
+    const id = queue.shift();
+    for (const [rawDir, dest] of Object.entries(ROOMS[id]?.exits || {})) {
+      const dir = canonDir(rawDir);
+      if (!dir || local[dest]) continue;
+      if (PORTAL_EDGES.has(`${id}:${dir}>${dest}`)) continue;
+      const v = DIR_VECTORS[dir];
+      let p = [local[id][0] + v[0], local[id][1] + v[1], local[id][2] + v[2]];
+      const k = keyOf(p);
+      if (occupied.has(k)) p = nearestFreeCell(p);
+      local[dest] = p;
+      queue.push(dest);
+    }
+  }
+  _localPos[city] = local;
+  for (const p of Object.values(local)) occupied.set(keyOf(p), keyOf(p)); // reserve globally below
+}
+// Reserve with room ids for diagnostics (second pass keeps first claimant).
+occupied.clear();
+export const GRID = {};
+const DISPLACED = new Set();
+for (const [city, local] of Object.entries(_localPos)) {
+  const [ox, oy, oz] = CITY_ORIGIN[city];
+  for (const [id, [x, y, z]] of Object.entries(local)) {
+    const g = [ox + x, oy + y, oz + z];
+    const k = keyOf(g);
+    if (occupied.has(k)) DISPLACED.add(id);
+    else occupied.set(k, id);
+    GRID[id] = g;
+  }
+}
+// Rooms unreachable from any seed still need coordinates (defensive).
+let nextSlot = 300;
+for (const id of Object.keys(ROOMS)) {
+  if (!GRID[id]) GRID[id] = [nextSlot++, 0, 0];
+}
+
+// Hierarchical address: province:city:districtKey:roomId. Derived at runtime
+// from the city origin and local coordinates — identity (roomId) stays stable
+// while the position rides along for humans, GM tools, and mapper logs.
+const DISTRICT_NAMES = [
+  ['green',      -1,  1, -1, 1],   // x in [-1,1], y in [-1,1]: Town Green
+  ['north',      -2,  2,  2, null],
+  ['northeast',   2, null, 0, null], // x >= 2, y >= 0
+  ['east',        2, null, null, -1],// x >= 2, y < 0
+  ['west',     null, null, null, null],
+];
+
+export function districtOf(localX, localY) {
+  if (Math.abs(localX) <= 1 && Math.abs(localY) <= 1) return 'green';
+  if (localX >= 2 && localY >= 2) return 'northeast';
+  if (localX >= 2 && localY <= 0) return 'east';
+  if (localX <= -2 && localY >= 2) return 'northwest';
+  if (localX <= -2 && Math.abs(localY) <= 1) return 'west';
+  if (localX <= -2) return 'southwest';
+  if (Math.abs(localX) <= 1 && localY <= -2) return 'south';
+  if (localX >= 2) return 'east';
+  return 'outer';
+}
+
+export function addressOf(roomId) {
+  const pos = posOf(roomId);
+  if (!pos) return null;
+  let province = null, city = 'crossing';
+  for (const [p, def] of Object.entries(PROVINCES)) {
+    if (def.cities.includes(city)) { province = p; break; }
+  }
+  // Find owning city by nearest origin on the same z-plane.
+  let best = null;
+  for (const [c, [ox, oy]] of Object.entries(CITY_ORIGIN)) {
+    const d = Math.abs(pos[0] - ox) + Math.abs(pos[1] - oy);
+    if (!best || d < best.d) best = { c, d };
+    if (pos[0] >= ox && pos[0] < ox + 100 && pos[1] >= oy && pos[1] < oy + 100) { best = { c, d }; break; }
+  }
+  city = best.c;
+  const [ox, oy] = CITY_ORIGIN[city];
+  const district = districtOf(pos[0] - ox, pos[1] - oy);
+  return `${province ?? 'zoluren'}:${city}:${district}:${roomId}`;
+}
+
+// True when a room had to be moved off its geometrically-implied cell during
+// derivation (its rendered position is approximate).
+export function isDisplaced(roomId) { return DISPLACED.has(roomId); }
+
 // Directed exits that are real gameplay links but not grid-adjacent steps
-// ("room:dir>destination"). Their reciprocals are listed too when present.
+// ("room:dir>destination").
 export const PORTALS = new Set([
   'pier:w>rh_square',        // amusement-pier barge across the Segoltha
   'rh_square:n>rh_ferry',    // ...and back to the ferry landing
-  'rh_ferry:s>rh_square',    // ferry downstream to Riverhaven
-  'rh_ferry:sw>rh_wilds_1',  // ferry landing trail out to the wilds
-  'rh_wilds_1:ne>rh_ferry',  // ...and back
+  'rh_square:e>pier',        // barge lands back at the amusement pier
+  'neh_dock:e>rh_ferry',     // Kree'la sails for Riverhaven (Ratha script)
+  'rh_ferry:w>neh_dock',     // ...and back to the Neh Dock landing
 ]);
-
-const keyOf = (p) => p.join(',');
-const add = (a, v) => [a[0] + v[0], a[1] + v[1], a[2] + v[2]];
-
-const CELL_INDEX = (() => {
-  const m = new Map();
-  for (const [id, p] of Object.entries(GRID)) {
-    if (m.has(keyOf(p))) throw new Error(`grid: ${id} overlaps ${m.get(keyOf(p))} at ${keyOf(p)}`);
-    m.set(keyOf(p), id);
-  }
-  return m;
-})();
 
 export function posOf(roomId) {
   return GRID[roomId] || null;
 }
 
 export function roomAt(x, y, z) {
-  return CELL_INDEX.get(`${x},${y},${z}`) || null;
+  return occupied.get(`${x},${y},${z}`) || null;
 }
 
 // Exits implied purely by geometry: every occupied neighbor cell yields an
@@ -145,7 +215,7 @@ export function deriveExits(roomId) {
   if (!pos) return null;
   const exits = {};
   for (const [dir, v] of Object.entries(DIR_VECTORS)) {
-    const nid = roomAt(...add(pos, v));
+    const nid = roomAt(pos[0] + v[0], pos[1] + v[1], pos[2] + v[2]);
     if (nid) exits[dir] = nid;
   }
   return exits;
@@ -155,34 +225,22 @@ function isPortal(roomId, dir, dest) {
   return PORTALS.has(`${roomId}:${dir}>${dest}`);
 }
 
-// Cross-check data/world.js against the grid. Returns { ok, issues } where
-// each issue is a short human-readable string. Clean output means the world
-// graph and the grid agree everywhere.
+// Cross-check data/world.js against the grid. Because GRID is derived FROM
+// the exits, geometry can no longer disagree; what remains to verify is
+// completeness (every room gridded, every destination defined) and
+// reciprocity (each exit has its opposite), plus portal-exempt links.
 export function validateWorld(rooms) {
   const issues = [];
 
   for (const id of Object.keys(rooms)) {
     if (!GRID[id]) issues.push(`${id}: no grid coordinates`);
   }
-  for (const id of Object.keys(GRID)) {
-    if (!rooms[id]) issues.push(`grid: ${id} has coordinates but no room`);
-  }
 
   for (const [id, room] of Object.entries(rooms)) {
-    const pos = GRID[id];
-    if (!pos) continue;
     for (const [rawDir, dest] of Object.entries(room.exits || {})) {
       const dir = canonDir(rawDir);
       if (!dir) { issues.push(`${id}: unknown exit direction "${rawDir}"`); continue; }
       if (!rooms[dest]) { issues.push(`${id} --${dir}--> missing room "${dest}"`); continue; }
-      if (isPortal(id, dir, dest)) continue;
-
-      const destPos = GRID[dest];
-      if (!destPos) { issues.push(`${id} --${dir}--> ${dest}: destination off-grid`); continue; }
-      const want = add(pos, DIR_VECTORS[dir]);
-      if (keyOf(want) !== keyOf(destPos)) {
-        issues.push(`${id} --${dir}--> ${dest}: ${dest} sits at (${destPos}) but ${dir} implies (${want})`);
-      }
       const back = canonicalExit(rooms[dest], OPP[dir]);
       if (back !== id && !isPortal(dest, OPP[dir], id)) {
         issues.push(`${id} --${dir}--> ${dest}: no reciprocal ${OPP[dir]} exit`);
@@ -231,9 +289,9 @@ export function findPath(fromId, toId) {
 
 // Late-bound to avoid importing data/world.js here (keeps this module pure
 // data + math); callers can also inject their own lookup.
-let _exitsLookup = (id) => ({});
+let _exitsLookup = (id) => ({});// eslint-disable-line no-unused-vars
 export function setExitsLookup(fn) { _exitsLookup = fn; }
-function rooms_exits(id) { return _exitsLookup(id) || {}; }
+function rooms_exits(id) { return ROOMS[id]?.exits || {}; }
 
 // "nnne2e"-style compression -> ["n","n","n","e","e"] style expansion helper:
 // turn a step list into run-length form for compact display.

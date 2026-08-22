@@ -100,6 +100,11 @@
     }
     .badge.bot { color: var(--amber); border-color: var(--amber); }
     .badge.fight { color: var(--red); border-color: var(--red); }
+    .hs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .hs-table th, .hs-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+    .hs-table th { color: var(--dim); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: .05em; }
+    .hs-table tr:hover td { background: var(--panel-inset); }
+    .hs-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .hpbar { width: 90px; height: 7px; background: var(--panel-inset); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; flex: none; }
     .hpbar i { display: block; height: 100%; }
     .watch {
@@ -382,9 +387,38 @@
       } catch { return { code: 0, ok: false, d: null }; }
     }
 
+    /* ================= high scores ================= */
+    const HS = { page: 1, perPage: 25, sort: 'circle' };
+    async function loadHighScores() {
+      const r = await gm(`highscores?page=${HS.page}&perPage=${HS.perPage}&sort=${HS.sort}`);
+      if (!r.ok || !r.d?.characters) return;
+      const { characters, total, page, perPage } = r.d;
+      const pages = Math.max(1, Math.ceil(total / perPage));
+      $('hs-page').textContent = `${page} / ${pages}`;
+      $('hs-prev').disabled = page <= 1;
+      $('hs-next').disabled = page >= pages;
+      $('hssum').textContent = `${total} characters`;
+      $('hs-rows').innerHTML = characters.map((c, i) => `
+        <tr>
+          <td class="sub">${(page - 1) * perPage + i + 1}</td>
+          <td><b>${c.name}</b> <span class="sub">${c.username}</span></td>
+          <td>${c.race}</td>
+          <td>${c.guild}</td>
+          <td><b>${c.circle}</b></td>
+          <td>${c.ranks}</td>
+          <td>${c.silver}</td>
+        </tr>`).join('');
+    }
+    $('hs-prev').onclick = () => { if (HS.page > 1) { HS.page--; loadHighScores(); } };
+    $('hs-next').onclick = () => { HS.page++; loadHighScores(); };
+    $('hs-sort').onchange = () => { HS.sort = $('hs-sort').value; HS.page = 1; loadHighScores(); };
+
     /* ================= polling ================= */
 
+    let hsLast = 0;
     async function tick(manual = false) {
+      if (S.gm === 'ok' && Date.now() - hsLast > 30000) { hsLast = Date.now(); loadHighScores().catch(() => {}); }
+
       if (S.paused && !manual) return;
 
       // public health — always available, also feeds latency + population history
@@ -691,7 +725,7 @@
           if (live.floor.length) bits.push(`<span class="empty">\u{1F4E6} floor: ${live.floor.map(esc).join(', ')}</span>`);
         }
         if (!bits.length) { quiet += 1; continue; }
-        bits.unshift(`<span class="rid">#${esc(r.id)} ${esc(r.name)}${r.tavern ? ' \u{1F37A}' : ''}</span>`);
+        bits.unshift(`<span class="rid" title="${esc(r.address || '')}">#${esc(r.id)} ${esc(r.name)}${r.tavern ? ' \u{1F37A}' : ''}</span>`);
         lines.push(`<div class="rline">${bits.join(' ')}</div>`);
       }
       return (lines.join('\n') || '<div class="note">all rooms quiet</div>')

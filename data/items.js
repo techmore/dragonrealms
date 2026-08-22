@@ -14,6 +14,7 @@ export const ITEMS = {
   light_crossbow:{ id: 'light_crossbow', name: 'a light crossbow', type: 'weapon', slot: 'hand', skill: 'crossbow', dmg: [8, 16], speed: 7, value: 180, burden: 2, desc: 'A compact crossbow that hits hard.' },
   throwing_knives: { id: 'throwing_knives', name: 'a set of throwing knives', type: 'weapon', slot: 'hand', skill: 'thrown', dmg: [3, 8], speed: 4, value: 30, burden: 0, desc: 'Balanced knives meant for the air.' },
   club:          { id: 'club', name: 'a stout club', type: 'weapon', slot: 'hand', skill: 'blunt', dmg: [4, 10], speed: 4, value: 15, burden: 0, desc: 'A simple, reliable club.' },
+  hand_axe:      { id: 'hand_axe', name: 'a balanced hand axe', type: 'weapon', slot: 'hand', skill: 'heavy_thrown', dmg: [8, 15], speed: 4, value: 65, burden: 1, desc: 'A short-hafted axe weighted to return true when thrown hard.' },
   // Tiered weapons (req = minimum circle to wield)
   steel_sword:   { id: 'steel_sword', name: 'a steel longsword', type: 'weapon', slot: 'hand', skill: 'medium_edged', dmg: [12, 22], speed: 5, value: 420, req: 3, burden: 1, desc: 'A fine steel longsword, well-tempered and true.' },
   steel_mace:    { id: 'steel_mace', name: 'a steel war mace', type: 'weapon', slot: 'hand', skill: 'large_blunt', dmg: [10, 19], speed: 5, value: 300, req: 3, burden: 1, desc: 'A heavy steel mace that crushes armor.' },
@@ -110,6 +111,8 @@ export const ITEMS = {
   forged_dragonsteel: { id: 'forged_dragonsteel', name: 'a finely forged dragonsteel greatsword', type: 'weapon', slot: 'hand', skill: 'twohanded_edged', dmg: [28, 47], speed: 7, value: 3000, req: 10, burden: 2, desc: 'A legend smelted from dragonsteel and fire.' },
 
   // ---- Engineering and outfitting wares (crafted, quality-scaled) ----
+  sling:         { id: 'sling', name: 'a braided leather sling', type: 'weapon', slot: 'hand', skill: 'slings', dmg: [5, 12], speed: 4, value: 20, burden: 0, desc: 'A woven leather pouch on two cords — humble, and deadly in practiced hands.' },
+  offhand_blade: { id: 'offhand_blade', name: 'a short parrying blade', type: 'weapon', slot: 'hand', skill: 'offhand', dmg: [4, 11], speed: 3, value: 55, burden: 0, desc: 'A slim straight blade made for the left hand — quick answers to quick attacks.' },
   carved_staff: { id: 'carved_staff', name: 'a carved oak staff', type: 'weapon', slot: 'hand', skill: 'staff', dmg: [6, 13], speed: 5, value: 90, req: 1, burden: 1, desc: 'A staff of carved oak, its grain showing through lacquer.' },
   arbalest:     { id: 'arbalest', name: 'a hand-worked arbalest', type: 'weapon', slot: 'hand', skill: 'crossbow', dmg: [10, 18], speed: 6, value: 240, req: 3, burden: 2, desc: 'A crossbow of clever steel-and-wood construction.' },
   cured_leather:    { id: 'cured_leather', name: 'a cured leather jerkin', type: 'armor', slot: 'torso', skill: 'light_armor', armor: 22, value: 110, req: 1, burden: 0, desc: 'A jerkin cured and cut by a tailor\'s hand.' },

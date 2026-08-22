@@ -15,14 +15,14 @@ export const NPCS = {
     id: 'shopkeeper', name: 'Marlene, the general storekeeper', role: 'shop',
     desc: 'A round-cheeked woman in an apron, wiping her hands on a rag.',
     greeting: 'Welcome! Everything you could need, at fair prices. Type "list" to browse.',
-    stock: { ration: 20, salve: 10, arrows: 30, bolts: 20, dagger: 8, herb_mint: 15, herb_root: 10, potion_heal: 5, potion_frenzy: 40, potion_swiftness: 60, potion_vigor: 30, cambrinth_band: 3, cambrinth_pendant: 2, warhorn: 2, chakrel_1: 1 },
+    stock: { ration: 20, salve: 10, arrows: 30, bolts: 20, dagger: 8, sling: 10, herb_mint: 15, herb_root: 10, potion_heal: 5, potion_frenzy: 40, potion_swiftness: 60, potion_vigor: 30, cambrinth_band: 3, cambrinth_pendant: 2, warhorn: 2, chakrel_1: 1 },
     buys: ['rat_pelt', 'kobold_skin', 'goblin_skin', 'wolf_pelt', 'wisp_mote', 'troll_hide'],
   },
   weaponsmith: {
     id: 'weaponsmith', name: 'Old Thorne, the weaponsmith', role: 'shop',
     desc: 'A grizzled smith with soot in his beard, arms like tree roots.',
     greeting: 'Steel wants to be swung, friend. Browse my rack and pick your poison.',
-    stock: { short_sword: 6, long_sword: 4, broadsword: 3, greatsword: 2, mace: 6, warhammer: 2, staff: 5, hunting_bow: 4, light_crossbow: 3, throwing_knives: 8, club: 10 },
+    stock: { short_sword: 6, long_sword: 4, broadsword: 3, greatsword: 2, mace: 6, warhammer: 2, staff: 5, hunting_bow: 4, light_crossbow: 3, throwing_knives: 8, club: 10, hand_axe: 6, offhand_blade: 5 },
     buys: [],
   },
   armorer: {
