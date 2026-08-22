@@ -41,7 +41,7 @@ export const RT_BLOCK = new Set([
   'attack', 'cast', 'berserk', 'roar', 'meditate', 'form', 'whirlwind', 'stomp', 'choke',
   'mageslash', 'dispel', 'backstab', 'snipe', 'slip', 'smite', 'impede', 'ambush', 'hide',
   'forage', 'scavenge', 'track', 'hunt', 'skin', 'steal', 'pick', 'study', 'perform', 'appraise',
-  'unlock', 'sing', 'appr', 'forge', 'shape', 'tailor', 'craft',
+  'unlock', 'sing', 'appr', 'forge', 'shape', 'tailor', 'craft', 'imbue',
   'repair', 'use', 'drink', 'eat', 'khri', 'predict', 'harness', 'perceive', 'charge', 'invoke',
   'focus', 'animate', 'ritual', 'beseech', 'enchante', 'glyph', 'summon', 'sacrifice',
   'advance', 'retreat', 'flee',

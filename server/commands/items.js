@@ -3,6 +3,7 @@ import { roomById } from '../../data/world.js';
 import { ITEMS, itemById } from '../../data/items.js';
 import { RECIPES, recipeById } from '../../data/recipes.js';
 import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll, QUALITY_LADDER, CRAFT_TECHNIQUES, craftSlotsFor } from '../../data/forging.js';
+import { ENCHANT_RECIPES, enchantRecipeById } from '../../data/enchanting.js';
 
 // ---- Work orders (P26): craft NPCs post piecework; quality matters. ----
 const ORDER_VERBS = {
@@ -51,6 +52,7 @@ const CRAFT_AFFINITY = {
   shape: { trader: 2 },     // Engineering
   tailor: { paladin: 3, ranger: 2 }, // Armorsmithing, Tailoring
   craft: { empath: 2 },     // Remedies
+  enchant: { warmage: 2, moonmage: 2 }, // Artificing/Binding
 };
 
 function craftAffinity(guildId, craft) {
@@ -59,7 +61,7 @@ function craftAffinity(guildId, craft) {
 
 // ---- Crafting techniques (P26) ----
 const CRAFT_TECH_COST = 75;
-const VERB_SKILL = { forge: 'forging', shape: 'engineering', tailor: 'outfitting', craft: 'alchemy' };
+const VERB_SKILL = { forge: 'forging', shape: 'engineering', tailor: 'outfitting', craft: 'alchemy', enchant: 'enchanting' };
 
 function knownCraftTechs(p, skill) {
   return ((p.craftTechs || {})[skill]) || [];
@@ -365,6 +367,36 @@ export const commands = {
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
     setRoundtime(p, 6);
     emit(`You cut and stitch ${q.name} ${base.name}.${leveled ? ' Your Outfitting improved!' : ''} (${Math.round(q.roll * 100)}% mastery)${orderMsg ? `\n${orderMsg}` : ''}`);
+  },
+
+  // Enchanting (P26, last discipline): bind raw magic (wisp motes) into a
+  // crafted base piece at the Enchanting Society. Output carries a magicEdge.
+  imbue(ctx) {
+    const { p, rest, emit } = ctx;
+    const arg1 = rest || '';
+    if (p.room !== 'enchanting_soc') return emit('The binding circle stands in the Enchanting Society, west of the Northeast Gate.');
+    if (!arg1) {
+      const rows = Object.values(ENCHANT_RECIPES).map((r) => `  ${pad(r.name, 24)} ${r.desc}`);
+      return emit(`\nThe Society's binding circle can enspell:\n${rows.join('\n')}\n\nSay "enchant <recipe>" — the base piece and motes are consumed on the attempt. Better Enchanting holds a stronger edge.`);
+    }
+    const recipe = enchantRecipeById(arg1.toLowerCase()) || Object.values(ENCHANT_RECIPES).find((r) => r.name.toLowerCase().includes(arg1.toLowerCase()));
+    if (!recipe) return emit('The circle will not take that form. Try "enchant" for the list.');
+    const skill = skillRank(p, 'enchanting');
+    if (skill < recipe.minSkill) return emit(`That binding needs ${recipe.minSkill} Enchanting skill; you have ${skill}. Study simpler bindings first.`);
+    const missing = Object.entries(recipe.ingredients).filter(([ing, qty]) => countItems(p, ing) < qty);
+    if (missing.length) {
+      return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Craft the base piece and gather motes from the wilds.`);
+    }
+    for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
+    const q = qualityRoll(skill + craftAffinity(p.guild.id, 'enchant') + craftQualityBonus(p, 'enchanting'));
+    const leveled = gainSkillExp(p, 'enchanting', 12);
+    const base = itemById(recipe.item);
+    // Quality sharpens the magic edge as well as the base stats.
+    addItem(p, recipe.item, 1, { quality: q.mult, condition: 100, maker: p.name });
+    p.forgedQuality = p.forgedQuality || {};
+    p.forgedQuality[recipe.item] = q.mult;
+    setRoundtime(p, 6);
+    emit(`Chalk flares; the mote unravels into ${base.name}, bound with a ${q.name} edge.${leveled ? ' Your Enchanting improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
   },
 
   craft(ctx) {

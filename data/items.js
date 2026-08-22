@@ -97,6 +97,7 @@ export const ITEMS = {
   iron_ore:      { id: 'iron_ore', name: 'a lump of iron ore', type: 'misc', slot: null, value: 15, desc: 'A heavy lump of raw iron ore.' },
   // ---- Crafted gear (forged at the Ember Forge, quality-scaled) ----
   forged_short_sword: { id: 'forged_short_sword', name: 'a finely forged short sword', type: 'weapon', slot: 'hand', skill: 'medium_edged', dmg: [7, 15], speed: 4, value: 150, req: 1, burden: 1, desc: 'A short sword hammered out by a smith\u2019s own hand.' },
+  enstaff:      { id: 'enstaff', name: 'a runed oak staff', type: 'weapon', slot: 'hand', skill: 'staff', dmg: [8, 17], speed: 5, value: 260, magicEdge: 3, req: 2, burden: 1, desc: 'A carved oak staff bound with a mote of cold light; runes crawl faintly along the grain.' },
   forged_steel_sword: { id: 'forged_steel_sword', name: 'a finely forged steel longsword', type: 'weapon', slot: 'hand', skill: 'medium_edged', dmg: [13, 24], speed: 5, value: 520, req: 3, burden: 1, desc: 'A steel longsword forged with real craft.' },
   forged_steel_greatsword: { id: 'forged_steel_greatsword', name: 'a finely forged steel greatsword', type: 'weapon', slot: 'hand', skill: 'twohanded_edged', dmg: [22, 36], speed: 8, value: 880, req: 5, burden: 3, desc: 'A greatsword of the smith\u2019s own making.' },
   forged_mithril_blade: { id: 'forged_mithril_blade', name: 'a finely forged mithril longsword', type: 'weapon', slot: 'hand', skill: 'medium_edged', dmg: [17, 29], speed: 4, value: 1450, req: 7, burden: 1, desc: 'Mithril, folded by hand into a blade of rare quality.' },
@@ -106,6 +107,8 @@ export const ITEMS = {
   carved_staff: { id: 'carved_staff', name: 'a carved oak staff', type: 'weapon', slot: 'hand', skill: 'staff', dmg: [6, 13], speed: 5, value: 90, req: 1, burden: 1, desc: 'A staff of carved oak, its grain showing through lacquer.' },
   arbalest:     { id: 'arbalest', name: 'a hand-worked arbalest', type: 'weapon', slot: 'hand', skill: 'crossbow', dmg: [10, 18], speed: 6, value: 240, req: 3, burden: 2, desc: 'A crossbow of clever steel-and-wood construction.' },
   cured_leather:    { id: 'cured_leather', name: 'a cured leather jerkin', type: 'armor', slot: 'torso', skill: 'light_armor', armor: 22, value: 110, req: 1, burden: 0, desc: 'A jerkin cured and cut by a tailor\'s hand.' },
+  enjerkin:     { id: 'enjerkin', name: 'a warded leather jerkin', type: 'armor', slot: 'torso', skill: 'light_armor', armor: 26, value: 240, magicEdge: 2, req: 1, burden: 0, desc: 'A cured jerkin stitched through with a warding thread that warms when danger nears.' },
+  enblade:      { id: 'enblade', name: 'a spell-edged longsword', type: 'weapon', slot: 'hand', skill: 'medium_edged', dmg: [15, 27], speed: 5, value: 640, magicEdge: 5, req: 4, burden: 1, desc: 'Forged steel bound with two motes of raw magic; the edge hums along its length.' },
   studded_crafted:  { id: 'studded_crafted', name: 'studded hide armor', type: 'armor', slot: 'torso', skill: 'light_armor', armor: 30, value: 220, req: 1, burden: 1, desc: 'Hide armor reinforced with iron studs.' },
 };
 
