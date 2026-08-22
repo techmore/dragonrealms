@@ -134,7 +134,11 @@ class LiveSim {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
       this.onMessage(m);
     };
-    this.ws.onclose = () => { if (!this.done) setTimeout(() => this.start(), 2000); };
+    this.ws.onclose = () => {
+      if (this.done) return;
+      this.appendLog(`[reconnect] ${new Date().toISOString()} socket closed — retrying in 2s`);
+      setTimeout(() => this.start(), 2000);
+    };
   }
 
   onMessage(m) {
@@ -176,6 +180,7 @@ class LiveSim {
         break;
       case 'error':
         log(`[${this.guild}] server error: ${m.msg}`);
+        this.appendLog(`[error] ${new Date().toISOString()} ${stripAnsi(String(m.msg || ''))}`);
         if (/Not a valid character/.test(String(m.msg)) && this.phase !== 'playing') {
           this.send({ t: 'charselect', id: 'new' });
         }
@@ -353,6 +358,7 @@ class LiveSim {
     this.appendLog(this.progressLine());
     this.appendLog(`=== Results (${GUILDS[this.guild]?.name || this.guild}) ===`);
     this.appendLog(`  ${reason}: reached circle ${this.circle} after ${this.circles} circle-ups, ${this.kills} kills in ${Math.round((Date.now() - this.startedAt) / 60000)}m`);
+    this.appendLog(`=== live sim ${this.name} ended ${new Date().toISOString()} (${reason}) ===`);
     try { this.ws.close(); } catch {}
     log(`[${this.guild}] finished: ${reason}`);
   }
@@ -381,3 +387,7 @@ const endAll = (reason) => {
 setTimeout(() => endAll(`--minutes ${MINUTES} elapsed`), MINUTES * 60000);
 process.on('SIGINT', () => endAll('interrupted'));
 process.on('SIGTERM', () => endAll('terminated'));
+process.on('unhandledRejection', (err) => {
+  log(`[fatal] unhandled rejection: ${err?.stack || err}`);
+  for (const s of sims) { try { s.appendLog(`[fatal] ${new Date().toISOString()} ${err?.message || err}`); } catch {} }
+});
