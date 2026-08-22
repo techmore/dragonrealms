@@ -21,7 +21,7 @@ async function makeChar(name) {
 
 test('every creature carries valid kind flags', async () => {
   const { CREATURES } = await import('../data/creatures.js');
-  const VALID = new Set(['beast', 'humanoid', 'undead', 'construct', 'spirit']);
+  const VALID = new Set(['beast', 'humanoid', 'undead', 'construct', 'spirit', 'vermin']);
   for (const c of Object.values(CREATURES)) {
     assert.ok(Array.isArray(c.kinds) && c.kinds.length, `${c.id} has kinds`);
     for (const k of c.kinds) assert.ok(VALID.has(k), `${c.id} kind ${k} is valid`);
