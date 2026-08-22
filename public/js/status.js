@@ -273,12 +273,10 @@ export function renderTargets(msg) {
     const bar = document.createElement('div');
     bar.className = 'target';
     bar.dataset.range = t.range || 'unknown';
-    bar.setAttribute('role', 'progressbar');
-    bar.setAttribute('aria-label', `${t.name}${t.range ? ` at ${t.range} range` : ''}`);
-    bar.setAttribute('aria-valuemin', '0');
-    bar.setAttribute('aria-valuemax', String(t.maxHp));
-    bar.setAttribute('aria-valuenow', String(Math.max(0, t.hp)));
-    bar.setAttribute('aria-valuetext', `${Math.max(0, t.hp)} of ${t.maxHp} vitality`);
+    // DR never shows creature numbers — vitality reads as prose, exactly like
+    // the player's own condition ("in good shape" → "near death"). The exact
+    // hp stays in the title tooltip for those who want it.
+    const hpWord = vitalityWord(Math.max(0, t.hp), t.maxHp);
     const name = document.createElement('div');
     name.className = 'target-name';
     name.textContent = t.name + (t.range ? ` (${t.range})` : '');
@@ -288,10 +286,11 @@ export function renderTargets(msg) {
     fill.style.width = pct + '%';
     const hp = document.createElement('div');
     hp.className = 'target-hp';
-    hp.textContent = `${Math.max(0, t.hp)}/${t.maxHp}`;
+    hp.textContent = `is ${hpWord}`;
     bar.appendChild(name);
     bar.appendChild(fill);
     bar.appendChild(hp);
+    bar.title = `${t.name}: ${Math.max(0, t.hp)}/${t.maxHp}`;
     row.appendChild(bar);
   }
   renderStatusStrip();
