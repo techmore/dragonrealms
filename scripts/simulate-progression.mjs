@@ -142,12 +142,18 @@ function requirementNeeds() {
 
 function trainAtGuild() {
   const needs = requirementNeeds();
-  for (const skillId of trainableSkills(p.guild)) {
-    const need = needs.get(skillId) || 0;
-    const rank = (p.skills[skillId] || {}).rank || 0;
-    if (rank >= need) continue;
-    const cost = 40 + rank * 20;
-    if (p.silver >= cost) handleCommand(game, p, `train ${skillId}`);
+  // Multiple passes: one train session gives ~40% of a rank, so a single
+  // call per hunt left binding requirements (parry/defending) crawling.
+  for (let pass = 0; pass < 4; pass++) {
+    let trained = false;
+    for (const skillId of trainableSkills(p.guild)) {
+      const need = needs.get(skillId) || 0;
+      const rank = (p.skills[skillId] || {}).rank || 0;
+      if (rank >= need) continue;
+      const cost = 40 + rank * 20;
+      if (p.silver >= cost) { handleCommand(game, p, `train ${skillId}`); trained = true; }
+    }
+    if (!trained) break;
   }
 }
 
@@ -177,10 +183,16 @@ const ORGANIC_SKILLS = new Set([
 
 function tdpBoost() {
   // Preserve TDPs for requirements the guild trainer cannot teach; normal
-  // guild skills use the silver sink above.
+  // guild skills use the silver sink above. EXCEPTION: defensive skills
+  // (parry/defending) rise organically only while under attack — caster
+  // guilds kill too fast to feed them, and the trainer's 40%-per-session
+  // rate makes pure silver-training glacial at high ranks. When a taught
+  // defensive requirement lags, spend TDPs on it rather than stalling.
   const taught = new Set(trainableSkills(p.guild));
+  const DEFENSIVE = new Set(['parry', 'defending']);
   for (const [skill, need] of requirementNeeds()) {
-    if (taught.has(skill) || ORGANIC_SKILLS.has(skill)) continue;
+    if (ORGANIC_SKILLS.has(skill) && !DEFENSIVE.has(skill)) continue;
+    if (!DEFENSIVE.has(skill) && taught.has(skill)) continue;
     let rank = (p.skills[skill] || {}).rank || 0;
     let guard = 0;
     while (rank < need && p.tdp >= tdpTrainCost(rank) && guard++ < 12) {
@@ -254,7 +266,11 @@ while (p.circle < 10 && safety++ < 30000) {
   pulseExp(p); // field pools pulse between hunts
   // Skin + sell
   const corpse = (p.corpses || []).slice();
-  for (const c of corpse) handleCommand(game, p, `skin ${c.def.id}`);
+  for (const c of corpse) {
+    // Skill check can fumble; retry until the corpse is dressed or gone.
+    let tries = 0;
+    while (p.corpses.some((x) => x === c) && tries++ < 20) handleCommand(game, p, `skin ${c.def.id}`);
+  }
   const box = p.inventory.find((i) => i.item.id === 'strongbox');
   if (box) handleCommand(game, p, 'pick strongbox');
   sellLoot();
