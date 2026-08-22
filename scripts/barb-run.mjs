@@ -38,9 +38,58 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const startedAt = Date.now();
 
 // ---------------- geography ----------------
+// Disk data may lag a running server that was booted before an uncommitted
+// world regrid, so navigation prefers exits OBSERVED on the wire (every room
+// message carries its live exit list) and only falls back to disk data for
+// rooms never seen this session.
+const DIR_SHORT = {
+  north: 'n', south: 's', east: 'e', west: 'w',
+  northeast: 'ne', northwest: 'nw', southeast: 'se', southwest: 'sw',
+  up: 'up', down: 'd', out: 'out',
+};
 const ADJ = {};
 for (const [id, r] of Object.entries(ROOMS)) {
   ADJ[id] = Object.entries(r.exits || {}).map(([dir, to]) => ({ dir, to }));
+}
+const state2liveExits = {}; // roomId -> [{dir, to}] resolved from wire exits
+const observedEdges = {};   // roomId -> [{dir, to}] ground truth from walking
+function noteLiveExits(roomId, exits) {
+  if (!roomId || !Array.isArray(exits) || !exits.length) return;
+  const adj = [];
+  for (const dirWord of exits) {
+    const dir = DIR_SHORT[dirWord] || dirWord;
+    // Resolve the destination from disk data when we know it; unknown
+    // destinations still record the edge so path lengths stay honest.
+    const hit = ADJ[roomId]?.find((e) => e.dir === dir);
+    adj.push({ dir, to: hit ? hit.to : `?${dirWord}` });
+  }
+  state2liveExits[roomId] = adj;
+}
+// Ground truth beats both disk data and exit lists: when a move lands us in
+// a room, that transition is recorded verbatim and trusted forever after.
+let pendingMove = null; // {from, dir}
+function noteTransition(fromRoom, dir, toRoom) {
+  if (!fromRoom || !toRoom || fromRoom === toRoom) return;
+  const list = (observedEdges[fromRoom] ||= []);
+  const hit = list.find((e) => e.dir === dir);
+  if (hit) hit.to = toRoom;
+  else list.push({ dir, to: toRoom });
+}
+function adjacencyFor(roomId) {
+  // 1. Walked transitions are ground truth.
+  if (observedEdges[roomId]) return observedEdges[roomId];
+  const live = state2liveExits[roomId];
+  if (!live) return ADJ[roomId] || [];
+  // 2. Live exit lists resolve destinations via disk data; where the two
+  //    disagree (mid-regrid), fall back to the static edge for that dir so
+  //    BFS stays connected instead of dying on unresolved '?' edges.
+  const out = [];
+  for (const e of live) {
+    if (!e.to.startsWith('?')) { out.push(e); continue; }
+    const stat = (ADJ[roomId] || []).find((s) => s.dir === e.dir);
+    if (stat) out.push(stat);
+  }
+  return out.length ? out : (ADJ[roomId] || []);
 }
 function bfsPath(from, to) {
   if (from === to) return [];
@@ -48,7 +97,8 @@ function bfsPath(from, to) {
   const q = [from];
   while (q.length) {
     const cur = q.shift();
-    for (const edge of ADJ[cur] || []) {
+    for (const edge of adjacencyFor(cur)) {
+      if (edge.to.startsWith('?')) continue; // unresolved live edge
       if (prev.has(edge.to)) continue;
       prev.set(edge.to, { via: cur, dir: edge.dir });
       if (edge.to === to) {
@@ -110,7 +160,7 @@ function buildScript({ fromRoom, arena }) {
   L.push('ARM:');
   L.push('  matchre WIELD You buy|You pay|hands you');
   // Buy failure (broke / not sold here): try wielding anyway — we may already own one.
-  L.push('  matchre WIELD do not sell|already have|no such|do not have|out of stock|cannot afford');
+  L.push('  matchre WIELD do not sell|already have|no such|do not have|out of stock|cannot afford|no shopkeeper');
   L.push('  put buy club');
   L.push('  matchwait');
   L.push('WIELD:');
@@ -260,6 +310,7 @@ const state = {
   huntSrc: null, circleSrc: null, curSrc: null, curName: null,
   arena: null, lastHallAt: 0, killsAtVisit: 0,
   lastTrainList: null, lastMissingRaw: null, pendingExpParse: false, ranks: {},
+  lastPromptAt: 0, lastRoomChangeAt: 0,
 };
 let ws;
 
@@ -312,6 +363,9 @@ async function startCycle(src, name) {
         log('script:', line);
       } else if (process.env.DRB_DEBUG) {
         log('script>', line);
+      }
+      if (/^(n|s|e|w|ne|nw|se|sw|up|d|out)$/.test(line)) {
+        pendingMove = { from: state.room, dir: line };
       }
       state.lastSendAt = Date.now();
       state.attacks += /^attack /.test(line) ? 1 : 0;
@@ -394,7 +448,14 @@ async function main() {
         break;
       case 'room': {
         const first = !state.room;
+        if (pendingMove) {
+          noteTransition(pendingMove.from, pendingMove.dir, m.roomId);
+          pendingMove = null;
+        }
+        if (state.room !== m.roomId) state.lastRoomChangeAt = Date.now();
         state.room = m.roomId;
+        noteLiveExits(m.roomId, m.exits);
+        if (!first || process.env.DRB_DEBUG) log('room:', m.roomId);
         feedRunner(stripAnsi(m.msg), 'room');
         if (first && state.phase === 'playing') void beginPlaying();
         break;
@@ -408,6 +469,7 @@ async function main() {
         const rt = /RT:\s*(\d+)/.exec(plain);
         state.rt = rt ? Number(rt[1]) : 0;
         state.inCombat = /\[COMBAT\]/.test(plain);
+        state.lastPromptAt = Date.now();
         feedRunner(plain, true);
         supervisor();
         break;
@@ -506,7 +568,10 @@ async function main() {
   async function beginPlaying() {
     await sleep(400);
     const arena = nearestSpawnRoom(state.room);
-    if (!arena) { log('no hunting grounds reachable — aborting'); return finish('no arena'); }
+    if (!arena) {
+      log(`no hunting grounds reachable — aborting (room=${JSON.stringify(state.room)}, live=${Object.keys(state2liveExits).length}, seen=${Object.keys(observedEdges).length})`);
+      return finish('no arena');
+    }
     state.arena = arena.id;
     state.huntSrc = buildScript({ fromRoom: state.room, arena });
     state.circleSrc = buildCircleScript({ fromRoom: state.room, arena });
@@ -533,11 +598,19 @@ async function main() {
   // even when nothing changes (mirrors the browser client's 500ms tick).
   // Alternates the account's script library: hunt until a few kills land or
   // 4 minutes pass, then run the circle-trip script once, then resume.
+  // A hunt cycle parked in the same room for 90s (scan loop somewhere the
+  // baked path can't leave) is restarted from the CURRENT room so the
+  // learned-exit graph gets a fresh, correct path.
   setInterval(() => {
     if (state.done) return;
     try { state.runner?.feed('', false); } catch {}
     injectState();
     if (state.phase !== 'playing' || !state.curSrc) return;
+    // Combat flag decays: prompts only arrive per-command server-side, so a
+    // stale [COMBAT] from the last fight would block hall trips forever.
+    if (state.inCombat && Date.now() - (state.lastPromptAt || 0) > 15000) {
+      state.inCombat = false;
+    }
     const hunting = state.curName === SCRIPT_NAME;
     if (hunting && !state.inCombat && state.runner?.running
       && (state.kills - state.killsAtVisit >= 3 || Date.now() - state.lastHallAt > 4 * 60000)) {
@@ -553,6 +626,14 @@ async function main() {
         refreshCycleScripts();
         startCycle(state.huntSrc, SCRIPT_NAME);
       }
+      return;
+    }
+    if (hunting && state.room && Date.now() - (state.lastRoomChangeAt || 0) > 90000) {
+      log('parked in one room for 90s — regenerating cycle from here');
+      state.lastRoomChangeAt = Date.now();
+      state.runner.stop();
+      refreshCycleScripts();
+      startCycle(state.huntSrc, SCRIPT_NAME);
       return;
     }
     if (Date.now() - state.lastSendAt > 90000) {
