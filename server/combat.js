@@ -8,7 +8,7 @@ import { SKILLS, CATEGORIES } from '../data/skills.js';
 import {
   weaponOf, skillRank, effectiveRank, totalArmor, gainSkillExp, defenseSkillOf,
   countItems, removeItem, addItem, totalBurden, maxStaminaEff, conditionMult, qualityMult,
-  wearCondition, setRoundtime, MASTERY_SETS,
+  wearCondition, setRoundtime, MASTERY_SETS, stancePoints,
 } from './player.js';
 import { itemById } from '../data/items.js';
 
@@ -367,6 +367,7 @@ export class Combat {
     if (stance === 'defensive') def = Math.floor(def * 1.2);
     else if (stance === 'guarded') def = Math.floor(def * 1.1);
     else if (stance === 'aggressive') def = Math.floor(def * 0.8);
+    def += Combat.stanceEdge(this.player); // bonus stance points guard better
     if (capstoneActive(this.player, 'moonmage')) def = Math.floor(def * 1.2);
     if (this.player.buffs && this.player.buffs.shadow > 0) def = Math.floor(def * 1.15);
     if (this.player.buffs && this.player.buffs.omen > 0) def = Math.floor(def * 1.1);
@@ -1398,3 +1399,12 @@ function teachingFactor(playerSkill, def) {
 function cap(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+// Bonus stance points as combat edge: guild bonuses beyond the base 3
+// (barbarian +1/60 Defending, ranger defense skills, Exemplar) translate into
+// a small defense edge in creatureAttack — DR's "bonus stance points" made
+// real (roadmap P11).
+Combat.stanceEdge = function stanceEdge(p) {
+  return Math.max(0, stancePoints(p) - 3);
+};
+
