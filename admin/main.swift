@@ -23,13 +23,29 @@ func configuredOrRandomGMToken() -> String {
     return bytes.map { String(format: "%02x", $0) }.joined()
 }
 
+// A server already running on the port publishes its credential to this file
+// (server/index.js). Prefer it over our own token so "Copy GM Token" and the
+// Open-Dash handoff match whatever world is actually answering on :3000.
+func liveWorldToken() -> String? {
+    guard let data = FileManager.default.contents(atPath: "/tmp/dr-world-token.json"),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let token = obj["token"] as? String, !token.isEmpty
+    else { return nil }
+    // Stale file from a world that has since died? The health check below decides.
+    return token
+}
+
 let ROOT = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).path
 let PORT = 3000
-// When the operator does not supply a token, generate an unpredictable
-// per-launch credential and pass it directly to the child world process.
-// It is never printed or placed in a URL; the menu exposes an explicit copy
-// action for pasting it into the GM console.
+// Token resolution: env > running world's published credential > fresh random.
+// When we start the world ourselves, OUR token wins and gets published by the
+// child; when a world is already up, ITS published token is authoritative.
 let GMTOKEN = configuredOrRandomGMToken()
+func effectiveToken() -> String {
+    if let env = ProcessInfo.processInfo.environment["DR_GM_TOKEN"], !env.isEmpty { return env }
+    if worldOnline(), let live = liveWorldToken() { return live }
+    return GMTOKEN
+}
 let BASE = "http://127.0.0.1:\(PORT)"
 let LOG_PATH = "/tmp/dr-world.log"
 
@@ -156,11 +172,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCent
     @objc private func runAction(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String, let a = Action(rawValue: raw) else { return }
         switch a {
-        case .admin: NSWorkspace.shared.open(URL(string: "\(BASE)/admin.html#gm=\(GMTOKEN)")!)
-        case .gm: NSWorkspace.shared.open(URL(string: "\(BASE)/gm.html#gm=\(GMTOKEN)")!)
+        case .admin: NSWorkspace.shared.open(URL(string: "\(BASE)/admin.html#gm=\(effectiveToken())")!)
+        case .gm: NSWorkspace.shared.open(URL(string: "\(BASE)/gm.html#gm=\(effectiveToken())")!)
         case .copyToken:
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(GMTOKEN, forType: .string)
+            NSPasteboard.general.setString(effectiveToken(), forType: .string)
             let n = NSUserNotification()
             n.title = "Dragon Realms"
             n.informativeText = "GM token copied to the clipboard."

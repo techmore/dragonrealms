@@ -1,5 +1,6 @@
 // Dragon Realms server entry point.
 import { createServer } from 'node:http';
+import { writeFileSync } from 'node:fs';
 import { migrate, closeDb } from './db.js';
 import { Game } from './game.js';
 import { attachWebSocket } from './session.js';
@@ -24,6 +25,15 @@ attachWebSocket(server, game);
 
 server.listen(PORT, () => {
   console.log(`Dragon Realms listening on http://localhost:${PORT}`);
+  // Publish the live credential for local tooling (the menu-bar app reads this
+  // instead of inventing a second token that the running server rejects).
+  if (process.env.DR_GM_TOKEN) {
+    try {
+      writeFileSync('/tmp/dr-world-token.json', JSON.stringify({
+        port: PORT, token: process.env.DR_GM_TOKEN, at: Date.now(),
+      }), { mode: 0o600 });
+    } catch {}
+  }
 });
 
 for (const sig of ['SIGINT', 'SIGTERM']) {
