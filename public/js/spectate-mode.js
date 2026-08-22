@@ -40,6 +40,18 @@ export function enterSpectate(name) {
   terminal.append(`\x1b[1m— watching ${watchedName} —\x1b[0m  (type \x1b[1munspectate\x1b[0m to return)`, 'ch-notice');
   send({ t: 'spectate', name: watchedName, gmToken });
   blockInput(false);
+  // The watched player's session and ours race: any welcome-triggering message
+  // (charselect, a reconnect's login_prompt) that lands after this point must
+  // not cover the stream. Keep the overlay down while spectating.
+  const keepDown = setInterval(() => {
+    if (!gameState.spectating) { clearInterval(keepDown); return; }
+    const el = document.getElementById('welcome');
+    if (el && !el.hidden) {
+      el.hidden = true;
+      const body = document.getElementById('welcome-body');
+      if (body) body.innerHTML = '';
+    }
+  }, 400);
 }
 
 export function leaveSpectate() {
