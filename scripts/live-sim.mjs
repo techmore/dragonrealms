@@ -28,6 +28,7 @@ const PASS = 'SimGrind1!';
 
 const { GUILDS } = await import('../data/guilds.js');
 const { ROOMS } = await import('../data/world.js');
+const { CREATURES } = await import('../data/creatures.js');
 import { appendFileSync } from 'node:fs';
 
 const ALL_GUILDS = Object.keys(GUILDS);
@@ -65,7 +66,26 @@ function bfsPath(from, to) {
   }
   return null;
 }
-function nearestSpawnRoom(from) {
+function nearestSpawnRoom(from, maxCircle = 3) {
+  // Prefer the nearest spawn room whose creatures are within the character's
+  // weight class (room max spawn circle <= maxCircle). High-tier rooms drew
+  // circle-1 sims into unwinnable fights they could not flee (RT-locked).
+  let best = null, bestLen = Infinity;
+  for (const id of SPAWN_ROOMS) {
+    const room = ROOMS[id];
+    const topSpawn = Math.max(0, ...(room.spawns || []).map((s) => {
+      const def = CREATURES[s] || CREATURES[s?.id];
+      return def ? def.circle : 99;
+    }));
+    if (topSpawn > maxCircle) continue;
+    const p = bfsPath(from, id);
+    if (p && p.length < bestLen) { bestLen = p.length; best = { id, path: p }; }
+  }
+  // Fallback: no safe room reachable — take the nearest regardless.
+  if (!best) return nearestSpawnRoomAny(from);
+  return best;
+}
+function nearestSpawnRoomAny(from) {
   let best = null, bestLen = Infinity;
   for (const id of SPAWN_ROOMS) {
     const p = bfsPath(from, id);
@@ -176,7 +196,10 @@ class LiveSim {
         this.onPrompt(m);
         break;
       case 'combat':
-        if (/dies|slumps|corpse/i.test(String(m.msg))) this.kills += 1;
+        if (/dies|slumps|corpse/i.test(String(m.msg))) {
+          this.kills += 1;
+          this.creatures = []; // the kill invalidates the parsed creature list
+        }
         break;
       case 'msg':
       case 'notice':
@@ -210,6 +233,11 @@ class LiveSim {
     if (circle) this.circle = Number(circle[1]);
     const rt = /RT:\s*(\d+)/.exec(plain);
     this.rt = rt ? Number(rt[1]) : 0;
+    if (this.rt > 0) {
+      // Local decay: prompts stop arriving while we idle, so count RT down
+      // on the client side rather than waiting for a fresh prompt.
+      this.rtUntil = Date.now() + this.rt * 1000;
+    }
     this.inCombat = /\[COMBAT\]/.test(plain);
     this.restingFlag = /\[Resting\]/.test(plain);
   }
@@ -218,6 +246,18 @@ class LiveSim {
   // and TDP exhaustion straight from the player-facing prose.
   onText(text) {
     if (this.phase !== 'playing') return;
+    // RT refusal: server-side roundtime rejected our command. Extend the
+    // wall-clock deadline so tick() waits it out instead of spamming.
+    const wait = /You must wait (\d+) second/.exec(text);
+    if (wait) {
+      this.rtUntil = Math.max(this.rtUntil || 0, Date.now() + Number(wait[1]) * 1000 + 250);
+      return;
+    }
+    // Stale creature list: the target died or wandered off. Re-look to refresh.
+    if (/There is no such creature here/.test(text)) {
+      this.creatures = [];
+      return this.cmd('look');
+    }
     if (this.mode === 'armUp') {
       if (/You buy|you purchas/i.test(text)) {
         this.cmd('wield club');
@@ -289,9 +329,26 @@ class LiveSim {
   async tick() {
     if (this.phase !== 'playing' || this.done) return;
 
+    // Roundtime gate: while bound, every gated verb is refused ("You must
+    // wait N seconds"). Spamming just floods the log and burns rate budget —
+    // wait it out like a player would. rtUntil decays locally so an idle sim
+    // isn't blocked forever by a stale value.
+    const rtLeft = this.rtUntil ? Math.ceil((this.rtUntil - Date.now()) / 1000) : 0;
+    if (rtLeft > 0) return;
+    if (this.rt > 0) this.rt = 0; // hygiene: expired RT is no longer binding
+
     // survival always wins
     const frac = this.maxHp ? this.hp / this.maxHp : 1;
-    if (this.inCombat && frac < 0.3) return this.cmd('flee');
+    if (this.inCombat && frac < 0.3) {
+      this.flees = (this.flees || 0) + 1;
+      // Flee refused repeatedly means the exit is blocked or we're RT-locked;
+      // after several tries, stop fleeing and fight back instead of dying.
+      if (this.flees > 4 && this.creatures.length) {
+        this.flees = 0;
+        return this.cmd(`attack ${this.creatures[0]}`);
+      }
+      return this.cmd('flee');
+    }
 
     // Rest when hurt — issue 'rest' ONCE, then let the [Resting] prompt flag
     // carry it (spamming rest just floods "You are already resting."). The
@@ -315,9 +372,16 @@ class LiveSim {
     // never walk out to buy a weapon if fights preempt the walk. Barehanded
     // punches still land while pathing.
     if (this.creatures.length && this.mode !== 'armUp') {
-      if (this.rt > 0) return; // roundtime — wait it out like a player would
+      if (Date.now() < (this.rtUntil || 0)) return; // wall-clock RT gate
       this.hunts += 1;
+      this.lastAttackAt = Date.now();
       return this.cmd(`attack ${this.creatures[0]}`);
+    }
+    // Stale-list safety net: creatures parsed but no fight engagement for 10s
+    // (they died/wandered and no room message refreshed the list) — re-look.
+    if (this.creatures.length && !this.inCombat && Date.now() - (this.lastAttackAt || 0) > 10000) {
+      this.lastAttackAt = Date.now();
+      return this.cmd('look');
     }
 
     // a stuck non-hunt mode self-heals after 30s (armUp gets 90s — it has to
