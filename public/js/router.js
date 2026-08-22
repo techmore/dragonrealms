@@ -14,7 +14,7 @@ import { setToken } from './net.js';
 const autoSpectate = new URLSearchParams(location.search).get('spectate') || '';
 // A #gm=<token> fragment may carry the credential itself (dash Watch links).
 try {
-  const m = location.hash.match(/^#gm=([A-Za-z0-9%]+)$/);
+  const m = location.hash.match(/^#gm=([A-Za-z0-9_%-]+)$/);
   if (m) {
     localStorage.setItem('dr_gm_token', decodeURIComponent(m[1]));
     history.replaceState(null, '', location.pathname + location.search);

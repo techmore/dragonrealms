@@ -322,7 +322,7 @@
         // Trusted-launcher handoff: #gm=<token> from the menu-bar app is
         // stored once and stripped so it never lingers in the address bar.
         try {
-          const m = location.hash.match(/^#gm=([A-Za-z0-9]+)$/);
+          const m = location.hash.match(/^#gm=([A-Za-z0-9_-]+)$/);
           if (m) {
             localStorage.setItem('dr_gm_token', m[1]);
             history.replaceState(null, '', location.pathname + location.search);

@@ -21,7 +21,7 @@ export function enterSpectate(name) {
   // Trusted-launcher/dash handoff: #gm=<token> in the URL is stored once and
   // stripped, so Watch links work even when localStorage wasn't pre-seeded.
   try {
-    const m = location.hash.match(/^#gm=([A-Za-z0-9%]+)$/);
+    const m = location.hash.match(/^#gm=([A-Za-z0-9_%-]+)$/);
     if (m) {
       localStorage.setItem('dr_gm_token', decodeURIComponent(m[1]));
       history.replaceState(null, '', location.pathname + location.search);
