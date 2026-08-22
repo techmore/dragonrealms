@@ -223,6 +223,9 @@ export function renderTargets(msg) {
   const wrap = $('target-widget');
   if (!wrap) return;
   targets = (msg && msg.enemies) || [];
+  // The combat snapshot carries the authoritative RT — mirror it into
+  // promptState so the status-strip chip stays live between prompts.
+  if (msg && typeof msg.rt === 'number' && promptState) promptState.rt = msg.rt;
   if (!targets.length) { clearWindowSeen('target-widget'); return; }
   revealWindow('target-widget');
   const row = $('target-row');
@@ -252,7 +255,7 @@ export function renderTargets(msg) {
     bar.appendChild(hp);
     row.appendChild(bar);
   }
-  renderCombatStatus();
+  renderStatusStrip();
 }
 
 // Live combat header line: roundtime + stance, parsed from the prompt state.

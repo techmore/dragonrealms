@@ -8,7 +8,7 @@ import { SKILLS, CATEGORIES } from '../data/skills.js';
 import {
   weaponOf, skillRank, effectiveRank, totalArmor, gainSkillExp, defenseSkillOf,
   countItems, removeItem, addItem, totalBurden, maxStaminaEff, conditionMult, qualityMult,
-  wearCondition, setRoundtime, MASTERY_SETS, stancePoints,
+  wearCondition, setRoundtime, MASTERY_SETS, stancePoints, roundtimeLeft,
 } from './player.js';
 import { itemById } from '../data/items.js';
 
@@ -1353,6 +1353,8 @@ export class Combat {
   }
 
   // Structured combat snapshot for the client's Target window (DR combat pane).
+  // rt travels with it so the client's RT chip stays truthful even when the
+  // player's last prompt predates the roundtime (RT-gated commands).
   sendTargets() {
     const enemies = this.aliveEnemies.map((e) => ({
       name: cap(e.def.name),
@@ -1361,7 +1363,11 @@ export class Combat {
       range: e.range,
       circle: e.def.circle,
     }));
-    this.player.ws.send(JSON.stringify({ t: 'targets', enemies }));
+    this.player.ws.send(JSON.stringify({
+      t: 'targets',
+      enemies,
+      rt: roundtimeLeft(this.player),
+    }));
   }
 }
 
