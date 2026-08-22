@@ -54,6 +54,10 @@ export const ITEMS = {
   potion_heal:   { id: 'potion_heal', name: 'a vial of healing draught', type: 'consumable', slot: null, value: 50, restore: 60, desc: 'A bubbling draught that knits flesh remarkably fast.' },
   potion_mana:   { id: 'potion_mana', name: 'a vial of essence tonic', type: 'consumable', slot: null, value: 55, restoreMana: 60, desc: 'A shimmering tonic that floods the mind with power.' },
   potion_frenzy: { id: 'potion_frenzy', name: 'a vial of frenzy draught', type: 'consumable', slot: null, value: 70, buff: { frenzy: 30 }, desc: 'A fiery draught that sets the blood boiling — +30% damage while it lasts.' },
+  // Alchemical boost draughts (DR-flavored consumable buffs; the "swiftness"
+  // draught is a learning aid: +50% skill experience while its effect lasts).
+  potion_swiftness: { id: 'potion_swiftness', name: 'a vial of swiftness draught', type: 'consumable', slot: null, value: 60, buff: { keen: 40 }, desc: 'A quicksilver tonic that sharpens the mind — you learn much faster while it lasts.' },
+  potion_vigor: { id: 'potion_vigor', name: 'a vial of vigor draught', type: 'consumable', slot: null, value: 65, buff: { vigor: 40 }, desc: 'An earthy brew that steadies the breath — fatigue costs melt away while it lasts.' },
   strongbox:     { id: 'strongbox', name: 'a locked strongbox', type: 'misc', slot: null, value: 20, desc: 'A heavy iron strongbox, locked and banded. Kobolds and bandits seem fond of these.' },
   // Gems: loose cut stones from the pockets of monsters and the depths.
   garnet:        { id: 'garnet', name: 'a blood garnet', type: 'misc', slot: null, value: 60, desc: 'A thumb-sized garnet, dark as old wine.' },
@@ -73,12 +77,13 @@ export const ITEMS = {
   warpaint:      { id: 'warpaint', name: 'a pot of war paint', type: 'consumable', slot: null, value: 90, buff: { warpaint: 40 }, desc: 'A clay pot of ochre-and-ash paint. Daubed on, your blows strike 15% harder while it lasts.' },
   roar_helm:     { id: 'roar_helm', name: 'a roar helm', type: 'armor', slot: 'head', skill: 'light_armor', armor: 14, value: 220, burden: 1, desc: 'A horned iron helm that magnifies the voice — roars cost half the voice and bite harder.' },
   // Creature loot (skins)
+  lout_vest:     { id: 'lout_vest', name: 'a stained vest', type: 'armor', slot: 'chest', value: 14, defense: 2, desc: 'A beer-stained leather vest, more bravado than protection.' },
   rat_pelt:      { id: 'rat_pelt', name: 'a rat pelt', type: 'misc', slot: null, value: 8, desc: 'A scrappy grey pelt.' },
   crab_shell:    { id: 'crab_shell', name: 'a mud crab shell', type: 'misc', slot: null, value: 10, desc: 'A broad green-brown shell, still smelling of the reeds.' },
-  reed_skin:     { id: 'reed_skin', name: 'a reed stalker hide', type: 'misc', slot: null, value: 14, desc: 'Sleek dappled hide from the sloughs, prized for waterwork leathers.' },
+  reed_skin:     { id: 'reed_skin', name: 'a reed stalker hide', type: 'misc', slot: null, value: 26, desc: 'Sleek dappled hide from the sloughs, prized for waterwork leathers.' },
   kobold_skin:   { id: 'kobold_skin', name: 'a kobold hide', type: 'misc', slot: null, value: 20, desc: 'A scaly kobold hide.' },
-  goblin_skin:   { id: 'goblin_skin', name: 'a goblin hide', type: 'misc', slot: null, value: 30, desc: 'A rank green goblin hide.' },
-  wolf_pelt:     { id: 'wolf_pelt', name: 'a wolf pelt', type: 'misc', slot: null, value: 55, desc: 'A thick grey wolf pelt.' },
+  goblin_skin:   { id: 'goblin_skin', name: 'a goblin hide', type: 'misc', slot: null, value: 34, desc: 'A rank green goblin hide.' },
+  wolf_pelt:     { id: 'wolf_pelt', name: 'a wolf pelt', type: 'misc', slot: null, value: 60, desc: 'A thick grey wolf pelt.' },
   cinder_scale:  { id: 'cinder_scale', name: 'a cinder scale', type: 'misc', slot: null, value: 120, desc: 'A smoking, heat-sheened scale from a drake.' },
   iron_ring:     { id: 'iron_ring', name: 'a heavy iron ring', type: 'misc', slot: null, value: 70, desc: 'A crudely worked ring of bandit-forged iron.' },
   silver_ring:   { id: 'silver_ring', name: 'a silver signet ring', type: 'misc', slot: null, value: 150, desc: 'A tarnished silver ring bearing a sigil — plunder of the captain.' },
@@ -87,7 +92,7 @@ export const ITEMS = {
   dread_sigil:   { id: 'dread_sigil', name: 'a dread knight sigil', type: 'misc', slot: null, value: 600, desc: 'A rune-etched sigil torn from a dark breastplate.' },
   troll_hide:    { id: 'troll_hide', name: 'a troll hide', type: 'misc', slot: null, value: 140, desc: 'A knotted, resilient troll hide.' },
   viper_fang:    { id: 'viper_fang', name: 'a viper fang', type: 'misc', slot: null, value: 45, desc: 'A curved, hollow fang, still glistening.' },
-  organ_vial:    { id: 'organ_vial', name: 'a jar of preserved organs', type: 'misc', slot: null, value: 60, desc: 'A glass jar of pale organs in murky brine. Some collectors pay well for such things.' },
+  organ_vial:    { id: 'organ_vial', name: 'a jar of preserved organs', type: 'misc', slot: null, value: 75, desc: 'A glass jar of pale organs in murky brine. Some collectors pay well for such things.' },
   // Named rare loot
   fang_of_shadowpaw: { id: 'fang_of_shadowpaw', name: 'the Fang of Shadowpaw', type: 'weapon', slot: 'hand', skill: 'small_edged', dmg: [10, 16], speed: 3, value: 900, req: 6, desc: 'A fang-dagger carved from the dire wolf Shadowpaw. It hums with the forest.' },
   chieftains_cleaver: { id: 'chieftains_cleaver', name: "the Chieftain's Cleaver", type: 'weapon', slot: 'hand', skill: 'twohanded_edged', dmg: [22, 38], speed: 7, value: 1800, req: 8, desc: 'A great cleaver taken from the Bandit Chieftain. It is still warm.' },
@@ -111,6 +116,20 @@ export const ITEMS = {
   enblade:      { id: 'enblade', name: 'a spell-edged longsword', type: 'weapon', slot: 'hand', skill: 'medium_edged', dmg: [15, 27], speed: 5, value: 640, magicEdge: 5, req: 4, burden: 1, desc: 'Forged steel bound with two motes of raw magic; the edge hums along its length.' },
   studded_crafted:  { id: 'studded_crafted', name: 'studded hide armor', type: 'armor', slot: 'torso', skill: 'light_armor', armor: 30, value: 220, req: 1, burden: 1, desc: 'Hide armor reinforced with iron studs.' },
 };
+
+// Per-unit carried weight for loose goods (fractional burden points).
+// Pelts and hides are bulky; ores and shells are heavy for their size.
+const ITEM_WEIGHTS = {
+  rat_pelt: 0.5, crab_shell: 0.5, reed_skin: 0.5, kobold_skin: 0.5,
+  goblin_skin: 0.5, wolf_pelt: 1, troll_hide: 1, cinder_scale: 0.25,
+  iron_ore: 1, iron_ring: 0.5, silver_ring: 0.1, wisp_mote: 0.05,
+  viper_fang: 0.1, organ_vial: 0.25,
+};
+export function itemWeight(item) {
+  return item && item.weight != null ? item.weight
+    : item && ITEM_WEIGHTS[item.id] != null ? ITEM_WEIGHTS[item.id]
+    : 0.25;
+}
 
 export function itemById(id) {
   return ITEMS[id] || null;

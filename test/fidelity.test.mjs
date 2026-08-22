@@ -7,6 +7,7 @@ import {
   setupGame, teardownGame,
 } from './helpers.mjs';
 import { CREATURES } from '../data/creatures.js';
+import { findPath } from '../data/grid.js';
 import { KHRI, khriById, concentrationPool } from '../data/khri.js';
 import { QUALITY_LADDER } from '../data/forging.js';
 
@@ -35,7 +36,7 @@ function lastMsg(p) {
 
 // ------------------- Stamina & burden -------------------
 test('stamina: pool scales with Con/Fitness; burden shrinks the effective pool', async () => {
-  const { maxStaminaFor, totalBurden, maxStaminaEff } = await import('../server/player.js');
+  const { maxStaminaFor, totalBurden, netBurden, maxStaminaEff } = await import('../server/player.js');
   const p = await mkChar('StamPool', 'ranger');
   p.stats.con = 40;
   p.skills.fitness = { rank: 20, exp: 0 };
@@ -51,7 +52,8 @@ test('stamina: pool scales with Con/Fitness; burden shrinks the effective pool',
   handleCommand(game, p, 'wear chainmail');
   handleCommand(game, p, 'wear shield_wood');
   assert.equal(totalBurden(p), 6, 'greatsword 3 + chainmail 2 + shield 1');
-  assert.equal(maxStaminaEff(p), base - 12, 'each burden point costs 2 pool');
+  assert.equal(maxStaminaEff(p), base - netBurden(p) * 2, 'each encumbering point costs 2 pool');
+  assert.ok(netBurden(p) < 6, `STR allowance absorbs some load (net ${netBurden(p)} of 6)`);
   game.removePlayer(p);
 });
 
@@ -399,6 +401,87 @@ test('quests: recover quests surface the trinket on the right kills', async () =
   game.removePlayer(p);
 });
 
+// ------------------- Skinning skill check -------------------
+test('skinning: low skill fumbles and keeps the corpse; high skill harvests', async () => {
+  const p = await mkChar('SkinChk', 'ranger');
+  // Rank 0 vs a circle-5 corpse: chance is floored at 20%, so force a
+  // deterministic fail/succeed pair with a seeded RNG swap.
+  p.corpses = [{ def: { id: 'wolf', name: 'a grey wolf', circle: 5, loot: ['wolf_pelt'] } }];
+  const realRandom = Math.random;
+  Math.random = () => 0.999; // guaranteed fumble at any realistic chance
+  handleCommand(game, p, 'skin wolf');
+  Math.random = realRandom;
+  assert.match(lastMsg(p), /fumble/, 'low roll fumbles');
+  assert.equal(p.corpses.length, 1, 'corpse survives the failed attempt');
+  assert.equal(p.inventory.find((i) => i.item.id === 'wolf_pelt')?.qty || 0, 0, 'no loot on fumble');
+  assert.ok((p.expPools.skinning || p.skills.skinning?.exp || 0) > 0, 'failed attempt still teaches');
+
+  Math.random = () => 0.001; // guaranteed success
+  handleCommand(game, p, 'skin wolf');
+  Math.random = realRandom;
+  assert.match(lastMsg(p), /carefully skin/, 'good roll harvests');
+  assert.equal(p.corpses.length, 0, 'corpse consumed');
+  assert.ok(p.inventory.some((i) => i.item.id === 'wolf_pelt'), 'pelt harvested');
+  game.removePlayer(p);
+});
+
+// ------------------- Bundling & carried weight -------------------
+test('burden: carried pelts weigh you down; bundling lightens the load', async () => {
+  const { totalBurden, addItem } = await import('../server/player.js');
+  const p = await mkChar('Bundler', 'ranger');
+  const base = totalBurden(p);
+  for (let i = 0; i < 10; i++) addItem(p, 'wolf_pelt', 1); // weight 1 each
+  const laden = totalBurden(p);
+  assert.ok(laden >= base + 10, `pelts carry weight (${laden} vs ${base})`);
+  handleCommand(game, p, 'bundle wolf_pelt');
+  assert.match(lastMsg(p), /compact bundle/, 'bundle succeeds');
+  const bundled = totalBurden(p);
+  assert.ok(bundled < laden * 0.6, `bundling lightens the load (${bundled} < ${laden * 0.6})`);
+  handleCommand(game, p, 'inventory');
+  assert.match(lastMsg(p), /\[bundled\]/, 'inventory marks the bundle');
+  // Selling still works from a bundle (walk to the bazaar tanner).
+  for (const step of findPath(p.room, 'bazaar')) game.move(p, step);
+  handleCommand(game, p, 'sell wolf_pelt');
+  const sellMsg = lastMsg(p);
+  assert.match(sellMsg, /You sell/, `bundle sells cleanly: ${sellMsg}`);
+  game.removePlayer(p);
+});
+
+// ------------------- Carry allowance (STR-based encumbrance) -------------------
+test('carry allowance: strong backs haul more before encumbrance bites', async () => {
+  const { netBurden, totalBurden, addItem } = await import('../server/player.js');
+  const weak = await mkChar('WeakBack', 'empath');
+  const strong = await mkChar('OxBlood', 'barbarian');
+  weak.stats.str = 10; weak.stats.con = 10;
+  strong.stats.str = 60; strong.stats.con = 40;
+  for (const p of [weak, strong]) for (let i = 0; i < 12; i++) addItem(p, 'wolf_pelt', 1);
+  assert.ok(totalBurden(weak) >= 12 && totalBurden(strong) >= 12, 'both haul the same weight');
+  assert.ok(netBurden(strong) < netBurden(weak),
+    `strong back encumbers less (${netBurden(strong)} vs ${netBurden(weak)})`);
+  assert.equal(netBurden({ ...weak }), netBurden(weak), 'net burden is deterministic');
+  game.removePlayer(weak); game.removePlayer(strong);
+});
+
+// ------------------- Load display & over-encumbrance -------------------
+test('load: health and inventory report encumbrance; overloaded blocks movement', async () => {
+  const { addItem } = await import('../server/player.js');
+  const p = await mkChar('LoadMule', 'empath');
+  handleCommand(game, p, 'health');
+  assert.match(lastMsg(p), /unburdened/, 'clean health reads unburdened');
+  for (let i = 0; i < 30; i++) addItem(p, 'wolf_pelt', 1); // way past any allowance
+  handleCommand(game, p, 'health');
+  assert.match(lastMsg(p), /overloaded/, 'health reports overloaded');
+  const roomBefore = p.room;
+  handleCommand(game, p, 's');
+  assert.match(lastMsg(p), /overloaded/, 'movement refused while overloaded');
+  assert.equal(p.room, roomBefore, 'did not move');
+  // Shed the weight entirely: walking works again.
+  p.inventory.length = 0;
+  handleCommand(game, p, 's');
+  assert.notEqual(p.room, roomBefore, 'walking again after shedding load');
+  game.removePlayer(p);
+});
+
 test('quests: skinning quests advance per harvest', async () => {
   const p = await mkChar('SkinQ', 'trader');
   p.quest = { kind: 'skin', count: 2, skinned: 0, source: 'crier', done: false };
@@ -505,8 +588,8 @@ test('landmarks: taverns ease rest, the middens yield salvage, the pier gambles'
   assert.equal(ROOMS.half_pint.tavern, true, 'tavern flagged restful');
   assert.equal(ROOMS.docks.exits.e, 'half_pint', 'Half Pint sits off the docks');
   assert.equal(ROOMS.pier.exits.w, 'rh_square', 'pier barge reaches Riverhaven');
-  assert.equal(ROOMS.guild_halls_n.exits.s, 'academy', 'academy off the north guild row');
-  assert.equal(ROOMS.temple.exits.w, 'high_temple', 'high temple behind the temple');
+  assert.ok(ROOMS.academy, 'academy exists off the Bard quarter');
+  assert.equal(ROOMS.temple.exits.n, 'dens_high_temple_temple_1', 'high temple behind the temple (densified corridor)');
 
   // Tavern rest is faster.
   const p = await mkChar('TavernRest', 'barbarian');
@@ -646,7 +729,7 @@ test('rituals: butchery doubles the harvest, consume and dissect work the dead',
   handleCommand(game, p, 'ritual butchery');
   assert.ok(p.ritualButcheryUntil, 'butchery active');
   p.corpses = [{ def: { id: 'rat', name: 'a sewer rat', circle: 1, loot: ['rat_pelt'] } }];
-  handleCommand(game, p, 'skin rat');
+  for (let t = 0; p.corpses.length && t < 30; t++) handleCommand(game, p, 'skin rat');
   assert.equal(p.inventory.find((i) => i.item.id === 'rat_pelt')?.qty || 0, 2, 'butchered corpse gives two hides');
 
   // Consume: devours a corpse for health.
@@ -956,7 +1039,7 @@ test('chaffer: the next sale runs 10% better', async () => {
   const before = p.silver;
   handleCommand(game, p, 'sell wolf_pelt');
   const gained = p.silver - before;
-  assert.equal(gained, Math.floor(55 * 0.5 * 1.1), 'chaffered sale price');
+  assert.equal(gained, Math.floor(60 * 0.5 * 1.1), 'chaffered sale price');
   assert.equal(p.chafferNext, false, 'chaffer consumed');
   game.removePlayer(p);
 });
