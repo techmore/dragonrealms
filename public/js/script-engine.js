@@ -15,11 +15,16 @@ export function parseScript(text) {
 }
 
 export function createRunner(src, args = [], io = {}) {
-  const { labels, lines } = parseScript(src);
   const vars = {};
   (args || []).forEach((v, i) => { vars[i + 1] = v; }); // DR args are %1..%9
+  // Frame stack for `putrun <name>` nested scripts: each frame has its own
+  // labels/lines/pc. `exit` pops back to the caller; exiting the top frame
+  // ends the whole run — like DR's nested script calls.
+  const getScript = io.getScript || (() => null);
+  const frames = [parseScript(src)];
+  frames[0].pc = 0;
+  const cur = () => frames[frames.length - 1];
   const s = {
-    pc: 0,
     done: false,
     mode: null,          // 'prompt' | 'room' | 'text' | 'match' | 'timer'
     waitText: null,
@@ -64,11 +69,27 @@ export function createRunner(src, args = [], io = {}) {
       case 'matchwait': s.mode = 'match'; return false;
       case 'goto': {
         const target = rest.toLowerCase();
-        if (labels[target] !== undefined) s.pc = labels[target];
+        if (cur().labels[target] !== undefined) cur().pc = cur().labels[target];
         else say(`[script] no such label: ${rest}`);
         return true;
       }
-      case 'exit': s.done = true; return false;
+      case 'putrun': {
+        // Nested script call: resolve <name> through io.getScript (the client
+        // library / account storage), push a frame, keep running inline.
+        const name = rest.split(/\s+/)[0];
+        const body = getScript(name);
+        if (body == null) { say(`[script] no script named "${name}"`); return true; }
+        const parsed = parseScript(body);
+        parsed.pc = 0;
+        if (frames.length >= 8) { say('[script] putrun depth limit reached'); return true; }
+        frames.push(parsed);
+        return true;
+      }
+      case 'exit': {
+        frames.pop();
+        if (!frames.length) { s.done = true; return false; } // top-level exit
+        return true; // resume the caller at its next line
+      }
       case 'setvariable': {
         const sp = rest.split(/\s+/);
         vars[sp[0]] = sp.slice(1).join(' ');
@@ -77,7 +98,7 @@ export function createRunner(src, args = [], io = {}) {
       case 'iflt':
       case 'ifge': {
         // iflt/ifge <var> <number> [goto] <label> — numeric branch on live
-        // game state (%hp, %maxhp, %circle, %rt, ...) or a setvariable value.
+        // game state (%hp, %maxhp, %mana, %circle, %rt, ...) or setvariable.
         const sp = rest.split(/\s+/);
         const val = Number(vars[sp[0]]);
         const ref = Number(sp[1]);
@@ -86,8 +107,8 @@ export function createRunner(src, args = [], io = {}) {
         if (hit) {
           const li = sp[2] === 'goto' ? 3 : 2;
           const name = sp[li];
-          const target = name ? labels[String(name).toLowerCase()] : undefined;
-          if (target !== undefined) s.pc = target;
+          const target = name ? cur().labels[String(name).toLowerCase()] : undefined;
+          if (target !== undefined) cur().pc = target;
           else say(`[script] no such label: ${name}`);
         }
         return true;
@@ -104,12 +125,19 @@ export function createRunner(src, args = [], io = {}) {
   }
 
   function advance() {
-    while (!s.done && s.pc < lines.length) {
-      const line = sub(lines[s.pc]);
+    while (!s.done) {
+      const f = cur();
+      if (f.pc >= f.lines.length) {
+        // Fell off the end of a nested script: implicit exit back to caller.
+        frames.pop();
+        if (!frames.length) { s.done = true; break; }
+        continue;
+      }
+      const line = sub(f.lines[f.pc]);
       // After a hard movement failure, skip the rest of the move chain so
       // the script lands on its reaction logic (scan/fight/retreat).
-      if (s.skipMoves && /^move\s/i.test(line)) { s.pc += 1; continue; }
-      s.pc += 1;
+      if (s.skipMoves && /^move\s/i.test(line)) { f.pc += 1; continue; }
+      f.pc += 1;
       if (!execOne(line)) return;
     }
     s.done = true;
@@ -118,11 +146,14 @@ export function createRunner(src, args = [], io = {}) {
   function feed(text, isPrompt = false) {
     if (s.done) return;
     // Prompts carry live game state: mirror it into %vars so scripts can
-    // branch on HP / circle / roundtime (e.g. "iflt hp 35 goto FLEE").
+    // branch on HP / mana / circle / roundtime ("iflt hp 35 goto FLEE",
+    // "iflt mana 10 goto WAITMANA").
     if ((isPrompt === true || isPrompt === 'prompt') && typeof text === 'string') {
       const plain = text.replace(/\x1b\[\d+m/g, '');
       const hp = /HP:\s*(\d+)\s*\/\s*(\d+)/.exec(plain);
       if (hp) { vars.hp = hp[1]; vars.maxhp = hp[2]; }
+      const mana = /Mana:\s*(\d+)\s*\/\s*(\d+)/.exec(plain);
+      if (mana) { vars.mana = mana[1]; vars.maxmana = mana[2]; }
       const circle = /Circle\s*(\d+)/.exec(plain);
       if (circle) vars.circle = circle[1];
       const rt = /RT:\s*(\d+)/.exec(plain);
@@ -135,7 +166,8 @@ export function createRunner(src, args = [], io = {}) {
       if (hit) {
         s.matches = [];
         s.mode = null;
-        if (labels[hit.label] !== undefined) s.pc = labels[hit.label];
+        const f = cur();
+        if (f.labels[hit.label] !== undefined) f.pc = f.labels[hit.label];
         advance();
         return;
       }
@@ -202,5 +234,6 @@ export function createRunner(src, args = [], io = {}) {
     feed,
     stop() { s.done = true; s.matches = []; },
     get running() { return !s.done; },
+    get depth() { return frames.length; },
   };
 }

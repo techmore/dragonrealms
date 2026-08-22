@@ -1,20 +1,14 @@
 [
   {
-    "name": "green-spokes",
+    "name": "home-to-square (music_shop->square)",
     "steps": [
-      "e",
+      "w",
+      "se",
       "e"
     ]
   },
   {
-    "name": "bazaar-back",
-    "steps": [
-      "w",
-      "w"
-    ]
-  },
-  {
-    "name": "west-gate",
+    "name": "west-gate (square->west_gate)",
     "steps": [
       "w",
       "w",
@@ -24,13 +18,13 @@
     ]
   },
   {
-    "name": "siergelde-road",
+    "name": "siergelde-road (west_gate->woods_path)",
     "steps": [
       "s"
     ]
   },
   {
-    "name": "woods-run",
+    "name": "woods-clearing (woods_path->woods_1)",
     "steps": [
       "n",
       "e",
@@ -50,36 +44,56 @@
     ]
   },
   {
-    "name": "wolf-dens",
+    "name": "wolf-dens (woods_1->woods_2)",
     "steps": [
       "n"
     ]
   },
   {
-    "name": "deep-wood",
+    "name": "deep-wood (woods_2->deep_1)",
     "steps": [
       "n"
     ]
   },
   {
-    "name": "troll-mounds",
+    "name": "troll-mounds (deep_1->deep_2)",
     "steps": [
       "e"
     ]
   },
   {
-    "name": "blackwood",
+    "name": "blackwood (deep_2->black_1)",
     "steps": [
       "e"
     ]
   },
   {
-    "name": "blackwood-return",
+    "name": "back-to-mounds (black_1->deep_2)",
     "steps": [
-      "w",
-      "w",
-      "s",
-      "s",
+      "w"
+    ]
+  },
+  {
+    "name": "back-to-deep-wood (deep_2->deep_1)",
+    "steps": [
+      "w"
+    ]
+  },
+  {
+    "name": "back-to-dens (deep_1->woods_2)",
+    "steps": [
+      "s"
+    ]
+  },
+  {
+    "name": "back-to-clearing (woods_2->woods_1)",
+    "steps": [
+      "s"
+    ]
+  },
+  {
+    "name": "camp-trail (woods_1->camp_path)",
+    "steps": [
       "s",
       "s",
       "e",
@@ -90,69 +104,88 @@
       "n",
       "w",
       "se",
+      "w",
+      "w",
+      "w",
+      "w",
+      "s",
       "e"
     ]
   },
   {
-    "name": "camp-trail",
+    "name": "bandit-hollow (camp_path->camp_hollow)",
     "steps": [
-      "e",
       "e"
     ]
   },
   {
-    "name": "captains-den",
+    "name": "captains-den (camp_hollow->camp_den)",
     "steps": [
       "n"
     ]
   },
   {
-    "name": "cinder-descent",
+    "name": "cinder-descent (camp_den->cinder_2)",
     "steps": [
       "d",
       "n"
     ]
   },
   {
-    "name": "cinder-exit",
+    "name": "cinder-exit-den (cinder_2->camp_den)",
     "steps": [
       "s",
-      "up",
+      "up"
+    ]
+  },
+  {
+    "name": "exit-to-trail (camp_den->camp_path)",
+    "steps": [
       "s",
-      "w",
-      "w",
+      "w"
+    ]
+  },
+  {
+    "name": "trail-to-woods-path (camp_path->woods_path)",
+    "steps": [
+      "w"
+    ]
+  },
+  {
+    "name": "east-gate (woods_path->east_gate)",
+    "steps": [
       "n",
       "e",
       "e",
       "e",
       "e",
-      "e"
-    ]
-  },
-  {
-    "name": "east-gate",
-    "steps": [
+      "e",
       "se",
       "e",
       "e"
     ]
   },
   {
-    "name": "marsh-edge",
+    "name": "marsh-edge (east_gate->marsh_1)",
     "steps": [
       "e"
     ]
   },
   {
-    "name": "bog-hollow",
+    "name": "bog-hollow (marsh_1->marsh_2)",
     "steps": [
       "s"
     ]
   },
   {
-    "name": "marsh-return",
+    "name": "marsh-back (marsh_2->marsh_1)",
     "steps": [
-      "n",
+      "n"
+    ]
+  },
+  {
+    "name": "marsh-home (marsh_1->square)",
+    "steps": [
       "w",
       "w",
       "w",
@@ -160,7 +193,7 @@
     ]
   },
   {
-    "name": "temple-row",
+    "name": "temple-row (square->temple_row)",
     "steps": [
       "nw",
       "n",
@@ -168,40 +201,55 @@
     ]
   },
   {
-    "name": "sewer-entrance",
+    "name": "sewer-entrance (temple_row->sewers_1)",
     "steps": [
       "d"
     ]
   },
   {
-    "name": "sewer-junction",
+    "name": "sewer-junction (sewers_1->sewers_3)",
     "steps": [
       "n",
       "n"
     ]
   },
   {
-    "name": "lower-drains",
+    "name": "lower-drains (sewers_3->sewers_5)",
     "steps": [
       "d",
       "d"
     ]
   },
   {
-    "name": "sewer-exit-full",
+    "name": "sewer-climb-out (sewers_5->sewers_3)",
     "steps": [
       "up",
-      "up",
+      "up"
+    ]
+  },
+  {
+    "name": "sewer-exit (sewers_3->sewers_1)",
+    "steps": [
       "s",
-      "s",
-      "up",
+      "s"
+    ]
+  },
+  {
+    "name": "sewer-up (sewers_1->temple_row)",
+    "steps": [
+      "up"
+    ]
+  },
+  {
+    "name": "home-from-temple (temple_row->square)",
+    "steps": [
       "s",
       "s",
       "se"
     ]
   },
   {
-    "name": "ranger-quarter",
+    "name": "ranger-quarter (square->hall_ranger)",
     "steps": [
       "w",
       "nw",
@@ -215,14 +263,26 @@
     ]
   },
   {
-    "name": "pine-needle-path",
+    "name": "pine-needle-path (hall_ranger->pine_needle_path)",
     "steps": [
-      "n",
       "n"
     ]
   },
   {
-    "name": "ranger-to-square",
+    "name": "path-to-woods (pine_needle_->woods_1)",
+    "steps": [
+      "n"
+    ]
+  },
+  {
+    "name": "woods-back-to-ranger (woods_1->hall_ranger)",
+    "steps": [
+      "s",
+      "s"
+    ]
+  },
+  {
+    "name": "ranger-home (hall_ranger->square)",
     "steps": [
       "e",
       "e",
@@ -236,7 +296,7 @@
     ]
   },
   {
-    "name": "herald-street",
+    "name": "herald-street (square->hall_paladin)",
     "steps": [
       "ne",
       "e",
@@ -244,6 +304,17 @@
       "sw",
       "s",
       "e"
+    ]
+  },
+  {
+    "name": "paladin-home (hall_paladin->square)",
+    "steps": [
+      "w",
+      "n",
+      "ne",
+      "w",
+      "w",
+      "sw"
     ]
   }
 ]

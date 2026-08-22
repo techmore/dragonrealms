@@ -22,7 +22,11 @@ export function runScript(name, args = []) {
     return;
   }
   if (active) { terminal.append(`[script] "${active.name}" is already running — stop it first (script stop)`, 'ch-error'); return; }
-  const io = { send: (line) => send({ t: 'input', line }), say: (t) => terminal.append(t, 'ch-echo') };
+  const io = {
+    send: (line) => send({ t: 'input', line }),
+    say: (t) => terminal.append(t, 'ch-echo'),
+    getScript: (name) => readScript(name),
+  };
   const runner = createRunner(src, args, io);
   active = { name, runner, vars: args };
   terminal.append(`[script] running "${name}"${args.length ? ' ' + args.join(' ') : ''}`, 'ch-notice');
