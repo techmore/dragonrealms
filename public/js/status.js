@@ -168,6 +168,7 @@ export function renderStatusStrip() {
   const rt = promptState.rt || 0;
   const rtEl = $('strip-rt');
   rtEl.hidden = rt <= 0;
+  renderRtBlocks(rt);
   if (rt > 0) {
     rtEl.textContent = `RT: ${rt}`;
     // DR roundtime cue: pulse while bound; a local countdown keeps it ticking
@@ -180,8 +181,10 @@ export function renderStatusStrip() {
       if (left <= 0) {
         clearInterval(rtTimer); rtTimer = null;
         rtEl.hidden = true; rtEl.classList.remove('rt-live');
+        renderRtBlocks(0);
       } else {
         rtEl.textContent = `RT: ${left}`;
+        renderRtBlocks(left);
       }
     }, 500);
   } else if (rtTimer) {
@@ -193,12 +196,43 @@ export function renderStatusStrip() {
   renderCombatStatus();
 }
 
+// DR roundtime blocks on the input bar: one red square per remaining second,
+// draining right-to-left. Typing is never blocked; the blocks are the cue.
+function renderRtBlocks(left) {
+  const wrap = $('rt-blocks');
+  if (!wrap) return;
+  const n = Math.max(0, Math.min(10, left));
+  wrap.hidden = n <= 0;
+  if (wrap.childElementCount !== n) {
+    wrap.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      const b = document.createElement('span');
+      b.className = 'rt-block' + (i === 0 ? ' expiring' : '');
+      wrap.appendChild(b);
+    }
+  }
+}
+
+// DR vitality words (server ladder mirrored client-side): numbers stay in the
+// tooltip for those who want them, but the visible label is prose.
+const VITALITY_WORDS = [
+  [0.99, 'in good shape'], [0.9, 'bruised'], [0.8, 'hurt'], [0.7, 'battered'],
+  [0.6, 'beat up'], [0.5, 'very beat up'], [0.4, 'badly hurt'],
+  [0.3, 'very badly hurt'], [0.2, 'smashed up'], [0.1, 'terribly wounded'],
+  [0.01, 'near death'], [0, 'dead'],
+];
+function vitalityWord(current, maximum) {
+  const pct = maximum > 0 ? current / maximum : 1;
+  return (VITALITY_WORDS.find(([min]) => pct >= min) || VITALITY_WORDS[0])[1];
+}
+
 function setGauge(wrapId, fillId, labelId, label, values, urgent = true) {
   const [current, maximum] = values;
   const pct = maximum > 0 ? Math.max(0, Math.min(100, (current / maximum) * 100)) : 0;
   const wrap = $(wrapId);
   $(fillId).style.width = `${pct}%`;
-  $(labelId).textContent = `${label} ${current}/${maximum}`;
+  $(labelId).textContent = `${label}: ${vitalityWord(current, maximum)}`;
+  $(labelId).title = `${current}/${maximum}`;
   wrap.setAttribute('aria-valuemin', '0');
   wrap.setAttribute('aria-valuemax', String(maximum));
   wrap.setAttribute('aria-valuenow', String(current));

@@ -238,6 +238,17 @@ document.addEventListener('keydown', (e) => {
     endScroll();
     return;
   }
+  // Arrow-up/down outside the input box: focus it and walk command history
+  // (DR clients let you recall commands from anywhere).
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && tag !== 'INPUT' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const active = document.activeElement;
+    if (active && (active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+    e.preventDefault();
+    cmdInput.focus();
+    // Re-dispatch so the cmdInput handler walks history with this keypress.
+    cmdInput.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, bubbles: false }));
+    return;
+  }
 });
 
 // ---------------- D-pad ----------------

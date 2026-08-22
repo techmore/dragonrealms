@@ -302,6 +302,24 @@ button { color: inherit; }
   50% { opacity: 0.45; }
 }
 .strip-rt.rt-live { animation: rt-pulse 1s ease-in-out infinite; }
+
+/* DR roundtime blocks on the input bar: one red square per second remaining.
+   They vanish as roundtime drains; typing is never blocked, but the visual
+   says "you are bound" exactly like Genie/Stormfront timers did. */
+#rt-blocks {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  flex-shrink: 0;
+}
+#rt-blocks .rt-block {
+  width: 12px;
+  height: 16px;
+  background: var(--red);
+  border-radius: 2px;
+  opacity: 0.85;
+}
+#rt-blocks .rt-block.expiring { opacity: 0.35; }
 #status-strip .strip-chip {
   color: var(--text);
   font-weight: bold;
