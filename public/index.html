@@ -74,6 +74,11 @@
             <g data-slot="hand" class="pd-region">
               <circle cx="36" cy="102" r="6"/>
               <circle cx="84" cy="102" r="6"/>
+              <!-- wielded weapon: visible only when the hand slot is filled -->
+              <g class="pd-weapon" aria-hidden="true">
+                <path d="M 88 96 L 112 72 L 118 78 L 94 102 Z"/>
+                <path class="pd-weapon-guard" d="M 86 98 L 94 106"/>
+              </g>
               <text x="104" y="106">hands</text>
             </g>
             <!-- shield strapped to off arm -->

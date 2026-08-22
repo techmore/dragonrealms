@@ -135,7 +135,7 @@ export const ROOMS = {
   },
   north_gate: {
     id: 'north_gate', zone: 'town', name: 'North Gate', npcs: ['guard'],
-    desc: 'The North Gate stands sentinel atop the rise. Beyond the wall the wilds roll away toward the Northern Trade Route.',
+    desc: 'The North Gate stands sentinel atop the rise, its great timber doors barred. The guard shakes his head at travellers: the Northern Trade Route is closed beyond the wall — wild things on the road since the last moon.',
     exits: { e: 'north_road_n' },
   },
   jadewater_way: {

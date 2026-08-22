@@ -434,6 +434,16 @@ button { color: inherit; }
   opacity: 1;
 }
 #hands-doll .pd-region.pd-filled text { fill: var(--amber); }
+/* Wielded weapon: hidden until the hand slot is filled, then drawn as a
+   diagonal blade extending from the right fist. */
+#hands-doll .pd-weapon { opacity: 0; transition: opacity 0.2s ease; }
+#hands-doll .pd-region.pd-filled .pd-weapon { opacity: 1; }
+#hands-doll .pd-weapon path {
+  fill: var(--amber);
+  stroke: var(--amber);
+  stroke-width: 1;
+}
+#hands-doll .pd-weapon .pd-weapon-guard { fill: none; stroke-width: 2.5; }
 /* DR injuries show on the body: as YOUR vitality drops, the whole figure
    pales, then takes a bruised tint — haggard near death. */
 #hands-doll[data-health="hurt"] .pd-region circle,

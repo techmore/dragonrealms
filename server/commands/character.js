@@ -21,6 +21,24 @@ export const commands = {
   info: showScore,
   health(ctx) { showHealth(ctx); },
 
+  // Effects panel: every active buff with its remaining duration (DR-style
+  // effect display — also how scripted agents verify their boost draughts).
+  effects(ctx) {
+    const { p, emit } = ctx;
+    const entries = Object.entries(p.buffs || {}).filter(([, v]) => v > 0);
+    if (!entries.length) return emit('No special effects are acting on you right now.');
+    const NAMES = {
+      frenzy: 'Frenzy (+30% damage)', ironhide: 'Ironhide (blunts blows)',
+      shadow: 'Shadow Veil (+15% defense)', omen: "Omen's Edge (+10% defense)",
+      wind: 'Windborne (quicker strikes)', warpaint: 'Warpaint (+15% damage)',
+      glyph_ward: 'Glyph of Warding (+10% armor)', glyph_valor: 'Glyph of Valor (+15% damage)',
+      glyph_shield: 'Glyph of Shielding (absorbs hits)', keen: 'Keen Mind (+50% learning)',
+      vigor: 'Vigor (reduced fatigue costs)', sun: 'Sun Blessing',
+    };
+    const lines = entries.map(([k, v]) => `  ${NAMES[k] || k} — ${v} tick${v === 1 ? '' : 's'} remaining`);
+    emit(`\nActive effects:\n${lines.join('\n')}`);
+  },
+
   alloc(ctx) {
     const { p, arg1, arg2, emit } = ctx;
     if (!arg1 || !arg2) {
@@ -191,6 +209,20 @@ export const commands = {
 // DR HEALTH: wounds and afflictions. We track a single HP pool, so the
 // condition reads off its fraction with DR's vitality ladder.
 import { vitalityLabel } from '../combat.js';
+// DR encumbrance word for the current load vs your carry allowance.
+import { totalBurden, netBurden, carryAllowance } from '../player.js';
+export function loadWord(p) {
+  const total = totalBurden(p);
+  const allow = carryAllowance(p);
+  const frac = allow > 0 ? total / allow : total > 0 ? Infinity : 0;
+  if (total <= 0) return 'unburdened';
+  if (netBurden(p) >= 6) return 'overloaded';
+  if (frac >= 1.25) return 'heavily laden';
+  if (frac >= 1) return 'laden';
+  if (frac >= 0.6) return 'burdened';
+  return 'lightly loaded';
+}
+
 function showHealth(ctx) {
   const { p, say } = ctx;
   const cond = vitalityLabel(p.hp, p.maxHp);
@@ -198,21 +230,25 @@ function showHealth(ctx) {
   const res = p.guild.magic
     ? `Mana ${p.mana}/${p.maxMana}`
     : p.guild.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : '';
-  say(`\nYou are ${cond}.\nHealth ${p.hp}/${p.maxHp}  ${res ? res + '  ' : ''}Stamina ${p.stamina}/${p.maxStaminaEff}\n${stam}`);
+  say(`\nYou are ${cond} and ${loadWord(p)}.\nHealth ${p.hp}/${p.maxHp}  ${res ? res + '  ' : ''}Stamina ${p.stamina}/${p.maxStaminaEff}\n${stam}`);
 }
 
 function showScore(ctx) {
   const { p, say } = ctx;
   const w = weaponOf(p);
   const armor = totalArmor(p);
+  // DR policy: your own condition reads as prose everywhere; the raw pool
+  // numbers live only in `health`.
+  const cond = vitalityLabel(p.hp, p.maxHp);
   const lines = [
     `\n\x1b[1m${p.name}\x1b[0m — ${p.race.name} ${p.guild.name} (${guildTitle(p.guild, p.circle)})`,
-    `Circle ${p.circle}  |  Health ${p.hp}/${p.maxHp}  |  Stamina ${p.stamina ?? 0}/${p.maxStaminaEff ?? 0}  |  ${p.guild.magic ? `Mana ${p.mana}/${p.maxMana} (${manaTypeFor(p.guild).def.name})` : p.guild.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : ''}`,
+    `Circle ${p.circle}  |  You are ${cond}  |  Stamina ${p.stamina ?? 0}/${p.maxStaminaEff ?? 0}  |  ${p.guild.magic ? `Mana ${p.mana}/${p.maxMana} (${manaTypeFor(p.guild).def.name})` : p.guild.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : ''}`,
     `Attributes:  Str ${p.stats.str}  Con ${p.stats.con}  Ref ${p.stats.ref}  Agi ${p.stats.agi}`,
     `             Cha ${p.stats.cha}  Dis ${p.stats.dis}  Wis ${p.stats.wis}  Int ${p.stats.int}`,
     `Unspent points: ${p.unspentStat}`,
     `Weapon: ${w ? `${w.name} (${w.dmg[0]}-${w.dmg[1]})` : 'your fists'}`,
     `Armor: ${armor}`,
+    `Load: ${loadWord(p)} (carry allowance ${carryAllowance(p)}, hauling ${Math.round(totalBurden(p) * 10) / 10})`,
     `Total skill ranks: ${totalRanks(p.skills)}`,
     `Silver: ${p.silver}  Bank: ${p.bank}`,
   ];

@@ -11,6 +11,7 @@ import { handleCommand } from './commands/index.js';
 import { sendChargenMenu, doCharSelect, doCharCreate, doAlloc, doEnter } from './chargen.js';
 import { subscribe, unsubscribe, subscribeWorld, forward, forwardCommand } from './spectate.js';
 import { isGmToken } from './gm.js';
+import { handleBoostMessage } from './boost.js';
 
 const INPUT_MAX = 20; // commands per second
 
@@ -142,6 +143,13 @@ function route(session, msg) {
       break;
     case 'input':
       rateLimit(session);
+      // During the post-creation alloc phase, plain text "alloc"/"enter" are
+      // protocol verbs, not game commands — the modal flow uses them too.
+      if (session.state === 'charcreate_playing' && !session.player?.online) {
+        const parts = String(msg.line || '').trim().split(/\s+/);
+        if (parts[0] === 'enter') { doEnter(session); break; }
+        if (parts[0] === 'alloc') { doAlloc(session, parts[1], parts[2]); break; }
+      }
       if (session.state === 'playing' && session.player &&
           session.game.players.get(session.player.charId) === session.player) {
         forwardCommand(session.player, msg.line);
@@ -170,6 +178,10 @@ function route(session, msg) {
       session.send({ t: 'scripts', scripts: p.scripts || {} });
       break;
     }
+    case 'boost':
+      rateLimit(session);
+      handleBoostMessage(session, msg);
+      break;
     default:
       session.send({ t: 'error', msg: 'Unknown message type.' });
   }

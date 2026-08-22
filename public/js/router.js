@@ -121,6 +121,9 @@ export const handlers = {
     terminal.append(msg.msg, 'ch-notice');
   },
   charalloc(msg) {
+    // Creation succeeded — we're now in the alloc phase (server state
+    // charcreate_playing). Keep the modal as a live stat sheet.
+    gameState.value = 'charcreate_playing';
     welcome.showAlloc(msg.msg);
   },
   enter() {

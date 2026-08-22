@@ -95,6 +95,17 @@ export function handleLocalCommand(line) {
     return;
   }
 
+  // Post-creation allocation: typed "alloc"/"enter" are protocol verbs here.
+  // The modal stays up as a live stat sheet until "Enter the world" (or typed
+  // "enter") closes it.
+  if (gameState.inChargen && gameState.value === 'charcreate_playing') {
+    const parts = line.split(/\s+/);
+    if (parts[0].toLowerCase() === 'alloc') { send({ t: 'alloc', stat: parts[1], amt: Number(parts[2]) || 1 }); return; }
+    if (parts[0].toLowerCase() === 'enter') { send({ t: 'enter' }); return; }
+    send({ t: 'input', line });
+    return;
+  }
+
   if (gameState.value === 'login') {
     if (parts[0] === 'login' && parts[1] && parts[2]) {
       send({ t: 'login', u: parts[1], p: parts[2] });
