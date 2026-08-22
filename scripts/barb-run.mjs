@@ -15,8 +15,8 @@ const flag = (name, dflt) => {
   const i = ARGS.indexOf('--' + name);
   return i >= 0 ? ARGS[i + 1] : dflt;
 };
-const BASE = 'http://localhost:3000';
-const ORIGIN = 'ws://localhost:3000/ws';
+const BASE = `http://localhost:${process.env.DR_PORT || 3000}`;
+const ORIGIN = `ws://localhost:${process.env.DR_PORT || 3000}/ws`;
 const MINUTES = Number(flag('minutes', 15));
 const TARGET_CIRCLE = Number(flag('circle', 2));
 const USER = flag('user', 'barb_player');
@@ -147,6 +147,8 @@ function buildScript({ fromRoom, arena }) {
   L.push('  matchre ARMED_HERE Worn:.*club');
   L.push('  matchre GETCLUB carrying:\\s*[\\s\\S]*?\\bclub\\b');
   L.push('  matchre BUY You are carrying');
+  // Broke/empty-handed: nothing above will match, so catch it and go buy.
+  L.push('  matchre BUY not carrying|aren.t carrying|nothing|empty');
   L.push('  put inventory');
   L.push('  matchwait');
   L.push('GETCLUB:');
@@ -359,7 +361,7 @@ async function startCycle(src, name) {
   state.lastSendAt = Date.now();
   const runner = createRunner(src, [], {
     send: async (line) => {
-      if (/^(attack|tdptrain|flee|rest|stand|circle|buy|wield|skin|search)/.test(line)) {
+      if (/^(attack|tdptrain|flee|rest|stand|circle|buy|wield|skin|search|get|inventory)/.test(line)) {
         log('script:', line);
       } else if (process.env.DRB_DEBUG) {
         log('script>', line);
@@ -629,7 +631,7 @@ async function main() {
       return;
     }
     if (hunting && state.room && Date.now() - (state.lastRoomChangeAt || 0) > 90000) {
-      log('parked in one room for 90s — regenerating cycle from here');
+      log(`parked in one room for 90s — regenerating cycle from here [${state.room}] observed=${JSON.stringify(observedEdges[state.room] || [])} live=${JSON.stringify(state2liveExits[state.room] || [])} static=${JSON.stringify(ADJ[state.room] || [])}`);
       state.lastRoomChangeAt = Date.now();
       state.runner.stop();
       refreshCycleScripts();
