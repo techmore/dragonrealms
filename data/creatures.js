@@ -136,7 +136,7 @@ export const CREATURES = {
     stats: { str: 14, con: 12, ref: 13, agi: 13 },
     weapon: { skill: 'medium_edged', dmg: [9, 18], speed: 5 },
     armor: 22, defense: 18,
-    loot: ['iron_ring', 'strongbox'], lootTags: ['coin', 'box', 'gems'], gems: ['garnet', 'sapphire'], exp: 380, aggressive: true,
+    loot: ['iron_ring', 'strongbox', 'hand_axe'], lootTags: ['coin', 'box', 'gems'], gems: ['garnet', 'sapphire'], exp: 380, aggressive: true,
   },
   bandit_captain: {
     id: 'bandit_captain', name: 'a bandit captain', plural: 'bandit captains', circle: 7, kinds: ['humanoid'],

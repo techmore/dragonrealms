@@ -531,7 +531,7 @@ export const ROOMS = {
   docks: {
     id: 'docks', zone: 'town', name: 'The Docks', npcs: ['dockmaster'],
     desc: 'Planked piers crowd the riverbank, where barges and fishing skiffs creak at their moorings. Stevedores haul crates down the gangplanks, and the river smells of wet rope and fish. A barge at the far pier takes passengers across, and the Half Pint inn door stands open to the east.',
-    exits: { n: 'dens_docks_market_end_0', e: 'half_pint', s: 'dens_docks_pier_0' },
+    exits: { n: 'dens_docks_market_end_0', e: 'half_pint', s: 'dens_docks_pier_0', se: 'neh_dock' },
   },
   half_pint: {
     id: 'half_pint', zone: 'town', name: 'The Half Pint Inn', tavern: true,
@@ -814,7 +814,7 @@ export const ROOMS = {
   rh_ferry: {
     id: 'rh_ferry', zone: 'riverhaven', name: 'The River Ferry',
     desc: 'A stout ferry moors here, its bell ringing across the water. A dirt road winds east from the landing into the wild woods, and reed-choked shallows stretch away north.',
-    exits: { e: 'woods_1', sw: 'rh_wilds_1', s: 'rh_square' },
+    exits: { e: 'woods_1', sw: 'rh_wilds_1', s: 'rh_square', w: 'neh_dock' },
   },
   rh_wilds_1: {
     id: 'rh_wilds_1', zone: 'riverhaven', name: 'Reedwater Shore', spawns: ['mud_crab', 'mud_crab', 'marsh_hog'],
@@ -1593,6 +1593,12 @@ export const ROOMS = {
     id: 'trav_grove_16', zone: 'woods', name: 'Western Grove',
     desc: 'Well-worn paths lead through a grove of trees to the open fields beyond the wall.',
     exits: { n: 'west_gate', s: 'trav_grove_0' },
+  },
+
+  neh_dock: {
+    id: 'neh_dock', zone: 'town', name: 'Neh Dock', APPROXIMATE: true,
+    desc: "A weathered pier at the river mouth. Harbor hands call departures over the gulls: the Kree'la sails for Riverhaven, the Skirr'lolasu downriver to the Crossing.",
+    exits: { nw: 'docks', e: 'rh_ferry' },
   },
 
 };

@@ -59,6 +59,63 @@ The fidelity findings are the mechanical ones in §2–§3.
 
 ---
 
+## 2a. The Crossing — map normalization status
+
+The city layout was rebuilt against the text-source audit
+(`tmp-crossing-audit.md`, RanikMap1 errors list + individual landmark pages),
+and the hunting grounds / outside-gate areas were audited separately
+(`tmp-wilds-audit.md`):
+
+- **`data/map-facts.js`** encodes every citable geographic claim (society
+  distances, guildhall adjacencies, gate relationships, wilds chains,
+  confirmed landmark room IDs) with its source citation.
+  `test/map-facts.test.mjs` walks the real room graph and fails the suite if
+  any sourced relationship drifts.
+- **`data/grid.js`** derives room coordinates from the room graph by BFS per
+  city (`PROVINCES` → `CITY_ORIGIN` → seed room), so exits and geometry agree
+  by construction. `scripts/grid-doctor.mjs` validates completeness and
+  reciprocity (clean at 140 rooms).
+- **Live wire audit:** `scripts/mapper-agent.mjs` walks generated routes
+  (`scripts/mapper-gen-routes.mjs` → chained findPath legs covering town, West
+  Gate → full Siergelde chain → Blackwood, bandit camp → Cinder Cavern, East
+  Gate → Whispering Marsh, the sewers, and the Ranger quarter) through the
+  real WS stack with JSONL step logs in `public/live/`. Latest run: 116/116
+  steps OK over the densified map. Combat encounters are handled by retreat +
+  debug re-home so a surveying walker isn't stopped by aggressive spawns.
+- **Density:** `scripts/densify.mjs` (idempotent, fact-safe) inserts filler
+  walk rooms on unconstrained corridors — edges touching any room that could
+  influence a sourced hop-count are protected by construction.
+- **Travel-script validation:** Tjololo's Crossing Travel script
+  (Elanthipedia, live-game recorded routes) was transcribed into
+  `data/travel-routes.js` (`tmp-travel-audit.md`); `test/travel-routes.test.mjs`
+  asserts our graph reproduces each sourced journey within a density budget —
+  never shorter than real DR, never absurdly longer. This audit caught and
+  fixed real divergences: Catrox's Forge now sits 2E of the bank, the
+  West Gate grove run is 18 moves, empath↔paladin and NE-gate↔empath weaves
+  match, and Randal's leather shop hangs 3 off the Academy.
+- **Riverhaven:** expanded from 8 to 17 rooms implementing every citable
+  landmark (`tmp-riverhaven-audit.md`): Temple + Temple Garden altar, Noble
+  Inn (with the Paladin office), Dance Academy, Enchanting Society, and the
+  Barbarian/Bard/Cleric/Empath/Moon Mage halls with their cited guildleaders.
+  Street layout stays APPROXIMATE pending RanikMap30 transcription.
+- **Current totals:** 302 rooms (Crossing 228 town + 28 hunting grounds,
+  Riverhaven 17, wilds 10, pier/ferry links) vs DR's estimated ~600
+  city-proper / ~800–1,000 Crossing metro.
+- **Coverage:** all audit-confirmed landmarks are present — the five crafting
+  societies, Asemath Academy, Meeting Hall, Apostle HQ + archway, Order HQ,
+  Guard House + Trader south door + Shipment Center, Orem's Bathhouse,
+  Gaethrend's Court, Taelbert's Inn, Half Pint, Herilo's Artifacts, Poetry in
+  Motion, Haldofurd's Barn, Riverfront Portage + Shardstar office, Sand Spit,
+  Viper's Nest, Oxenwaithe Bridge — plus wired rare spawns (shadowpaw, bandit
+  chieftain, cinder drake king).
+- **Known gaps (honest):** rooms whose position no text source establishes are
+  flagged `APPROXIMATE` in `data/world.js`. DR's east-gate lout hunt needs a
+  `lout` creature (Backstab skill.md). Silverfish sewer tiers would be more
+  faithful than great-rat stand-ins. Street-level topology between districts
+  remains simplified — full fidelity needs the RanikMap GIFs transcribed.
+
+---
+
 ## 2. Verified matches (implementation ↔ corpus)
 
 | System | Source ground truth (`docs/elanthipedia/Experience.md`) | Our implementation | Verdict |
@@ -81,6 +138,15 @@ The fidelity findings are the mechanical ones in §2–§3.
 > per-pulse consumption live; subscription caps/cycles stay out by design).
 > **D1 is now resolved (Option A)** — flat 1750 cap, soft mastery tiers,
 > technique ladder at DR scale (see §7). D9, D10 remain open.
+
+**Declared divergence (test tooling): Agent Boost.** Automated sweep agents
+(`scripts/race-guild-sweep.mjs`) may engage a per-session speed multiplier via
+`{t:'boost', mult:N}` (N ≤ 20): skill experience ×N and accelerated rest
+recovery, visible as `[BOOST xN]` in the prompt. Real DR has no such mechanic;
+it exists purely so test agents can exercise progression (circles, TDP
+curricula, guild halls) in minutes instead of hours. Implementation:
+`server/boost.js`, `server/player.js` (gainSkillExp), `server/wilds.js`
+(startRest), `server/status.js` (prompt tag).
 
 ### 3.1 Structural
 
