@@ -149,9 +149,14 @@ function buildScript({ fromRoom, arena }) {
   L.push('  goto SCAN');
   L.push('REST:');
   L.push('  echo -- licking wounds --');
+  // Still mid-fight? Resting would be refused and the wait loop below would
+  // spin forever while the creature keeps swinging — go back to fighting
+  // (or fleeing, via the driver's interlock) instead.
+  L.push('  ifge combat 1 goto SCAN');
   L.push('  put rest');
   L.push('RESTWAIT:');
   L.push('  pause 3');
+  L.push('  ifge combat 1 goto SCAN'); // ambushed mid-rest: no healing will happen
   L.push('  iflt hp 85 goto RESTWAIT');
   L.push('  put stand');
   L.push('  wait');
@@ -245,6 +250,18 @@ function injectState() {
     lastInjected = line;
     feedRunner(line, true);
   }
+}
+
+// Rebuild both scripts from wherever the character ACTUALLY is and re-save
+// them to the account. Baked paths go stale the moment the barb wanders,
+// dies, or finishes a trip somewhere else than where the script assumed.
+function refreshCycleScripts() {
+  if (!state.room || !state.arena) return;
+  const arena = { id: state.arena };
+  state.huntSrc = buildScript({ fromRoom: state.room, arena });
+  state.circleSrc = buildCircleScript({ fromRoom: state.room, arena });
+  send({ t: 'scripts_put', name: SCRIPT_NAME, body: state.huntSrc });
+  send({ t: 'scripts_put', name: SCRIPT_NAME + 'circle', body: state.circleSrc });
 }
 
 async function startCycle(src, name) {
@@ -364,7 +381,13 @@ async function main() {
           state.deaths += 1;
           log('died — restarting cycle from the temple');
           state.runner?.stop(); state.runner = null;
-          setTimeout(() => { if (state.curSrc) startCycle(state.curSrc, state.curName); }, 3000);
+          // The room event for the temple lands shortly; rebuild paths from
+          // there so the fresh cycle doesn't replay stale geography.
+          setTimeout(() => {
+            if (!state.curSrc || state.done) return;
+            refreshCycleScripts();
+            startCycle(state.huntSrc, SCRIPT_NAME);
+          }, 3000);
         }
         if (/dies|slumps|lifeless|stops moving|collapses/.test(text)) state.kills += 1;
         // Circle failure lists exactly what's short — fold it into the
@@ -457,12 +480,14 @@ async function main() {
       && (state.kills - state.killsAtVisit >= 3 || Date.now() - state.lastHallAt > 4 * 60000)) {
       log(`heading to the guild hall (${state.kills - state.killsAtVisit} kills since last visit)`);
       state.killsAtVisit = state.kills;
+      refreshCycleScripts(); // path starts from HERE, not from world entry
       startCycle(state.circleSrc, SCRIPT_NAME + 'circle');
       return;
     }
     if (!state.runner || !state.runner.running) {
       if (Date.now() - state.lastSendAt > 2500) {
         if (!hunting) log('circle trip done — back to hunting');
+        refreshCycleScripts();
         startCycle(state.huntSrc, SCRIPT_NAME);
       }
       return;
@@ -470,6 +495,7 @@ async function main() {
     if (Date.now() - state.lastSendAt > 90000) {
       log('watchdog: cycle stalled — restarting');
       state.runner.stop();
+      refreshCycleScripts();
       startCycle(state.curSrc, state.curName);
     }
   }, 1000);

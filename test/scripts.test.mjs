@@ -192,3 +192,32 @@ test('dead-end move abandons the rest of the chain; later chains still move', ()
   feed(r, 'HP: 50/50  Circle 1  RT: 0', true); // satisfies the wait
   assert.deepEqual(out, ['north', 'look', 'south'], 'a fresh chain moves again');
 });
+
+test('multi-line inventory report drives the arm-check probe', () => {
+  // Mirrors scripts/barb-run.mjs ARMCHECK: equipped wins, then a carried
+  // club is picked up, else the buy fallback fires on the carrying line.
+  // The inventory reply arrives as ONE multi-line msg — matchers run in
+  // registration order against the whole text.
+  const src = 'matchre ARMED_HERE Worn:.*club\n' +
+    'matchre GETCLUB carrying:\\s*[\\s\\S]*?\\bclub\\b\n' +
+    'matchre BUY You are carrying\nput inventory\nmatchwait\n' +
+    'ARMED_HERE:\nput hunt\nexit\nGETCLUB:\nput get club\nexit\nBUY:\nput buy club\nexit';
+  const mk = (buf) => createRunner(src, [], { send: (l) => buf.push(l) });
+
+  const worn = []; const rw = mk(worn); rw.start();
+  feed(rw, '\nYou are carrying:\n  3x ale\nWorn: a stout club.\nSilvers: 120.', 'msg');
+  assert.deepEqual(worn, ['inventory', 'hunt'], 'already equipped -> straight to hunting');
+
+  const carried = []; const rc = mk(carried); rc.start();
+  feed(rc, '\nYou are carrying:\n  a stout club\nWorn: nothing.\nSilvers: 120.', 'msg');
+  assert.deepEqual(carried, ['inventory', 'get club'], 'carried but not worn -> pick it up');
+
+  const bare = []; const rb = mk(bare); rb.start();
+  feed(rb, '\nYou are carrying: nothing.\nWorn: nothing.\nSilvers: 5.', 'msg');
+  assert.deepEqual(bare, ['inventory', 'buy club'], 'no club anywhere -> buy one');
+
+  const strays = []; const rs = mk(strays); rs.start();
+  feed(rs, 'You club the great rat for 6 damage!', 'combat'); // must NOT match \bclub\b mid-fight prose
+  feed(rs, '\nYou are carrying:\nWorn: nothing.\nSilvers: 5.', 'msg');
+  assert.deepEqual(strays, ['inventory', 'buy club'], 'combat prose never triggers the probe');
+});
