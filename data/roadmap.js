@@ -29,6 +29,8 @@ export const STAGES = [
     desc:"All ten remaining guilds have live fidelity v1s; deeper trees per guild pending." },
   { id:13, title:"Stage 13 — World & Systems Fidelity", badge:"partial",
     desc:"Hunting ladders, Crossing/Riverhaven depth, skill-system structure, magic mechanics, crafting, PvP & justice." },
+  { id:14, title:"Stage 14 — Tooling & Ops", badge:"done",
+    desc:"Progression simulator, skills doc builder, mapper agent walker, server ops (single-world guard + token publishing)." },
 ];
 
 export const FEATURES = [
@@ -157,7 +159,7 @@ export const FEATURES = [
   { s:10, id:"f109", label:"Choke", detail:"live: single-target grip halves foe damage for 5 ticks", status:"partial" },
   { s:10, id:"f110", label:"Dual Load", detail:"live: learnable at circle 7, bow only, 2x ammo per shot, 1.5x damage", status:"partial" },
   { s:10, id:"f111", label:"Magic Resistance", detail:"innate ward scales with Defending; Serenity (purge + magic ward), Dispel (silence foe magic), Mage's Lash (reflect) live", status:"done" },
-  { s:10, id:"f112", label:"Bonus stance points", detail:"+1 per 60 Defending is calculated and displayed; allocation and combat impact pending", status:"partial" },
+  { s:10, id:"f112", label:"Bonus stance points", detail:"+1 per 60 Defending is calculated and displayed and guards in combat (Combat.stanceEdge raises defense against incoming blows); custom stance allocation still pending", status:"partial" },
   { s:10, id:"f113", label:"Expertise + Barbarian combos", detail:"analyze flame/accuracy/damage live; 3-part combo advantage; ACM check reduction pending", status:"partial" },
   { s:10, id:"f114", label:"Barbarian items", detail:"warhorn, chakrel, warpaint (+15% damage buff), roar helm (half voice cost, stronger roars) all live", status:"done" },
   { s:10, id:"f115", label:"Faithful circle requirements", detail:"cumulative DR 1–10 band table live (band × target circle; hard skills excluded from Nth pools)", status:"done" },
@@ -167,7 +169,7 @@ export const FEATURES = [
   { s:11, id:"f119", label:"Mana-type system", detail:"Elemental, Holy, Life, Lunar, Necromantic, and none are live for casting guilds; Trader Lunar magic/Starlight Aura is reserved but not implemented; cycle nuances pending", status:"partial" },
   { s:11, id:"f120", label:"Spell-slot progressions per guild", detail:"live: tier-scaled budgets (primary > secondary > tertiary), per-tier slot costs, +2 free feat at circle 2, learn/forget at the hall, cast gated on held spells; over-budget unlocks await at the hall", status:"done" },
   { s:11, id:"f121", label:"Nth-skill + hard/soft requirement engine", detail:"cumulative DR 1–10 tables; hard named skills never double-count toward Nth; mastery skills excluded; guild-specific Thievery eligibility; cross-system invariants tested", status:"done" },
-  { s:11, id:"f122", label:"Crafting skills + disciplines", detail:"alchemy + forging v1 live; engineering (shape: carved staff, arbalest) + outfitting (tailor: cured leather, studded hide) v1 live; full technique slots pending", status:"partial" },
+  { s:11, id:"f122", label:"Crafting skills + disciplines", detail:"all five disciplines have a v1 live at their stations — Forging, Alchemy, Outfitting, Engineering craft rolls, plus Enchanting ('imbue' at the Enchanting Society: crafted base piece + wisp motes -> gear with a magicEdge); full discipline trees (~25 techniques each) pending", status:"partial" },
   { s:11, id:"f123", label:"Guild crafting affiliations", detail:"v1 live: Paladin +3 tailoring (Armorsmithing), Ranger +2 tailoring, Trader +2 engineering, Empath +2 alchemy (Remedies), Barbarian +3 forging; explicit technique slots pending", status:"partial" },
   { s:11, id:"f124", label:"Stamina + burden pools", detail:"stamina pool (Con + Fitness); burden on weapons/armor shrinks the pool and slows recovery; big efforts (maneuvers, ambush, backstab, whirlwind/stomp/choke, snipe) spend wind and refuse when spent; rest and combat ticks recover", status:"done" },
   { s:11, id:"f125", label:"Magic techniques / patterns", detail:"v1 live: five magic techniques with slots growing by circle, learned at the guild hall (Aether Efficiency -10% mana, Deep Harness +30%, Resonant Attunement, Meditation +20% regen, Cold Casting +15 safe ceiling); analogous patterns and metaspells pending", status:"partial" },
@@ -210,4 +212,10 @@ export const FEATURES = [
   { s:13, id:"f162", label:"Justice zones & warrants", detail:"live: murder warrants (seizure, RECALL/SURRENDER/plead, stocks) and justice zones — wilds lawless (no heat), town standard, Guild District strict (heat x2, fines x1.5); Rite of Departure draws one item from your last corpse to the temple for 10x circle silvers, once per death", status:"done" },
   { s:13, id:"f163", label:"Anti-abuse guardrails", detail:"v1 live: assault refuses targets 5+ circles below, hot rooms throttle respawns (anti-camp), REPORT command files complaints; broader moderation tooling pending", status:"partial" },
   { s:4, id:"f164", label:"Auction / player trading", detail:"live: the Merchants' Auction Hall (north of the Grain Pit) with AUCTION OFFER/BUY — listings lapse after an hour, buyers pay sellers directly, offline sellers are paid into the bank; broker fees pending", status:"done" },
+  { s:7, id:"f179", label:"Creature vitality prose", detail:"live: combat pane reads 'is <vitality word>'; exact hp only in the hover tooltip (numbers never in player-facing UI)", status:"done" },
+  { s:7, id:"f180", label:"Paper doll", detail:"live: hands-doll SVG — gear condition tints regions red, player HP pales/bruises the figure toward near death", status:"done" },
+  { s:7, id:"f181", label:"Vitality words, not numbers", detail:"live: HP/mana/stamina gauges read the DR word ladder ('in good shape' -> 'near death'), exact figures in tooltips", status:"done" },
+  { s:7, id:"f182", label:"RT blocks on the input bar", detail:"live: red second-blocks overlay the left edge while roundtime binds; typing always allowed", status:"done" },
+  { s:14, id:"f183", label:"Mapper agent tooling", detail:"node scripts/mapper-agent.mjs — logs in as a player, walks route JSON step-by-step, records per-step results (public/live/mapper-<run>.log + mapper-latest-summary.json); walker-finds-breaks / fixer-consults-map loop for world edits", status:"done" },
+  { s:14, id:"f184", label:"Server ops", detail:"single-world guard: boot probes the port and refuses a duplicate world (desyncs GM tokens/sessions); resolved GM token published to /tmp/dr-world-token-<port>.json (mode 0600) for the menu-bar app and Watch deep links", status:"done" },
 ];
