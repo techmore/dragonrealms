@@ -23,9 +23,15 @@ try {
 function hasStoredGmToken() {
   try { return Boolean(localStorage.getItem('dr_gm_token')); } catch { return false; }
 }
+// True once a spectate handoff has been kicked off — set synchronously so
+// follow-up server messages (charselect etc.) don't race the dynamic import
+// and flash the welcome modal over the stream.
+let spectatePending = false;
 function maybeSpectate() {
-  if (gameState.spectating) return true;
+  if (gameState.spectating || spectatePending) return true;
   if (autoSpectate && hasStoredGmToken()) {
+    spectatePending = true;
+    gameState.spectating = true; // claim the state now; enterSpectate confirms
     import('./spectate-mode.js').then((m) => m.enterSpectate(autoSpectate));
     return true;
   }
