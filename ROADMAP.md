@@ -593,3 +593,13 @@ engine reachability, not human pacing: the simulator performs deterministic
 practice and does not model navigation, social play, experimentation, or idle
 time. The 15.6–75.6 hour spread is now explicit evidence for the live-play
 balance backlog, especially the Empath and Ranger curves.
+
+**Simulated circle-1→10 pacing (post-balance simulator, all 11 guilds):**
+Bard 10.4h · Trader 10.6h · Paladin 11.6h · Thief 12.8h · Ranger 14.6h ·
+Moon Mage 16.7h · Necromancer 16.7h · Barbarian 20h · Empath 29.7h ·
+Cleric 40h · Warrior Mage 40.4h.
+The defensive-skill starvation that produced the old outliers (Cleric
+114h) was a simulator artifact — fixed by letting the sim spend its TDP
+pool on lagging parry/defending and looping guild training passes. The
+remaining spread (10–40h) reflects real DR tiering: deep casters climb
+slowest; stealth/hybrid guilds fastest.
