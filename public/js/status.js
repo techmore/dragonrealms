@@ -43,7 +43,9 @@ export function hideRoomPanel() {
   clearWindowSeen('room-panel');
 }
 
-// Persistent hands bar: what you hold, wear, and carry (DR hands window).
+// Persistent hands bar: what you hold, wear, and carry (DR hands window),
+// plus a paper doll — body regions light up per equipped slot.
+const DOLL_SLOT_LABELS = { head: 'head', torso: 'body', arms: 'arms', hand: 'hands', shield: 'shield', legs: 'legs', feet: 'feet', neck: 'neck', accessory: 'worn' };
 export function renderHands(msg) {
   const bar = $('hands-bar');
   if (!bar) return;
@@ -51,6 +53,20 @@ export function renderHands(msg) {
   $('hands-hand').textContent = `Hand: ${hand}`;
   $('hands-worn').textContent = msg.worn && msg.worn.length ? `Worn: ${msg.worn.join(', ')}` : '';
   $('hands-carried').textContent = `Carried: ${msg.carried || 0}`;
+  // Paper doll: fill regions whose slot has gear; title tooltip names it.
+  const slots = msg.slots || {};
+  const doll = $('hands-doll');
+  if (doll) {
+    for (const g of doll.querySelectorAll('.pd-region')) {
+      const slot = g.dataset.slot;
+      const items = slots[slot] || [];
+      g.classList.toggle('pd-filled', items.length > 0);
+      g.setAttribute('aria-label', `${DOLL_SLOT_LABELS[slot] || slot}: ${items.join(', ') || 'empty'}`);
+      const title = g.querySelector('title') || document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `${DOLL_SLOT_LABELS[slot] || slot}: ${items.join(', ') || 'empty'}`;
+      if (!title.parentNode) g.appendChild(title);
+    }
+  }
   revealWindow('hands-bar');
 }
 

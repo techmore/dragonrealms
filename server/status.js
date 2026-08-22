@@ -39,11 +39,18 @@ export const status = {
         .filter(([slot]) => slot !== 'hand')
         .map(([, i]) => i.name);
       const carried = p.inventory.reduce((s, e) => s + e.qty, 0);
+      // Per-slot map for the client's paper doll (head/torso/shield/feet/...).
+      const slots = {};
+      for (const [slot, i] of Object.entries(p.equipment)) {
+        if (!slots[slot]) slots[slot] = [];
+        slots[slot].push(i.name);
+      }
       p.ws.send(JSON.stringify({
         t: 'hands',
         hand: w ? w.name : null,
         worn,
         carried,
+        slots,
       }));
     }
     p.ws.send(JSON.stringify({

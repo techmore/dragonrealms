@@ -370,6 +370,31 @@ button { color: inherit; }
 #hands-bar .hands-item { color: var(--text); line-height: 1.4; }
 #hands-bar #hands-hand { color: var(--amber); font-weight: bold; }
 
+/* Paper doll — SVG person silhouette in the Hands window. Empty regions are
+   faint outlines; equipped regions fill with the accent color. */
+#hands-doll { width: 96px; height: auto; align-self: center; display: block; }
+#hands-doll .pd-region shape { fill: transparent; stroke: transparent; }
+#hands-doll .pd-region circle,
+#hands-doll .pd-region path,
+#hands-doll .pd-region ellipse {
+  fill: transparent;
+  stroke: var(--muted);
+  stroke-width: 1.5;
+  transition: fill 0.2s, stroke 0.2s;
+}
+#hands-doll .pd-region text {
+  fill: var(--muted);
+  font-size: 9px;
+  font-family: inherit;
+}
+#hands-doll .pd-region.pd-filled circle,
+#hands-doll .pd-region.pd-filled path,
+#hands-doll .pd-region.pd-filled ellipse {
+  fill: var(--amber);
+  stroke: var(--amber);
+}
+#hands-doll .pd-region.pd-filled text { fill: var(--text); }
+
 /* Field experience tracker (DR FE window) */
 #fe-row { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
 #fe-row .fe-line { display: flex; justify-content: space-between; gap: 6px; }

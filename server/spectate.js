@@ -53,7 +53,7 @@ export function subscribe(session, playerName) {
   const worn = Object.entries(target.equipment)
     .filter(([slot]) => slot !== 'hand')
     .map(([, i]) => i.name);
-  session.send({ t: 'hands', hand: w ? w.name : null, worn, carried: target.inventory.reduce((s, e) => s + e.qty, 0) });
+  session.send({ t: 'hands', hand: w ? w.name : null, worn, carried: target.inventory.reduce((s, e) => s + e.qty, 0), slots: (() => { const s = {}; for (const [k, i] of Object.entries(target.equipment)) { (s[k] = s[k] || []).push(i.name); } return s; })() });
   const room = roomById(target.room);
   if (room) {
     const zone = ZONES[room.zone] || { name: room.zone };

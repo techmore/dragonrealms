@@ -135,7 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCent
         }
         m.addItem(.separator())
         if online {
-            m.addItem(NSMenuItem(title: Action.start.rawValue, action: #selector(runAction(_:)), keyEquivalent: "").then {
+            m.addItem(NSMenuItem(title: "Stop World", action: #selector(runAction(_:)), keyEquivalent: "").then {
                 $0.target = self; $0.representedObject = Action.stop.rawValue
             })
         } else {
