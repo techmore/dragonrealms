@@ -294,6 +294,12 @@ button { color: inherit; }
   padding: 1px 6px;
   white-space: nowrap;
 }
+/* DR roundtime cue: the chip pulses while you're bound (RT > 0). */
+@keyframes rt-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.strip-rt.rt-live { animation: rt-pulse 1s ease-in-out infinite; }
 #status-strip .strip-chip {
   color: var(--text);
   font-weight: bold;

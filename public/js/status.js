@@ -46,6 +46,8 @@ export function hideRoomPanel() {
 // Persistent hands bar: what you hold, wear, and carry (DR hands window),
 // plus a paper doll — body regions light up per equipped slot.
 const DOLL_SLOT_LABELS = { head: 'head', torso: 'body', arms: 'arms', hand: 'hands', shield: 'shield', legs: 'legs', feet: 'feet', neck: 'neck', accessory: 'worn' };
+let dollSeen = false;
+let rtTimer = null;
 export function renderHands(msg) {
   const bar = $('hands-bar');
   if (!bar) return;
@@ -54,6 +56,8 @@ export function renderHands(msg) {
   $('hands-worn').textContent = msg.worn && msg.worn.length ? `Worn: ${msg.worn.join(', ')}` : '';
   $('hands-carried').textContent = `Carried: ${msg.carried || 0}`;
   // Paper doll: fill regions whose slot has gear; title tooltip names it.
+  // First real hands data force-reveals the window (survives the empty-window
+  // auto-hide and a player's previously hidden layout) so new players see it.
   const slots = msg.slots || {};
   const doll = $('hands-doll');
   if (doll) {
@@ -65,6 +69,10 @@ export function renderHands(msg) {
       const title = g.querySelector('title') || document.createElementNS('http://www.w3.org/2000/svg', 'title');
       title.textContent = `${DOLL_SLOT_LABELS[slot] || slot}: ${items.join(', ') || 'empty'}`;
       if (!title.parentNode) g.appendChild(title);
+    }
+    if (!dollSeen && Object.keys(slots).length) {
+      dollSeen = true;
+      import('./windows.js').then((w) => w.setWindowVisible('hands-bar', true, true));
     }
   }
   revealWindow('hands-bar');
@@ -158,8 +166,28 @@ export function renderStatusStrip() {
   $('strip-silver').textContent = `${promptState.silver ?? '--'} silvers`;
   $('strip-combat').hidden = !promptState.combat;
   const rt = promptState.rt || 0;
-  $('strip-rt').hidden = rt <= 0;
-  if (rt > 0) $('strip-rt').textContent = `RT: ${rt}`;
+  const rtEl = $('strip-rt');
+  rtEl.hidden = rt <= 0;
+  if (rt > 0) {
+    rtEl.textContent = `RT: ${rt}`;
+    // DR roundtime cue: pulse while bound; a local countdown keeps it ticking
+    // between server prompts, and the next prompt re-syncs the value.
+    rtEl.classList.add('rt-live');
+    if (rtTimer) clearInterval(rtTimer);
+    const startedAt = Date.now();
+    rtTimer = setInterval(() => {
+      const left = rt - Math.floor((Date.now() - startedAt) / 1000);
+      if (left <= 0) {
+        clearInterval(rtTimer); rtTimer = null;
+        rtEl.hidden = true; rtEl.classList.remove('rt-live');
+      } else {
+        rtEl.textContent = `RT: ${left}`;
+      }
+    }, 500);
+  } else if (rtTimer) {
+    clearInterval(rtTimer); rtTimer = null;
+    rtEl.classList.remove('rt-live');
+  }
   $('strip-hidden').hidden = !promptState.hidden;
   $('strip-resting').hidden = !promptState.resting;
   renderCombatStatus();
