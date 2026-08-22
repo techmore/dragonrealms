@@ -107,3 +107,88 @@ test('unknown command echoes an error but keeps going', () => {
   r.start();
   assert.ok(say[0].includes('unknown command'));
 });
+
+test('prompts mirror game state into %hp/%maxhp/%circle/%rt/%combat', () => {
+  const out = [];
+  const say = [];
+  const r = createRunner('wait\necho HP=%hp MAX=%maxhp C=%circle RT=%rt COMBAT=%combat\nexit', [],
+    { send: (l) => out.push(l), say: (t) => say.push(t) });
+  r.start();
+  feed(r, '\x1b[32mHP: 42/100  Mana: 0/0  Stamina: 55/70  RT: 3  Circle 2  120 silvers [COMBAT]\x1b[0m', true);
+  assert.deepEqual(say, ['HP=42 MAX=100 C=2 RT=3 COMBAT=1']);
+});
+
+test('iflt/ifge branch on live prompt vars', () => {
+  const out = [];
+  const src = 'put attack\nwait\niflt hp 35 goto FLED\nput press\nexit\nFLED:\nput flee\nexit';
+  const r = createRunner(src, [], { send: (l) => out.push(l) });
+  r.start();
+  assert.deepEqual(out, ['attack']);
+  feed(r, 'HP: 80/100  Circle 1  RT: 0', true); // healthy -> press
+  assert.deepEqual(out, ['attack', 'press']);
+  const out2 = [];
+  const hurt = createRunner(src, [], { send: (l) => out2.push(l) });
+  hurt.start();
+  feed(hurt, 'HP: 20/100  Circle 1  RT: 0', true); // hurt -> FLED branch
+  assert.deepEqual(out2, ['attack', 'flee']);
+});
+
+test('ifge takes the branch only when the var clears the bar', () => {
+  const low = [];
+  const r = createRunner('wait\nifge circle 2 goto HIGH\nput lowcircle\nexit\nHIGH:\nput highcircle\nexit', [], { send: (l) => low.push(l) });
+  const high = [];
+  const r2 = createRunner('wait\nifge circle 2 goto HIGH\nput lowcircle\nexit\nHIGH:\nput highcircle\nexit', [], { send: (l) => high.push(l) });
+  r.start(); r2.start();
+  feed(r, 'HP: 50/50  Circle 1', true);
+  feed(r2, 'HP: 60/60  Circle 2', true);
+  assert.deepEqual(low, ['lowcircle']);
+  assert.deepEqual(high, ['highcircle']);
+});
+
+test('move retries after a roundtime rejection instead of hanging', async () => {
+  const out = [];
+  const r = createRunner('move north\nmove east', [], { send: (l) => out.push(l) });
+  r.start();
+  assert.deepEqual(out, ['north']);
+  feed(r, 'You are not ready to do that. Wait for roundtime!', 'error');
+  assert.deepEqual(out, ['north'], 'blocked, retry scheduled');
+  await new Promise((res) => setTimeout(res, 1600));
+  feed(r, '', false); // heartbeat
+  assert.deepEqual(out, ['north', 'north'], 're-sent the move');
+  feed(r, '[[Town Green, Crossing]] You walk north.', 'room');
+  assert.deepEqual(out, ['north', 'north', 'east'], 'continues after room event');
+});
+
+test('combat-blocked moves retry, then fall through so the script reacts', async () => {
+  const out = [];
+  const say = [];
+  const r = createRunner('move north\nmove north\necho arrived', [],
+    { send: (l) => out.push(l), say: (t) => say.push(t) });
+  r.start();
+  assert.deepEqual(out, ['north']);
+  feed(r, 'Creatures block your path — flee, fall back, or fight on.', 'msg');
+  await new Promise((res) => setTimeout(res, 1300));
+  feed(r, '', false); // heartbeat fires the retry
+  assert.deepEqual(out, ['north', 'north'], 'first retry');
+  for (let i = 0; i < 3; i++) { // keeps failing -> gives up after 2 retries
+    feed(r, 'Creatures block your path — flee, fall back, or fight on.', 'msg');
+    await new Promise((res) => setTimeout(res, 1300));
+    feed(r, '', false);
+  }
+  assert.ok(out.filter((l) => l === 'north').length >= 3, 'retried at least twice: ' + JSON.stringify(out));
+  assert.deepEqual(say, ['arrived'], 'fell through past the whole move chain');
+});
+
+test('dead-end move abandons the rest of the chain; later chains still move', () => {
+  const out = [];
+  const say = [];
+  const r = createRunner('move north\nmove east\nmove north\nput look\nwait\nmove south\nexit', [],
+    { send: (l) => out.push(l), say: (t) => say.push(t) });
+  r.start();
+  assert.deepEqual(out, ['north']);
+  feed(r, 'You cannot go that way.', 'error');
+  assert.deepEqual(out, ['north', 'look'],
+    'no retry on a wrong turn — skipped straight to the reaction step');
+  feed(r, 'HP: 50/50  Circle 1  RT: 0', true); // satisfies the wait
+  assert.deepEqual(out, ['north', 'look', 'south'], 'a fresh chain moves again');
+});
