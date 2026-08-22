@@ -7,6 +7,16 @@ import { $ } from './util.js';
 const API = '/api/gm';
 const LS_TOKEN = 'dr_gm_token';
 
+// Trusted-launcher handoff: the menu-bar app opens gm.html#gm=<token>; store
+// it once and strip the fragment so it never lingers in the address bar.
+try {
+  const m = location.hash.match(/^#gm=([A-Za-z0-9]+)$/);
+  if (m) {
+    localStorage.setItem(LS_TOKEN, m[1]);
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+} catch {}
+
 function token() { try { return localStorage.getItem(LS_TOKEN) || ''; } catch { return ''; } }
 function saveToken(t) { try { localStorage.setItem(LS_TOKEN, t); } catch {} }
 

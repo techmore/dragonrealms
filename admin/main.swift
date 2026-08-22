@@ -156,8 +156,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCent
     @objc private func runAction(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String, let a = Action(rawValue: raw) else { return }
         switch a {
-        case .admin: NSWorkspace.shared.open(URL(string: "\(BASE)/admin.html")!)
-        case .gm: NSWorkspace.shared.open(URL(string: "\(BASE)/gm.html")!)
+        case .admin: NSWorkspace.shared.open(URL(string: "\(BASE)/admin.html#gm=\(GMTOKEN)")!)
+        case .gm: NSWorkspace.shared.open(URL(string: "\(BASE)/gm.html#gm=\(GMTOKEN)")!)
         case .copyToken:
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(GMTOKEN, forType: .string)
