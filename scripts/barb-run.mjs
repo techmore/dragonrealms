@@ -6,6 +6,7 @@
 // runs it. Proves per-login scripting end to end.
 //
 //   node scripts/barb-run.mjs [--minutes 15] [--circle 2] [--user barb_player]
+//     [--char Kargok]
 //
 // Requires the server running with DR_ENABLE_API=1.
 
@@ -19,8 +20,10 @@ const ORIGIN = 'ws://localhost:3000/ws';
 const MINUTES = Number(flag('minutes', 15));
 const TARGET_CIRCLE = Number(flag('circle', 2));
 const USER = flag('user', 'barb_player');
-const PASS = 'BarbRun1!';
-const CHAR_NAME = 'Kargok';
+const PASS = flag('pass', 'BarbRun1!');
+// Distinct runs must use distinct characters — the server allows one live
+// session per character ("already active in another session" otherwise).
+const CHAR_NAME = flag('char', 'Kargok');
 const SCRIPT_NAME = 'huntbarb';
 
 const { ROOMS } = await import('../data/world.js');
@@ -87,10 +90,20 @@ function buildScript({ fromRoom, arena }) {
   L.push('  put look');
   L.push('  wait');
   L.push('ARMCHECK:');
-  L.push('  matchre ARMED_HERE equip');
-  L.push('  matchre BUY do not have|already');
-  L.push('  put wield club');
+  // Equipping moves the club out of the carry list, so "wield" alone can't
+  // tell "already armed" from "unarmed". Probe the inventory report instead:
+  // equipped wins first, then a carried club gets picked up, else go buy.
+  L.push('  matchre ARMED_HERE Worn:.*club');
+  L.push('  matchre GETCLUB carrying:\\s*[\\s\\S]*?\\bclub\\b');
+  L.push('  matchre BUY You are carrying');
+  L.push('  put inventory');
   L.push('  matchwait');
+  L.push('GETCLUB:');
+  L.push('  put get club');
+  L.push('  wait');
+  L.push('  put wield club');
+  L.push('  wait');
+  L.push('  goto ARMCHECK');
   L.push('BUY:');
   if (bazaar && bazaar.length) L.push(...moves(bazaar));
   L.push('ARM:');
