@@ -1,5 +1,6 @@
 // Item commands: inventory, gear, consumables, corpses, crime, crafting.
 import { roomById } from '../../data/world.js';
+import { db } from '../db.js';
 import { ITEMS, itemById } from '../../data/items.js';
 import { RECIPES, recipeById } from '../../data/recipes.js';
 import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll, QUALITY_LADDER, CRAFT_TECHNIQUES, craftSlotsFor } from '../../data/forging.js';
@@ -42,8 +43,10 @@ import { npcById } from '../../data/npcs.js';
 import {
   skillRank, gainSkillExp, addItem, removeItem, removeItemInstances,
   equipItem, unequipItem, countItems, unlockAchievement, setRoundtime,
+  isStackableItem,
 } from '../player.js';
 import { pad, findInventoryItem, findSlotByItem, findNpcByName } from './util.js';
+import { loadWord } from './character.js';
 
 // Guild crafting affiliations (DR: free technique slots per discipline).
 // A guild's crafters hold a natural edge in their traditional trades.
@@ -57,6 +60,15 @@ const CRAFT_AFFINITY = {
 
 function craftAffinity(guildId, craft) {
   return (CRAFT_AFFINITY[craft] && CRAFT_AFFINITY[craft][guildId]) || 0;
+}
+
+// Loose hides, pelts, and shells can be bundled for easier carrying.
+const BUNDLEABLE = new Set([
+  'rat_pelt', 'crab_shell', 'reed_skin', 'kobold_skin', 'hog_hide', 'goblin_skin',
+  'wolf_pelt', 'troll_hide', 'cinder_scale', 'iron_ore',
+]);
+function isBundleable(item) {
+  return item && BUNDLEABLE.has(item.id);
 }
 
 // ---- Crafting techniques (P26) ----
@@ -129,6 +141,32 @@ export const commands = {
 
   wear: wearItem,
   wield: wearItem,
+
+  // bundle <item> [qty]: wrap loose goods (pelts, hides, ore) into one compact
+  // bale. Bundled weight is a fraction of loose — the DR pack-rat ritual.
+  bundle(ctx) {
+    const { p, arg1, arg2, emit } = ctx;
+    if (!arg1) return emit('Bundle what? ("bundle <item> [qty]" — pelts and hides only)');
+    const entry = findInventoryItem(p, arg1);
+    if (!entry || !isBundleable(entry.item)) {
+      return emit('Only loose skins, pelts, and hides can be bundled.');
+    }
+    if (entry.bundle) return emit('That is already a tidy bundle.');
+    const have = countItems(p, entry.item.id);
+    const n = Math.max(1, Math.min(parseInt(arg2, 10) || have, have));
+    removeItem(p, entry.item.id, n);
+    addItem(p, entry.item.id, n, { bundle: { bundled: n } });
+    emit(`You fold and tie ${n > 1 ? `${n}x ` : ''}${entry.item.name}${n > 1 ? 's' : ''} into one compact bundle. Much easier to carry.`);
+  },
+
+  unbundle(ctx) {
+    const { p, arg1, emit } = ctx;
+    const entry = findInventoryItem(p, arg1 || '');
+    if (!entry || !entry.bundle) return emit('You are carrying no such bundle.');
+    entry.bundle = null; // cut the ties: weight returns
+    db.prepare('UPDATE inventory SET bundle=NULL WHERE id=?').run(entry.id);
+    emit(`You cut the ties on the ${entry.item.name.replace(/^a /, '')} bundle — it sprawls back to full bulk.`);
+  },
 
   repair(ctx) {
     const { p, arg1, emit } = ctx;
@@ -472,11 +510,13 @@ export function craftTechnique(ctx) {
 
 function showInventory(ctx) {
   const { p, say } = ctx;
-  const lines = p.inventory.map((e) => `${e.qty > 1 ? `${e.qty}x ` : ''}${e.item.name}`);
+  const lines = p.inventory.map((e) =>
+    `${e.qty > 1 ? `${e.qty}x ` : ''}${e.item.name}${e.bundle ? ' [bundled]' : ''}`);
   const worn = Object.values(p.equipment).map((i) => i.name);
   const out = [
     `\nYou are carrying:${lines.length ? '\n  ' + lines.join('\n  ') : ' nothing.'}`,
     `Worn: ${worn.length ? worn.join(', ') : 'nothing'}.`,
+    `You are ${loadWord(p)}.`,
     `Silvers: ${p.silver}.`,
   ].join('\n');
   say(out);
@@ -563,7 +603,10 @@ function consume(ctx) {
     emit(`You drink ${entry.item.name}. A wave of power washes over you!`);
     return;
   }
-  const potency = hasCraftTech(p, 'potent_essence') ? 1 + CRAFT_TECHNIQUES.potent_essence.effect.mag : 1;
+  // Crafted potency stacks with field training: First Aid ranks make every
+  // draught and salve work better (DR: Field Medicine feel).
+  const aidMult = 1 + Math.min(0.25, skillRank(p, 'first_aid') * 0.005);
+  const potency = (hasCraftTech(p, 'potent_essence') ? 1 + CRAFT_TECHNIQUES.potent_essence.effect.mag : 1) * aidMult;
   const before = p.hp;
   if (entry.item.restore) p.hp = Math.min(p.maxHp, p.hp + Math.ceil(entry.item.restore * potency));
   const healed = p.hp - before;

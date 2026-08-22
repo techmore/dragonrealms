@@ -15,7 +15,7 @@ export const NPCS = {
     id: 'shopkeeper', name: 'Marlene, the general storekeeper', role: 'shop',
     desc: 'A round-cheeked woman in an apron, wiping her hands on a rag.',
     greeting: 'Welcome! Everything you could need, at fair prices. Type "list" to browse.',
-    stock: { ration: 20, salve: 10, arrows: 30, bolts: 20, dagger: 8, herb_mint: 15, herb_root: 10, potion_heal: 5, cambrinth_band: 3, cambrinth_pendant: 2, warhorn: 2, chakrel_1: 1 },
+    stock: { ration: 20, salve: 10, arrows: 30, bolts: 20, dagger: 8, herb_mint: 15, herb_root: 10, potion_heal: 5, potion_frenzy: 40, potion_swiftness: 60, potion_vigor: 30, cambrinth_band: 3, cambrinth_pendant: 2, warhorn: 2, chakrel_1: 1 },
     buys: ['rat_pelt', 'kobold_skin', 'goblin_skin', 'wolf_pelt', 'wisp_mote', 'troll_hide'],
   },
   weaponsmith: {
@@ -48,7 +48,7 @@ export const NPCS = {
     desc: 'A stooped man with hands stained dark from curing hides, stretching a fresh pelt over a wooden frame.',
     greeting: 'Bring me your hides and trophies — skins, scales, and stranger things. I pay well. Type "list" to see my leathers.',
     stock: { leather: 4, leather_boots: 5, shield_wood: 3 },
-    buys: ['rat_pelt', 'crab_shell', 'reed_skin', 'kobold_skin', 'goblin_skin', 'wolf_pelt', 'troll_hide', 'cinder_scale', 'wraith_essence', 'dread_sigil', 'viper_fang', 'organ_vial'],
+    buys: ['rat_pelt', 'crab_shell', 'reed_skin', 'kobold_skin', 'hog_hide', 'goblin_skin', 'wolf_pelt', 'troll_hide', 'cinder_scale', 'wraith_essence', 'dread_sigil', 'viper_fang', 'organ_vial'],
   },
   banker: {
     id: 'banker', name: 'Galen, the banker', role: 'bank',

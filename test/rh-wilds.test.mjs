@@ -37,8 +37,8 @@ test('riverhaven wilds exist with reciprocal exits and tiered spawns', async () 
   assert.equal(ROOMS.rh_wilds_2.exits.w, 'rh_wilds_3');
   assert.equal(ROOMS.rh_wilds_3.exits.e, 'rh_wilds_2');
 
-  // Depth tiers escalate: crabs (c1) -> stalkers (c3) -> thugs (c5).
-  assert.deepEqual(ROOMS.rh_wilds_1.spawns, ['mud_crab', 'mud_crab']);
+  // Depth tiers escalate: crabs + hogs (c1-2) -> stalkers (c3) -> thugs (c5).
+  assert.deepEqual(ROOMS.rh_wilds_1.spawns, ['mud_crab', 'mud_crab', 'marsh_hog']);
   assert.deepEqual(ROOMS.rh_wilds_2.spawns, ['reed_stalker', 'reed_stalker']);
   assert.deepEqual(ROOMS.rh_wilds_3.spawns, ['river_thug', 'river_thug']);
   assert.ok(CREATURES.mud_crab.circle < CREATURES.reed_stalker.circle);

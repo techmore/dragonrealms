@@ -82,6 +82,7 @@ export const ITEMS = {
   crab_shell:    { id: 'crab_shell', name: 'a mud crab shell', type: 'misc', slot: null, value: 10, desc: 'A broad green-brown shell, still smelling of the reeds.' },
   reed_skin:     { id: 'reed_skin', name: 'a reed stalker hide', type: 'misc', slot: null, value: 26, desc: 'Sleek dappled hide from the sloughs, prized for waterwork leathers.' },
   kobold_skin:   { id: 'kobold_skin', name: 'a kobold hide', type: 'misc', slot: null, value: 20, desc: 'A scaly kobold hide.' },
+  hog_hide:      { id: 'hog_hide', name: 'a marsh hog hide', type: 'misc', slot: null, value: 24, desc: 'Thick bristled hide, cured mud still in the bristles. Tanners prize it for work leather.' },
   goblin_skin:   { id: 'goblin_skin', name: 'a goblin hide', type: 'misc', slot: null, value: 34, desc: 'A rank green goblin hide.' },
   wolf_pelt:     { id: 'wolf_pelt', name: 'a wolf pelt', type: 'misc', slot: null, value: 60, desc: 'A thick grey wolf pelt.' },
   cinder_scale:  { id: 'cinder_scale', name: 'a cinder scale', type: 'misc', slot: null, value: 120, desc: 'A smoking, heat-sheened scale from a drake.' },
@@ -121,7 +122,7 @@ export const ITEMS = {
 // Pelts and hides are bulky; ores and shells are heavy for their size.
 const ITEM_WEIGHTS = {
   rat_pelt: 0.5, crab_shell: 0.5, reed_skin: 0.5, kobold_skin: 0.5,
-  goblin_skin: 0.5, wolf_pelt: 1, troll_hide: 1, cinder_scale: 0.25,
+  hog_hide: 1, goblin_skin: 0.5, wolf_pelt: 1, troll_hide: 1, cinder_scale: 0.25,
   iron_ore: 1, iron_ring: 0.5, silver_ring: 0.1, wisp_mote: 0.05,
   viper_fang: 0.1, organ_vial: 0.25,
 };

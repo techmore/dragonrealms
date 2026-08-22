@@ -19,6 +19,15 @@ export const CREATURES = {
     armor: 7, defense: 3,
     loot: ['crab_shell'], lootTags: ['skins'], exp: 35, aggressive: false,
   },
+  marsh_hog: {
+    id: 'marsh_hog', name: 'a marsh hog', plural: 'marsh hogs', circle: 2, kinds: ['beast'],
+    desc: 'A bristled wallow-rooter with tusks like hooked knives, mud crusted grey along its flanks.',
+    teaches: [1, 9],
+    stats: { str: 13, con: 12, ref: 7, agi: 7 },
+    weapon: { skill: 'brawling', dmg: [3, 6], speed: 4 },
+    armor: 6, defense: 4,
+    loot: ['hog_hide'], lootTags: ['skins'], exp: 55, aggressive: false,
+  },
   reed_stalker: {
     id: 'reed_stalker', name: 'a reed stalker', plural: 'reed stalkers', circle: 3, kinds: ['beast'],
     desc: 'A lean, dappled predator that slides through the sloughs without a ripple.',
@@ -37,6 +46,15 @@ export const CREATURES = {
     armor: 8, defense: 9,
     loot: ['strongbox'], lootTags: ['coin', 'box'], exp: 300, aggressive: true,
   },
+  lout: {
+    id: 'lout', name: 'a street lout', plural: 'street louts', circle: 2, kinds: ['humanoid'],
+    desc: 'A burly idler in a stained vest, cracking his knuckles at anyone who looks at him sideways.',
+    teaches: [1, 10],
+    stats: { str: 11, con: 9, ref: 8, agi: 7 },
+    weapon: { skill: 'brawling', dmg: [4, 10], speed: 4 },
+    armor: 9, defense: 9,
+    loot: ['lout_vest'], lootTags: ['skins'], exp: 90, aggressive: true,
+  },
   kobold: {
     id: 'kobold', name: 'a kobold', plural: 'kobolds', circle: 2, kinds: ['humanoid'],
     desc: 'A wiry, scaly creature clutching a rusty blade and muttering in a chittering tongue.',
@@ -46,6 +64,16 @@ export const CREATURES = {
     armor: 8, defense: 10,
     loot: ['kobold_skin', 'strongbox'], lootTags: ['skins', 'box'], exp: 80, aggressive: false,
   },
+  silverfish: {
+    id: 'silverfish', name: 'a silverfish', plural: 'silverfish', circle: 3, kinds: ['vermin'],
+    desc: 'A segmented, bristle-legged vermin the length of a forearm, its carapace gleaming like wet pewter.',
+    teaches: [3, 11],
+    stats: { str: 8, con: 11, ref: 14, agi: 12 },
+    weapon: { skill: 'brawling', dmg: [3, 9], speed: 3 },
+    armor: 10, defense: 14,
+    loot: [], lootTags: ['skins'], exp: 130, aggressive: false,
+  },
+
   // Deep sewers (circle 3-5): the lower drains.
   great_rat: {
     id: 'great_rat', name: 'a great rat', plural: 'great rats', circle: 3, kinds: ['beast'],
