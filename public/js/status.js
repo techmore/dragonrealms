@@ -158,6 +158,7 @@ export function renderStatusStrip() {
   const hp = promptState.hp;
   if (hp) {
     setGauge('strip-hp-wrap', 'strip-hp-fill', 'strip-hp-label', 'HP', hp);
+    renderDollHealth(hp[0], hp[1]);
   } else {
     clearGauge('strip-hp-wrap', 'strip-hp-fill', 'strip-hp-label', 'HP');
   }
@@ -203,6 +204,20 @@ export function renderStatusStrip() {
 
 // DR roundtime blocks on the input bar: one red square per remaining second,
 // draining right-to-left. Typing is never blocked; the blocks are the cue.
+// DR injuries show on the body: as your vitality drops the paper doll's
+// regions pale, then take on a bruised red tint — a haggard figure near
+// death. Purely visual; numbers stay in the vitals gauge.
+function renderDollHealth(current, maximum) {
+  const doll = $('hands-doll');
+  if (!doll) return;
+  const pct = maximum > 0 ? current / maximum : 1;
+  // healthy → hurt (pale wash) → battered (bruise) → near death (deep red)
+  const level = pct >= 0.8 ? 'healthy' : pct >= 0.5 ? 'hurt' : pct >= 0.25 ? 'battered' : 'critical';
+  doll.dataset.health = level;
+  const word = vitalityWord(current, maximum);
+  doll.setAttribute('aria-label', `Your adventurer — ${word}`);
+}
+
 function renderRtBlocks(left) {
   const wrap = $('rt-blocks');
   if (!wrap) return;

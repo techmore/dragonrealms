@@ -434,6 +434,36 @@ button { color: inherit; }
   opacity: 1;
 }
 #hands-doll .pd-region.pd-filled text { fill: var(--amber); }
+/* DR injuries show on the body: as YOUR vitality drops, the whole figure
+   pales, then takes a bruised tint — haggard near death. */
+#hands-doll[data-health="hurt"] .pd-region circle,
+#hands-doll[data-health="hurt"] .pd-region path,
+#hands-doll .pd-region.pd-filled circle,
+#hands-doll .pd-region.pd-filled path,
+#hands-doll .pd-region.pd-filled ellipse { opacity: 0.8; }
+#hands-doll[data-health="battered"] circle,
+#hands-doll[data-health="battered"] path,
+#hands-doll[data-health="battered"] ellipse {
+  stroke: color-mix(in srgb, var(--red) 45%, var(--amber));
+  opacity: 0.75;
+}
+#hands-doll[data-health="battered"] .pd-filled circle,
+#hands-doll[data-health="battered"] .pd-filled path,
+#hands-doll[data-health="battered"] .pd-filled ellipse {
+  fill: color-mix(in srgb, var(--red) 35%, transparent);
+}
+#hands-doll[data-health="critical"] circle,
+#hands-doll[data-health="critical"] path,
+#hands-doll[data-health="critical"] ellipse {
+  stroke: var(--red);
+  opacity: 0.6;
+}
+#hands-doll[data-health="critical"] .pd-filled circle,
+#hands-doll[data-health="critical"] .pd-filled path,
+#hands-doll[data-health="critical"] .pd-filled ellipse {
+  fill: color-mix(in srgb, var(--red) 55%, transparent);
+  stroke: var(--red);
+}
 /* Worn/damaged gear: condition below 60 shifts the fill red. The client sets
    pd-damaged + inline --pd-cond (0-100) from the hands snapshot. */
 #hands-doll .pd-region.pd-filled.pd-damaged circle,
