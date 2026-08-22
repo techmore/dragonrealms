@@ -158,6 +158,47 @@ test('player and world streams require the dedicated GM credential', async () =>
   await gm.close();
 });
 
+test('gm_play requires the dedicated GM credential', async () => {
+  const anonymous = await openClient();
+  anonymous.send({ t: 'gm_play', guild: 'barbarian' });
+  await anonymous.waitFor(isErrorContaining('GM authorization'));
+  assert.ok(![...game.players.values()].some((p) => p.name.startsWith('Gm')), 'no character was entered without GM auth');
+  await anonymous.close();
+});
+
+test('gm_play jumps straight into an auto-provisioned boosted character', async () => {
+  const gm = await openClient();
+  gm.send({ t: 'gm_play', gmToken: process.env.DR_GM_TOKEN, guild: 'barbarian', race: 'human', boost: 20 });
+  await gm.waitFor((msg) => msg.t === 'enter', 3000);
+  const notice = await gm.waitFor(isNoticeContaining('GM quick-play'));
+  assert.match(notice.msg, /boost x20/);
+  const prompt = await gm.waitFor((msg) => msg.t === 'prompt' && /BOOST x20/.test(msg.msg), 3000);
+  assert.match(prompt.msg, /BOOST x20/);
+
+  // The character is live in the world and flagged for status surfaces.
+  const p = [...game.players.values()].find((x) => x.name === 'GmBarbarianHuman');
+  assert.ok(p, 'GmBarbarianHuman was created and entered');
+  assert.equal(p.boostMult, 20);
+  assert.equal(p.isBot, true);
+
+  // Commands route through the same session immediately (no charselect step).
+  gm.send({ t: 'input', line: 'look' });
+  await gm.waitFor((msg) => msg.t === 'room', 3000);
+
+  // Re-running reuses the same character instead of duplicating it.
+  await gm.close();
+  if (game.players.get(p.charId) === p) game.removePlayer(p);
+
+  const again = await openClient();
+  again.send({ t: 'gm_play', gmToken: process.env.DR_GM_TOKEN, guild: 'barbarian', race: 'human', boost: 10 });
+  await again.waitFor((msg) => msg.t === 'enter', 3000);
+  const p2 = [...game.players.values()].find((x) => x.name === 'GmBarbarianHuman');
+  assert.equal(p2.charId, p.charId, 'the same character is reused across gm_play runs');
+  assert.equal(p2.boostMult, 10, 'the new boost applies');
+  await again.close();
+  if (game.players.get(p2.charId) === p2) game.removePlayer(p2);
+});
+
 test('disconnect preserves a valid session while explicit logout revokes it', async () => {
   const first = await openClient();
   first.send({ t: 'token', token: accountToken });

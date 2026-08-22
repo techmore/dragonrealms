@@ -99,6 +99,7 @@
       padding: 1px 6px; font-size: 10px; color: var(--dim); white-space: nowrap;
     }
     .badge.bot { color: var(--amber); border-color: var(--amber); }
+    .badge.gm { color: var(--green); border-color: var(--green); }
     .badge.fight { color: var(--red); border-color: var(--red); }
     .hs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .hs-table th, .hs-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
@@ -176,6 +177,27 @@
     }
     #jobstate.idle { color: var(--dim); }
     #jobstate.live { color: var(--green); }
+
+    /* ---- launch agent ---- */
+    .agform {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+      font-size: 12px; margin-bottom: 10px;
+    }
+    .agform label { color: var(--dim); }
+    .agform input, .agform select {
+      background: var(--panel-inset); color: var(--text); border: 1px solid var(--line);
+      border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12px;
+    }
+    .agform input:focus, .agform select:focus { outline: none; border-color: var(--amber); }
+    .agform input#ag-name { width: 170px; }
+    .agform input.numsel { width: 64px; }
+    #aglog {
+      background: var(--panel-inset); border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px 12px; font-size: 11px; line-height: 1.5; white-space: pre-wrap;
+      max-height: 220px; overflow-y: auto; min-height: 40px;
+    }
+    #aglog .ok { color: var(--green); }
+    #aglog .bad { color: var(--red); }
 
     /* ---- footer cards / ops ---- */
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 16px; }
@@ -277,6 +299,47 @@
       </h2>
       <div class="jobs" id="joblist"></div>
       <div id="joblog">(no job selected)</div>
+    </section>
+
+    <!-- ===================== LAUNCH AGENT ===================== -->
+    <section>
+      <h2>Launch agent
+        <span class="right sub" id="agstate">&#9675; no agents</span>
+      </h2>
+      <div class="agform">
+        <label for="ag-name">name</label>
+        <input id="ag-name" type="text" spellcheck="false" autocomplete="off">
+        <label for="ag-race">race</label>
+        <select id="ag-race"></select>
+        <label for="ag-guild">guild</label>
+        <select id="ag-guild"></select>
+        <label for="ag-minutes">minutes</label>
+        <input id="ag-minutes" class="numsel" type="number" min="1" max="240" value="10">
+        <label for="ag-circle">circle &#8594;</label>
+        <input id="ag-circle" class="numsel" type="number" min="1" max="20" value="2">
+        <label for="ag-boost">boost</label>
+        <input id="ag-boost" class="numsel" type="number" min="0" max="50" value="20">
+        <button class="btn" id="ag-launch">&#9654; Launch</button>
+        <button class="btn warn" id="ag-stop">&#9208; Stop all</button>
+      </div>
+      <div id="aglog">(no agents launched)</div>
+    </section>
+
+    <!-- ===================== QUICK PLAY ===================== -->
+    <section>
+      <h2>GM quick-play
+        <span class="right sub">jump straight into an auto-provisioned boosted character &mdash; no signup, no chargen</span>
+      </h2>
+      <div class="agform">
+        <label for="qp-race">race</label>
+        <select id="qp-race"></select>
+        <label for="qp-boost">boost</label>
+        <input id="qp-boost" class="numsel" type="number" min="0" max="100" value="20">
+        <span class="sub">click a guild to launch:</span>
+        <span id="qp-guilds" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+      </div>
+      <div class="note">Opens the game client as <code>/?play=&lt;guild&gt;[,&lt;race&gt;]&amp;boost=N#gm=…</code>.
+        The character (one per guild+race on the hidden <code>gm</code> account) persists between runs.</div>
     </section>
 
     <!-- ===================== OPS ===================== -->
@@ -635,10 +698,10 @@
     function rosterList() {
       const out = [];
       if (S.gm === 'ok' && S.summary) {
-        for (const o of S.summary.online) out.push({ ...o, bot: Boolean(S.base[o.name]?.bot) });
+        for (const o of S.summary.online) out.push({ ...o, bot: Boolean(S.base[o.name]?.bot), gmToon: Boolean(S.base[o.name]?.gmToon) });
       } else {
         for (const p of Object.values(S.base)) {
-          out.push({ name: p.name, guild: p.guild, circle: p.circle, bot: p.bot });
+          out.push({ name: p.name, guild: p.guild, circle: p.circle, bot: p.bot, gmToon: p.gmToon });
         }
       }
       out.sort((a, b) => (a.bot - b.bot) || String(a.name).localeCompare(String(b.name)));
@@ -658,7 +721,7 @@
       }
       el.innerHTML = list.map((p) => `
         <div class="row">
-          <span class="nm">${esc(p.name)}${p.bot ? ' <span class="badge bot">BOT</span>' : ''}</span>
+          <span class="nm">${esc(p.name)}${p.gmToon ? ' <span class="badge gm">GM</span>' : p.bot ? ' <span class="badge bot">BOT</span>' : ''}</span>
           <span class="cl">${esc(p.race ? p.race + ' · ' : '')}${esc(p.guild || '?')} · circle ${esc(p.circle)}${p.room != null ? ` · room ${esc(p.room)}` : ''}</span>
           ${hpBarHtml(p)}
           ${p.inCombat ? '<span class="badge fight">\u2694 FIGHT</span>' : ''}
@@ -797,6 +860,268 @@
         stateEl.textContent = '\u25CB no log yet';
       }
     }
+
+    /* ================= launch agent ================= */
+    // Browser twin of scripts/race-guild-sweep.mjs: registers/logs in over
+    // HTTP, walks the WS chargen handshake (token -> charselect ->
+    // charcreate -> charalloc -> enter), boosts, then plays a simple
+    // event-driven hunt loop. Uses only existing wire messages — nothing
+    // server-side is added. The character shows up in the Online players
+    // roster as an ordinary session.
+
+    const AG_RACES = ['human', 'dwarf', 'elf', 'elothean', 'gnome', 'gortog',
+      'giantman', 'halfling', 'kaldar', 'prydaen', 'rakash', 'skra'];
+    const AG_GUILDS = ['barbarian', 'bard', 'cleric', 'empath', 'moonmage',
+      'necromancer', 'paladin', 'ranger', 'thief', 'trader', 'warmage'];
+    const AG_MAGIC_GUILDS = new Set(['bard', 'cleric', 'empath', 'moonmage', 'necromancer', 'warmage']);
+    const AG_PASS = 'AdminRun1!';
+
+    const AG = { agents: [] };
+
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    function agSuggestName() {
+      const g = $('ag-guild').value, r = $('ag-race').value;
+      $('ag-name').value = ('Sw' + cap(g) + cap(r)).replace(/[^a-zA-Z]/g, '').slice(0, 16);
+    }
+
+    function agLog(agent, text, cls) {
+      const el = $('aglog');
+      const at = new Date().toISOString().slice(11, 19);
+      const line = document.createElement('div');
+      if (cls) line.className = cls;
+      line.textContent = `${at} [${agent.char}] ${text}`;
+      el.appendChild(line);
+      while (el.children.length > 300) el.removeChild(el.firstChild);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function agRenderState() {
+      const live = AG.agents.filter((a) => a.ws);
+      const st = $('agstate');
+      if (!AG.agents.length) { st.innerHTML = '&#9675; no agents'; return; }
+      const bits = AG.agents.map((a) => {
+        const v = a.v;
+        const hp = v.maxhp ? ` HP ${Math.round(100 * v.hp / v.maxhp)}%` : '';
+        return `${a.char} c${v.circle}${hp}${a.ws ? '' : ' (stopped)'}`;
+      });
+      st.innerHTML = live.length ? `&#9679; ${live.length} running` : '&#9675; stopped';
+      st.style.color = live.length ? 'var(--green)' : 'var(--dim)';
+      st.title = bits.join(' · ');
+    }
+
+    function launchAgent({ name, race, guild, minutes, circleTarget, boost }) {
+      const agent = {
+        char: name, race, guild, circleTarget, boost,
+        user: `admin_${guild}_${race}`,
+        ws: null, token: null, knownCharId: null,
+        lastCmdAt: 0, rtUntil: 0, deadline: 0, stopping: false,
+        v: { hp: 0, maxhp: 0, mana: 0, maxmana: 0, circle: 1, rt: 0, inCombat: false, resting: false, room: null },
+        target: null, lastLookAt: 0, kills: 0,
+      };
+      AG.agents.push(agent);
+      agLog(agent, `launching as ${agent.user} (${race} ${guild}, ${minutes}m, circle ${circleTarget}, boost x${boost || 'off'})`);
+      agRenderState();
+      agHttpLogin(agent)
+        .then(() => agConnect(agent))
+        .catch((e) => { agLog(agent, `FAILED: ${e.message}`, 'bad'); agent.ws = null; agRenderState(); });
+      return agent;
+    }
+
+    // register-or-login, mirroring WireSession.httpLogin
+    async function agHttpLogin(agent) {
+      let r = await fetch('/api/register', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ user: agent.user, pass: AG_PASS }),
+      }).then((x) => x.json());
+      if (!r.ok) {
+        r = await fetch('/api/login', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ user: agent.user, pass: AG_PASS }),
+        }).then((x) => x.json());
+      }
+      if (!r.ok) throw new Error(r.error || 'account setup failed');
+      agent.token = r.token;
+      const known = (r.characters || []).find((c) => c.name === agent.char);
+      agent.knownCharId = known ? known.charId : null;
+      agLog(agent, `authed as ${agent.user} (${known ? 'existing' : 'new'} char)`, 'ok');
+    }
+
+    function agConnect(agent) {
+      const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+      const ws = new WebSocket(url);
+      agent.ws = ws;
+      agent.deadline = Date.now() + Number($('ag-minutes').value || 10) * 60000;
+      ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } agOnMessage(agent, m); };
+      ws.onclose = () => {
+        if (agent.stopping) return;
+        agLog(agent, 'socket closed', 'bad');
+        agent.ws = null;
+        agRenderState();
+      };
+    }
+
+    function agSend(agent, obj) {
+      if (agent.ws && agent.ws.readyState === WebSocket.OPEN) agent.ws.send(JSON.stringify(obj));
+    }
+
+    async function agCmd(agent, line) {
+      const wait = 200 - (Date.now() - agent.lastCmdAt);
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      agent.lastCmdAt = Date.now();
+      agSend(agent, { t: 'input', line });
+    }
+
+    const stripAnsi = (s) => String(s ?? '').replace(/\x1b\[\d+m/g, '');
+
+    function agOnMessage(agent, m) {
+      const v = agent.v;
+      switch (m.t) {
+        case 'login_prompt':
+          agSend(agent, { t: 'token', token: agent.token });
+          break;
+        case 'charselect':
+          agLog(agent, `chargen: ${agent.knownCharId ? 'selecting ' + agent.char : 'creating new char'}`);
+          agSend(agent, { t: 'charselect', id: agent.knownCharId || 'new' });
+          break;
+        case 'charcreate':
+          agSend(agent, { t: 'charcreate', name: agent.char, race: agent.race, guild: agent.guild, city: 'crossing' });
+          break;
+        case 'charalloc':
+          agSend(agent, { t: 'enter' });
+          break;
+        case 'enter':
+          agLog(agent, `entered the world${agent.boost > 1 ? ` — boost x${agent.boost}` : ''}`, 'ok');
+          if (agent.boost > 1) agSend(agent, { t: 'boost', mult: agent.boost });
+          agent.deadline = Date.now() + Number($('ag-minutes').value || 10) * 60000;
+          agTickLoop(agent);
+          break;
+        case 'room': {
+          v.room = m.roomId;
+          // Creature detection from room prose: "a gray wolf is here, ..."
+          agent.target = null;
+          const hit = /(?:^|\.\s+|\n)an?\s+([a-z][a-z' ]*?)\s+is here/i.exec(stripAnsi(m.msg));
+          if (hit) agent.target = hit[1].trim();
+          break;
+        }
+        case 'prompt': {
+          const plain = stripAnsi(m.msg);
+          const hp = /HP:\s*(\d+)\s*\/\s*(\d+)/.exec(plain);
+          if (hp) { v.hp = Number(hp[1]); v.maxhp = Number(hp[2]); }
+          const mana = /Mana:\s*(\d+)\s*\/\s*(\d+)/.exec(plain);
+          if (mana) { v.mana = Number(mana[1]); v.maxmana = Number(mana[2]); }
+          const c = /Circle\s*(\d+)/.exec(plain);
+          if (c && Number(c[1]) !== v.circle) { v.circle = Number(c[1]); agLog(agent, `now circle ${v.circle}`, 'ok'); }
+          const rt = /RT:\s*(\d+)/.exec(plain);
+          if (rt) agent.rtUntil = Date.now() + Number(rt[1]) * 1000;
+          else if (Date.now() >= agent.rtUntil) agent.rtUntil = 0;
+          v.inCombat = /\[COMBAT\]/.test(plain);
+          v.resting = /\[Resting\]/.test(plain);
+          agRenderState();
+          break;
+        }
+        case 'msg': case 'combat': case 'notice': {
+          const text = stripAnsi(m.msg);
+          const restHp = /hp (\d+)\/(\d+)/i.exec(text);
+          if (restHp) { v.hp = Number(restHp[1]); v.maxhp = Number(restHp[2]); }
+          if (/dies|slumps|lifeless|stops moving|collapses/.test(text)) {
+            agent.kills += 1;
+            agent.target = null;
+            agLog(agent, `kill #${agent.kills}`);
+          }
+          if (/You awaken in the Temple/.test(text)) {
+            agent.target = null;
+            agLog(agent, 'died — respawning in the Temple', 'bad');
+          }
+          if (/Rise, /.test(text) && /now a /.test(text)) agLog(agent, `CIRCLE-UP -> circle ${v.circle}`, 'ok');
+          break;
+        }
+        case 'error':
+          agLog(agent, `server: ${stripAnsi(m.msg)}`, 'bad');
+          if (/UNIQUE constraint failed: characters\.name/i.test(String(m.msg))) {
+            agLog(agent, 'character name already exists on another account — pick a new name and relaunch', 'bad');
+            stopAgent(agent, 'name collision');
+          } else if (/not a valid character|no such character/i.test(String(m.msg))) {
+            agSend(agent, { t: 'charselect', id: 'new' });
+          }
+          break;
+      }
+    }
+
+    // Event-driven hunt loop: rest when hurt, re-look when quiet, attack the
+    // creature last seen in the room once roundtime clears. Wall-clock
+    // deadlines (not prompt counters) gate everything — prompts are sparse.
+    function agTickLoop(agent) {
+      if (agent.stopping || !agent.ws) return;
+      const v = agent.v;
+      if (Date.now() > agent.deadline) { stopAgent(agent, 'time up'); return; }
+      if (v.circle >= agent.circleTarget && v.circle > 1) { stopAgent(agent, `circle target ${agent.circleTarget} reached`); return; }
+
+      const rtBound = Date.now() < agent.rtUntil;
+      const hurt = v.maxhp > 0 && v.hp / v.maxhp < 0.35;
+      if (hurt && !v.resting) {
+        void agCmd(agent, 'flee');
+      } else if (v.resting && !hurt) {
+        void agCmd(agent, 'stand');
+      } else if (!rtBound && !v.resting) {
+        if (agent.target) {
+          void agCmd(agent, AG_MAGIC_GUILDS.has(agent.guild) ? `cast ${agent.target}` : `attack ${agent.target}`);
+        } else if (Date.now() - agent.lastLookAt > 4000) {
+          agent.lastLookAt = Date.now();
+          void agCmd(agent, 'look');
+        }
+      }
+      agRenderState();
+      setTimeout(() => agTickLoop(agent), 1500);
+    }
+
+    function stopAgent(agent, why) {
+      agent.stopping = true;
+      try { agent.ws?.close(); } catch {}
+      agent.ws = null;
+      agLog(agent, `stopped — ${why || 'stopped by GM'}`);
+      agRenderState();
+    }
+
+    // ---- form wiring ----
+    for (const r of AG_RACES) $('ag-race').insertAdjacentHTML('beforeend', `<option value="${r}">${cap(r)}</option>`);
+    for (const g of AG_GUILDS) $('ag-guild').insertAdjacentHTML('beforeend', `<option value="${g}">${cap(g)}</option>`);
+    $('ag-race').addEventListener('change', agSuggestName);
+    $('ag-guild').addEventListener('change', agSuggestName);
+    agSuggestName();
+
+    $('ag-launch').addEventListener('click', () => {
+      const name = $('ag-name').value.trim();
+      if (!/^[A-Za-z]{2,16}$/.test(name)) { toast('Agent name must be 2-16 letters.'); return; }
+      if (AG.agents.some((a) => a.char === name && a.ws)) { toast(`${name} is already running.`); return; }
+      launchAgent({
+        name,
+        race: $('ag-race').value,
+        guild: $('ag-guild').value,
+        minutes: Math.max(1, Number($('ag-minutes').value) || 10),
+        circleTarget: Math.max(2, Number($('ag-circle').value) || 2),
+        boost: Number($('ag-boost').value) || 0,
+      });
+    });
+    $('ag-stop').addEventListener('click', () => {
+      const live = AG.agents.filter((a) => a.ws);
+      if (!live.length) { toast('No running agents.'); return; }
+      for (const a of live) stopAgent(a, 'stopped by GM');
+    });
+
+    /* ---- GM quick-play: one click into a boosted character ---- */
+    for (const r of AG_RACES) $('qp-race').insertAdjacentHTML('beforeend', `<option value="${r}">${cap(r)}</option>`);
+    for (const g of AG_GUILDS) {
+      $('qp-guilds').insertAdjacentHTML('beforeend',
+        `<button class="watch" data-guild="${g}" title="quick-play a boosted ${cap(g)}">${cap(g)}</button>`);
+    }
+    $('qp-guilds').querySelectorAll('[data-guild]').forEach((b) => b.addEventListener('click', () => {
+      if (!S.token) { toast('GM quick-play needs DR_GM_TOKEN first.'); tokenEl.focus(); return; }
+      const race = $('qp-race').value;
+      const boost = Math.max(0, Number($('qp-boost').value) || 0);
+      const url = `/?play=${encodeURIComponent(b.dataset.guild)},${race}` +
+        (boost > 1 ? `&boost=${boost}` : '') + '#gm=' + encodeURIComponent(S.token);
+      window.open(url, '_blank');
+    }));
 
     /* ================= wiring ================= */
 

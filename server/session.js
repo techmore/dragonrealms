@@ -11,6 +11,7 @@ import { handleCommand } from './commands/index.js';
 import { sendChargenMenu, doCharSelect, doCharCreate, doAlloc, doEnter } from './chargen.js';
 import { subscribe, unsubscribe, subscribeWorld, forward, forwardCommand } from './spectate.js';
 import { isGmToken } from './gm.js';
+import { handleGmPlayMessage } from './gm-play.js';
 import { handleBoostMessage } from './boost.js';
 
 const INPUT_MAX = 20; // commands per second
@@ -182,6 +183,11 @@ function route(session, msg) {
       rateLimit(session);
       handleBoostMessage(session, msg);
       break;
+    case 'gm_play': {
+      rateLimit(session);
+      handleGmPlayMessage(session, msg);
+      break;
+    }
     default:
       session.send({ t: 'error', msg: 'Unknown message type.' });
   }

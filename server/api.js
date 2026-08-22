@@ -199,7 +199,7 @@ export async function apiRequest(req, res, game, {
   // ---- Public endpoints ----
   if (path === '/api/health' && req.method === 'GET') {
     const online = [...game.players.values()].map((p) => ({
-      name: p.name, guild: p.guild?.id || null, circle: p.circle, bot: !!p.isBot,
+      name: p.name, guild: p.guild?.id || null, circle: p.circle, bot: !!p.isBot, gmToon: !!p.gmToon,
     }));
     return json(res, 200, { ok: true, service: 'dragonrealms-test-api', players: game.players.size, online });
   }

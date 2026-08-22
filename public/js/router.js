@@ -12,6 +12,17 @@ import { setToken } from './net.js';
 
 // "?spectate=Name" deep-link: watch that player once a GM credential is stored.
 const autoSpectate = new URLSearchParams(location.search).get('spectate') || '';
+// "?play=barbarian" (optionally "empath,elf") + "&boost=20": GM quick-play —
+// jump straight into an auto-provisioned boosted character with no signup or
+// chargen screens. Requires the #gm=<token> fragment or a stored credential.
+const autoPlay = (() => {
+  const raw = new URLSearchParams(location.search).get('play') || '';
+  if (!raw) return null;
+  const [guild, race] = String(raw).split(',').map((s) => s.trim()).filter(Boolean);
+  if (!guild) return null;
+  const boost = Number(new URLSearchParams(location.search).get('boost')) || 0;
+  return { guild, race: race || 'human', boost };
+})();
 // A #gm=<token> fragment may carry the credential itself (dash Watch links).
 try {
   const m = location.hash.match(/^#gm=([A-Za-z0-9_%-]+)$/);
@@ -36,6 +47,31 @@ function maybeSpectate() {
     return true;
   }
   return autoSpectate ? 'warn' : false;
+}
+
+// GM quick-play launcher: send gm_play the moment the socket is usable.
+// Called from login_prompt / charselect / charcreate handlers — whichever
+// server message lands first after connect — and from net's reconnect path.
+let playSent = false;
+export function maybeGmPlay() {
+  if (!autoPlay || playSent) return true;
+  if (!hasStoredGmToken()) return 'warn';
+  playSent = true;
+  gameState.gmPlay = autoPlay;
+  welcome.hideAll();
+  terminal.clear();
+  terminal.append(`\x1b[1m— GM quick-play: ${autoPlay.guild}${autoPlay.race ? ' ' + autoPlay.race : ''}${autoPlay.boost > 1 ? ` · boost x${autoPlay.boost}` : ''} —\x1b[0m`, 'ch-notice');
+  import('./net.js').then(({ send }) => {
+    let gmToken = '';
+    try { gmToken = localStorage.getItem('dr_gm_token') || ''; } catch {}
+    send({
+      t: 'gm_play', gmToken,
+      guild: autoPlay.guild, race: autoPlay.race,
+      ...(autoPlay.name ? { name: autoPlay.name } : {}),
+      ...(autoPlay.boost > 1 ? { boost: autoPlay.boost } : {}),
+    });
+  });
+  return true;
 }
 
 export const handlers = {
@@ -93,6 +129,9 @@ export const handlers = {
     terminal.append(`> ${msg.line}`, 'ch-echo');
   },
   login_prompt() {
+    const play = maybeGmPlay();
+    if (play === true) return;
+    if (play === 'warn') terminal.append('GM quick-play needs DR_GM_TOKEN — open the link with #gm=<token>.', 'ch-error');
     const spec = maybeSpectate();
     if (spec === true) return;
     status.hideRoomPanel();
@@ -107,7 +146,7 @@ export const handlers = {
     gameState.value = 'logged';
   },
   charselect(msg) {
-    if (maybeSpectate() === true) return;
+    if (maybeGmPlay() === true || maybeSpectate() === true) return;
     gameState.value = 'charselect';
     terminal.append(msg.msg, 'ch-notice');
     welcome.showWelcome('charselect', msg.msg);
