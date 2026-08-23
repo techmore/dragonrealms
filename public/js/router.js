@@ -54,7 +54,7 @@ function maybeSpectate() {
 // server message lands first after connect — and from net's reconnect path.
 let playSent = false;
 export function maybeGmPlay() {
-  if (!autoPlay || playSent) return true;
+  if (!autoPlay || playSent) return false;
   if (!hasStoredGmToken()) return 'warn';
   playSent = true;
   gameState.gmPlay = autoPlay;
@@ -93,13 +93,26 @@ export const handlers = {
   },
   notice(msg) {
     if (panels.capture(msg.msg)) return;
+    if (gameState.spectating && /^You are now watching/.test(msg.msg)) {
+      const name = msg.msg.replace(/^You are now watching\s+/, '').split(' ')[0];
+      import('./net.js').then(({ setStatusOverride }) => setStatusOverride('watching ' + name, 'conn-on'));
+    }
     terminal.append(msg.msg, 'ch-notice');
   },
   error(msg) {
     if (panels.capture(msg.msg, true)) return;
     terminal.append(msg.msg, 'ch-error');
-    if (gameState.spectating && /GM authorization is required/.test(msg.msg)) {
-      import('./spectate-mode.js').then((m) => m.leaveSpectate());
+    if (gameState.spectating) {
+      import('./spectate-mode.js').then(async (m) => {
+        if (/GM authorization is required/.test(msg.msg)) {
+          m.leaveSpectate();
+        } else if (/no adventurer named/i.test(msg.msg)) {
+          // Watch target offline/gone — make the chip honest instead of a
+          // misleading "connected" (the raw socket IS up, but nothing streams).
+          const { setStatusOverride } = await import('./net.js');
+          setStatusOverride('not watching', 'conn-off');
+        }
+      });
     }
   },
   prompt(msg) {

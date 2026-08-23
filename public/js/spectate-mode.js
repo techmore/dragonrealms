@@ -4,7 +4,7 @@
 // `unspectate` to return. Live streams are GM-only because they include the
 // watched player's typed commands; the GM console stores the required token.
 import { $ } from './util.js';
-import { send } from './net.js';
+import { send, setStatusOverride } from './net.js';
 import * as terminal from './terminal.js';
 import * as welcome from './welcome.js';
 import { blockInput, focusInput } from './input.js';
@@ -35,6 +35,7 @@ export function enterSpectate(name) {
     return;
   }
   gameState.spectating = true;
+  setStatusOverride('watching…', 'conn-off');
   welcome.hideAll();
   terminal.clear();
   terminal.append(`\x1b[1m— watching ${watchedName} —\x1b[0m  (type \x1b[1munspectate\x1b[0m to return)`, 'ch-notice');
@@ -61,6 +62,7 @@ export function leaveSpectate() {
   }
   gameState.spectating = false;
   watchedName = null;
+  setStatusOverride(null);
   send({ t: 'unspectate' });
   terminal.append('No longer spectating.', 'ch-notice');
   // Return to whatever flow the session was in.

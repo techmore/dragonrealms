@@ -35,6 +35,20 @@ export function send(obj) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
 }
 
+// Override the connection chip with a session-level meaning (e.g. "watching
+// X", "watch failed"). Pass null to return to the raw connected/disconnected.
+export function setStatusOverride(text, cls) {
+  const el = $('conn-status');
+  if (!el) return;
+  if (text == null) {
+    el.textContent = ws && ws.readyState === WebSocket.OPEN ? 'connected' : 'disconnected';
+    el.className = ws && ws.readyState === WebSocket.OPEN ? 'conn-on' : 'conn-off';
+  } else {
+    el.textContent = text;
+    el.className = cls || 'conn-off';
+  }
+}
+
 function setStatus(on) {
   const el = $('conn-status');
   el.textContent = on ? 'connected' : 'disconnected';
