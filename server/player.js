@@ -3,7 +3,7 @@ import { db } from './db.js';
 import { raceById } from '../data/races.js';
 import { guildById, spellsFor } from '../data/guilds.js';
 import { SKILLS, expToNextRank, pulseGroupFor, mentalStatBonus } from '../data/skills.js';
-import { itemById } from '../data/items.js';
+import { itemById, itemWeight } from '../data/items.js';
 
 export const BASE_STAT = 35;
 export const STAT_POOL = 30;
@@ -13,7 +13,7 @@ export const STAT_NAMES = ['str', 'con', 'ref', 'agi', 'cha', 'dis', 'wis', 'int
 
 export function validName(name) {
   const n = String(name || '').trim();
-  if (n.length < 2 || n.length > 16) return false;
+  if (n.length < 2 || n.length > 20) return false;
   return /^[A-Za-z][A-Za-z' -]*$/.test(n);
 }
 
@@ -61,6 +61,7 @@ function persistentStateFor(p) {
     familiar: p.familiar || null,
     cambrinth: p.cambrinth || null,
     chafferNext: Boolean(p.chafferNext),
+    wounds: Array.isArray(p.wounds) ? p.wounds : [],
     scripts: p.scripts && typeof p.scripts === 'object' ? p.scripts : {},
     spellsKnown: Array.isArray(p.spellsKnown) ? p.spellsKnown : [],
     spellsForgotten: Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [],
@@ -112,7 +113,7 @@ function withInstanceMetadata(item, value = {}) {
 
 export function createCharacter(accountId, { name, race, guild, city = 'crossing' }) {
   const clean = String(name || '').trim();
-  if (!validName(clean)) throw new Error('Name must be 2-16 letters.');
+  if (!validName(clean)) throw new Error('Name must be 2-20 letters.');
   const existing = db.prepare('SELECT COUNT(*) AS c FROM characters WHERE account_id = ?').get(accountId).c;
   if (existing >= MAX_CHARS) throw new Error(`This account already has ${MAX_CHARS} characters. Delete one to create another.`);
   const stats = baseStatsFor(race);
@@ -228,6 +229,7 @@ export function loadPlayer(charId) {
     familiar: persisted.familiar || null,
     cambrinth: persisted.cambrinth || null,
     chafferNext: Boolean(persisted.chafferNext),
+    wounds: Array.isArray(persisted.wounds) ? persisted.wounds : [],
   };
   for (const key of PERSISTED_TIMESTAMPS) {
     player[key] = Number.isFinite(cooldowns[key]) ? cooldowns[key] : 0;
@@ -251,11 +253,11 @@ export function loadPlayer(charId) {
   for (const s of db.prepare('SELECT skill_id, rank, exp FROM skills WHERE character_id = ?').all(charId)) {
     player.skills[s.skill_id] = { rank: s.rank, exp: s.exp };
   }
-  for (const inv of db.prepare('SELECT id, item_id, qty, condition, quality, maker FROM inventory WHERE character_id = ? ORDER BY id').all(charId)) {
+  for (const inv of db.prepare('SELECT id, item_id, qty, condition, quality, maker, bundle FROM inventory WHERE character_id = ? ORDER BY id').all(charId)) {
     const item = itemById(inv.item_id);
     if (!item) continue;
     if (isStackableItem(item)) {
-      player.inventory.push({ id: inv.id, item, qty: inv.qty });
+      player.inventory.push({ id: inv.id, item, qty: inv.qty, ...(inv.bundle ? { bundle: JSON.parse(inv.bundle) } : {}) });
       continue;
     }
 
@@ -304,16 +306,35 @@ export function maxStaminaFor(p) {
 }
 
 // Burden: the total weight class of everything you carry and wear.
-// Heavy gear shrinks the pool and slows recovery (DR encumbrance feel).
+// Slotted gear uses its declared burden; loose carried goods (pelts, ores,
+// shells) each add a fraction of a point so a full hunting pack slows you
+// down like DR encumbrance without counting every coin. Bundled goods are
+// compressed and count only their bundle overhead.
 export function totalBurden(p) {
   let b = 0;
   for (const item of Object.values(p.equipment || {})) b += item.burden || 0;
+  for (const entry of p.inventory || []) {
+    if (entry.bundle) continue; // bundled stacks travel as their own item
+    b += itemWeight(entry.item) * (entry.qty || 1);
+  }
   return b;
 }
 
 // Effective stamina pool after burden: each burden point costs 2 pool.
 export function maxStaminaEff(p) {
-  return Math.max(20, maxStaminaFor(p) - totalBurden(p) * 2);
+  return Math.max(20, maxStaminaFor(p) - netBurden(p) * 2);
+}
+
+// Strength (and the Fitness skill) raise a carry allowance: burden within
+// the allowance is free. Only the excess slows you down, so a strong back
+// hauls a full skinning run without penalty (DR encumbrance feel).
+export function carryAllowance(p) {
+  return Math.floor((p.stats.str + p.stats.con * 0.5) / 10)
+    + ((p.skills.fitness ? p.skills.fitness.rank : 0) >= 20 ? 1 : 0);
+}
+// Burden that actually bites: total minus the STR-backed allowance, floor 0.
+export function netBurden(p) {
+  return Math.max(0, totalBurden(p) - carryAllowance(p));
 }
 
 export function savePlayer(p) {
@@ -494,8 +515,14 @@ export function pulseFraction(p, skillId) {
 // pulses. Trainers and TDP spending use applyExpToSkill directly instead.
 export function gainSkillExp(p, skillId, amount) {
   if (!SKILLS[skillId]) return 0;
-  const amt = Math.max(0, Math.floor(amount));
+  let amt = Math.max(0, Math.floor(amount));
   if (amt <= 0) return 0;
+  // Keen (swiftness draught): alchemical learning aid — +50% skill experience
+  // while the effect lasts (DR-style consumable boost).
+  if (p.buffs && p.buffs.keen > 0) amt = Math.floor(amt * 1.5);
+  // Agent boost: test-only speed multiplier set via {t:'boost', mult:N}.
+  const bm = Number(p.boostMult) || 1;
+  if (bm > 1) amt = Math.floor(amt * bm);
   p.expPools = p.expPools || {};
   const room = Math.max(0, poolCap(p, skillId) - (p.expPools[skillId] || 0));
   if (room <= 0) return 0; // mind lock: the pool is full
@@ -560,6 +587,9 @@ export function pulseExp(p, tick) {
       value = drain * 3;
       p.rexp = Math.max(0, p.rexp - 1 / 3);
     }
+    // Agent boost: ranks convert at the boosted rate as well.
+    const pbm = Number(p.boostMult) || 1;
+    if (pbm > 1) value *= pbm;
     p.expPools[skillId] = pool - drain;
     if (p.expPools[skillId] <= 0) delete p.expPools[skillId];
     pulsed += drain;
@@ -626,14 +656,21 @@ export function addItem(p, itemId, qty = 1, metadata = null) {
   p.handsDirty = true;
   qty = Math.max(1, Math.floor(Number(qty)) || 1);
   if (isStackableItem(item)) {
-    const existing = p.inventory.find((i) => i.item.id === itemId);
+    // A bundle flag merges only into an identical bundle of the same goods.
+    const bundleKey = metadata && typeof metadata === 'object' && !Array.isArray(metadata) && metadata.bundle
+      ? JSON.stringify(metadata.bundle) : null;
+    const existing = p.inventory.find((i) => i.item.id === itemId
+      && (i.bundle ? JSON.stringify(i.bundle) : null) === bundleKey);
     if (existing) {
       existing.qty += qty;
       db.prepare('UPDATE inventory SET qty=? WHERE id=?').run(existing.qty, existing.id);
     } else {
       const info = db.prepare('INSERT INTO inventory (character_id, item_id, qty) VALUES (?,?,?)')
         .run(p.charId, itemId, qty);
-      p.inventory.push({ id: Number(info.lastInsertRowid), item, qty });
+      const entry = { id: Number(info.lastInsertRowid), item, qty };
+      if (bundleKey) entry.bundle = JSON.parse(bundleKey);
+      db.prepare('UPDATE inventory SET bundle=? WHERE id=?').run(bundleKey, entry.id);
+      p.inventory.push(entry);
     }
     return true;
   }

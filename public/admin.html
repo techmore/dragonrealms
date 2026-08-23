@@ -892,15 +892,15 @@
     const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
     function agSuggestName() {
       const g = $('ag-guild').value, r = $('ag-race').value;
-      $('ag-name').value = ('Sw' + cap(g) + cap(r)).replace(/[^a-zA-Z]/g, '').slice(0, 16);
-      // Prefer a readable truncation: keep the Sw prefix + guild, then as much
-      // race as fits (SwBarbarianGortoz -> SwBarbarianGort), so suggestions
-      // never hit the 16-letter server cap mid-race-name.
       const full = 'Sw' + cap(g) + cap(r);
-      if (full.length > 16) {
+      if (full.length > 20) {
+        // Keep the Sw prefix + guild whole, clip the race so suggestions
+        // always fit the 20-letter cap.
         const guildPart = 'Sw' + cap(g);
-        const raceBudget = Math.max(3, 16 - guildPart.length);
-        $('ag-name').value = (guildPart + cap($('ag-race').value).slice(0, raceBudget));
+        const raceBudget = Math.max(3, 20 - guildPart.length);
+        $('ag-name').value = guildPart + cap(r).slice(0, raceBudget);
+      } else {
+        $('ag-name').value = full;
       }
     }
 
@@ -1111,16 +1111,16 @@
 
     $('ag-launch').addEventListener('click', () => {
       let name = $('ag-name').value.trim();
-      if (!/^[A-Za-z]{2,16}$/.test(name)) {
-        // Auto-trim overlong composite names (Sw<Guild><Race> easily exceeds
-        // 16) rather than bouncing the launch — surface what we did.
-        const trimmed = name.replace(/[^A-Za-z]/g, '').slice(0, 16);
+      if (!/^[A-Za-z]{2,20}$/.test(name)) {
+        // Auto-trim overlong composite names (Sw<Guild><Race> can exceed 20)
+        // rather than bouncing the launch — surface what we did.
+        const trimmed = name.replace(/[^A-Za-z]/g, '').slice(0, 20);
         if (trimmed.length >= 2) {
-          toast(`Name too long (server max 16) — launching as "${trimmed}".`);
+          toast(`Name too long (server max 20) — launching as "${trimmed}".`);
           name = trimmed;
           $('ag-name').value = trimmed;
         } else {
-          toast('Agent name must be 2-16 letters.');
+          toast('Agent name must be 2-20 letters.');
           return;
         }
       }
