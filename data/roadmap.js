@@ -31,6 +31,8 @@ export const STAGES = [
     desc:"Hunting ladders, Crossing/Riverhaven depth, skill-system structure, magic mechanics, crafting, PvP & justice." },
   { id:14, title:"Stage 14 — Tooling & Ops", badge:"done",
     desc:"Progression simulator, skills doc builder, mapper agent walker, server ops (single-world guard + token publishing)." },
+  { id:15, title:"Stage 15 — Code Health & Modularity", badge:"",
+    desc:"Refactor pass from the modularity audit: extract delegates out of the Game facade, unify transport/auth helpers, split admin console modules." },
 ];
 
 export const FEATURES = [
@@ -218,4 +220,10 @@ export const FEATURES = [
   { s:7, id:"f182", label:"RT blocks on the input bar", detail:"live: red second-blocks overlay the left edge while roundtime binds; typing always allowed", status:"done" },
   { s:14, id:"f183", label:"Mapper agent tooling", detail:"node scripts/mapper-agent.mjs — logs in as a player, walks route JSON step-by-step, records per-step results (public/live/mapper-<run>.log + mapper-latest-summary.json); walker-finds-breaks / fixer-consults-map loop for world edits", status:"done" },
   { s:14, id:"f184", label:"Server ops", detail:"single-world guard: boot probes the port and refuses a duplicate world (desyncs GM tokens/sessions); resolved GM token published to /tmp/dr-world-token-<port>.json (mode 0600) for the menu-bar app and Watch deep links", status:"done" },
+  { s:15, id:"f185", label:"Extract Game facade delegates", detail:"weather.js, corpses/floor-items, justice.js out of game.js (89 methods -> ~half); restore pure one-line delegation invariant; justice fine math out of move()", status:"pending" },
+  { s:15, id:"f186", label:"Unify transport sends", detail:"shared say()/send() on Player or Game; purge raw ws.send(JSON.stringify) from economy/wilds/quests/pvp/combat/combat-manager/status/player (35 call sites)", status:"pending" },
+  { s:15, id:"f187", label:"Consolidate GM token handling", detail:"move isGmToken from gm.js to http-auth.js; single public/js/gm-token.js harvest — fixes divergent regexes (gm-console.js + admin.html miss %, so URL-encoded tokens silently fail)", status:"pending" },
+  { s:15, id:"f188", label:"Split admin.html inline script", detail:"942-line inline script -> public/js/admin/*.js ES modules: api helpers, polling/render, jobs tailer, sim-agent engine, world-graph pathing, player view", status:"pending" },
+  { s:15, id:"f189", label:"Flatten command verb chain", detail:"combat->magic->items->character cross-imports: move shared verbs (loadWord, learnSpell, craftTechnique, stationVerbs) to commands/util.js; consolidate mid-file imports at top", status:"pending" },
+  { s:15, id:"f190", label:"Dedupe helpers & queries", detail:"pad x4, cap x3, DIRS map x3 into server/util.js; charsFor query shared between api.js and session.js; spectate room-header rendering reuses game's renderer", status:"pending" },
 ];
