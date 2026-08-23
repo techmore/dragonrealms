@@ -893,6 +893,15 @@
     function agSuggestName() {
       const g = $('ag-guild').value, r = $('ag-race').value;
       $('ag-name').value = ('Sw' + cap(g) + cap(r)).replace(/[^a-zA-Z]/g, '').slice(0, 16);
+      // Prefer a readable truncation: keep the Sw prefix + guild, then as much
+      // race as fits (SwBarbarianGortoz -> SwBarbarianGort), so suggestions
+      // never hit the 16-letter server cap mid-race-name.
+      const full = 'Sw' + cap(g) + cap(r);
+      if (full.length > 16) {
+        const guildPart = 'Sw' + cap(g);
+        const raceBudget = Math.max(3, 16 - guildPart.length);
+        $('ag-name').value = (guildPart + cap($('ag-race').value).slice(0, raceBudget));
+      }
     }
 
     function agLog(agent, text, cls) {
@@ -1101,8 +1110,20 @@
     agSuggestName();
 
     $('ag-launch').addEventListener('click', () => {
-      const name = $('ag-name').value.trim();
-      if (!/^[A-Za-z]{2,16}$/.test(name)) { toast('Agent name must be 2-16 letters.'); return; }
+      let name = $('ag-name').value.trim();
+      if (!/^[A-Za-z]{2,16}$/.test(name)) {
+        // Auto-trim overlong composite names (Sw<Guild><Race> easily exceeds
+        // 16) rather than bouncing the launch — surface what we did.
+        const trimmed = name.replace(/[^A-Za-z]/g, '').slice(0, 16);
+        if (trimmed.length >= 2) {
+          toast(`Name too long (server max 16) — launching as "${trimmed}".`);
+          name = trimmed;
+          $('ag-name').value = trimmed;
+        } else {
+          toast('Agent name must be 2-16 letters.');
+          return;
+        }
+      }
       if (AG.agents.some((a) => a.char === name && a.ws)) { toast(`${name} is already running.`); return; }
       launchAgent({
         name,
