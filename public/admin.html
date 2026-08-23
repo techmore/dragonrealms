@@ -941,6 +941,7 @@
       AG.agents.push(agent);
       agLog(agent, `launching as ${agent.user} (${race} ${guild}, ${minutes}m, circle ${circleTarget}, boost x${boost || 'off'})`);
       agRenderState();
+      loadWorldGraph().catch((e) => agLog(agent, `world graph unavailable: ${e.message}`, 'bad'));
       agHttpLogin(agent)
         .then(() => agConnect(agent))
         .catch((e) => { agLog(agent, `FAILED: ${e.message}`, 'bad'); agent.ws = null; agRenderState(); });
@@ -1070,6 +1071,50 @@
     // Event-driven hunt loop: rest when hurt, re-look when quiet, attack the
     // creature last seen in the room once roundtime clears. Wall-clock
     // deadlines (not prompt counters) gate everything — prompts are sparse.
+    // World graph for agent pathing: fetched once (GM API), used to walk
+    // agents toward rooms with creature spawns when no target is present.
+    let WORLD_GRAPH = null; // { adj: Map<roomId, {dir,room}[]>, spawns: Set<roomId> }
+    async function loadWorldGraph() {
+      if (WORLD_GRAPH) return WORLD_GRAPH;
+      const r = await gm('world');
+      if (!r.ok || !r.d?.zones) throw new Error('world data unavailable');
+      const adj = new Map();
+      const spawns = new Set();
+      for (const z of r.d.zones) {
+        for (const room of z.rooms) {
+          const exits = Object.entries(room.exits || {}).map(([dir, to]) => ({ dir, room: to }));
+          adj.set(room.id, exits);
+          if ((room.spawns || []).length) spawns.add(room.id);
+        }
+      }
+      WORLD_GRAPH = { adj, spawns };
+      return WORLD_GRAPH;
+    }
+
+    // BFS from `from` to the nearest spawn room; returns the first move step.
+    function nextStepTowardSpawns(from) {
+      if (!WORLD_GRAPH) return null;
+      const { adj, spawns } = WORLD_GRAPH;
+      if (!adj.has(from)) return null;
+      if (spawns.has(from)) return null; // already in a hunting ground
+      const visited = new Set([from]);
+      let frontier = [{ room: from, step: null }];
+      while (frontier.length) {
+        const next = [];
+        for (const node of frontier) {
+          for (const edge of (adj.get(node.room) || [])) {
+            if (visited.has(edge.room)) continue;
+            visited.add(edge.room);
+            const step = node.step || edge;
+            if (spawns.has(edge.room)) return step;
+            next.push({ room: edge.room, step });
+          }
+        }
+        frontier = next;
+      }
+      return null;
+    }
+
     function agTickLoop(agent) {
       if (agent.stopping || !agent.ws) return;
       const v = agent.v;
@@ -1085,9 +1130,21 @@
       } else if (!rtBound && !v.resting) {
         if (agent.target) {
           void agCmd(agent, AG_MAGIC_GUILDS.has(agent.guild) ? `cast ${agent.target}` : `attack ${agent.target}`);
+        } else if (agent.movePath && Date.now() - agent.lastMoveAt > 1200) {
+          // Walking toward hunting grounds: one step per ~1.2s.
+          agent.lastMoveAt = Date.now();
+          void agCmd(agent, agent.movePath.dir).then(() => { agent.movePath = null; });
         } else if (Date.now() - agent.lastLookAt > 4000) {
           agent.lastLookAt = Date.now();
-          void agCmd(agent, 'look');
+          // No creature here — if we're not in a spawn room, start walking.
+          const step = v.room ? nextStepTowardSpawns(v.room) : null;
+          if (step) {
+            agent.movePath = step;
+            agLog(agent, `heading to hunting grounds via ${step.dir}`);
+            void agCmd(agent, step.dir);
+          } else {
+            void agCmd(agent, 'look');
+          }
         }
       }
       agRenderState();
