@@ -34,8 +34,8 @@ export const GUILD_SCRIPTS = {
 
   thief: {
     magic: false,
-    fight: ['put attack %target', 'put backstab %target'],
-    preFight: ['put khri elusion'],   // concentration pool probe
+    fight: ['put hide', 'put backstab %target', 'put attack %target'],
+    preFight: ['put khri elusion'],   // concentration pool; stealth gated separately
     signature: { cmd: 'khri focus', ok: /You focus Khri/i, probe: 'khri' },
     armVerb: 'wield',
     trainSets: {
@@ -89,7 +89,8 @@ export const GUILD_SCRIPTS = {
       magic: ['war_magic', 'offensive_magic', 'primary_magic'],
     },
     defaultTrain: ['war_magic', 'offensive_magic', 'primary_magic', 'summoning',
-      'evasion', 'chain_armor', 'medium_edged', 'attunement', 'elemental_lore', 'perception'],
+      'targeted_magic', 'evasion', 'parry', 'chain_armor', 'shield_usage',
+      'medium_edged', 'attunement', 'elemental_lore', 'scholarship', 'perception'],
     fidelityChecks: [
       { name: 'prepare-spell', re: /You begin preparing/i },
       { name: 'cast-lands', re: /You cast Fire Shard|engulfed for \d+ damage/i },

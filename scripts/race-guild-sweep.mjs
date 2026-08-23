@@ -188,7 +188,7 @@ class SweepAgent {
     const s = this.session;
     this.runner = createRunner(src, [], {
       send: async (line) => {
-        if (/^(attack|tdptrain|flee|rest|stand|circle|buy|wield|prepare|cast|khri|enchant|backstab|analyze|roar|drink|effects)/.test(line)) {
+        if (/^(attack|tdptrain|flee|rest|stand|circle|buy|wield|prepare|cast|khri|enchant|backstab|analyze|roar|drink|effects|stealth|hide)/.test(line)) {
           this.appendLog(`script> ${line}`);
           log(`[${this.guild}/${this.race}] > ${line}`);
         } else if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) {
@@ -311,7 +311,10 @@ class SweepAgent {
   supervise() {
     if (this.done) return;
     const v = this.session.vitals;
-    if (v.maxhp && v.inCombat && v.hp / v.maxhp < 0.28 && Date.now() - this.lastFleeAt > 6000) {
+    // Fresh characters (circle 1) flee earlier: a single death early in a run
+    // costs gear + TDP pool and spirals into the D grades seen in grading.
+    const fleeAt = (v.circle || 1) <= 1 ? 0.45 : 0.28;
+    if (v.maxhp && v.inCombat && v.hp / v.maxhp < fleeAt && Date.now() - this.lastFleeAt > 6000) {
       this.lastFleeAt = Date.now();
       this.appendLog(`[interlock] HP ${v.hp}/${v.maxhp} — fleeing`);
       void this.session.cmd('flee');

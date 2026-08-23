@@ -54,7 +54,7 @@ function buildHuntScript({ cap, arena, hallPath }) {
   L.push('  pause 2');
   L.push('  iflt hp 40 goto REST');
   if (cfg.magic) L.push('  iflt mana 8 goto WEAKSWING');
-  for (const pre of cfg.preFight || []) L.push(`  put ${pre.replace('%target', '')}`);
+  for (const pre of cfg.preFight || []) L.push(`  put ${pre.replace(/^put /, '').replace('%target', '')}`);
   L.push('  put look');
   const species = [...new Set(ROOMS[arena.id]?.spawns || [])];
   for (const sp of species) {
