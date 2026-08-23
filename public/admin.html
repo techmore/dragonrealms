@@ -472,9 +472,12 @@
           <td>${c.silver}</td>
         </tr>`).join('');
     }
-    $('hs-prev').onclick = () => { if (HS.page > 1) { HS.page--; loadHighScores(); } };
-    $('hs-next').onclick = () => { HS.page++; loadHighScores(); };
-    $('hs-sort').onchange = () => { HS.sort = $('hs-sort').value; HS.page = 1; loadHighScores(); };
+    // High-scores wiring is optional: the section may be absent from the page
+    // (removed in a UI pass). Guard so a missing element can't throw and kill
+    // the whole init script — that took the whole dash down as "OFFLINE".
+    if ($('hs-prev')) $('hs-prev').onclick = () => { if (HS.page > 1) { HS.page--; loadHighScores(); } };
+    if ($('hs-next')) $('hs-next').onclick = () => { HS.page++; loadHighScores(); };
+    if ($('hs-sort')) $('hs-sort').onchange = () => { HS.sort = $('hs-sort').value; HS.page = 1; loadHighScores(); };
 
     /* ================= polling ================= */
 
@@ -1227,6 +1230,13 @@
       S.updatedAgo = S.statusAt ? Math.round((Date.now() - S.statusAt) / 1000) : null;
       renderHeader();
     }, 1000);
+
+    // Browsers throttle background-tab timers heavily; when the tab regains
+    // focus, poll immediately instead of waiting out the interval so a stale
+    // OFFLINE pill can't linger after the world comes back.
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) tick(true);
+    });
 
     startMaster();
     setInterval(pollJob, 2000);
