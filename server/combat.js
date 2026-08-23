@@ -9,6 +9,7 @@ import {
   weaponOf, skillRank, effectiveRank, totalArmor, gainSkillExp, defenseSkillOf,
   countItems, removeItem, addItem, totalBurden, netBurden, maxStaminaEff, conditionMult, qualityMult,
   wearCondition, setRoundtime, MASTERY_SETS, stancePoints, roundtimeLeft,
+  say, sayRaw,
 } from './player.js';
 import { itemById } from '../data/items.js';
 import { rollWound, bleedInfo, bleedRate, tendWound, tendRoundtime, clotTick } from './wounds.js';
@@ -128,12 +129,12 @@ export class Combat {
   say(msg) {
     const targets = [this.player, this.defender].filter((t) => t && t.online && t.ws);
     if (typeof msg === 'string') {
-      for (const t of targets) t.ws.send(JSON.stringify({ t: 'combat', msg }));
+      for (const t of targets) say(t, msg, 'combat');
       return;
     }
     for (const t of targets) {
       const text = t === this.player ? msg.initiator : msg.defender;
-      t.ws.send(JSON.stringify({ t: 'combat', msg: text }));
+say(t, text, 'combat');
     }
   }
 
@@ -1422,11 +1423,11 @@ export class Combat {
       range: e.range,
       circle: e.def.circle,
     }));
-    this.player.ws.send(JSON.stringify({
+    sayRaw(this.player, {
       t: 'targets',
       enemies,
       rt: roundtimeLeft(this.player),
-    }));
+    });
   }
 }
 

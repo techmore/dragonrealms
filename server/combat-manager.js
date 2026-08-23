@@ -1,7 +1,7 @@
 // Combat lifecycle: spawns, teardown, duels, death/flee, the ticker.
 // The per-fight state machine lives in Combat (server/combat.js).
 import { Combat } from './combat.js';
-import { weaponOf, totalArmor, defenseSkillOf } from './player.js';
+import { weaponOf, totalArmor, defenseSkillOf, say, sayRaw } from './player.js';
 import { roomById } from '../data/world.js';
 
 const TICK_MS = 1000;
@@ -50,9 +50,9 @@ export class CombatManager {
     this.combats.delete(player.charId);
     player.combatId = null;
     // Clear the client's target window.
-    if (player.ws) player.ws.send(JSON.stringify({ t: 'targets', enemies: [] }));
+    sayRaw(player, { t: 'targets', enemies: [] });
     if (result.win) {
-      player.ws.send(JSON.stringify({ t: 'combat', msg: '\nVictory! You stand over your fallen foes.' }));
+say(player, '\nVictory! You stand over your fallen foes.', 'combat');
       this.game.status(player);
     } else if (result.fled) {
       this.handleFled(player, result.fleeTo);
@@ -98,7 +98,7 @@ export class CombatManager {
     player.combatId = null;
     defender.combatId = null;
     const sayTo = (target, msg) => {
-      if (target && target.online && target.ws) target.ws.send(JSON.stringify({ t: 'combat', msg }));
+      if (target && target.online) say(target, msg, 'combat');
     };
     if (result.conceded) {
       sayTo(player, `\n${defender.name} yields — the duel ends. You win by forfeit.`);
@@ -178,7 +178,7 @@ export class CombatManager {
     combat.player.combatId = null;
     if (combat.defender) combat.defender.combatId = null;
     if (other && other.online && other.ws) {
-      other.ws.send(JSON.stringify({ t: 'combat', msg: `${player.name} vanished from the fight. You stand alone.` }));
+say(other, `${player.name} vanished from the fight. You stand alone.`, 'combat');
       this.game.status(other);
     }
   }
@@ -202,7 +202,7 @@ export class CombatManager {
     const belongings = corpse
       ? ' Your belongings lie with your corpse where you fell — return to reclaim them.'
       : ' You were carrying nothing of worth.';
-    player.ws.send(JSON.stringify({ t: 'combat', msg: `You awaken in the Temple of the Pantheon, a healer dabbing your brow. You feel hollowed out — some of your hard-won experience has slipped away.${belongings}` }));
+say(player, `You awaken in the Temple of the Pantheon, a healer dabbing your brow. You feel hollowed out — some of your hard-won experience has slipped away.${belongings}`, 'combat');
     this.game.look(player);
     this.game.status(player);
   }
@@ -211,7 +211,7 @@ export class CombatManager {
     player.hp = Math.max(1, player.hp - Math.floor(player.hp * 0.1));
     if (fleeTo) player.room = fleeTo;
     player.corpses = [];
-    player.ws.send(JSON.stringify({ t: 'combat', msg: fleeTo ? 'You stagger back through the gate, breathing hard.' : 'You break free and slip away, heart hammering.' }));
+say(player, fleeTo ? 'You stagger back through the gate, breathing hard.' : 'You break free and slip away, heart hammering.', 'combat');
     this.game.look(player);
     this.game.status(player);
   }

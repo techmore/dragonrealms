@@ -28,6 +28,30 @@ export function baseStatsFor(raceId) {
 
 export const CITIES = { crossing: 'square', riverhaven: 'rh_square' };
 
+// Single transport seam: domain modules send player-facing lines through
+// these instead of hand-building ws frames. Spectate mirroring and any
+// future transport change then happen in one place. All tolerate a missing
+// or closed socket (offline players, HTTP-only sessions).
+export function say(p, msg, type = 'msg') {
+  if (p && p.ws && typeof p.ws.send === 'function') {
+    p.ws.send(JSON.stringify({ t: type, msg }));
+  }
+}
+
+// Structured frames (e.g. `room` with exits/contents) that don't fit the
+// {t, msg} shape. Same transport seam rules as say().
+export function sayRaw(p, frame) {
+  if (p && p.ws && typeof p.ws.send === 'function') {
+    p.ws.send(JSON.stringify(frame));
+  }
+}
+
+export function sayRoom(game, roomId, msg, exceptCharId = null) {
+  for (const o of game.players.values()) {
+    if (o.room === roomId && o.charId !== exceptCharId) say(o, msg);
+  }
+}
+
 // Compact character summaries for char-select surfaces (WS + HTTP API).
 export function charsFor(accountId) {
   return db.prepare('SELECT id, name, race, guild, circle FROM characters WHERE account_id=? ORDER BY created_at')
@@ -452,9 +476,7 @@ export function unlockAchievement(p, id) {
   p.achievements = p.achievements || [];
   if (p.achievements.includes(id)) return false;
   p.achievements.push(id);
-  if (p.ws && typeof p.ws.send === 'function') {
-    p.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1mAchievement unlocked: ${ACHIEVEMENTS[id].name}!\x1b[0m (${ACHIEVEMENTS[id].desc})` }));
-  }
+  say(p, `\n\x1b[1mAchievement unlocked: ${ACHIEVEMENTS[id].name}!\x1b[0m (${ACHIEVEMENTS[id].desc})`);
   return true;
 }
 

@@ -3,7 +3,7 @@
 // one-line delegating methods so callers are unchanged.
 import { roomById } from '../data/world.js';
 import { db } from './db.js';
-import { addItem, removeItemInstances, gainSkillExp } from './player.js';
+import { addItem, removeItemInstances, gainSkillExp, say } from './player.js';
 
 // ---------- Duels ----------
 export function canDuelHere(game, p) {
@@ -17,7 +17,7 @@ export function challengeDuel(game, p, targetName, end = 'blood', reason = '') {
   // Paladins may not strike first (code of honor).
   if (p.guild.id === 'paladin') {
     p.soul = Math.max(0, (p.soul ?? 50) - 5);
-    p.ws.send(JSON.stringify({ t: 'msg', msg: 'Your oath forbids striking first. Your soul dims slightly. (-5 soul)' }));
+say(p, 'Your oath forbids striking first. Your soul dims slightly. (-5 soul)');
   }
   const n = targetName.toLowerCase();
   const target = [...game.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === n);
@@ -43,7 +43,7 @@ export function challengeDuel(game, p, targetName, end = 'blood', reason = '') {
 
   const key = `${p.charId}|${target.charId}`;
   game.pendingDuels.set(key, { initiator: p.charId, target: target.charId, createdAt: Date.now(), end, reason });
-  target.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1m${p.name} challenges you to a duel!\x1b[0m (ends when ${endLabel})${reasonLine} Type "accept ${p.name}" or "decline ${p.name}".` }));
+say(target, `\n\x1b[1m${p.name} challenges you to a duel!\x1b[0m (ends when ${endLabel})${reasonLine} Type "accept ${p.name}" or "decline ${p.name}".`);
   return { ok: true, msg: `You challenge ${target.name} to a duel (ends when ${endLabel})${reasonLine}. They must "accept" it to begin.` };
 }
 
@@ -77,7 +77,7 @@ export function declineDuel(game, p, initiatorName) {
   if (!initiator) return { ok: false, msg: 'There is no such adventurer here.' };
   const key = `${initiator.charId}|${p.charId}`;
   if (!game.pendingDuels.delete(key)) return { ok: false, msg: 'You have no pending duel with them.' };
-  initiator.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} declines your duel.` }));
+say(initiator, `${p.name} declines your duel.`);
   return { ok: true, msg: `You decline the duel.` };
 }
 
@@ -88,7 +88,7 @@ export function partyInvite(game, p, targetName) {
   if (!target) return { ok: false, msg: 'There is no such adventurer here.' };
   if (target.party) return { ok: false, msg: `${target.name} is already in a party.` };
   target.pendingParty = p.charId;
-  target.ws.send(JSON.stringify({ t: 'msg', msg: `\n${p.name} asks you to join their party. Type "party join" to accept.` }));
+say(target, `\n${p.name} asks you to join their party. Type "party join" to accept.`);
   return { ok: true, msg: `${target.name} has been asked. They can "party join" to accept.` };
 }
 
@@ -181,7 +181,7 @@ export function auctionBuy(game, p, listingId) {
   const seller = game.players.get(lot.seller);
   if (seller && seller.online) {
     seller.silver += lot.price;
-    if (seller.ws) seller.ws.send(JSON.stringify({ t: 'msg', msg: `Your lot sold at auction: ${lot.itemName}${lot.qty > 1 ? ` x${lot.qty}` : ''} for ${lot.price} silvers.` }));
+    say(seller, `Your lot sold at auction: ${lot.itemName}${lot.qty > 1 ? ` x${lot.qty}` : ''} for ${lot.price} silvers.`);
   } else {
     // Offline sellers are paid into the bank.
     db.prepare('UPDATE characters SET bank = bank + ? WHERE id = ?').run(lot.price, lot.seller);

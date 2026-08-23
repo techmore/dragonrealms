@@ -3,7 +3,9 @@ import { roomById } from '../data/world.js';
 import { npcById } from '../data/npcs.js';
 import { guildTitle } from '../data/guilds.js';
 import { SKILLS, mindstate } from '../data/skills.js';
-import { roundtimeLeft, weaponOf, poolCap } from './player.js';
+import { roundtimeLeft, weaponOf, poolCap, sayRaw } from './player.js';
+import { BLEED_LEVELS } from './wounds.js';
+const BLEED_NAMES = Object.fromEntries(BLEED_LEVELS.map((b) => [b.level, b.name]));
 
 export const status = {
   guildTrainer(p) {
@@ -30,6 +32,9 @@ export const status = {
     const rtTxt = rt > 0 ? `  \x1b[31mRT: ${rt}\x1b[0m` : '';
     const hidden = p.hidden ? '  \x1b[1m[Hidden]\x1b[0m' : '';
     const resting = p.resting ? '  [Resting]' : '';
+    // Agent boost tag: boosted test runs are always visible in the prompt.
+    const bm = Number(p.boostMult) || 1;
+    const boost = bm > 1 ? `  [BOOST x${bm}]` : '';
     // Hands (DR client window): push a structured inventory snapshot whenever
     // gear changed — the client keeps a persistent "hands" bar.
     if (p.handsDirty) {
@@ -47,18 +52,23 @@ export const status = {
         if (!slots[slot]) slots[slot] = [];
         slots[slot].push({ name: i.name, cond: Math.round(i.condition ?? 100) });
       }
-      p.ws.send(JSON.stringify({
+      sayRaw(p, {
         t: 'hands',
         hand: w ? w.name : null,
         worn,
         carried,
         slots,
-      }));
+      });
     }
-    p.ws.send(JSON.stringify({
+    // Bleeding wounds show in the prompt (DR shows bleeders in health).
+    const openWounds = (p.wounds || []).filter((w) => !w.resolved);
+    const bleedTxt = openWounds.length
+      ? `  \x1b[31m[bleeding: ${openWounds.map((w) => `${w.part} (${BLEED_NAMES[w.level] || w.level})`).join(', ')}]\x1b[0m`
+      : '';
+    sayRaw(p, {
       t: 'prompt',
-      msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${hidden}${resting}${prep}\n> `,
-    }));
+      msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${hidden}${resting}${boost}${prep}${bleedTxt}\n> `,
+    });
     // FE tracker (DR field-experience pane): push skills currently learning,
     // throttled to ~10s.
     if (!p.feAt || Date.now() - p.feAt > 10000) {
@@ -81,7 +91,7 @@ export const status = {
           'enthralled', 'nearly locked', 'mind lock'];
         return order.indexOf(b.mindstate) - order.indexOf(a.mindstate);
       });
-      p.ws.send(JSON.stringify({ t: 'mindstate', skills: rows.slice(0, 10) }));
+      sayRaw(p, { t: 'mindstate', skills: rows.slice(0, 10) });
     }
   },
 

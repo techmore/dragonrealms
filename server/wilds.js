@@ -3,7 +3,7 @@
 import { ROOMS, ZONES, roomById } from '../data/world.js';
 import { creatureById } from '../data/creatures.js';
 import { itemById } from '../data/items.js';
-import { skillRank, gainSkillExp, addItem, unlockAchievement } from './player.js';
+import { skillRank, gainSkillExp, addItem, unlockAchievement, say } from './player.js';
 import { clotTick } from './wounds.js';
 import { cap, pad } from './util.js';
 
@@ -222,7 +222,7 @@ export const wilds = {
         p.wounds = p.wounds.filter((w) => !w.resolved);
       }
       if (ticks % 10 === 0) p.rexp = Math.min(120, (p.rexp || 0) + 1);
-      p.ws.send(JSON.stringify({ t: 'msg', msg: `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}, stamina ${p.stamina}/${p.maxStaminaEff}${restful ? ' (warm and dry)' : ''}` }));
+say(p, `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}, stamina ${p.stamina}/${p.maxStaminaEff}${restful ? ' (warm and dry)' : ''}`);
       if (p.hp >= p.maxHp && (!p.guild.magic || p.mana >= p.maxMana) && p.stamina >= p.maxStaminaEff) wilds.stopRest(p);
       if (ticks >= 20) wilds.stopRest(p);
     }, 2000);
@@ -260,7 +260,7 @@ export const wilds = {
 
   stopRest(p) {
     if (p.restTimer) { clearInterval(p.restTimer); p.restTimer = null; }
-    if (p.resting) { p.resting = false; p.ws.send(JSON.stringify({ t: 'msg', msg: 'You rise, feeling more yourself.' })); }
+    if (p.resting) { p.resting = false;say(p, 'You rise, feeling more yourself.'); }
   },
 
   lookDirection(game, p, dir) {

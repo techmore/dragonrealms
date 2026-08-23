@@ -4,6 +4,7 @@
 // server/quests.js, and server/status.js — this class delegates to them.
 import { roomById, ROOMS, ZONES } from '../data/world.js';
 import { DIR_NAMES, cap } from './util.js';
+import { say, sayRaw } from './player.js';
 import { db } from './db.js';
 import { npcById } from '../data/npcs.js';
 import { creatureById, RARES } from '../data/creatures.js';
@@ -186,7 +187,7 @@ export class Game {
       this.throttleNotices.set(key, this.throttleEpoch);
       for (const o of this.players.values()) {
         if (o.room === roomId) {
-          o.ws.send(JSON.stringify({ t: 'msg', msg: 'The hunting here has grown thin — the game has scattered. (Move on, and the ground will recover.)' }));
+          say(o, 'The hunting here has grown thin — the game has scattered. (Move on, and the ground will recover.)');
         }
       }
     }
@@ -294,7 +295,7 @@ export class Game {
       p.jailUntil = 0;
       p.crimeHeat = 0;
       p.warrant = null;
-      p.ws.send(JSON.stringify({ t: 'msg', msg: `The judge's verdict is read: ${fine} silvers in town costs. You pay ${paid}${paid < fine ? ` — the remaining ${fine - paid} silvers stand as town debt` : ''} and the cell door opens.${hadWarrant ? ' Your warrant is cleared.' : ''}` }));
+      say(p, `The judge's verdict is read: ${fine} silvers in town costs. You pay ${paid}${paid < fine ? ` — the remaining ${fine - paid} silvers stand as town debt` : ''} and the cell door opens.${hadWarrant ? ' Your warrant is cleared.' : ''}`);
     }
     this.stopRest(p);
     p.hidden = false;
@@ -379,7 +380,7 @@ export class Game {
   chargeMurder(p) {
     p.warrant = { charge: 'murder', issuedAt: Date.now() };
     p.pvpStance = 'open';
-    p.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1mMURDER!\x1b[0m The Crossing has issued a WARRANT for your arrest. Guards will seize you on sight. "recall warrant" to read it, or "surrender" to turn yourself in.` }));
+    say(p, `\n\x1b[1mMURDER!\x1b[0m The Crossing has issued a WARRANT for your arrest. Guards will seize you on sight. "recall warrant" to read it, or "surrender" to turn yourself in.`);
     this.persistPlayer(p);
   }
 
@@ -392,7 +393,7 @@ export class Game {
         if (take > 0) {
           p.silver -= take;
           p.debt = debt - take;
-          p.ws.send(JSON.stringify({ t: 'msg', msg: `A guard eyes you at the guardhouse ledger. "You still owe the town ${p.debt} silvers." He takes ${take} from your purse toward it.` }));
+          say(p, `A guard eyes you at the guardhouse ledger. "You still owe the town ${p.debt} silvers." He takes ${take} from your purse toward it.`);
           this.persistPlayer(p);
         }
       }
@@ -405,7 +406,7 @@ export class Game {
     p.combatId = null;
     const combat = this.combat.getFor(p);
     if (combat) this.combat.disconnect(p);
-    p.ws.send(JSON.stringify({ t: 'msg', msg: `\nA guard claps a hand on your shoulder. "${p.warrant.charge.toUpperCase()} — the warrant is read, the cell is ready."\nYou are dragged to the Town Cells, lighter by a third of your purse.` }));
+    say(p, `\nA guard claps a hand on your shoulder. "${p.warrant.charge.toUpperCase()} — the warrant is read, the cell is ready."\nYou are dragged to the Town Cells, lighter by a third of your purse.`);
     this.look(p);
     this.status(p);
     this.persistPlayer(p);
@@ -419,7 +420,7 @@ export class Game {
     p.hidden = false;
     const combat = this.combat.getFor(p);
     if (combat) this.combat.disconnect(p);
-    p.ws.send(JSON.stringify({ t: 'msg', msg: `\nYou raise your hands. A guard steps forward and reads the warrant — ${p.warrant.charge.toUpperCase()}. "Turned yourself in, eh? The judge will hear you soon enough."\nYou are taken to the Town Cells.` }));
+    say(p, `\nYou raise your hands. A guard steps forward and reads the warrant — ${p.warrant.charge.toUpperCase()}. "Turned yourself in, eh? The judge will hear you soon enough."\nYou are taken to the Town Cells.`);
     this.look(p);
     this.status(p);
     this.persistPlayer(p);
@@ -434,7 +435,7 @@ export class Game {
     defender.room = 'temple';
     defender.corpses = [];
     if (defender.online && defender.ws) {
-      defender.ws.send(JSON.stringify({ t: 'combat', msg: `You have been defeated in a duel and wake in the Temple of the Pantheon, nursing your wounds.` }));
+      say(defender, `You have been defeated in a duel and wake in the Temple of the Pantheon, nursing your wounds.`, 'combat');
       this.look(defender);
       this.status(defender);
     }
@@ -487,7 +488,8 @@ export class Game {
       players: others.map((o) => o.name),
     };
 
-    p.ws.send(JSON.stringify({ t: 'room', msg: out, exits, roomId: p.room, contents }));
+    // Room messages carry structured exits/contents for the client panels.
+    sayRaw(p, { t: 'room', msg: out, exits, roomId: p.room, contents });
   }
 
   // ---------- Justice ----------
@@ -518,7 +520,7 @@ export class Game {
     p.combatId = null;
     const combat = this.combat.getFor(p);
     if (combat) this.combat.disconnect(p);
-    p.ws.send(JSON.stringify({ t: 'msg', msg: `\nA guard seizes your arm! "Caught red-handed, thief."\nYou are dragged to the Town Cells. ${taken} silvers are confiscated.\nType "plead guilty" to pay your fine, or "plead innocent" to wait for the judge.` }));
+    say(p, `\nA guard seizes your arm! "Caught red-handed, thief."\nYou are dragged to the Town Cells. ${taken} silvers are confiscated.\nType "plead guilty" to pay your fine, or "plead innocent" to wait for the judge.`);
     this.look(p);
     this.status(p);
     this.persistPlayer(p);

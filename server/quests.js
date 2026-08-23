@@ -5,7 +5,7 @@
 import { roomById } from '../data/world.js';
 import { creatureById } from '../data/creatures.js';
 import { SKILLS } from '../data/skills.js';
-import { gainSkillExp, unlockAchievement } from './player.js';
+import { gainSkillExp, unlockAchievement, say, sayRaw } from './player.js';
 
 const TRINKETS = {
   locket: { name: 'a silver locket', item: 'locket', desc: 'a silver locket' },
@@ -86,7 +86,7 @@ export const quests = {
 
   pushQuest(p) {
     if (!p.ws) return;
-    try { p.ws.send(JSON.stringify({ t: 'quest', quest: this.questSummary(p) })); } catch {}
+    try { sayRaw(p, { t: 'quest', quest: this.questSummary(p) }); } catch {}
   },
 
   questDescription(p) {
@@ -118,7 +118,7 @@ export const quests = {
         q.done = true;
         gainSkillExp(p, 'perception', 10);
         gainSkillExp(p, 'fitness', 10);
-        p.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1mQuest complete!\x1b[0m Return to the town crier and say "claim" to collect your reward.` }));
+say(p, `\n\x1b[1mQuest complete!\x1b[0m Return to the town crier and say "claim" to collect your reward.`);
       }
       game.persistPlayer(p);
       this.pushQuest(p);
@@ -129,7 +129,7 @@ export const quests = {
         q.found = true;
         q.done = true;
         gainSkillExp(p, 'perception', 8);
-        p.ws.send(JSON.stringify({ t: 'msg', msg: `\nYou pry the filth from the remains — there it is: ${q.trinket.name}! (Return to the crier and say "claim".)` }));
+say(p, `\nYou pry the filth from the remains — there it is: ${q.trinket.name}! (Return to the crier and say "claim".)`);
         game.persistPlayer(p);
         this.pushQuest(p);
       }
@@ -144,9 +144,9 @@ export const quests = {
     if (q.skinned >= q.count) {
       q.done = true;
       gainSkillExp(p, 'skinning', 10);
-      p.ws.send(JSON.stringify({ t: 'msg', msg: `\n\x1b[1mQuest complete!\x1b[0m Return to the town crier and say "claim" to collect your reward.` }));
+say(p, `\n\x1b[1mQuest complete!\x1b[0m Return to the town crier and say "claim" to collect your reward.`);
     } else {
-      p.ws.send(JSON.stringify({ t: 'msg', msg: `The crier's work is underway — ${q.count - q.skinned} more creature(s) to skin.` }));
+say(p, `The crier's work is underway — ${q.count - q.skinned} more creature(s) to skin.`);
     }
     game.persistPlayer(p);
     this.pushQuest(p);
