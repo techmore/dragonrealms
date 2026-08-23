@@ -32,7 +32,7 @@ const { GUILDS } = await import('../data/guilds.js');
 const { ROOMS } = await import('../data/world.js');
 const { creatureById } = await import('../data/creatures.js');
 const { GUILD_SCRIPTS, RACE_MATRIX } = await import('../data/guild-scripts.js');
-const { nounOf, moves, buildHuntScript, buildCircleScript, buildMegaScript, reversePath } = await import('./lib/script-gen.mjs');
+const { nounOf, moves, buildHuntScript, buildCircleScript, buildMegaScript, reversePath, trainListFromMissing } = await import('./lib/script-gen.mjs');
 const { WireSession, stripAnsi, trackMove } = await import('./lib/wire-session.mjs');
 const { createRunner } = await import('../public/js/script-engine.js');
 

@@ -200,4 +200,4 @@ function reversePath(path) {
   return [...path].reverse().map((e) => ({ dir: OPPOSITE[e.dir] || e.dir }));
 }
 
-export { nounOf, moves, buildHuntScript, buildCircleScript, buildMegaScript, reversePath, OPPOSITE };
+export { nounOf, moves, buildHuntScript, buildCircleScript, buildMegaScript, reversePath, OPPOSITE, trainListFromMissing };
