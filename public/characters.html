@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dragon Realms — Characters</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    html, body { height: auto !important; overflow: auto !important; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-mono), ui-monospace, Menlo, monospace; }
+    .admin { max-width: 1080px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { color: var(--amber); font-size: 20px; margin: 0; }
+    .sub { color: var(--dim); font-size: 12px; }
+    a { color: var(--cyan); text-decoration: none; }
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+    header .spacer { flex: 1; }
+    section {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      padding: 14px 16px; margin-top: 16px;
+    }
+    section > h2 {
+      margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--dim); font-weight: normal;
+      display: flex; align-items: center; gap: 8px;
+    }
+    section > h2 .right { margin-left: auto; text-transform: none; letter-spacing: 0; }
+    .note { color: var(--dim); font-size: 12px; }
+    .controls { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; flex-wrap: wrap; }
+    .btn, select, input[type=text] {
+      background: var(--panel-inset); color: var(--text); border: 1px solid var(--line);
+      border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 12px; cursor: pointer;
+    }
+    input[type=text] { cursor: text; width: 160px; }
+    .btn:hover, select:hover { border-color: var(--amber); }
+    .btn.danger:hover { border-color: var(--red); color: var(--red); }
+    .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .tbl th, .tbl td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+    .tbl th { color: var(--dim); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: .05em; }
+    .tbl tr:hover td { background: var(--panel-inset); }
+    .badge {
+      background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 4px;
+      padding: 1px 6px; font-size: 10px; color: var(--dim); white-space: nowrap;
+    }
+    .badge.sim { color: var(--amber); border-color: var(--amber); }
+    .badge.gm-acct { color: var(--green); border-color: var(--green); }
+    .watch { background: none; border: 1px solid var(--line); border-radius: 5px; color: var(--text);
+      padding: 3px 9px; cursor: pointer; font: inherit; font-size: 11px; white-space: nowrap; }
+    .watch:hover { border-color: var(--amber); color: var(--amber); }
+    .watch.danger:hover { border-color: var(--red); color: var(--red); }
+    #toast {
+      position: fixed; right: 18px; bottom: 18px; z-index: 9;
+      background: var(--panel-raised); border: 1px solid var(--amber-soft); border-radius: 8px;
+      color: var(--text); padding: 10px 16px; font-size: 12px; opacity: 0;
+      transform: translateY(8px); transition: all .25s; pointer-events: none; max-width: 380px;
+    }
+    #toast.show { opacity: 1; transform: none; }
+  </style>
+</head>
+<body>
+  <main class="admin">
+    <header>
+      <h1>&#128101; Characters</h1>
+      <span id="sum" class="sub"></span>
+      <span class="spacer"></span>
+      <a href="/admin.html">&larr; Admin dash</a>
+    </header>
+
+    <!-- ===================== SIM CHARACTERS ===================== -->
+    <section>
+      <h2>Sim &amp; test characters
+        <span class="right sub">non-playing toons on bot/test accounts — safe to delete</span>
+      </h2>
+      <div class="controls">
+        <label class="sub" for="filter">show</label>
+        <select id="filter">
+          <option value="sim" selected>sims &amp; test accounts</option>
+          <option value="all">everyone</option>
+        </select>
+        <input id="q" type="text" placeholder="filter by name…" autocomplete="off" spellcheck="false">
+        <button class="btn danger" id="del-selected">&#128465; Delete selected</button>
+        <span style="flex:1"></span>
+        <span id="selcount" class="sub"></span>
+      </div>
+      <table class="tbl">
+        <thead><tr>
+          <th></th><th>Name</th><th>Account</th><th>Race</th><th>Guild</th><th>Circle</th><th>Silver</th><th>Created</th><th></th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="9" class="note">loading…</td></tr></tbody>
+      </table>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));
+    const TOKEN = (() => {
+      try {
+        const m = location.hash.match(/^#gm=([A-Za-z0-9_%-]+)$/);
+        if (m) { localStorage.setItem('dr_gm_token', decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname); }
+      } catch {}
+      return localStorage.getItem('dr_gm_token') || '';
+    })();
+    const selected = new Set();
+    let chars = [];
+
+    let toastTimer = null;
+    function toast(msg) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+    }
+
+    async function gm(path, opts = {}) {
+      const headers = Object.assign(
+        TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {},
+        opts.headers || {}
+      );
+      const r = await fetch('/api/gm/' + path, Object.assign({ cache: 'no-store', headers }, opts));
+      let d = null;
+      try { d = await r.json(); } catch {}
+      return { code: r.status, ok: !!r.ok && d?.ok !== false, d };
+    }
+
+    // Sims/test toons = characters whose account is not a real player account.
+    // Heuristic: account names used by the tooling (gm, admin_*, sweep/sim
+    // prefixes) — anything else is treated as a player.
+    const SIM_ACCOUNT_RE = /^(gm|admin_|ui_?audit|mapper|sim|sweep|test)/i;
+
+    function isSim(c) { return SIM_ACCOUNT_RE.test(c.username || ''); }
+
+    function fmtAge(ts) {
+      if (!ts) return '—';
+      const s = Math.max(0, (Date.now() - ts) / 1000);
+      if (s < 90) return Math.round(s) + 's ago';
+      if (s < 5400) return Math.round(s / 60) + 'm ago';
+      if (s < 172800) return Math.round(s / 3600) + 'h ago';
+      return Math.round(s / 86400) + 'd ago';
+    }
+
+    async function load() {
+      const r = await gm('characters');
+      if (!r.ok || !r.d?.characters) {
+        $('rows').innerHTML = '<tr><td colspan="9" class="note">' +
+          (r.code === 401 ? 'GM token required (#gm=&lt;token&gt; or the dash).'
+                          : 'Failed to load characters.') + '</td></tr>';
+        return;
+      }
+      chars = r.d.characters.map((c) => ({ ...c }));
+      render();
+    }
+
+    function visible() {
+      const q = $('q').value.trim().toLowerCase();
+      return chars.filter((c) =>
+        ($('filter').value === 'all' || isSim(c)) &&
+        (!q || c.name.toLowerCase().includes(q) || (c.username || '').toLowerCase().includes(q)));
+    }
+
+    function render() {
+      const list = visible();
+      const sims = chars.filter(isSim).length;
+      $('sum').textContent = `${chars.length} total · ${sims} sim/test`;
+      const kept = new Set(list.map((c) => c.id));
+      for (const id of [...selected]) if (!kept.has(id)) selected.delete(id);
+      $('selcount').textContent = selected.size ? `${selected.size} selected` : '';
+      if (!list.length) {
+        $('rows').innerHTML = '<tr><td colspan="9" class="note">nothing matches</td></tr>';
+        return;
+      }
+      $('rows').innerHTML = list.map((c) => `
+        <tr>
+          <td><input type="checkbox" data-id="${c.id}" ${selected.has(c.id) ? 'checked' : ''}></td>
+          <td><b>${esc(c.name)}</b>${isSim(c) ? ' <span class="badge sim">SIM</span>' : ''}${c.username === 'gm' ? ' <span class="badge gm-acct">GM acct</span>' : ''}</td>
+          <td>${esc(c.username)}</td>
+          <td>${esc(c.race)}</td>
+          <td>${esc(c.guild)}</td>
+          <td>${c.circle}</td>
+          <td>${c.silver ?? '—'}</td>
+          <td title="${c.created_at ? new Date(c.created_at).toLocaleString() : ''}">created ${c.created_at ? fmtAge(c.created_at) : '—'}</td>
+          <td><button class="watch" data-watch="${esc(c.name)}" title="watch their stream (online only)">&#128065; watch</button></td>
+        </tr>`).join('');
+      $('rows').querySelectorAll('input[type=checkbox]').forEach((cb) => cb.addEventListener('change', () => {
+        const id = Number(cb.dataset.id);
+        if (cb.checked) selected.add(id); else selected.delete(id);
+        $('selcount').textContent = selected.size ? `${selected.size} selected` : '';
+      }));
+      $('rows').querySelectorAll('[data-watch]').forEach((b) => b.addEventListener('click', () => {
+        window.open('/?spectate=' + encodeURIComponent(b.dataset.watch) + '#gm=' + encodeURIComponent(TOKEN), '_blank');
+      }));
+    }
+
+    $('filter').addEventListener('change', render);
+    $('q').addEventListener('input', render);
+
+    $('del-selected').addEventListener('click', async () => {
+      if (!selected.size) { toast('Nothing selected.'); return; }
+      const names = chars.filter((c) => selected.has(c.id)).map((c) => c.name);
+      if (!confirm(`Delete ${names.length} character(s)?\n${names.slice(0, 12).join(', ')}${names.length > 12 ? '…' : ''}\n\nThis removes their skills, inventory, and progress. Cannot be undone.`)) return;
+      const r = await gm('characters-delete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: [...selected] }),
+      });
+      toast(r.ok ? `Deleted ${r.d?.deleted ?? '?'} character(s).` : `Delete failed (HTTP ${r.code}).`);
+      selected.clear();
+      load();
+    });
+
+    load();
+  </script>
+</body>
+</html>

@@ -53,6 +53,7 @@ export function gmRequest(req, res, game, { gmToken = process.env.DR_GM_TOKEN } 
     case 'races': return gmRaces(res);
     case 'skills': return gmSkills(res);
     case 'characters': return gmCharacters(res);
+    case 'characters-delete': return gmCharactersDelete(req, res, game);
     case 'highscores': return gmHighScores(res, url);
     case 'player': return gmPlayer(res, game, parts[1]);
     case 'players-online': return json(res, 200, { ok: true, players: onlineView(game) });
@@ -310,11 +311,38 @@ function sqlTokens(sql) {
 
 function gmCharacters(res) {
   const chars = db.prepare(`SELECT c.id, c.name, c.race, c.guild, c.circle, c.room, c.silver,
-    c.hp, c.max_hp, a.username
+    c.hp, c.max_hp, c.created_at, a.username
     FROM characters c JOIN accounts a ON a.id = c.account_id ORDER BY c.created_at`)
     .all()
     .map((r) => ({ ...r }));
   return json(res, 200, { ok: true, characters: chars });
+}
+
+// Bulk character deletion for GM housekeeping (sim/test toon cleanup). Refuses
+// anything online — log it out first. Skills/inventory/equipment/etc. cascade
+// via the schema's ON DELETE CASCADE foreign keys.
+function gmCharactersDelete(req, res, game) {
+  let body = '';
+  req.on('data', (chunk) => {
+    body += chunk;
+    if (body.length > 16384) req.destroy();
+  });
+  req.on('end', () => {
+    let ids;
+    try { ids = JSON.parse(body).ids; } catch {}
+    if (!Array.isArray(ids) || !ids.length || ids.some((n) => !Number.isInteger(n))) {
+      return json(res, 400, { ok: false, error: 'Body must be {"ids":[<characterId,…]>}.' });
+    }
+    const online = new Set([...game.players.values()].map((p) => p.charId));
+    const deletable = ids.filter((id) => !online.has(id));
+    const skipped = ids.filter((id) => online.has(id));
+    const del = db.prepare('DELETE FROM characters WHERE id = ?');
+    let deleted = 0;
+    for (const id of deletable) deleted += del.run(id).changes;
+    console.log(`[gm] deleted ${deleted} character(s) [${deletable.join(',')}]` +
+      (skipped.length ? ` (skipped online: ${skipped.join(',')})` : ''));
+    return json(res, 200, { ok: true, deleted, skippedOnline: skipped });
+  });
 }
 
 // High scores: characters ranked by circle, then total skill ranks. Supports
