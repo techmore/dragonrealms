@@ -193,6 +193,60 @@ test('dead-end move abandons the rest of the chain; later chains still move', ()
   assert.deepEqual(out, ['north', 'look', 'south'], 'a fresh chain moves again');
 });
 
+test('putrun nests a sub-script; exit returns to the caller', () => {
+  const out = [];
+  const say = [];
+  const r = createRunner(
+    'echo outer\nputrun sub\necho resumed\nexit',
+    [], {
+      send: (l) => out.push(l), say: (t) => say.push(t),
+      getScript: (n) => n === 'sub' ? 'put look\nwaitfor done-marker\nput attack rat' : null,
+    });
+  r.start();
+  assert.deepEqual(out, ['look'], 'sub-script runs before the caller resumes');
+  feed(r, 'You see a marker. done-marker');
+  assert.deepEqual(out, ['look', 'attack rat']);
+  assert.equal(say[0], 'outer');
+  assert.deepEqual(say, ['outer', 'resumed'], 'caller continued after sub exit-by-eof');
+  assert.equal(r.running, false);
+});
+
+test('exit inside a nested putrun pops only one frame', () => {
+  const out = [];
+  const say = [];
+  const r = createRunner('putrun inner\necho back-in-outer\nexit', [],
+    { send: (l) => out.push(l), say: (t) => say.push(t), getScript: () => 'put wave\nexit\nput never' });
+  r.start();
+  assert.deepEqual(out, ['wave']);
+  assert.ok(!out.includes('never'), 'nothing runs after the sub-script exit');
+  assert.deepEqual(say, ['back-in-outer'], 'caller resumed after nested exit');
+  assert.equal(r.running, false);
+});
+
+test('putrun of an unknown script reports and continues', () => {
+  const say = [];
+  const out = [];
+  const r = createRunner('putrun nosuch\nput look', [], { send: (l) => out.push(l), say: (t) => say.push(t) });
+  r.start();
+  assert.ok(say.join().includes('no script named'));
+  assert.deepEqual(out, ['look']);
+});
+
+test('prompts mirror %mana/%maxmana for caster loops', () => {
+  const out = [];
+  const r = createRunner('wait\niflt mana 10 goto LOWMANA\nput cast\nexit\nLOWMANA:\nput rest-mana\nexit', [],
+    { send: (l) => out.push(l) });
+  r.start();
+  feed(r, 'HP: 90/100  Mana: 4/50  Stamina: 70/70  RT: 0  Circle 1', true);
+  assert.deepEqual(out, ['rest-mana']);
+  const out2 = [];
+  const r2 = createRunner('wait\niflt mana 10 goto LOWMANA\nput cast\nexit\nLOWMANA:\nput rest-mana\nexit', [],
+    { send: (l) => out2.push(l) });
+  r2.start();
+  feed(r2, 'HP: 90/100  Mana: 40/50  Stamina: 70/70  RT: 0  Circle 1', true);
+  assert.deepEqual(out2, ['cast']);
+});
+
 test('multi-line inventory report drives the arm-check probe', () => {
   // Mirrors scripts/barb-run.mjs ARMCHECK: equipped wins, then a carried
   // club is picked up, else the buy fallback fires on the carrying line.
@@ -220,4 +274,46 @@ test('multi-line inventory report drives the arm-check probe', () => {
   feed(rs, 'You club the great rat for 6 damage!', 'combat'); // must NOT match \bclub\b mid-fight prose
   feed(rs, '\nYou are carrying:\nWorn: nothing.\nSilvers: 5.', 'msg');
   assert.deepEqual(strays, ['inventory', 'buy club'], 'combat prose never triggers the probe');
+});
+
+test('guild script capability map covers every guild with valid regexes', async () => {
+  const { GUILDS } = await import('../data/guilds.js');
+  const { GUILD_SCRIPTS, RACE_MATRIX } = await import('../data/guild-scripts.js');
+  const { RACES } = await import('../data/races.js');
+  for (const id of Object.keys(GUILDS)) {
+    const cfg = GUILD_SCRIPTS[id];
+    assert.ok(cfg, `no script capability entry for guild ${id}`);
+    assert.ok(Array.isArray(cfg.fight) && cfg.fight.length, `${id}: fight steps`);
+    assert.ok(Array.isArray(cfg.defaultTrain) && cfg.defaultTrain.length >= 5, `${id}: TDP curriculum`);
+    for (const chk of cfg.fidelityChecks || []) {
+      assert.doesNotThrow(() => new RegExp(chk.re), `${id}: fidelity regex ${chk.name}`);
+    }
+  }
+  // curated race matrix: every race exists, every guild covered
+  for (const [g, races] of Object.entries(RACE_MATRIX)) {
+    assert.ok(GUILDS[g], `matrix references unknown guild ${g}`);
+    assert.ok(races.length >= 3, `${g}: matrix wants >=3 races`);
+    for (const r of races) assert.ok(RACES[r], `unknown race ${r} for ${g}`);
+  }
+});
+
+test('putrun mega-script chains hunt + circle libraries end to end', async () => {
+  const out = [];
+  const lib = {
+    gwhunt: 'put attack rat\nwait\npause 0.01\nexit',
+    gwcircle: 'put circle\nwait\nexit',
+  };
+  const r = createRunner('putrun gwhunt\nputrun gwcircle\nexit', [], {
+    send: (l) => out.push(l),
+    getScript: (n) => lib[n] ?? null,
+  });
+  r.start();
+  r.feed('HP: 90/100', true);   // satisfies the hunt wait
+  await new Promise((res) => setTimeout(res, 30));
+  r.feed('', false);            // heartbeat resumes hunt exit -> mega continues into circle leg
+  assert.deepEqual(out, ['attack rat', 'circle'],
+    'mega chained straight through: hunt attack then circle command');
+  assert.equal(r.running, true); // circle leg still waiting for its prompt
+  r.feed('HP: 88/100', true);   // satisfies the circle wait
+  assert.equal(r.running, false);
 });

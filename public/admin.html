@@ -736,6 +736,7 @@
           <span class="nm">${esc(p.name)}${p.gmToon ? ' <span class="badge gm">GM</span>' : p.bot ? ' <span class="badge bot">BOT</span>' : ''}</span>
           <span class="cl">${esc(p.race ? p.race + ' · ' : '')}${esc(p.guild || '?')} · circle ${esc(p.circle)}${p.room != null ? ` · room ${esc(p.room)}` : ''}</span>
           ${hpBarHtml(p)}
+          ${p.scripting ? '<span class="badge bot" title="running starter circling script">\\u25B6 SCRIPT</span>' : ''}
           ${p.inCombat ? '<span class="badge fight">\u2694 FIGHT</span>' : ''}
           <button class="watch" data-name="${esc(p.name)}" data-charid="${esc(p.charId || '')}" title="watch their live interface here">\u{1F441} Watch</button>
           <button class="watch tab" data-name="${esc(p.name)}" title="open the full client in a new tab">\u2197</button>
@@ -1014,8 +1015,16 @@
         case 'enter':
           agLog(agent, `entered the world${agent.boost > 1 ? ` — boost x${agent.boost}` : ''}`, 'ok');
           if (agent.boost > 1) agSend(agent, { t: 'boost', mult: agent.boost });
+          // Immediate circling-on-launch: ask the server to generate the
+          // starter hunt/circle/mega library and auto-run it. The tick loop
+          // stays as a watchdog (flee/heal) underneath the script.
+          agSend(agent, { t: 'gen_starter' });
           agent.deadline = Date.now() + Number($('ag-minutes').value || 10) * 60000;
           agTickLoop(agent);
+          break;
+        case 'autorun':
+          agent.scripting = true;
+          agLog(agent, `starter circling script running: ${m.name}`, 'ok');
           break;
         case 'room': {
           v.room = m.roomId;
@@ -1121,6 +1130,16 @@
       const v = agent.v;
       if (Date.now() > agent.deadline) { stopAgent(agent, 'time up'); return; }
       if (v.circle >= agent.circleTarget && v.circle > 1) { stopAgent(agent, `circle target ${agent.circleTarget} reached`); return; }
+
+      // While the starter circling script runs, it owns combat/movement; the
+      // tick loop only watches vitals and bails out if things go wrong.
+      if (agent.scripting) {
+        const hurtNow = v.maxhp > 0 && v.hp / v.maxhp < 0.2;
+        if (hurtNow) void agCmd(agent, 'flee');
+        agRenderState();
+        setTimeout(() => agTickLoop(agent), 1500);
+        return;
+      }
 
       const rtBound = Date.now() < agent.rtUntil;
       const hurt = v.maxhp > 0 && v.hp / v.maxhp < 0.35;

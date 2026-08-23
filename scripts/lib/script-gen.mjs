@@ -1,0 +1,203 @@
+// Shared DR-script generator: builds hunt/circle/mega libraries from live
+// geography + the guild capability map. Used by the CLI sweep AND by server
+// quick-play (gm-play) so every simulated player can launch straight into
+// circling scripting.
+import { ROOMS } from '../../data/world.js';
+import { creatureById } from '../../data/creatures.js';
+import { GUILD_SCRIPTS } from '../../data/guild-scripts.js';
+
+const nounOf = (spawnId) => (creatureById(spawnId)?.name || spawnId).replace(/^(an?|the)\s+/i, '');
+
+function moves(path) { return path.map((e) => `  move ${e.dir}`); }
+
+// hunt.dr: arm check -> travel to arena -> scan/fight loop with guild verbs,
+// mana gating for casters, rest when hurt. %target substitution happens in
+// the generated text itself (one FIGHT label per species).
+function buildHuntScript({ cap, arena, hallPath }) {
+  const cfg = GUILD_SCRIPTS[cap.guild];
+  const L = [];
+  L.push(`# ${cap.scriptBase}hunt — ${cfg.magic ? 'caster' : 'weapon'} loop for ${cap.char}`);
+  L.push('START:');
+  L.push('  put look');
+  L.push('  wait');
+  L.push('ARMCHECK:');
+  // Order matters: equipped wins, then a carried weapon is wielded, and only
+  // a genuinely unarmed character walks to the bazaar to buy.
+  L.push('  matchre ARMED Worn:.*(club|sword|axe|staff|dagger|mace|blade|bow|hammer)');
+  L.push('  matchre GETCLUB carrying:.*club');
+  L.push('  matchre BUY carrying:');
+  L.push('  put inventory');
+  L.push('  matchwait');
+  L.push('GETCLUB:');
+  L.push('  put wield club');
+  L.push('  wait');
+  L.push('  goto ARMED');
+  L.push('GETWEAPON:');
+  if (cap.bazaarPath?.length) L.push(...moves(cap.bazaarPath));
+  L.push('BUY:');
+  L.push('  matchre WIELD You buy|You pay|hands you');
+  L.push('  matchre ARMED do not sell|already have|no such|do not have|out of stock|cannot afford|no shopkeeper');
+  L.push('  put buy club');
+  L.push('  matchwait');
+  L.push('WIELD:');
+  L.push('  put wield club');
+  L.push('  wait');
+  L.push('  goto ARMED_HERE');
+  L.push('ARMED:');
+  // Walk to the arena from where we stand NOW (arm check may pass in any
+  // room); after an actual buy, BUY falls through to ARMED_HERE instead.
+  if (arena.fromHere?.length) L.push(...moves(arena.fromHere));
+  L.push('  goto SCAN');
+  L.push('ARMED_HERE:');
+  if (arena.fromArmed?.length) L.push(...moves(arena.fromArmed));
+  L.push('SCAN:');
+  L.push('  pause 2');
+  L.push('  iflt hp 40 goto REST');
+  if (cfg.magic) L.push('  iflt mana 8 goto WEAKSWING');
+  for (const pre of cfg.preFight || []) L.push(`  put ${pre.replace('%target', '')}`);
+  L.push('  put look');
+  const species = [...new Set(ROOMS[arena.id]?.spawns || [])];
+  for (const sp of species) {
+    L.push(`  matchre FIGHT_${sp.replace(/\W/g, '_')} ${nounOf(sp)} is here`);
+  }
+  L.push('  matchre WANDER \\[\\[');
+  L.push('  matchwait');
+  for (const sp of species) {
+    const label = `FIGHT_${sp.replace(/\W/g, '_')}`;
+    const noun = nounOf(sp);
+    L.push(`${label}:`);
+    for (const step of cfg.fight) L.push('  ' + step.replace(/%target/g, noun));
+    if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('skinning')) {
+      // Skinning guilds (ranger, barbarian...): attempt a skin after the
+      // swing — failure prose ('no such corpse') is harmless.
+      L.push('  put skin');
+      L.push('  wait');
+    }
+    if (cfg.signature && cfg.signature.probe === 'ability') {
+      // Signature guild ability: fire it every few swings; failure prose
+      // (not learned / no voice) still counts as a fidelity observation.
+      L.push(`  put ${cfg.signature.cmd}`);
+      L.push('  wait');
+    }
+    if (cfg.signature && cfg.signature.probe === 'appraise') {
+      // Trader identity: appraise the foe's remains between swings.
+      L.push(`  put ${cfg.signature.cmd}`);
+      L.push('  wait');
+    }
+    if (cfg.signature && cfg.signature.probe === 'scout-cmd') {
+      // Ranger identity: read the tracks while hunting.
+      L.push(`  put ${cfg.signature.cmd}`);
+      L.push('  wait');
+    }
+    L.push('  wait');
+    L.push('  pause 3');
+    L.push('  iflt hp 40 goto REST');
+    if (cfg.magic) L.push('  iflt mana 8 goto WEAKSWING');
+    L.push(`  goto SCAN`);
+  }
+  // Mana-poor rounds still train the weapon: swing instead of standing around.
+  L.push('WEAKSWING:');
+  for (const step of (cfg.fallbackFight || ['put attack %target'])) {
+    L.push('  ' + step.replace(/%target/g, species.length ? nounOf(species[0]) : 'creature'));
+  }
+  L.push('  wait');
+  L.push('  pause 3');
+  L.push('  goto SCAN');
+  L.push('WANDER:');
+  L.push('  pause 4');
+  L.push('  goto SCAN');
+  L.push('REST:');
+  L.push(`  echo -- licking wounds --`);
+  L.push('  ifge combat 1 goto SCAN');
+  L.push(cfg.healSpell ? `  put prepare ${cfg.healSpell}` : '  put rest');
+  if (cfg.healSpell) {
+    L.push('  wait');
+    L.push('  put cast');
+    L.push('  wait');
+    L.push('  iflt hp 85 goto REST');
+  } else {
+    L.push('RESTWAIT:');
+    L.push('  pause 3');
+    L.push('  ifge combat 1 goto SCAN');
+    L.push('  iflt hp 85 goto RESTWAIT');
+    L.push('  put stand');
+    L.push('  wait');
+  }
+  L.push('  goto SCAN');
+  return L.join('\n');
+}
+
+// circle.dr: walk to the hall, try to circle, TDP-train the guild curriculum
+// on failure, walk back.
+// Ported from barb-run: parse the guild leader's blocker list into a
+// targeted tdptrain curriculum. Handles both plain skills ("expertise at
+// least rank 8 (you have 5)") and set requirements ("2nd weapon at least
+// rank 8"), expanding the Nth-set entries into that guild's candidate pools.
+function trainListFromMissing(raw, guild) {
+  const cfg = GUILD_SCRIPTS[guild];
+  const wanted = [];
+  // Strip Nth-set lines ("2nd weapon at least rank 8") — expanded below from
+  // the guild's candidate pools — then collect remaining plain skills.
+  const plain = raw.replace(/\d+(?:st|nd|rd|th) (?:weapon|armor|survival|lore|magic) at least rank \d+[^\n]*/gi, '');
+  for (const m of plain.matchAll(/([a-z_' ]+?) at least rank (\d+)/g)) {
+    const name = m[1].trim().toLowerCase();
+    if (name) wanted.push(name);
+  }
+  for (const m of raw.matchAll(/\d+(?:st|nd|rd|th) (weapon|armor|survival|lore|magic)/gi)) {
+    for (const c of cfg.trainSets[m[1].toLowerCase()] || []) wanted.push(c);
+  }
+  return [...new Set(wanted)];
+}
+
+function buildCircleScript({ cap, fromArena }) {
+  const cfg = GUILD_SCRIPTS[cap.guild];
+  const L = [];
+  L.push(`# ${cap.scriptBase}circle — guild hall trip`);
+  L.push('HALLTRIP:');
+  if (fromArena.hall?.length) L.push(...moves(fromArena.hall));
+  L.push('  matchre CIRCLE_OK Rise, |now a ');
+  L.push('  matchre TRAIN not yet ready|must stand in your own');
+  L.push('  put circle');
+  L.push('  matchwait');
+  L.push('CIRCLE_OK:');
+  L.push('  echo CIRCLE_UP_OK');
+  L.push('  exit');
+  L.push('TRAIN:');
+  let train = cap.trainList?.length ? cap.trainList : cfg.defaultTrain;
+  if (cap.trainOffset && cap.trainList?.length) {
+    // Rotate the start so repeated trips spend TDPs across ALL blocking
+    // candidates instead of always re-training the first few.
+    const off = cap.trainOffset % train.length;
+    train = [...train.slice(off), ...train.slice(0, off)];
+  }
+  for (const sk of train) {
+    L.push(`  put tdptrain ${sk}`);
+    L.push('  wait');
+    L.push('  pause 1');
+  }
+  if (fromArena.back?.length) L.push(...moves(fromArena.back));
+  L.push('  exit');
+  return L.join('\n');
+}
+
+// mega.dr: the top-level orchestration the driver actually launches. It runs
+// one full cycle via putrun; the driver re-runs it until targets/time end it.
+function buildMegaScript(cap) {
+  return [
+    `# ${cap.scriptBase}mega — one full hunt+circle cycle`,
+    'putrun ' + cap.scriptBase + 'hunt',
+    'putrun ' + cap.scriptBase + 'circle',
+    'exit',
+  ].join('\n');
+}
+
+
+const OPPOSITE = { n: 's', s: 'n', e: 'w', w: 'e', ne: 'sw', sw: 'ne',
+  nw: 'se', se: 'nw', up: 'down', down: 'up', out: 'in' };
+
+function reversePath(path) {
+  if (!path?.length) return [];
+  return [...path].reverse().map((e) => ({ dir: OPPOSITE[e.dir] || e.dir }));
+}
+
+export { nounOf, moves, buildHuntScript, buildCircleScript, buildMegaScript, reversePath, OPPOSITE };

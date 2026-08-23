@@ -7,7 +7,7 @@ import * as panels from './panels.js';
 import * as welcome from './welcome.js';
 import * as input from './input.js';
 import { gameState } from './state.js';
-import { mergeServerScripts } from './scripts.js';
+import { mergeServerScripts, runScript } from './scripts.js';
 import { setToken } from './net.js';
 import { hasStoredGmToken, storedGmToken, harvestGmTokenFromFragment } from './gm-token.js';
 
@@ -128,6 +128,11 @@ export const handlers = {
   scripts(msg) {
     // Server snapshot of this character's saved DR script library.
     mergeServerScripts(msg.scripts);
+  },
+  autorun(msg) {
+    // Server asked this client to start a saved script (quick-play sims get
+    // their starter circling library pushed + autorun on entry).
+    if (msg.name && typeof msg.name === 'string') runScript(msg.name);
   },
   command(msg) {
     // The watched player typed a command: echo it like their own typing.

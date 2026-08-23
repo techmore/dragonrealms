@@ -101,6 +101,9 @@ export function handleGmPlayMessage(session, msg) {
 
   console.log(`[gm-play] ${new Date().toISOString()} GM quick-play entered ${charRow.name} ` +
     `(${race.id} ${guild.id}) boost x${mult}`);
+  // Immediate circling-on-launch: push a starter hunt/circle/mega library and
+  // auto-run it so sims begin circling without any manual scripting.
+  pushStarterScripts(session, session.player);
   // Refresh the prompt so [BOOST xN] shows immediately (enterWorld's first
   // status ran before the multiplier landed).
   if (mult > 1) session.game.status(session.player);
@@ -110,3 +113,5 @@ export function handleGmPlayMessage(session, msg) {
       (mult > 1 ? `, boost x${mult} engaged.` : '.'),
   });
 }
+
+import { pushStarterScripts } from './starter-scripts.js';

@@ -4,6 +4,7 @@ import {
   registerAccount, loginAccount, validateSession, logoutSession, pruneExpiredSessions,
 } from './auth.js';
 import { MAX_CHARS, putScript, delScript, charsFor } from './player.js';
+import { pushStarterScripts } from './starter-scripts.js';
 import { raceById } from '../data/races.js';
 import { guildById } from '../data/guilds.js';
 import { handleCommand } from './commands/index.js';
@@ -161,6 +162,16 @@ function route(session, msg) {
     case 'ping':
       session.send({ t: 'pong' });
       break;
+    case 'gen_starter': {
+      // Simulated players: generate the starter circling library from live
+      // geography, save it on this character, and auto-run it client-side.
+      rateLimit(session);
+      const p = session.player;
+      if (session.state !== 'playing' || !p) break;
+      const ok = pushStarterScripts(session, p);
+      if (!ok) session.send({ t: 'error', msg: 'Could not generate a starter script here (no hunting area reachable).' });
+      break;
+    }
     case 'scripts_put': {
       rateLimit(session);
       const p = session.player;

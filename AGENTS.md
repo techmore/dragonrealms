@@ -8,7 +8,8 @@ HTML/CSS/JS (no build step, no frameworks).
 
 ```
 data/                  game content (races, guilds, skills, items, creatures,
-                       npcs, world, khri, abilities, forging, commodities, mana)
+                       npcs, world, grid, map-facts, khri, abilities, forging,
+                       commodities, mana)
 server/
   index.js             boot: static handler + /api branch + WS attach + shutdown
   static.js            static file serving (unit-tested)
@@ -48,6 +49,17 @@ scripts/
   live-sim.mjs          progression sims over the REAL wire protocol (WS
                         sessions, no bot flag) — indistinguishable players
                         that exercise auth/chargen/dispatch; watchable live
+  race-guild-sweep.mjs  race × guild fidelity sweep: DR-script-driven agents
+                        (scripts/lib/wire-session.mjs + the client script
+                        engine) play each guild via generated per-account
+                        script libraries (hunt/circle/mega with `putrun`),
+                        exercising guild signature abilities and writing
+                        fidelity results to public/live/fidelity-*.log
+  lib/wire-session.mjs  shared wire-level session for test agents (auth,
+                        chargen, observed-exit BFS navigation, vitals)
+data/guild-scripts.js per-guild scripting capabilities (fight verbs, signature
+                        abilities, TDP curricula, fidelity check regexes,
+                        curated race matrix)
 ```
 
 ## Command architecture
@@ -90,6 +102,7 @@ GM API (`server/gm.js`, mounted at `/api/gm/*`, bearer = the exact dedicated
 `DR_GM_TOKEN`; ordinary game sessions are never sufficient):
 
 - `GET /api/gm/summary | world | room/<id> | creatures | npcs | items |
+                       highscores (?page&perPage&sort=circle|skill) |
   guilds | races | skills | characters | player/<name> | players-online |
   admin/status | admin/reload | db` (DB browser: table list/dump or a
   bounded `SELECT … LIMIT n`; authentication tables/columns, SQLite internals,
@@ -141,6 +154,15 @@ node scripts/client-corpus.mjs capture /tmp/corpus.json   # baseline
 node scripts/client-corpus.mjs replay  /tmp/corpus.json   # behavior diff
 node scripts/client-regression.mjs    # CDP suite (server + chromium running)
 npm run simulate    # per-guild circle-10 pacing check
+node scripts/race-guild-sweep.mjs --guilds warmage,barbarian --minutes 10
+node scripts/race-guild-sweep.mjs --report
+                    # render fidelity-summary.jsonl as a guild x race table
+                    # DR-script fidelity sweep (server on :3000 required);
+                    # --all runs the curated race×guild matrix; --boost N
+                    # (default 20, cap 100) engages the test-only agent boost
+                    # ({t:'boost',mult:N}: N× skill exp, rank conversion,
+                    # and rest recovery; [BOOST xN] in the prompt); results:
+                    # public/live/fidelity-*.log + fidelity-summary.jsonl
 ```
 
 ## Working in this repo
