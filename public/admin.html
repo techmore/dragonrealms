@@ -292,19 +292,10 @@
       <div id="zones"></div>
     </section>
 
-    <!-- ===================== JOBS ===================== -->
+    <!-- ===================== SIM PLAYERS ===================== -->
     <section>
-      <h2>Live jobs
-        <span class="right sub">headless sim output (<code>public/live/&lt;job&gt;.log</code>) — text summaries, <b>not</b> the live world · <span id="jobstate" class="idle">&#9675; idle</span></span>
-      </h2>
-      <div class="jobs" id="joblist"></div>
-      <div id="joblog">(no job selected)</div>
-    </section>
-
-    <!-- ===================== LAUNCH AGENT ===================== -->
-    <section>
-      <h2>Launch agent
-        <span class="right sub" id="agstate">&#9675; no agents</span>
+      <h2>Sim players
+        <span class="right sub" id="agstate">&#9675; none running</span>
       </h2>
       <div class="agform">
         <label for="ag-name">name</label>
@@ -317,29 +308,45 @@
         <input id="ag-minutes" class="numsel" type="number" min="1" max="240" value="10">
         <label for="ag-circle">circle &#8594;</label>
         <input id="ag-circle" class="numsel" type="number" min="1" max="20" value="2">
-        <label for="ag-boost">boost</label>
-        <input id="ag-boost" class="numsel" type="number" min="0" max="50" value="20">
+        <label for="ag-boost">exp boost</label>
+        <select id="ag-boost">
+          <option value="0">off</option>
+          <option value="10">x10</option>
+          <option value="20" selected>x20</option>
+          <option value="50">x50</option>
+        </select>
         <button class="btn" id="ag-launch">&#9654; Launch</button>
         <button class="btn warn" id="ag-stop">&#9208; Stop all</button>
       </div>
-      <div id="aglog">(no agents launched)</div>
+      <div id="aglog">(no sims launched from here)</div>
+
+      <!-- Log viewer for any sim (browser-launched or script-launched) -->
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="jobs" id="joblist" style="flex:1"></div>
+        <span id="jobstate" class="idle">&#9675; idle</span>
+      </div>
+      <div class="note" style="margin:4px 0 6px">Sim run logs (<code>public/live/&lt;run&gt;.log</code>) — includes runs launched by scripts as well as the ones above.</div>
+      <div id="joblog">(no log selected)</div>
     </section>
 
     <!-- ===================== QUICK PLAY ===================== -->
     <section>
-      <h2>GM quick-play
-        <span class="right sub">jump straight into an auto-provisioned boosted character &mdash; no signup, no chargen</span>
+      <h2>Your character
+        <span class="right sub">jump in yourself &mdash; auto-provisioned boosted toon, no signup, no chargen</span>
       </h2>
       <div class="agform">
         <label for="qp-race">race</label>
         <select id="qp-race"></select>
-        <label for="qp-boost">boost</label>
-        <input id="qp-boost" class="numsel" type="number" min="0" max="100" value="20">
-        <span class="sub">click a guild to launch:</span>
+        <label for="qp-boost">exp boost</label>
+        <select id="qp-boost">
+          <option value="0">off</option>
+          <option value="10">x10</option>
+          <option value="20" selected>x20</option>
+          <option value="50">x50</option>
+        </select>
+        <span class="sub">click a guild:</span>
         <span id="qp-guilds" style="display:flex;gap:6px;flex-wrap:wrap"></span>
       </div>
-      <div class="note">Opens the game client as <code>/?play=&lt;guild&gt;[,&lt;race&gt;]&amp;boost=N#gm=…</code>.
-        The character (one per guild+race on the hidden <code>gm</code> account) persists between runs.</div>
     </section>
 
     <!-- ===================== OPS ===================== -->
@@ -353,7 +360,7 @@
 
     <div class="cards">
       <a class="card" href="/gm.html"><span class="t">&#128269; GM Console</span><span class="d">Read-only inspector: world, DB, live streams, world feed</span></a>
-      <a class="card" href="/jobs.html"><span class="t">&#128200; Live jobs</span><span class="d">Standalone tail viewer for sims and verify runs</span></a>
+      <a class="card" href="/jobs.html"><span class="t">&#128200; Sim logs</span><span class="d">Standalone tail viewer for sim runs and verify output</span></a>
       <a class="card" href="/"><span class="t">&#127918; Play</span><span class="d">Launch the game client / spectator</span></a>
       <a class="card" href="/ROADMAP.html"><span class="t">&#128202; Roadmap</span><span class="d">Feature tracker and status</span></a>
       <a class="card" href="/SKILLS.html"><span class="t">&#128220; Skills reference</span><span class="d">All skills, categories, training</span></a>
@@ -825,7 +832,7 @@
       if (S.job && !S.jobs.includes(S.job)) { S.job = null; S.jobLen = -1; $('joblog').textContent = '(log gone)'; }
       if (!S.job && S.jobs.length) { S.job = S.jobs[0]; S.jobLen = -1; }
       $('joblist').innerHTML = S.jobs.map((j) =>
-        `<button class="${j === S.job ? 'active' : ''}" data-j="${esc(j)}">${esc(j)}</button>`).join('')
+        `<button class="${j === S.job ? 'active' : ''}" data-j="${esc(j)}">${esc(j.replace(/^fidelity-/, ''))}</button>`).join('')
         || '<span class="note">no logs yet — run a sim or verify script</span>';
       $('joblist').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
         S.job = b.dataset.j;
@@ -901,7 +908,7 @@
     function agRenderState() {
       const live = AG.agents.filter((a) => a.ws);
       const st = $('agstate');
-      if (!AG.agents.length) { st.innerHTML = '&#9675; no agents'; return; }
+      if (!AG.agents.length) { st.innerHTML = '&#9675; none running'; return; }
       const bits = AG.agents.map((a) => {
         const v = a.v;
         const hp = v.maxhp ? ` HP ${Math.round(100 * v.hp / v.maxhp)}%` : '';
