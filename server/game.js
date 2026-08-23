@@ -21,26 +21,13 @@ import { wilds } from './wilds.js';
 import { quests } from './quests.js';
 import { status as statusView } from './status.js';
 import * as pvp from './pvp.js';
+import * as weather from './weather.js';
+import * as corpses from './corpses.js';
 
 const RESPAWN_MS = 25 * 1000;
 const MANA_PULSE_MS = 6 * 1000;
-const WEATHER_MS = 10 * 60 * 1000;
 
-// Weather kinds and their weightings by season.
-const WEATHER_POOL = {
-  spring: ['clear', 'fair', 'rain', 'fog', 'storm'],
-  summer: ['clear', 'fair', 'fair', 'storm', 'fog'],
-  autumn: ['clear', 'rain', 'rain', 'fog', 'fair'],
-  winter: ['clear', 'snow', 'snow', 'fog', 'storm'],
-};
-
-function seasonFor(date) {
-  const m = date.getMonth() + 1;
-  if (m >= 3 && m <= 5) return 'spring';
-  if (m >= 6 && m <= 8) return 'summer';
-  if (m >= 9 && m <= 11) return 'autumn';
-  return 'winter';
-}
+// Weather kinds and their weightings by season — see server/weather.js.
 const DIRS = DIR_NAMES;
 
 import { vitalityLabel } from './combat.js';
@@ -68,47 +55,12 @@ export class Game {
     this.uptimeAt = Date.now(); // surfaced read-only via /api/gm/admin/status
   }
 
-  // Roll a fresh weather state when the current one lapses.
-  rollWeather() {
-    if (Date.now() < this.weather.until) return this.weather;
-    const season = seasonFor(new Date());
-    const pool = WEATHER_POOL[season];
-    this.weather = {
-      kind: pool[Math.floor(Math.random() * pool.length)],
-      until: Date.now() + WEATHER_MS * (0.6 + Math.random() * 0.8),
-      season,
-    };
-    return this.weather;
-  }
-
-  weatherNow() {
-    return { ...this.weather, season: this.weather.season || seasonFor(new Date()) };
-  }
-
-  // Wilds fortune shifts with the sky: clear skies help, storms hinder.
-  weatherLuckMod() {
-    this.rollWeather();
-    return { clear: 0.08, fair: 0.03, rain: -0.05, fog: -0.1, storm: -0.15, snow: -0.08 }[this.weather.kind] || 0;
-  }
-
-  // Mana flows with the weather: storms charge the aether, fog dulls it.
-  weatherManaMod() {
-    this.rollWeather();
-    return { clear: 0.06, fair: 0, rain: 0.04, fog: -0.1, storm: 0.15, snow: -0.04 }[this.weather.kind] || 0;
-  }
-
-  weatherLabel() {
-    this.rollWeather();
-    const desc = {
-      clear: 'the sky is clear and the air bright',
-      fair: 'the weather is fair',
-      rain: 'a steady rain is falling',
-      fog: 'a thick fog has rolled in',
-      storm: 'a thunderstorm rages overhead',
-      snow: 'snow is falling softly',
-    };
-    return `${desc[this.weather.kind]}. ${cap(this.weather.season)}.`;
-  }
+  // ---------- Weather (delegates to server/weather.js) ----------
+  rollWeather() { this.weather = weather.roll(this.weather); return this.weather; }
+  weatherNow() { return weather.now(this.weather); }
+  weatherLuckMod() { return weather.luckMod(this); }
+  weatherManaMod() { return weather.manaMod(this); }
+  weatherLabel() { return weather.label(this); }
 
   init() {
     for (const [roomId, room] of Object.entries(ROOMS)) {
@@ -252,19 +204,7 @@ export class Game {
     );
   }
 
-  dropFloor(roomId, itemId, qty = 1, transferred = null) {
-    const item = itemById(itemId);
-    if (!item) return;
-    if (isStackableItem(item)) {
-      this.floorItems.get(roomId).push({ uid: creatureUid(), item, qty });
-      return;
-    }
-    const instances = Array.isArray(transferred) ? transferred : [];
-    for (let copy = 0; copy < qty; copy += 1) {
-      const metadata = instanceMetadata(instances[copy] || transferred || {});
-      this.floorItems.get(roomId).push({ uid: creatureUid(), item, qty: 1, ...metadata });
-    }
-  }
+  dropFloor(roomId, itemId, qty = 1, transferred = null) { return corpses.dropFloor(this, roomId, itemId, qty, transferred); }
 
   floorItemsIn(roomId) {
     return this.floorItems.get(roomId) || [];
@@ -276,80 +216,16 @@ export class Game {
   }
 
   // ---------- Player death: a corpse with your belongings stays where you fell ----------
-  dropCorpse(p) {
-    const items = p.inventory.map((entry) => ({
-      id: entry.item.id,
-      qty: entry.qty,
-      ...(isStackableItem(entry.item) ? {} : instanceMetadata(entry)),
-    }));
-    const equipment = Object.keys(p.equipment).map((slot) => ({
-      slot,
-      id: p.equipment[slot].id,
-      ...instanceMetadata(p.equipment[slot]),
-    }));
-    if (!items.length && !equipment.length) return null;
-    // Move the rows as a unit. Unequipping first would temporarily merge gear
-    // with carried copies and could detach one instance's quality/condition.
-    db.prepare('DELETE FROM inventory WHERE character_id=?').run(p.charId);
-    db.prepare('DELETE FROM equipment WHERE character_id=?').run(p.charId);
-    p.inventory = [];
-    p.equipment = {};
-    p.handsDirty = true;
-    const corpse = {
-      uid: creatureUid(), corpse: true, owner: p.name, ownerCharId: p.charId,
-      name: `${p.name}'s corpse`, qty: 1,
-      item: { id: `corpse_${p.charId}`, name: `${p.name}'s corpse`, type: 'corpse', value: 0, desc: 'A still body, belongings about it.' },
-      items, equipment,
-    };
-    this.floorItems.get(p.room).push(corpse);
-    return corpse;
-  }
+  dropCorpse(p) { return corpses.dropCorpse(this, p); }
 
   corpseIn(p) {
     return this.floorItemsIn(p.room).find((f) => f && f.corpse);
   }
 
-  searchCorpse(p) {
-    const corpse = this.corpseIn(p);
-    if (!corpse) return { ok: false, msg: 'There is no corpse here to search.' };
-    const parts = [];
-    if (corpse.items.length) parts.push(`carried: ${corpse.items.map((i) => `${itemById(i.id).name}${i.qty > 1 ? ` (x${i.qty})` : ''}`).join(', ')}`);
-    if (corpse.equipment.length) parts.push(`worn: ${corpse.equipment.map((e) => itemById(e.id).name).join(', ')}`);
-    return {
-      ok: true,
-      msg: `\nYou kneel by ${corpse.name} and search it:\n  ${parts.join('\n  ') || 'Nothing of worth remains.'}\nReclaim your gear with "get <item> from corpse".`,
-    };
-  }
+  searchCorpse(p) { return corpses.searchCorpse(this, p); }
+  retrieveFromCorpse(p, itemName) { return corpses.retrieveFromCorpse(this, p, itemName); }
 
-  retrieveFromCorpse(p, itemName) {
-    const corpse = this.corpseIn(p);
-    if (!corpse) return { ok: false, msg: 'There is no corpse here to take from.' };
-    const n = itemName.toLowerCase();
-    const invIdx = corpse.items.findIndex((i) => itemById(i.id) && (itemById(i.id).name.toLowerCase().includes(n) || i.id.includes(n)));
-    if (invIdx >= 0) {
-      const it = corpse.items[invIdx];
-      addItem(p, it.id, it.qty, it);
-      corpse.items.splice(invIdx, 1);
-      this.clearEmptyCorpse(p, corpse);
-      return { ok: true, msg: `You take ${it.qty > 1 ? `${it.qty}x ` : ''}${itemById(it.id).name} from the corpse.` };
-    }
-    const eqIdx = corpse.equipment.findIndex((e) => itemById(e.id) && (itemById(e.id).name.toLowerCase().includes(n) || e.id.includes(n)));
-    if (eqIdx >= 0) {
-      const it = corpse.equipment[eqIdx];
-      addItem(p, it.id, 1, it);
-      corpse.equipment.splice(eqIdx, 1);
-      this.clearEmptyCorpse(p, corpse);
-      return { ok: true, msg: `You retrieve ${itemById(it.id).name} from the corpse.` };
-    }
-    return { ok: false, msg: 'It holds no such thing.' };
-  }
-
-  clearEmptyCorpse(p, corpse) {
-    if (corpse.items.length || corpse.equipment.length) return;
-    const floor = this.floorItemsIn(p.room);
-    const idx = floor.indexOf(corpse);
-    if (idx >= 0) floor.splice(idx, 1);
-  }
+  clearEmptyCorpse(p, corpse) { corpses.clearEmptyCorpse(this, p, corpse); }
 
   addPlayer(p) {
     const owner = this.players.get(p.charId);
