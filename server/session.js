@@ -10,7 +10,7 @@ import { db } from './db.js';
 import { handleCommand } from './commands/index.js';
 import { sendChargenMenu, doCharSelect, doCharCreate, doAlloc, doEnter } from './chargen.js';
 import { subscribe, unsubscribe, subscribeWorld, forward, forwardCommand } from './spectate.js';
-import { isGmToken } from './gm.js';
+import { isGmToken } from './http-auth.js';
 import { handleGmPlayMessage } from './gm-play.js';
 import { handleBoostMessage } from './boost.js';
 

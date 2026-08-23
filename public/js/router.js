@@ -9,6 +9,7 @@ import * as input from './input.js';
 import { gameState } from './state.js';
 import { mergeServerScripts } from './scripts.js';
 import { setToken } from './net.js';
+import { hasStoredGmToken, storedGmToken, harvestGmTokenFromFragment } from './gm-token.js';
 
 // "?spectate=Name" deep-link: watch that player once a GM credential is stored.
 const autoSpectate = new URLSearchParams(location.search).get('spectate') || '';
@@ -24,16 +25,7 @@ const autoPlay = (() => {
   return { guild, race: race || 'human', boost };
 })();
 // A #gm=<token> fragment may carry the credential itself (dash Watch links).
-try {
-  const m = location.hash.match(/^#gm=([A-Za-z0-9_%-]+)$/);
-  if (m) {
-    localStorage.setItem('dr_gm_token', decodeURIComponent(m[1]));
-    history.replaceState(null, '', location.pathname + location.search);
-  }
-} catch {}
-function hasStoredGmToken() {
-  try { return Boolean(localStorage.getItem('dr_gm_token')); } catch { return false; }
-}
+harvestGmTokenFromFragment();
 // True once a spectate handoff has been kicked off — set synchronously so
 // follow-up server messages (charselect etc.) don't race the dynamic import
 // and flash the welcome modal over the stream.
@@ -63,7 +55,7 @@ export function maybeGmPlay() {
   terminal.append(`\x1b[1m— GM quick-play: ${autoPlay.guild}${autoPlay.race ? ' ' + autoPlay.race : ''}${autoPlay.boost > 1 ? ` · boost x${autoPlay.boost}` : ''} —\x1b[0m`, 'ch-notice');
   import('./net.js').then(({ send }) => {
     let gmToken = '';
-    try { gmToken = localStorage.getItem('dr_gm_token') || ''; } catch {}
+    try { gmToken = storedGmToken(); } catch {}
     send({
       t: 'gm_play', gmToken,
       guild: autoPlay.guild, race: autoPlay.race,

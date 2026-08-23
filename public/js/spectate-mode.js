@@ -5,6 +5,7 @@
 // watched player's typed commands; the GM console stores the required token.
 import { $ } from './util.js';
 import { send, setStatusOverride } from './net.js';
+import { storedGmToken, harvestGmTokenFromFragment } from './gm-token.js';
 import * as terminal from './terminal.js';
 import * as welcome from './welcome.js';
 import { blockInput, focusInput } from './input.js';
@@ -20,15 +21,8 @@ export function enterSpectate(name) {
   }
   // Trusted-launcher/dash handoff: #gm=<token> in the URL is stored once and
   // stripped, so Watch links work even when localStorage wasn't pre-seeded.
-  try {
-    const m = location.hash.match(/^#gm=([A-Za-z0-9_%-]+)$/);
-    if (m) {
-      localStorage.setItem('dr_gm_token', decodeURIComponent(m[1]));
-      history.replaceState(null, '', location.pathname + location.search);
-    }
-  } catch {}
-  let gmToken = '';
-  try { gmToken = localStorage.getItem('dr_gm_token') || ''; } catch {}
+  harvestGmTokenFromFragment();
+  const gmToken = storedGmToken();
   if (!gmToken) {
     watchedName = null;
     terminal.append('Live watch is GM-only. Enter DR_GM_TOKEN in the GM console first.', 'ch-error');

@@ -397,10 +397,11 @@
       token: (() => {
         // Trusted-launcher handoff: #gm=<token> from the menu-bar app is
         // stored once and stripped so it never lingers in the address bar.
+        // Regex must match gm-token.js (includes % for URL-encoded tokens).
         try {
-          const m = location.hash.match(/^#gm=([A-Za-z0-9_-]+)$/);
+          const m = location.hash.match(/^#gm=([A-Za-z0-9_%-]+)$/);
           if (m) {
-            localStorage.setItem('dr_gm_token', m[1]);
+            localStorage.setItem('dr_gm_token', decodeURIComponent(m[1]));
             history.replaceState(null, '', location.pathname + location.search);
           }
         } catch {}

@@ -16,7 +16,7 @@ import { raceById } from '../data/races.js';
 import { guildById } from '../data/guilds.js';
 import { createCharacter, loadPlayer } from './player.js';
 import { enterWorld } from './chargen.js';
-import { isGmToken } from './gm.js';
+import { isGmToken } from './http-auth.js';
 
 const GM_ACCOUNT = 'gm';
 const GM_PASS_PREFIX = 'dr-gm-unusable-'; // never satisfies the >=8 login path meaningfully — random per provision

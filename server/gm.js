@@ -14,7 +14,7 @@ import { SKILLS } from '../data/skills.js';
 import { KHRI } from '../data/khri.js';
 import { db } from './db.js';
 import { loadPlayer } from './player.js';
-import { bearerToken, secretMatches } from './http-auth.js';
+import { bearerToken, secretMatches, isGmToken } from './http-auth.js';
 
 const SENSITIVE_DB_TABLES = new Set(['accounts', 'sessions']);
 const SENSITIVE_DB_IDENTIFIERS = new Set(['accounts', 'sessions', 'pass_hash', 'salt', 'token']);
@@ -25,9 +25,7 @@ function json(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
-export function isGmToken(token, configuredToken = process.env.DR_GM_TOKEN) {
-  return secretMatches(token, configuredToken);
-}
+export { isGmToken } from './http-auth.js'; // re-exported for existing importers
 
 export function gmRequest(req, res, game, { gmToken = process.env.DR_GM_TOKEN } = {}) {
   const supplied = bearerToken(req);

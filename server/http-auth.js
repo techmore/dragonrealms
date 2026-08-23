@@ -19,3 +19,10 @@ export function secretMatches(actual, expected) {
   const expectedBytes = Buffer.from(expected, 'utf8');
   return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
 }
+
+// True when `token` is the configured GM credential. Lives here (not in
+// gm.js) because session.js and gm-play.js need it as a general auth
+// primitive without pulling in the whole GM HTTP surface.
+export function isGmToken(token, configuredToken = process.env.DR_GM_TOKEN) {
+  return secretMatches(token, configuredToken);
+}
