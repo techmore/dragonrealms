@@ -6,7 +6,8 @@ import { gainSkillExp, skillRank, stancePoints, STANCES, STANCE_COSTS, setRoundt
 import { weaponReach } from '../combat.js';
 import { pad } from './util.js';
 import { skinCreature } from './skin.js';
-import { learnSpell } from './magic.js';
+import { tendWound, tendRoundtime } from '../wounds.js';
+import { learnSpell } from './verbs.js';
 
 const STANCE_DESC = {
   aggressive: 'You strike harder, but guard worse.',
@@ -268,8 +269,39 @@ function maneuver(ctx, kind) {
 }
 
 function skin(ctx) {
-  const { game, p, arg1, say, emit } = ctx;
-  skinCreature(game, p, arg1, say, emit);
+  const { p, emit } = ctx;
+  skinCreature(ctx.game, p, ctx.arg1, ctx.say, (msg) => {
+    // DR charges roundtime even for a botched cut.
+    setRoundtime(p, 3);
+    emit(msg);
+  });
+}
+
+// tend [part] — bandage a bleeding wound (DR: First Aid governs success and
+// roundtime; botched tending worsens the wound).
+function tend(ctx) {
+  const { game, p, arg1, arg2, emit } = ctx;
+  p.wounds = p.wounds || [];
+  const open = p.wounds.filter((w) => !w.resolved);
+  if (!open.length) return emit('You have no wounds that need tending.');
+  let wound;
+  if (arg1 && arg1 !== 'wounds') {
+    const n = `${arg1}${arg2 ? ` ${arg2}` : ''}`.toLowerCase();
+    wound = open.find((w) => w.part === n || w.part.includes(n));
+    if (!wound) return emit(`No bleeding wound on your ${n}. Bleeding: ${open.map((w) => w.part).join(', ')}.`);
+  } else {
+    // Worst bleeder first (DR prioritizes by severity).
+    wound = open.reduce((worst, w) => (w.level > worst.level ? w : worst), open[0]);
+  }
+  const rank = skillRank(p, 'first_aid');
+  gainSkillExp(p, 'first_aid', wound.level * 4 + 3);
+  const res = tendWound(wound, rank);
+  if (wound.tended || wound.resolved) {
+    p.wounds = p.wounds.filter((w) => !w.resolved);
+  }
+  setRoundtime(p, tendRoundtime(res.rt, rank));
+  game.status(p);
+  emit(`${res.msg}${rank >= 30 && res.ok ? ' Your sure hands make quick work of it.' : ''}`);
 }
 
 function berserk(ctx) {
@@ -433,9 +465,13 @@ function smite(ctx) {
   const target = combat.aliveEnemies.find((e) => e.uid === uid);
   if (!target) return emit('There is nothing to smite here.');
   const skill = skillRank(p, 'holy_magic');
+  // Conviction is the paladin's certainty: each rank steadies the blow
+  // (+1% smite damage, cap +30%) and steadies the soul (reduced cost).
+  const conv = skillRank(p, 'conviction');
+  const convMult = 1 + Math.min(0.3, conv * 0.01);
   const highSoul = soul >= 80 ? 1.5 : 1;
-  const dmg = Math.floor((20 + soul * 0.8 + skill * 2 + p.circle * 2) * highSoul);
-  p.soul = Math.max(0, soul - 15);
+  const dmg = Math.floor((20 + soul * 0.8 + skill * 2 + p.circle * 2) * highSoul * convMult);
+  p.soul = Math.max(0, soul - Math.max(10, 15 - Math.floor(conv / 4)));
   target.hp -= dmg;
   combat.say(`\x1b[1mYou smite ${target.def.name} with radiant fury for ${dmg} damage!\x1b[0m`);
   setRoundtime(p, 4);
@@ -551,6 +587,8 @@ export const commands = {
   bash: (ctx) => maneuver(ctx, 'bash'),
   'shield-bash': (ctx) => maneuver(ctx, 'bash'),
   skin,
+  tend,
+  bandage: (ctx) => tend(ctx),
   berserk,
   abilities,
   ability: abilities,

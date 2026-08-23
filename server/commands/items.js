@@ -18,13 +18,6 @@ const ROOM_VERBS = {
   tailor_shop: ['tailor'],
 };
 
-function stationVerbs(p) {
-  if (p.room === 'forge') return ROOM_VERBS.forge;
-  if (p.room === 'tailor_shop') return ROOM_VERBS.tailor_shop;
-  const room = roomById(p.room);
-  return (room && (room.npcs || []).some((id) => npcById(id)?.role === 'craft')) ? ['craft'] : [];
-}
-export { stationVerbs };
 
 function qualityNameFor(mult) {
   return (QUALITY_LADDER.find((q) => Math.abs(q.mult - mult) < 0.001) || {}).name || 'serviceable';
@@ -46,7 +39,7 @@ import {
   isStackableItem,
 } from '../player.js';
 import { pad, findInventoryItem, findSlotByItem, findNpcByName } from './util.js';
-import { loadWord } from './character.js';
+import { loadWord, stationVerbs } from './verbs.js';
 
 // Guild crafting affiliations (DR: free technique slots per discipline).
 // A guild's crafters hold a natural edge in their traditional trades.
@@ -468,45 +461,6 @@ export const commands = {
   },
 };
 
-// Crafting techniques: list and learn at the matching station. Routed from
-// magic.js's `technique` verb when the player stands at a craft station.
-export function craftTechnique(ctx) {
-  const { game, p, arg1, arg2, emit } = ctx;
-  const verbs = stationVerbs(p);
-  const skills = [...new Set(verbs.map((v) => VERB_SKILL[v]))];
-  const slotsFor = (skill) => craftSlotsFor(skillRank(p, skill), craftAffinity(p.guild.id, verbOfSkill(skill)) > 0);
-  const verbOfSkill = (skill) => verbs.find((v) => VERB_SKILL[v] === skill);
-
-  if (arg1 && arg1.toLowerCase() === 'learn') {
-    const name = (arg2 || '').toLowerCase();
-    const def = Object.values(CRAFT_TECHNIQUES).find((t) => skills.includes(t.skill) && (t.id === name || t.name.toLowerCase().includes(name)));
-    if (!def) return emit('No such technique posts here. "technique" lists what this station teaches.');
-    const skill = def.skill;
-    const known = knownCraftTechs(p, skill);
-    if (known.includes(def.id)) return emit(`You already practice ${def.name}.`);
-    if (skillRank(p, skill) < def.minRank) return emit(`${def.name} requires ${def.minRank} ${skill} ranks; you have ${skillRank(p, skill)}.`);
-    if (known.length >= slotsFor(skill)) return emit(`Your ${skill} slots are full (${known.length}/${slotsFor(skill)}). Higher ${skill} ranks open more.`);
-    if (p.silver < CRAFT_TECH_COST) return emit(`Learning ${def.name} costs ${CRAFT_TECH_COST} silvers, and you are short.`);
-    p.silver -= CRAFT_TECH_COST;
-    p.craftTechs = p.craftTechs || {};
-    p.craftTechs[skill] = known.concat(def.id);
-    game.persistPlayer(p);
-    const teacher = ORDER_VERBS[verbOfSkill(skill)].npc;
-    return emit(`${teacher} watches your hands, adjusts your grip, and names it: \x1b[1m${def.name}\x1b[0m — ${def.desc} (${known.length + 1}/${slotsFor(skill)} ${skill} slots, ${p.silver} silvers left).`);
-  }
-
-  // List what this station offers.
-  let out = '';
-  for (const skill of skills) {
-    const known = knownCraftTechs(p, skill);
-    const rank = skillRank(p, skill);
-    const lines = Object.values(CRAFT_TECHNIQUES)
-      .filter((t) => t.skill === skill)
-      .map((t) => `  ${pad(t.name, 20)} [rank ${t.minRank}] ${t.desc}${known.includes(t.id) ? '  \x1b[1m[known]\x1b[0m' : ''}`);
-    out += `\n\x1b[1m${skill}\x1b[0m — ${known.length}/${slotsFor(skill)} slots (${rank} ranks):\n${lines.join('\n')}`;
-  }
-  emit(`\nTechniques of the trade:${out}\n\nSay "technique learn <name>" here (${CRAFT_TECH_COST} silvers each).`);
-}
 
 function showInventory(ctx) {
   const { p, say } = ctx;

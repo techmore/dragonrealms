@@ -1,7 +1,7 @@
 // Magic commands: casting, preparation, mana, cambrinth, familiars.
 import { roomById } from '../../data/world.js';
 import { spellsFor, spellById, spellTierFor, SPELL_TIER_RANKS, spellSlotCost, spellSlotsTotal, spellSlotsUsed } from '../../data/guilds.js';
-import { craftTechnique, stationVerbs } from './items.js';
+import { craftTechnique, stationVerbs } from './verbs.js';
 
 // A spell is castable when your guild's curriculum reaches it and you have
 // not forgotten it. The slot budget is enforced where spells are granted
@@ -305,7 +305,10 @@ export const commands = {
     const corpse = (p.corpses || []).find((c) => c.def.name.replace(/^a /, '').split(' ')[0].includes((arg1 || '').toLowerCase()) || c.def.id === (arg1 || '').toLowerCase());
     if (!corpse) return emit('There is no suitable corpse here. Slay something first.');
     const def = corpse.def;
-    let hp = 20 + p.circle * 4 + def.circle * 5;
+    // Thanatology deepens the necromancer's communion with death: each rank
+    // strengthens the risen (+2% hp, cap +40%).
+    const than = skillRank(p, 'thanatology');
+    let hp = Math.ceil((20 + p.circle * 4 + def.circle * 5) * (1 + Math.min(0.4, than * 0.02)));
     let preserved = '';
     // Ritual Preserve: a preserved corpse rises harder (DR Preserve).
     if (p.ritualPreserveUntil && Date.now() < p.ritualPreserveUntil) {
@@ -345,10 +348,31 @@ export const commands = {
     if (!target) return emit('There is no such adventurer here.');
     if (target.hp >= target.maxHp) return emit(`${target.name} is already whole.`);
     const skill = skillRank(p, 'healing_magic');
-    const amount = Math.min(target.maxHp - target.hp, 10 + skill * 3 + p.circle * 2);
+    // Empathy ranks teach the hands to waste less of the wound: each rank
+    // mends a bit more and passes less of the hurt into the empath.
+    const emp = skillRank(p, 'empathy');
+    const amount = Math.min(target.maxHp - target.hp, Math.ceil((10 + skill * 3 + p.circle * 2) * (1 + Math.min(0.3, emp * 0.01))));
     target.hp += amount;
+    // Empath magic closes bleeding wounds outright (DR: Heal Wounds restores
+    // the body part). Empathy ranks let the touch reach deeper hurts.
+    const tWounds = Array.isArray(target.wounds) ? target.wounds : [];
+    if (tWounds.some((w) => !w.resolved)) {
+      const cost = (w) => w.level * 12 + 10;
+      let remaining = amount;
+      for (const w of tWounds) {
+        if (w.resolved || remaining < cost(w)) continue;
+        remaining -= cost(w);
+        w.resolved = true;
+      }
+      const before = tWounds.length;
+      target.wounds = tWounds.filter((w) => !w.resolved);
+      if (target.wounds.length < before) {
+        emit(`The ${target.name}'s wounds close under your hands as the bleeding stops.`);
+        gainSkillExp(p, 'empathy', 4);
+      }
+    }
     // The wound passes into the empath (DR wound-taking).
-    const selfCost = Math.max(1, Math.floor(amount * 0.5));
+    const selfCost = Math.max(1, Math.floor(amount * (0.5 - Math.min(0.25, emp * 0.004))));
     p.hp = Math.max(1, p.hp - selfCost);
     gainSkillExp(p, 'empathy', 6);
     gainSkillExp(p, 'healing_magic', 8);
@@ -442,11 +466,16 @@ export const commands = {
     const song = arg1.toLowerCase();
     if (!['war', 'bravery', 'regen'].includes(song)) return emit('You know three enchantes: enchant war (fury), enchant bravery (ward), enchant regen (renewal).');
     if (p.cyclic) return emit(`You are already singing an enchante. "enchant off" to end it.`);
-    const cost = song === 'regen' ? 5 : 4;
-    p.cyclic = { song, ticks: 60, tickCount: 0, upkeep: cost };
+    // Bardic Lore is the craft behind the song: ranks lengthen the enchante
+    // and ease its mana upkeep (DR: Bardic Lore powers music abilities).
+    const bl = skillRank(p, 'bardic_lore');
+    const ticks = 60 + Math.min(60, bl * 2);
+    const cost = Math.max(2, (song === 'regen' ? 5 : 4) - Math.floor(bl / 25));
+    p.cyclic = { song, ticks, tickCount: 0, upkeep: cost };
+    gainSkillExp(p, 'bardic_lore', 5);
     gainSkillExp(p, 'illusion', 6);
     gainSkillExp(p, 'performance', 6);
-    emit(`You begin an enchante — ${song === 'war' ? 'a driving war march' : song === 'bravery' ? 'a steady ballad of bravery' : 'a gentle hymn of renewal'}. It costs ${cost} mana every few beats to sustain.`);
+    emit(`You begin an enchante — ${song === 'war' ? 'a driving war march' : song === 'bravery' ? 'a steady ballad of bravery' : 'a gentle hymn of renewal'}. It costs ${cost} mana every few beats to sustain.${bl >= 10 ? ' Your lore lends the song real weight.' : ''}`);
   },
   enchante(ctx) { /* alias */ const { p, emit } = ctx; const c = p.cyclic; emit(c ? `Enchante active: ${c.song} (${c.ticks} beats left)` : 'No enchante is playing.'); },
   devotion(ctx) {
@@ -495,36 +524,6 @@ export const commands = {
   },
 };
 
-// Spell learning for magic guilds, routed from combat.js's `learn` verb
-// (barbarians keep it for abilities). Teaches a circle-reached spell at the
-// guild hall while the slot budget allows.
-export function learnSpell(ctx) {
-  const { game, p, arg1, emit } = ctx;
-  const guild = p.guild;
-  if (!guild.magic) return emit('Your guild forswears magic.');
-  const spell = spellById(guild, arg1);
-  if (!spell) {
-    const names = (guild.spells || []).map((s) => s.name.toLowerCase()).join(', ');
-    return emit(`Your guild teaches: ${names}. ("slots" shows your budget.)`);
-  }
-  const room = roomById(p.room);
-  if (!room || !(room.id === `hall_${guild.id}` || room.id === 'rh_guilds')) {
-    return emit('You must stand in your own guild hall to learn spells.');
-  }
-  if (spell.minCircle > p.circle) return emit(`Your masters will not teach ${spell.name} until circle ${spell.minCircle}.`);
-  const forgotten = Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [];
-  if (!forgotten.includes(spell.id)) return emit(`You already hold ${spell.name}.`);
-  const total = spellSlotsTotal(guild, p.circle);
-  const used = spellSlotsUsed(guild, p.circle, forgotten);
-  const cost = spellSlotCost(spell);
-  if (used + cost > total) {
-    return emit(`No room in your mind: ${spell.name} needs ${cost} slots, you have ${total - used} free. Forget a spell first ("forget <spell>").`);
-  }
-  p.spellsForgotten = forgotten.filter((id) => id !== spell.id);
-  if (!p.spellsKnown.includes(spell.id)) p.spellsKnown.push(spell.id);
-  game.persistPlayer(p);
-  emit(`Your masters walk you through the forms. \x1b[1m${spell.name}\x1b[0m is yours (${used + cost}/${total} spell slots).`);
-}
 
 function cambrinth(ctx, action) {
   const { p, cmd, arg1, emit } = ctx;

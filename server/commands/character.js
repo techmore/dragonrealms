@@ -210,18 +210,10 @@ export const commands = {
 // condition reads off its fraction with DR's vitality ladder.
 import { vitalityLabel } from '../combat.js';
 // DR encumbrance word for the current load vs your carry allowance.
+import { loadWord } from './verbs.js';
 import { totalBurden, netBurden, carryAllowance } from '../player.js';
-export function loadWord(p) {
-  const total = totalBurden(p);
-  const allow = carryAllowance(p);
-  const frac = allow > 0 ? total / allow : total > 0 ? Infinity : 0;
-  if (total <= 0) return 'unburdened';
-  if (netBurden(p) >= 6) return 'overloaded';
-  if (frac >= 1.25) return 'heavily laden';
-  if (frac >= 1) return 'laden';
-  if (frac >= 0.6) return 'burdened';
-  return 'lightly loaded';
-}
+import { bleedInfo } from '../wounds.js';
+
 
 function showHealth(ctx) {
   const { p, say } = ctx;
@@ -230,7 +222,11 @@ function showHealth(ctx) {
   const res = p.guild.magic
     ? `Mana ${p.mana}/${p.maxMana}`
     : p.guild.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : '';
-  say(`\nYou are ${cond} and ${loadWord(p)}.\nHealth ${p.hp}/${p.maxHp}  ${res ? res + '  ' : ''}Stamina ${p.stamina}/${p.maxStaminaEff}\n${stam}`);
+  const open = (p.wounds || []).filter((w) => !w.resolved);
+  const woundLine = open.length
+    ? `\nBleeding: ${open.map((w) => `${w.part} (${bleedInfo(w.level).name}${w.tended ? ', tended' : ''})`).join(', ')}${open.some((w) => !w.tended) ? ' — "tend <part>" to bandage.' : ''}`
+    : '\nNo bleeding wounds.';
+  say(`\nYou are ${cond} and ${loadWord(p)}.\nHealth ${p.hp}/${p.maxHp}  ${res ? res + '  ' : ''}Stamina ${p.stamina}/${p.maxStaminaEff}\n${stam}${woundLine}`);
 }
 
 function showScore(ctx) {
