@@ -225,5 +225,5 @@ export const FEATURES = [
   { s:15, id:"f187", label:"Consolidate GM token handling", detail:"DONE: isGmToken moved to http-auth.js (gm.js re-exports for compat); single public/js/gm-token.js harvest used by router/spectate-mode/gm-console — fixes the % regex bug in gm-console + admin dash (URL-encoded tokens silently failed there)", status:"done" },
   { s:15, id:"f188", label:"Split admin.html inline script", detail:"942-line inline script -> public/js/admin/*.js ES modules: api helpers, polling/render, jobs tailer, sim-agent engine, world-graph pathing, player view", status:"pending" },
   { s:15, id:"f189", label:"Flatten command verb chain", detail:"combat->magic->items->character cross-imports: move shared verbs (loadWord, learnSpell, craftTechnique, stationVerbs) to commands/util.js; consolidate mid-file imports at top", status:"pending" },
-  { s:15, id:"f190", label:"Dedupe helpers & queries", detail:"pad x4, cap x3, DIRS map x3 into server/util.js; charsFor query shared between api.js and session.js; spectate room-header rendering reuses game's renderer", status:"pending" },
+  { s:15, id:"f190", label:"Dedupe helpers & queries", detail:"DONE: server/util.js holds pad/cap/DIR_NAMES (was 4x pad, 3x cap, 2x DIRS map); charsFor() moved to player.js shared by api.js + session.js; spectate room-header uses shared DIR_NAMES", status:"done" },
 ];

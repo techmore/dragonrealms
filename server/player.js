@@ -28,6 +28,14 @@ export function baseStatsFor(raceId) {
 
 export const CITIES = { crossing: 'square', riverhaven: 'rh_square' };
 
+// Compact character summaries for char-select surfaces (WS + HTTP API).
+export function charsFor(accountId) {
+  return db.prepare('SELECT id, name, race, guild, circle FROM characters WHERE account_id=? ORDER BY created_at')
+    .all(accountId)
+    .map((c) => ({ charId: c.id, name: c.name, race: c.race, guild: c.guild, circle: c.circle }));
+}
+
+
 const PERSISTED_TIMESTAMPS = [
   'warhornAt', 'potionAt', 'scavengeAt', 'glyphAt', 'beseechAt',
   'sacrificeAt', 'telescopeAt', 'linkAt', 'slipAt', 'devoteAt',

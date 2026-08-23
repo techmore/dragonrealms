@@ -3,7 +3,7 @@
 // tokens (Authorization: Bearer <token>). JSON in, JSON out, rate-limited,
 // body-size-capped, per-account scoped. Never serves unauthenticated state.
 import { registerAccount, loginAccount, validateSession, logoutSession } from './auth.js';
-import { createCharacter, loadPlayer, addItem, MAX_CHARS } from './player.js';
+import { createCharacter, loadPlayer, addItem, MAX_CHARS, charsFor } from './player.js';
 import { raceById } from '../data/races.js';
 import { roomById } from '../data/world.js';
 import { db } from './db.js';
@@ -112,14 +112,6 @@ function virtualSocket() {
   return sock;
 }
 
-function charsFor(accountId) {
-  return db.prepare('SELECT id, name, race, guild, circle FROM characters WHERE account_id=? ORDER BY created_at')
-    .all(accountId)
-    .map((c) => ({
-      charId: c.id, name: c.name, race: c.race, guild: c.guild, circle: c.circle,
-    }));
-}
-
 function apiState(game, p) {
   const room = roomById(p.room);
   const combat = game.combat.getFor(p);
@@ -130,6 +122,7 @@ function apiState(game, p) {
       name: p.name, race: p.race.id, guild: p.guild.id, circle: p.circle,
       hp: p.hp, maxHp: p.maxHp, mana: p.mana, maxMana: p.maxMana,
       silver: p.silver, bank: p.bank, tdp: p.tdp || 0, stance: p.stance,
+      wounds: (p.wounds || []).filter((w) => !w.resolved),
       room: p.room, heldMana: p.heldMana || 0, prepared: p.prepared || null,
       buffs: p.buffs || {}, unspentStat: p.unspentStat,
     },

@@ -4,6 +4,7 @@ import { RACES, raceById } from '../data/races.js';
 import { GUILDS, guildById } from '../data/guilds.js';
 import { manaTypeFor } from '../data/mana.js';
 import { db } from './db.js';
+import { pad } from './util.js';
 
 function sendChargenMenu(session) {
   const races = Object.values(RACES).map((r) => `${r.id} - ${r.name}: ${r.desc}`).join('\n');
@@ -136,11 +137,6 @@ function enterWorld(session, charId, candidate = null) {
   // Script library: the client's saved DR scripts follow the character.
   session.send({ t: 'scripts', scripts: p.scripts || {} });
   return true;
-}
-
-function pad(s, n) {
-  s = String(s);
-  return s.length >= n ? s : s + ' '.repeat(n - s.length);
 }
 
 export {

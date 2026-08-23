@@ -8,11 +8,7 @@ import {
   unlockAchievement, isStackableItem, instanceMetadata,
 } from './player.js';
 import { db } from './db.js';
-
-function pad(s, n) {
-  s = String(s);
-  return s.length >= n ? s : s + ' '.repeat(n - s.length);
-}
+import { pad } from './util.js';
 
 function weaponString(item) {
   if (item.type !== 'weapon') return '';
@@ -52,9 +48,13 @@ export const economy = {
     qty = Math.max(1, Math.min(100, Math.floor(qty) || 1));
     const shops = this.shopNpcsIn(p);
     if (!shops.length) return { ok: false, msg: 'There is no shopkeeper here.' };
-    const target = shops
+    const entries = shops
       .flatMap((shop) => Object.entries(shop.stock).map(([id, q]) => ({ shop, item: itemById(id), q })))
-      .find((e) => e.item && (e.item.id === itemName || e.item.name.includes(itemName)));
+      .filter((e) => e.item);
+    // Prefer exact id matches over substring name matches, so "buy leather"
+    // finds the leather jerkin even after a "braided leather sling" exists.
+    const target = entries.find((e) => e.item.id === itemName)
+      || entries.find((e) => e.item.name.includes(itemName));
     if (!target) return { ok: false, msg: 'They do not sell that here.' };
     if (target.q < qty) return { ok: false, msg: 'They do not have that many in stock.' };
     const cost = target.item.value * qty;

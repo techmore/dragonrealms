@@ -4,6 +4,8 @@ import { ROOMS, ZONES, roomById } from '../data/world.js';
 import { creatureById } from '../data/creatures.js';
 import { itemById } from '../data/items.js';
 import { skillRank, gainSkillExp, addItem, unlockAchievement } from './player.js';
+import { clotTick } from './wounds.js';
+import { cap, pad } from './util.js';
 
 const DIRS = {
   n: 'north', s: 'south', e: 'east', w: 'west',
@@ -12,15 +14,6 @@ const DIRS = {
 };
 
 const WILD_ZONES = new Set(['woods', 'marsh', 'deepwoods', 'camp', 'sewers']);
-
-function cap(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function pad(s, n) {
-  s = String(s);
-  return s.length >= n ? s : s + ' '.repeat(n - s.length);
-}
 
 export const wilds = {
   isWild(roomId) {
@@ -53,9 +46,11 @@ export const wilds = {
   track(game, p) {
     if (!this.isWild(p.room)) return { ok: false, msg: 'There is nothing to track in town.' };
     if (p.guild.id === 'ranger') gainSkillExp(p, 'scouting', 4);
+    // Scouting ranks sharpen a ranger's eye: track success scales with rank.
+    const scoutEye = p.guild.id === 'ranger' ? skillRank(p, 'scouting') * 0.005 : 0;
     const skill = skillRank(p, 'tracking');
     const room = roomById(p.room);
-    const chance = 0.4 + skill * 0.04 + (p.element === 'air' ? 0.05 : 0) + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
+    const chance = 0.4 + skill * 0.04 + scoutEye + (p.element === 'air' ? 0.05 : 0) + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
     if (Math.random() >= chance) {
       gainSkillExp(p, 'tracking', 3);
       return { ok: true, msg: 'You study the ground but the signs are too faint to follow.' };
@@ -213,11 +208,19 @@ export const wilds = {
     p.restTimer = setInterval(() => {
       ticks += 1;
       if (p.combatId || p.room !== p.restRoom) { wilds.stopRest(p); return; }
-      const hpGain = restful ? Math.max(4, Math.floor(p.maxHp * 0.045)) : Math.max(2, Math.floor(p.maxHp * 0.025 * earthBonus));
+      // Agent boost multiplies recovery for speed-run test sessions.
+      const bm = Number(p.boostMult) || 1;
+      const hpGain = (restful ? Math.max(4, Math.floor(p.maxHp * 0.045)) : Math.max(2, Math.floor(p.maxHp * 0.025 * earthBonus))) * bm;
       p.hp = Math.min(p.maxHp, p.hp + hpGain);
-      if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * (restful ? 0.07 : 0.04 * earthBonus))));
-      p.stamina = Math.min(p.maxStaminaEff, (p.stamina || 0) + (restful ? 9 : 6));
+      if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * (restful ? 0.07 : 0.04 * earthBonus))) * bm);
+      p.stamina = Math.min(p.maxStaminaEff, (p.stamina || 0) + (restful ? 9 : 6) * bm);
       gainSkillExp(p, 'athletics', 2);
+      // Rest clots bleeding wounds: tended ones resolve, untended slow down.
+      if (ticks % 3 === 0 && Array.isArray(p.wounds)) {
+        for (const w of p.wounds) { w.tended = true; w.since = Date.now() - 120 * 1000; }
+        clotTick(p.wounds, false);
+        p.wounds = p.wounds.filter((w) => !w.resolved);
+      }
       if (ticks % 10 === 0) p.rexp = Math.min(120, (p.rexp || 0) + 1);
       p.ws.send(JSON.stringify({ t: 'msg', msg: `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}, stamina ${p.stamina}/${p.maxStaminaEff}${restful ? ' (warm and dry)' : ''}` }));
       if (p.hp >= p.maxHp && (!p.guild.magic || p.mana >= p.maxMana) && p.stamina >= p.maxStaminaEff) wilds.stopRest(p);

@@ -3,16 +3,11 @@
 // explicit player-consent model. The session router validates the configured
 // GM credential and marks the session; these guards keep direct callers safe.
 import { weaponOf } from './player.js';
+import { DIR_NAMES as DIRS } from './util.js';
 import { roomById, ZONES } from '../data/world.js';
 
 const watchers = new Map(); // charId -> Set<session>
 const worldWatchers = new Set(); // sessions watching the entire world feed
-
-const DIRS = {
-  n: 'north', s: 'south', e: 'east', w: 'west',
-  ne: 'northeast', nw: 'northwest', se: 'southeast', sw: 'southwest',
-  u: 'up', d: 'down',
-};
 
 // GM world feed: every online player's messages, tagged with the source.
 export function subscribeWorld(session) {

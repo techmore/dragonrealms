@@ -11,6 +11,8 @@ import {
   wearCondition, setRoundtime, MASTERY_SETS, stancePoints, roundtimeLeft,
 } from './player.js';
 import { itemById } from '../data/items.js';
+import { rollWound, bleedInfo, bleedRate, tendWound, tendRoundtime, clotTick } from './wounds.js';
+import { cap } from './util.js';
 
 const { MELEE_WEAPONS, RANGED_WEAPONS } = MASTERY_SETS;
 
@@ -495,11 +497,22 @@ export class Combat {
       }
     }
     this.player.hp -= dmg;
+    // Solid hits can open bleeding wounds (DR: bleeding levels, tend).
+    const p = this.player;
+    const wound = rollWound(dmg, e.def.circle || 1);
+    if (wound) {
+      p.wounds = p.wounds || [];
+      const existing = p.wounds.find((w) => w.part === wound.part && !w.resolved);
+      if (existing) existing.level = Math.min(8, existing.level + 1);
+      else p.wounds.push(wound);
+      this.say(`\x1b[31mYou are wounded — your ${wound.part} is bleeding (${bleedInfo(p.wounds.find((w) => w.part === wound.part && !w.resolved).level).name})!\x1b[0m Tend it before you bleed out.`);
+    }
     if (!this._ended) this.checkDuelEnd('defender');
     if (this.player.hp <= 0) { this.player.hp = 0; this.killPlayer(); }
   }
 
   killPlayer() {
+    this.player.wounds = []; // death washes the wounds clean
     this.say('You are overcome, and the world goes dark around you...');
     this.end(false, true);
   }
@@ -678,6 +691,24 @@ export class Combat {
       const amount = Math.round((spell.base + skill * 3) * mult) + heldBonus;
       const before = p.hp;
       p.hp = Math.min(p.maxHp, p.hp + amount);
+      // Healing magic closes bleeding wounds (DR: Heal Wounds restores the
+      // body part). Stronger casts close worse wounds; excess power carries.
+      p.wounds = p.wounds || [];
+      let closed = 0;
+      if (p.wounds.some((w) => !w.resolved)) {
+        let remaining = amount;
+        for (const w of p.wounds) {
+          if (w.resolved || remaining <= 0) continue;
+          const cost = w.level * 12 + 10;
+          if (remaining >= cost) { w.resolved = true; remaining -= cost; closed += 1; }
+        }
+        if (closed > 0) {
+          p.wounds = p.wounds.filter((w) => !w.resolved);
+          this.say(`The magic knits torn flesh — ${closed === 1 ? 'a wound closes' : `${closed} wounds close`} completely!`);
+        } else {
+          this.say('The magic eases your wounds, but they are too grave to close.');
+        }
+      }
       this.say(`You cast ${spell.name} and mend yourself for ${p.hp - before} health.`);
       afterCast();
       return;
@@ -1307,6 +1338,20 @@ export class Combat {
     const burd = netBurden(this.player);
     const staminaCap = maxStaminaEff(this.player);
     this.player.stamina = Math.min(staminaCap, (this.player.stamina ?? staminaCap) + (burd >= 2 ? 1 : 2));
+    // Bleeding wounds drain vitality every beat (DR bleeding levels).
+    this.player.wounds = this.player.wounds || [];
+    if (clotTick(this.player.wounds, true)) {
+      const gone = this.player.wounds.filter((w) => w.resolved).map((w) => w.part);
+      if (gone.length) {
+        this.player.wounds = this.player.wounds.filter((w) => !w.resolved);
+        this.say(`Your ${gone.join(' and ')} wound${gone.length > 1 ? 's have' : ' has'} healed under the bandage.`);
+      }
+    }
+    const bleed = bleedRate(this.player.wounds);
+    if (bleed > 0) {
+      this.player.hp -= bleed;
+      if (this.player.hp <= 0) { this.player.hp = 0; this.killPlayer(); return; }
+    }
     if (this.player.hp <= 0) return;
 
     // Player action: swing only when the target is within weapon reach
@@ -1414,10 +1459,6 @@ function teachingFactor(playerSkill, def) {
   if (playerSkill <= hi) return 1;
   const over = playerSkill - hi;
   return Math.max(0.15, 1 - over / (hi + 40));
-}
-
-function cap(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // Bonus stance points as combat edge: guild bonuses beyond the base 3

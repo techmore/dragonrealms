@@ -3,6 +3,7 @@
 // quests, status) lives in server/economy.js, server/wilds.js,
 // server/quests.js, and server/status.js — this class delegates to them.
 import { roomById, ROOMS, ZONES } from '../data/world.js';
+import { DIR_NAMES, cap } from './util.js';
 import { db } from './db.js';
 import { npcById } from '../data/npcs.js';
 import { creatureById, RARES } from '../data/creatures.js';
@@ -40,11 +41,7 @@ function seasonFor(date) {
   if (m >= 9 && m <= 11) return 'autumn';
   return 'winter';
 }
-const DIRS = {
-  n: 'north', s: 'south', e: 'east', w: 'west',
-  ne: 'northeast', nw: 'northwest', se: 'southeast', sw: 'southwest',
-  u: 'up', d: 'down', up: 'up', down: 'down',
-};
+const DIRS = DIR_NAMES;
 
 import { vitalityLabel } from './combat.js';
 
@@ -55,10 +52,6 @@ function resolveExit(room, dir) {
 }
 
 const creatureUid = () => `crt_${Math.random().toString(36).slice(2, 10)}`;
-
-function cap(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
 
 export class Game {
   constructor() {

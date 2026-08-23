@@ -3,10 +3,9 @@ import { WebSocketServer } from 'ws';
 import {
   registerAccount, loginAccount, validateSession, logoutSession, pruneExpiredSessions,
 } from './auth.js';
-import { MAX_CHARS, putScript, delScript } from './player.js';
+import { MAX_CHARS, putScript, delScript, charsFor } from './player.js';
 import { raceById } from '../data/races.js';
 import { guildById } from '../data/guilds.js';
-import { db } from './db.js';
 import { handleCommand } from './commands/index.js';
 import { sendChargenMenu, doCharSelect, doCharCreate, doAlloc, doEnter } from './chargen.js';
 import { subscribe, unsubscribe, subscribeWorld, forward, forwardCommand } from './spectate.js';
@@ -253,7 +252,7 @@ function startAccountSession(session, info) {
   session.username = info.username;
   session.send({ t: 'authed', token: info.token });
 
-  const chars = db.prepare('SELECT id, name, race, guild, circle FROM characters WHERE account_id=? ORDER BY created_at').all(info.accountId);
+  const chars = charsFor(info.accountId);
   if (chars.length === 0) {
     session.state = 'charcreate';
     sendChargenMenu(session);
