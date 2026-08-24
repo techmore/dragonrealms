@@ -118,7 +118,16 @@ class SweepAgent {
         this.supervise();
       },
       onText: (text, type) => this.onText(text, type),
-      onError: (msg) => this.appendLog(`[error] ${new Date().toISOString()} ${msg}`),
+      onError: (msg) => {
+        this.appendLog(`[error] ${new Date().toISOString()} ${msg}`);
+        // Ghost-session guard: back-to-back runs reuse the char; if the old
+        // socket is still winding down server-side, 'enter' is refused. Wait
+        // for the logout to settle, then re-request entry.
+        if (/already active in another session/i.test(String(msg))) {
+          setTimeout(() => { this.session.sendObj({ t: 'charselect', id: this.session.knownChar?.charId ?? 0 }); }, 4000);
+          setTimeout(() => { this.session.sendObj({ t: 'enter' }); }, 6500);
+        }
+      },
       onFatal: (reason) => this.finish(reason),
       onReconnect: (n) => this.appendLog(`[reconnect] attempt ${n}`),
     });
@@ -236,6 +245,14 @@ class SweepAgent {
       return;
     }
     if (/dies|slumps|lifeless|stops moving|collapses/.test(text)) this.kills += 1;
+    // Observability: movement/combat refusals are the #1 reason agents park
+    // silently. Tag them so a fidelity log explains its own stalls.
+    if (/^(You cannot go that way|You are overloaded|You must wait|Creatures block your path|You are in the stocks|The cell door is barred|Go where)/.test(stripAnsi(text))) {
+      this.refusals = (this.refusals || 0) + 1;
+      if (this.refusals <= 200) {
+        this.appendLog(`[refuse] ${stripAnsi(text).slice(0, 120)} [room ${this.session.vitals.room}]`);
+      }
+    }
     if (/not yet ready to circle/.test(text)) {
       this.appendLog(`[circle-blocked] ${stripAnsi(text).replace(/\n+/g, ' | ').slice(0, 220)}`);
       // Retarget: parse the exact missing list so the next hall trip trains
@@ -327,6 +344,26 @@ class SweepAgent {
       this.lastFleeAt = Date.now();
       this.appendLog(`[interlock] HP ${v.hp}/${v.maxhp} — fleeing`);
       void this.session.cmd('flee');
+      return;
+    }
+    // Rest interlock (supervisor-side, like live-sim): the generated hunt
+    // script gates resting on an ABSOLUTE hp literal (< 40 ≈ 28% of a c1
+    // bar), so a hurt agent can hover just above it forever — fleeing every
+    // fight, never healing, never winning. Rest out-of-combat below 55%,
+    // stand above 90%.
+    if (!v.maxhp || v.inCombat) return;
+    const frac = v.hp / v.maxhp;
+    const now = Date.now();
+    if (!v.restingFlag && frac < 0.55 && now - (this.lastRestCmdAt || 0) > 4000) {
+      this.lastRestCmdAt = now;
+      if (!this.restAnnounced) {
+        this.restAnnounced = true;
+        this.appendLog(`[interlock] HP ${v.hp}/${v.maxhp} — resting until 90%`);
+      }
+      void this.session.cmd('rest');
+    } else if (v.restingFlag && frac >= 0.9) {
+      this.restAnnounced = false;
+      void this.session.cmd('stand');
     }
   }
 
@@ -364,7 +401,8 @@ class SweepAgent {
       // the bazaar hub instead — every town road connects there eventually.
       if (this.session.vitals.room && Date.now() - this.lastRoomChangeAt > 90000
         && !this.session.vitals.inCombat) {
-      this.appendLog('[watchdog] parked 90s — regenerating cycle from here');
+      const st = this.runner?.state || {};
+      this.appendLog(`[watchdog] parked 90s — regenerating cycle from here [room ${this.session.vitals.room} script ${this.curName} mode ${st.mode}/${st.pc} hp ${this.session.vitals.hp}/${this.session.vitals.maxhp} refusals ${this.refusals || 0}]`);
       this.lastRoomChangeAt = Date.now();
       this.stuckCount = (this.stuckCount || 0) + 1;
       if (this.stuckCount >= 2 && this.session.vitals.room !== 'bazaar') {
@@ -423,6 +461,7 @@ class SweepAgent {
       ts: new Date().toISOString(), guild: this.guild, race: this.race, char: this.char,
       reason, circle: this.session.vitals.circle, circles: this.circles,
       kills: this.kills, deaths: this.deaths, trains: this.trains,
+      refusals: this.refusals || 0,
       fidelity: this.fidelity, fidelityScore: `${checksPassed}/${checksTotal}`,
       grade,
     };
