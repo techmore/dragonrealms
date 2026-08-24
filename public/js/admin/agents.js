@@ -1,8 +1,9 @@
 // Browser-launched sim agents: register/login over HTTP, walk the WS
 // chargen handshake, apply boost, then run an event-driven hunt loop
 // with world-graph pathing toward creature spawns.
+// Used by /sims.html (launch form + rerun). Renders into #agstate/#agroster/
+// #aglog on whatever page hosts it; render.js polling is optional.
 import { $, esc, trim, S, cssVar, fmtDur, toast, gm } from './core.js';
-import { tick } from './render.js';
 
 /* ================= launch agent ================= */
 // Browser twin of scripts/race-guild-sweep.mjs: registers/logs in over
@@ -78,21 +79,26 @@ function agLog(agent, text, cls) {
 function agRenderState() {
   const el = $('agstate');
   const live = AG.agents.filter((a) => a.ws);
+  // Running sims sort to the top of the roster.
+  const ordered = [...AG.agents].sort((a, b) => (b.ws ? 1 : 0) - (a.ws ? 1 : 0));
   if (!AG.agents.length) { el.innerHTML = '&#9675; none running'; return; }
+  el.innerHTML = live.length ? `&#9679; ${live.length} running` : '&#9675; none running';
+  el.style.color = live.length ? 'var(--green)' : 'var(--dim)';
   // Per-agent rows: name, guild, circle, HP bar, room state, Stop button.
   const host = $('agroster');
   if (host) {
-    host.innerHTML = AG.agents.map((a) => {
+    host.innerHTML = ordered.map((a) => {
       const v = a.v || {};
       const f = v.maxhp > 0 ? Math.max(0, Math.min(1, v.hp / v.maxhp)) : null;
       const col = f == null ? 'var(--dim)' : f > 0.6 ? 'var(--green)' : f > 0.3 ? 'var(--amber)' : 'var(--red)';
-      return `<div class="row" data-ag="${esc(a.char)}">
+      return `<div class="row${a.ws ? ' ag-live' : ''}" data-ag="${esc(a.char)}"${a.ws ? ' style="outline:1px solid var(--green);border-radius:6px;padding:2px 6px;background:rgba(60,200,120,.06)"' : ''}>
         <span class="nm">${esc(a.char)}</span>
-        <span class="cl">${esc(a.guild || '')} · c${v.circle ?? '?'}${a.circleTarget ? ` → c${esc(a.circleTarget)}` : ''}</span>
+        <span class="cl">${esc(a.guild || '')} · c${v.circle ?? '?'}${a.circleTarget ? ` → c${esc(a.circleTarget)}` : ''}${v.room ? ` · ${esc(v.room)}` : ''}</span>
         ${f == null ? '' : `<span class="hpbar" title="${v.hp}/${v.maxhp} HP"><i style="width:${Math.round(f * 100)}%;background:${col}"></i></span>`}
         ${a.ws ? '<span class="badge live">&#9679; running</span>'
           : a.restored ? '<span class="badge" title="this tab was reloaded — the socket is gone">(tab closed)</span>'
           : '<span class="badge">stopped</span>'}
+        <button class="watch" data-agwatch="${esc(a.char)}" title="open a live spectate view in a new tab">&#128065; watch</button>
         <button class="watch" data-agstop="${esc(a.char)}" ${a.ws ? '' : 'disabled'}>&#9208; stop</button>
       </div>`;
     }).join('');
@@ -100,12 +106,17 @@ function agRenderState() {
       const a = AG.agents.find((x) => x.char === b.dataset.agstop);
       if (a) stopAgent(a, 'stopped by GM');
     }));
+    host.querySelectorAll('[data-agwatch]').forEach((b) => b.addEventListener('click', () => {
+      // Spectate needs the GM token in localStorage; carry it via fragment
+      // too for fresh tabs with cold storage.
+      let frag = '';
+      try {
+        const t = localStorage.getItem('dr_gm_token');
+        if (t) frag = '#gm=' + encodeURIComponent(t);
+      } catch {}
+      window.open('/?spectate=' + encodeURIComponent(b.dataset.agwatch) + frag, '_blank');
+    }));
   }
-  const bits = AG.agents.map((a) =>
-    `${a.char} c${a.v?.circle ?? '?'}${a.ws ? '' : ' (stopped)'}`);
-  el.innerHTML = live.length ? `&#9679; ${live.length} running` : '&#9675; stopped';
-  el.style.color = live.length ? 'var(--green)' : 'var(--dim)';
-  el.title = bits.join(' · ');
   agPersist();
 }
 
@@ -148,7 +159,9 @@ async function agHttpLogin(agent) {
 }
 
 function agConnect(agent) {
-  const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+  // ?bot=1: self-identify as a sim so rosters/status can tag these
+  // characters (same convention as the wire-level sweep agents' cousins).
+  const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?bot=1';
   const ws = new WebSocket(url);
   agent.ws = ws;
   agent.deadline = Date.now() + Number($('ag-minutes').value || 10) * 60000;
@@ -358,6 +371,12 @@ export function stopAgent(agent, why) {
 }
 
 export const agents = AG.agents;
+
+// Classic-script bridge: /sims.html loads this file as an ES module via
+// <script type="module"> and reads the API off window.DRSims.
+if (typeof window !== 'undefined') {
+  window.DRSims = { initAgentForm, launchAgent, stopAgent, agents };
+}
 
 // Populate the launch form once on boot (races/guilds + name suggestion).
 export function initAgentForm() {

@@ -279,6 +279,12 @@
 
     <!-- ===================== PLAYERS ===================== -->
     <section>
+      <h2>Sim players <span class="right sub" id="simssum"></span></h2>
+      <div id="simsroster" hidden></div>
+      <div class="note">Launch, rerun, and grade runs on the <a href="/sims.html">Sim Players page</a>.</div>
+    </section>
+
+    <section>
       <h2>Online players <span class="right sub" id="rostersum"></span></h2>
       <div id="roster"></div>
     </section>
@@ -290,46 +296,6 @@
       </h2>
       <div id="worldnote" class="note">needs GM token — shows static NPC/spawn placement per zone; expanding queries live rooms</div>
       <div id="zones"></div>
-    </section>
-
-    <!-- ===================== SIM PLAYERS ===================== -->
-    <section>
-      <h2>Sim players
-        <span class="right sub" id="agstate">&#9675; none running</span>
-      </h2>
-      <div class="agform">
-        <label for="ag-name">name</label>
-        <input id="ag-name" type="text" spellcheck="false" autocomplete="off">
-        <label for="ag-race">race</label>
-        <select id="ag-race"></select>
-        <label for="ag-guild">guild</label>
-        <select id="ag-guild"></select>
-        <label for="ag-minutes">minutes</label>
-        <input id="ag-minutes" class="numsel" type="number" min="1" max="240" value="10">
-        <label for="ag-circle" title="sim stops itself when this circle is reached">target circle</label>
-        <input id="ag-circle" class="numsel" type="number" min="1" max="20" value="2">
-        <label for="ag-boost" title="test-only server boost: multiplies skill exp, rank conversion, and rest recovery">exp boost <span class="sub">(test-only)</span></label>
-        <select id="ag-boost">
-          <option value="0">off</option>
-          <option value="10">x10</option>
-          <option value="20" selected>x20</option>
-          <option value="50">x50</option>
-        </select>
-        <button class="btn" id="ag-launch">&#9654; Launch</button>
-        <button class="btn warn" id="ag-stop">&#9208; Stop all</button>
-      </div>
-      <div id="agroster" class="note" style="margin-bottom:8px"></div>
-      <div id="aglog">(no sims launched from here)</div>
-
-      <!-- Log viewer for any sim (browser-launched or script-launched) -->
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="jobs" id="joblist" style="flex:1"></div>
-        <span id="jobstate" class="idle">&#9675; idle</span>
-      </div>
-      <div class="note" style="margin:4px 0 6px">Sim run logs (<code>public/live/&lt;run&gt;.log</code>) — includes runs launched by scripts as well as the ones above.
-        Full run history, pacing charts, grades, and character skill tracking live on the
-        <a href="/sims.html">Sim Players page</a>.</div>
-      <div id="joblog">(no log selected)</div>
     </section>
 
     <!-- ===================== QUICK PLAY ===================== -->

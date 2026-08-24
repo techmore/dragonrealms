@@ -1,59 +1,9 @@
-// Dashboard wiring: form listeners, GM quick-play buttons, the embedded
-// player view, and boot. Imported last — everything is already defined.
+// Dashboard wiring: GM quick-play buttons, the embedded player view, and
+// boot. Sim launch lives on /sims.html now; the dashboard only shows a
+// read-only "Sim players" roster block fed by render.js.
 import { $, esc, S, cssVar, fmtDur, toast, gm } from './core.js';
 import { tick, renderAll, renderHeader } from './render.js';
-import { pollJob, listJobs } from './jobs.js';
-import { launchAgent, stopAgent, agents, initAgentForm, AG_RACES, AG_GUILDS, cap } from './agents.js';
-
-initAgentForm();
-
-// "Rerun" handoff from /sims.html: prefill the launch form with a past
-// run's params (sessionStorage dr_rerun, set by the Sims runs table).
-try {
-  const rerun = JSON.parse(sessionStorage.getItem('dr_rerun') || 'null');
-  if (rerun?.name) {
-    $('ag-name').value = rerun.name;
-    if (rerun.race) $('ag-race').value = rerun.race;
-    // Guild option values are lowercase ids ("warrior mage"); match loosely.
-    const g = String(rerun.guild || '').toLowerCase();
-    for (const opt of $('ag-guild').options) {
-      if (opt.value === g || g.includes(opt.value)) { $('ag-guild').value = opt.value; break; }
-    }
-    toast(`Prefilled launch form from run "${rerun.name}" — adjust minutes/circle, then Launch.`);
-  }
-  sessionStorage.removeItem('dr_rerun');
-} catch {}
-
-$('ag-launch').addEventListener('click', () => {
-  let name = $('ag-name').value.trim();
-  if (!/^[A-Za-z]{2,20}$/.test(name)) {
-    // Auto-trim overlong composite names (Sw<Guild><Race> can exceed 20)
-    // rather than bouncing the launch — surface what we did.
-    const trimmed = name.replace(/[^A-Za-z]/g, '').slice(0, 20);
-    if (trimmed.length >= 2) {
-      toast(`Name too long (server max 20) — launching as "${trimmed}".`);
-      name = trimmed;
-      $('ag-name').value = trimmed;
-    } else {
-      toast('Agent name must be 2-20 letters.');
-      return;
-    }
-  }
-  if (agents.some((a) => a.char === name && a.ws)) { toast(`${name} is already running.`); return; }
-  launchAgent({
-    name,
-    race: $('ag-race').value,
-    guild: $('ag-guild').value,
-    minutes: Math.max(1, Number($('ag-minutes').value) || 10),
-    circleTarget: Math.max(2, Number($('ag-circle').value) || 2),
-    boost: Number($('ag-boost').value) || 0,
-  });
-});
-$('ag-stop').addEventListener('click', () => {
-  const live = agents.filter((a) => a.ws);
-  if (!live.length) { toast('No running agents.'); return; }
-  for (const a of live) stopAgent(a, 'stopped by GM');
-});
+import { AG_RACES, AG_GUILDS, cap } from './agents.js';
 
 /* ---- GM quick-play: one click into a boosted character ---- */
 for (const r of AG_RACES) $('qp-race').insertAdjacentHTML('beforeend', `<option value="${r}">${cap(r)}</option>`);
@@ -87,7 +37,7 @@ $('every').addEventListener('change', () => {
 $('pause').addEventListener('click', () => {
   S.paused = !S.paused;
   $('pause').innerHTML = S.paused ? '&#9654; resume' : '&#9208; pause';
-  if (!S.paused) { tick(true); pollJob(); }
+  if (!S.paused) tick(true);
 });
 
 $('refresh').addEventListener('click', () => { tick(true); });
@@ -184,5 +134,4 @@ document.addEventListener('visibilitychange', () => {
 });
 
 startMaster();
-setInterval(pollJob, 2000);
 tick(true);

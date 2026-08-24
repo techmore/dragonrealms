@@ -119,10 +119,48 @@
       <span class="spacer"></span>
       <a href="/admin.html">&larr; Admin dash</a>
     </header>
-    <p class="sub">Launch sims from the dash or sweep scripts — this page reviews every
-      run (<code>public/live/*.log</code> + grades from <code>fidelity-summary.jsonl</code>) and tracks any
-      character's leveling &amp; skills. Sims use the public game API; the character tracker needs the
-      GM token (paste it in on the dash or open this page as <code>/sims#gm=&lt;token&gt;</code>).</p>
+    <p class="sub">Launch and review every sim run (<code>public/live/*.log</code> + grades from
+      <code>fidelity-summary.jsonl</code>), and track any character's leveling &amp; skills. Sims use the public
+      game API; the character tracker needs the GM token (paste it in on the dash or open this page as
+      <code>/sims#gm=&lt;token&gt;</code>).</p>
+
+    <!-- ===================== LAUNCH ===================== -->
+    <section>
+      <h2>Launch a sim
+        <span class="right sub" id="agstate">&#9675; none running</span>
+      </h2>
+      <div class="controls">
+        <label for="ag-name" class="sub">name</label>
+        <input id="ag-name" type="text" spellcheck="false" autocomplete="off" style="min-width:150px">
+        <label for="ag-race" class="sub">race</label>
+        <select id="ag-race"></select>
+        <label for="ag-guild" class="sub">guild</label>
+        <select id="ag-guild"></select>
+        <label for="ag-minutes" class="sub">minutes</label>
+        <input id="ag-minutes" type="number" min="1" max="240" value="10" style="width:64px">
+        <label for="ag-circle" class="sub" title="sim stops itself when this circle is reached">target circle</label>
+        <input id="ag-circle" type="number" min="1" max="20" value="2" style="width:56px">
+        <label for="ag-boost" class="sub" title="test-only server boost: multiplies skill exp, rank conversion, and rest recovery">exp boost <span class="sub">(test-only)</span></label>
+        <select id="ag-boost">
+          <option value="0">off</option>
+          <option value="10">x10</option>
+          <option value="20" selected>x20</option>
+          <option value="50">x50</option>
+        </select>
+        <button class="btn" id="ag-launch">&#9654; Launch</button>
+        <button class="btn" id="ag-stop">&#9208; Stop all</button>
+      </div>
+      <div id="agroster"></div>
+      <style>
+        #agroster .row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; flex-wrap: wrap; }
+        #agroster .nm { color: var(--amber); min-width: 130px; }
+        #agroster .cl { color: var(--dim); }
+        #aglog { background: var(--panel-inset); border: 1px solid var(--line); border-radius: 8px;
+          padding: 8px 10px; font-size: 11px; line-height: 1.5; max-height: 180px; overflow-y: auto;
+          white-space: pre-wrap; margin-top: 8px; }
+      </style>
+      <div id="aglog">(no sims launched from here)</div>
+    </section>
 
     <!-- ===================== RUNS ===================== -->
     <section>
@@ -190,8 +228,11 @@
 
   <div id="toast"></div>
   <script src="/js/admin-nav.js"></script>
+  <script type="module" src="/js/admin/agents.js"></script>
   <script>
     'use strict';
+    // NOTE: agents.js is an ES module (deferred). Its export lands on
+    // window.DRSims; the launch wiring below waits for it before binding.
     const $ = (id) => document.getElementById(id);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const stripAnsi = (s) => String(s ?? '').replace(/\x1b\[\d+m/g, '');
@@ -321,18 +362,21 @@
       $('runs').querySelectorAll('[data-open]').forEach((b) =>
         b.addEventListener('click', (e) => { e.stopPropagation(); openRun(b.dataset.open); }));
       $('runs').querySelectorAll('[data-rerun]').forEach((b) =>
-        b.addEventListener('click', (e, ) => {
+        b.addEventListener('click', (e) => {
           e.stopPropagation();
           const r = RUNS.find((x) => x.run === b.dataset.rerun);
           if (!r) return;
-          // Hand params to the dash through sessionStorage (same-tab origin);
-          // admin boot consumes and clears it.
-          try {
-            sessionStorage.setItem('dr_rerun', JSON.stringify({
-              name: r.char, race: r.race, guild: r.guild,
-            }));
-          } catch {}
-          location.href = '/admin.html?rerun=' + encodeURIComponent(r.run);
+          // Rerun launches right here: prefill + start immediately.
+          if (r.guild && r.race) {
+            const g = String(r.guild || '').toLowerCase();
+            for (const opt of $('ag-guild').options) {
+              if (opt.value === g || g.includes(opt.value)) { $('ag-guild').value = opt.value; break; }
+            }
+            if ([...$('ag-race').options].some((o) => o.value === r.race)) $('ag-race').value = r.race;
+          }
+          if (r.char) $('ag-name').value = r.char;
+          toast(`Relaunching "${r.char || 'sim'}" — same params as run ${r.run}.`);
+          launchFromForm();
         }));
       // tracker quick-pick: distinct chars
       const chars = [...new Set(RUNS.filter((r) => r.char).map((r) => r.char))];
@@ -643,6 +687,80 @@
     // deep link: /sims.html?char=Name
     const want = new URLSearchParams(location.search).get('char');
     if (want) { $('track-name').value = want; track(want); }
+
+    /* ================= sim launch (moved from admin dash) ================= */
+    // agents.js is an ES module loaded above; it publishes window.DRSims.
+    // Module execution is deferred, so wait for it before binding the form.
+    function bindSims(SIMS) {
+      SIMS.initAgentForm();
+
+      function launchFromForm() {
+        let name = $('ag-name').value.trim();
+        if (!/^[A-Za-z]{2,20}$/.test(name)) {
+          // Auto-trim overlong composite names (Sw<Guild><Race> can exceed 20)
+          // rather than bouncing the launch — surface what we did.
+          const trimmed = name.replace(/[^A-Za-z]/g, '').slice(0, 20);
+          if (trimmed.length >= 2) {
+            toast(`Name too long (server max 20) — launching as "${trimmed}".`);
+            name = trimmed;
+            $('ag-name').value = trimmed;
+          } else {
+            toast('Agent name must be 2-20 letters.');
+            return;
+          }
+        }
+        if (SIMS.agents.some((a) => a.char === name && a.ws)) { toast(`${name} is already running.`); return; }
+        SIMS.launchAgent({
+          name,
+          race: $('ag-race').value,
+          guild: $('ag-guild').value,
+          minutes: Math.max(1, Number($('ag-minutes').value) || 10),
+          circleTarget: Math.max(2, Number($('ag-circle').value) || 2),
+          boost: Number($('ag-boost').value) || 0,
+        });
+      }
+      $('ag-launch').addEventListener('click', launchFromForm);
+      $('ag-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') launchFromForm(); });
+      $('ag-stop').addEventListener('click', () => {
+        const live = SIMS.agents.filter((a) => a.ws);
+        if (!live.length) { toast('No running sims.'); return; }
+        for (const a of live) SIMS.stopAgent(a, 'stopped by GM');
+      });
+      return true;
+    }
+
+    // Rerun handoff: a saved run can auto-launch immediately after binding.
+    let pendingRerun = null;
+    try {
+      const rerun = JSON.parse(sessionStorage.getItem('dr_rerun') || 'null');
+      if (rerun?.name) {
+        sessionStorage.removeItem('dr_rerun');
+        pendingRerun = rerun;
+      }
+    } catch {}
+
+    if (window.DRSims) {
+      bindSims(window.DRSims);
+    } else {
+      const wait = setInterval(() => {
+        if (window.DRSims) { clearInterval(wait); bindSims(window.DRSims); applyRerun(); }
+      }, 50);
+      setTimeout(() => clearInterval(wait), 10000); // don't poll forever
+    }
+
+    function applyRerun() {
+      if (!pendingRerun) return;
+      const rerun = pendingRerun;
+      pendingRerun = null;
+      $('ag-name').value = rerun.name;
+      if (rerun.race) $('ag-race').value = rerun.race;
+      const g = String(rerun.guild || '').toLowerCase();
+      for (const opt of $('ag-guild').options) {
+        if (opt.value === g || g.includes(opt.value)) { $('ag-guild').value = opt.value; break; }
+      }
+      toast(`Relaunching "${rerun.name}" from a saved run.`);
+      setTimeout(() => $('ag-launch').click(), 300);
+    }
   </script>
 </body>
 </html>

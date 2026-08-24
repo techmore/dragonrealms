@@ -1,7 +1,6 @@
 // Polling loop and all dashboard rendering: health/status/summary
 // fetches, vitals + sparklines, roster, zones drill-down, high scores.
 import { $, esc, trim, S, cssVar, fmtDur, fmtBytes, toast, gm } from './core.js';
-import { listJobs } from './jobs.js';
 
 /* ================= high scores ================= */
 const HS = { page: 1, perPage: 25, sort: 'circle' };
@@ -82,7 +81,6 @@ export async function tick(manual = false) {
     if (sm.code === 200 && sm.ok) S.summary = sm.d;
   }
 
-  listJobs();
   renderAll();
 }
 
@@ -266,26 +264,40 @@ function rosterList() {
 function renderRoster() {
   const el = $('roster');
   const list = rosterList();
-  const bots = list.filter((p) => p.bot).length;
+  const sims = list.filter((p) => p.bot);
+  const adventurers = list.filter((p) => !p.bot);
   $('rostersum').textContent = list.length
-    ? `${list.length} connected · ${bots} bot${bots === 1 ? '' : 's'}`
+    ? `${adventurers.length} adventurer${adventurers.length === 1 ? '' : 's'} · ${sims.length} sim${sims.length === 1 ? '' : 's'}`
     : '';
-  if (!list.length) {
-    el.innerHTML = '<div class="note">' + (S.up ? 'nobody connected' : GM_NOTES.err) + '</div>';
-    return;
-  }
-  el.innerHTML = list.map((p) => `
+
+  // Sims render in their own block at the top of the section.
+  const rowHtml = (p, isSim) => `
     <div class="row">
-      <span class="nm">${esc(p.name)}${p.gmToon ? ' <span class="badge gm">GM</span>' : p.bot ? ' <span class="badge bot">BOT</span>' : ''}</span>
+      <span class="nm">${esc(p.name)}${p.gmToon ? ' <span class="badge gm">GM</span>' : isSim ? ' <span class="badge bot">SIM</span>' : ''}</span>
       <span class="cl">${esc(p.race ? p.race + ' · ' : '')}${esc(p.guild || '?')} · circle ${esc(p.circle)}${p.room != null ? ` · room ${esc(p.room)}` : ''}</span>
       ${hpBarHtml(p)}
-      ${p.scripting ? '<span class="badge bot" title="running starter circling script">\\u25B6 SCRIPT</span>' : ''}
+      ${isSim ? '<a class="watch tab" href="/sims.html" title="run history & grades on the Sims page" style="text-decoration:none;font-size:10px;align-self:center;border:1px solid var(--line);border-radius:4px;padding:2px 7px;color:var(--dim)">SIMS</a>' : ''}
       ${p.inCombat ? '<span class="badge fight">\u2694 FIGHT</span>' : ''}
       <button class="watch" data-name="${esc(p.name)}" data-charid="${esc(p.charId || '')}" title="watch their live interface here">\u{1F441} Watch</button>
       <button class="watch tab" data-name="${esc(p.name)}" title="open the full client in a new tab">\u2197</button>
-    </div>`).join('');
+    </div>`;
+  const simsEl = $('simsroster');
+  if (sims.length) {
+    simsEl.hidden = false;
+    $('simssum').textContent = `${sims.length} running`;
+    simsEl.innerHTML = sims.map((p) => rowHtml(p, true)).join('');
+  } else {
+    simsEl.hidden = true;
+    simsEl.innerHTML = '';
+  }
+
+  if (!adventurers.length) {
+    el.innerHTML = '<div class="note">' + (S.up ? 'no adventurers connected' : GM_NOTES.err) + '</div>';
+    return;
+  }
+  el.innerHTML = adventurers.map((p) => rowHtml(p, false)).join('');
   el.querySelectorAll('.watch:not(.tab)').forEach((b) => b.addEventListener('click', () => openPlayerView(b.dataset.name, b.dataset.charId)));
-  el.querySelectorAll('.watch.tab').forEach((b) => b.addEventListener('click', () => {
+  el.querySelectorAll('button.watch.tab').forEach((b) => b.addEventListener('click', () => {
     window.open('/?spectate=' + encodeURIComponent(b.dataset.name), '_blank');
   }));
 }
