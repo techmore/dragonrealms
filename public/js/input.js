@@ -118,6 +118,11 @@ export function handleLocalCommand(line) {
   }
 
   if (gameState.value === 'charselect') {
+    // A stale stored token can leave us parked at char-select; a player who
+    // types login/register here used to get a baffling "Not a valid
+    // character." Honor the auth verbs instead (UI audit P2#15).
+    if (parts[0] === 'login' && parts[1] && parts[2]) { send({ t: 'login', u: parts[1], p: parts[2] }); return; }
+    if (parts[0] === 'register' && parts[1] && parts[2]) { send({ t: 'register', u: parts[1], p: parts[2] }); return; }
     send({ t: 'charselect', id: line });
     return;
   }
