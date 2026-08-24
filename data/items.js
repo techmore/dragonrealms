@@ -36,6 +36,10 @@ export const ITEMS = {
   plate_cuirass: { id: 'plate_cuirass', name: 'a plate cuirass', type: 'armor', slot: 'torso', skill: 'plate_armor', armor: 72, value: 1100, burden: 3, desc: 'A gleaming breastplate of solid steel.' },
   helm:          { id: 'helm', name: 'an iron helm', type: 'armor', slot: 'head', skill: 'chain_armor', armor: 18, value: 120, burden: 1, desc: 'A simple iron headguard.' },
   leather_boots: { id: 'leather_boots', name: 'sturdy leather boots', type: 'armor', slot: 'feet', skill: 'light_armor', armor: 8, value: 30, burden: 0, desc: 'Worn but reliable boots.' },
+  leather_sleeves: { id: 'leather_sleeves', name: 'a pair of leather sleeves', type: 'armor', slot: 'arms', skill: 'light_armor', armor: 10, value: 45, burden: 0, desc: 'Supple arm-guards laced from elbow to shoulder.' },
+  chain_sleeves:   { id: 'chain_sleeves', name: 'a pair of mail sleeves', type: 'armor', slot: 'arms', skill: 'chain_armor', armor: 22, value: 260, req: 3, burden: 1, desc: 'Interlocked rings that rattle quietly down the forearm.' },
+  leather_pants:   { id: 'leather_pants', name: 'a pair of leather leggings', type: 'armor', slot: 'legs', skill: 'light_armor', armor: 12, value: 55, burden: 0, desc: 'Cured hide trousers, supple at the knee.' },
+  chain_leggings:  { id: 'chain_leggings', name: 'a pair of mail leggings', type: 'armor', slot: 'legs', skill: 'chain_armor', armor: 26, value: 300, req: 3, burden: 1, desc: 'A skirt of fine rings split for the saddle.' },
   shield_wood:   { id: 'shield_wood', name: 'a round wooden shield', type: 'armor', slot: 'shield', skill: 'shield_usage', armor: 20, value: 70, burden: 1, desc: 'A bossed round shield of oak.' },
   shield_steel:  { id: 'shield_steel', name: 'a steel kite shield', type: 'armor', slot: 'shield', skill: 'shield_usage', armor: 34, value: 320, burden: 2, desc: 'A sturdy steel kite shield.' },
   // Tiered armor

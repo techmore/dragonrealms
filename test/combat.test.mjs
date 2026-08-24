@@ -15,6 +15,49 @@ function walk(game, p, to) {
 before(() => setupGame());
 after(() => teardownGame());
 
+// Limb armor: arms/legs pieces exist, sell at Briga's, equip into their own
+// slots (lighting the paper doll's arm and leg regions) and count toward
+// totalArmor — previously only torso/head/feet/shield gear existed.
+test('arms and legs armor: buy, wear per-slot, count toward totalArmor', async () => {
+  const { totalArmor } = await import('../server/player.js');
+  const acc = await auth.registerAccount('Limbarmortest', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Limbs', race: 'human', guild: 'paladin' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  walk(game, p, 'bazaar'); // Briga the armorer
+  handleCommand(game, p, 'list');
+  const listMsg = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
+  assert.match(listMsg, /leather sleeves/i, 'armorer lists arm armor');
+  assert.match(listMsg, /mail leggings/i, 'armorer lists leg armor');
+
+  p.silver = 1000;
+  for (const id of ['leather_sleeves', 'chain_sleeves', 'leather_pants', 'chain_leggings']) {
+    handleCommand(game, p, `buy ${id}`);
+    assert.ok(ws.msgs.some((m) => m.t === 'msg' && /You buy/.test(m.msg)), `buy ${id}`);
+    ws.msgs.length = 0;
+  }
+  handleCommand(game, p, 'wear leather_sleeves');
+  assert.equal(p.equipment.arms.id, 'leather_sleeves');
+  p.circle = 3; // chain pieces require circle 3
+  handleCommand(game, p, 'wear chain_sleeves'); // replaces in same slot
+  assert.equal(p.equipment.arms.id, 'chain_sleeves');
+  handleCommand(game, p, 'wear leather_pants');
+  assert.equal(p.equipment.legs.id, 'leather_pants');
+
+  // The hands snapshot must carry arms/legs slots for the paper doll.
+  const hands = ws.msgs.filter((m) => m.t === 'hands').at(-1);
+  assert.ok(hands.slots.arms, 'hands snapshot exposes arms slot');
+  assert.ok(hands.slots.legs, 'hands snapshot exposes legs slot');
+
+  // Armor math counts limb pieces (chain sleeves 22 + leather pants 12).
+  assert.equal(totalArmor(p), 22 + 12);
+
+  game.removePlayer(p);
+});
+
 
 // Total learning in a skill under the pool model: banked field exp + residual
 // rank bits + ranks (ranks stand in for already-consumed bits in >0 checks).

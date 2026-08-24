@@ -29,7 +29,7 @@ export const NPCS = {
     id: 'armorer', name: 'Briga, the armorer', role: 'shop',
     desc: 'A stern woman whose arms gleam in rings of mail.',
     greeting: 'Armor is a promise. Type "list" and keep your promises.',
-    stock: { padded_cloth: 8, leather: 6, studded: 4, chainmail: 3, brigandine_coat: 2, plate_cuirass: 1, helm: 5, leather_boots: 8, shield_wood: 5, shield_steel: 2 },
+    stock: { padded_cloth: 8, leather: 6, studded: 4, chainmail: 3, brigandine_coat: 2, plate_cuirass: 1, helm: 5, leather_boots: 8, leather_sleeves: 6, chain_sleeves: 3, leather_pants: 6, chain_leggings: 3, shield_wood: 5, shield_steel: 2 },
     buys: [],
   },
   quartermaster: {
