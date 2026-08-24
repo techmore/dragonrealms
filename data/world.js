@@ -12,6 +12,7 @@
 
 export const ZONES = {
   town: { name: 'Crossing', desc: 'The bustling heart of the Crossing.' },
+  fields: { name: 'North Fields', desc: 'Hedged farmland between the North Gate and the trade route.' },
   wilds: { name: 'The Wilds', desc: 'Untamed country beyond the city walls.' },
   sewers: { name: 'Crossing Sewers', desc: 'Dank tunnels beneath the town.' },
   woods: { name: 'Siergelde Ruins Road', desc: 'Thick, shadowy forest.' },
@@ -135,8 +136,28 @@ export const ROOMS = {
   },
   north_gate: {
     id: 'north_gate', zone: 'town', name: 'North Gate', npcs: ['guard'],
-    desc: 'The North Gate stands sentinel atop the rise, its great timber doors barred. The guard shakes his head at travellers: the Northern Trade Route is closed beyond the wall — wild things on the road since the last moon.',
-    exits: { e: 'north_road_n' },
+    desc: 'The North Gate stands sentinel atop the rise, its great timber doors thrown wide at last. Beyond, hedged farmland rolls away toward the Northern Trade Route — and the wild things that came down upon it are still out there. The guard eyes your weapon: "Fields beyond the wall, if you fancy your chances."',
+    exits: { e: 'north_road_n', n: 'fields_gate' },
+  },
+  fields_gate: {
+    id: 'fields_gate', zone: 'fields', name: 'North Fields Gate', APPROXIMATE: true,
+    desc: 'A gap in the hedgerow where the cart track leaves the cobbles. The furrows run away north between low stone walls, and something has been rooting along their edges.',
+    exits: { s: 'north_gate', n: 'fields_furrow' },
+  },
+  fields_furrow: {
+    id: 'fields_furrow', zone: 'fields', name: 'Plowed Furrows', spawns: ['marsh_hog', 'kobold'], APPROXIMATE: true,
+    desc: 'Long ranks of turned earth, scattered with hoofprints. A bristled shape grunts somewhere ahead among the rows.',
+    exits: { s: 'fields_gate', n: 'fields_stonebridge', ne: 'fields_orchard' },
+  },
+  fields_orchard: {
+    id: 'fields_orchard', zone: 'fields', name: 'Roadside Orchard', spawns: ['kobold', 'reed_stalker'], APPROXIMATE: true,
+    desc: 'An abandoned orchard gone half to scrub. Windfalls rot sweetly between the rows, and not all of the movement in the branches is wind.',
+    exits: { sw: 'fields_furrow' },
+  },
+  fields_stonebridge: {
+    id: 'fields_stonebridge', zone: 'fields', name: 'Field Stone Bridge', spawns: ['reed_stalker', 'wolf'], APPROXIMATE: true,
+    desc: 'A squat stone bridge crosses a quick, cold stream on the way to the trade route. Claw marks score the old mortar on the far side.',
+    exits: { s: 'fields_furrow' },
   },
   jadewater_way: {
     id: 'jadewater_way', zone: 'town', name: 'Jadewater Way',

@@ -528,7 +528,7 @@ function askResponse(game, p, npc, topic) {
       }
       if (topic === 'help') return `\nType "help" for a list of commands. Ask me about "areas", "hunting", "guilds", "skills", or "quest".`;
       if (topic === 'areas' || topic === 'hunting') {
-        return `\nThe Crossing has four hunting grounds:\n  Old Sewers (down from Temple Row) — rats and kobolds\n  Old Woods (west gate) — goblins and wolves\n  Whispering Marsh (east gate) — wisps\n  Deep Wilds (north from the woods) — forest trolls\nHunt what you can handle, and sell the hides in the market.`;
+        return `\nThe Crossing has five hunting grounds:\n  Old Sewers (down from Temple Row) — rats and kobolds\n  North Fields (through the North Gate) — hogs and worse along the trade road\n  Old Woods (west gate) — goblins and wolves\n  Whispering Marsh (east gate) — wisps\n  Deep Wilds (north from the woods) — forest trolls\nHunt what you can handle, and sell the hides in the market.`;
       }
       if (topic === 'guilds') {
         return `\nEleven guilds have halls in the Guild District (west of the green). Visit your own hall to train skills and circle up.`;
