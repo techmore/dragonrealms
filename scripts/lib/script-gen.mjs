@@ -71,6 +71,16 @@ function buildHuntScript({ cap, arena, hallPath }) {
     const label = `FIGHT_${sp.replace(/\W/g, '_')}`;
     const noun = nounOf(sp);
     L.push(`${label}:`);
+    // Target-presence gate: prose matched a moment ago, but the creature may
+    // have been slain (or despawned) between then and now. Re-look; if the
+    // noun is gone, return to SCAN instead of swinging at nothing.
+    L.push('  put look');
+    L.push(`  matchre TARGET_GONE (?:^|\\.\\s+|\\n)(?!.*${noun} is here)`);
+    L.push(`  matchre FIGHT_NOW ${noun} is here`);
+    L.push('  matchwait 4');
+    L.push('TARGET_GONE:');
+    L.push('  goto SCAN');
+    L.push('FIGHT_NOW:');
     for (const step of cfg.fight) L.push('  ' + step.replace(/%target/g, noun));
     if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('skinning')) {
       // Skinning guilds (ranger, barbarian...): attempt a skin after the
@@ -102,11 +112,18 @@ function buildHuntScript({ cap, arena, hallPath }) {
         L.push('  wait');
       }
     }
+    // Kill check: the foe's death sends us back to SCAN for the next one;
+    // a missing corpse/target after the exchange means it too is gone.
+    L.push('  put look');
+    L.push(`  matchre SCAN_DONE ${noun} is here`);
+    L.push('  matchwait 3');
+    L.push('  goto SCAN'); // target no longer present -> next scan
+    L.push('SCAN_DONE:');
     L.push('  wait');
     L.push('  pause 3');
     L.push('  iflt hp 40 goto REST');
     if (cfg.magic) L.push('  iflt mana 8 goto WEAKSWING');
-    L.push(`  goto SCAN`);
+    L.push(`  goto ${label}`);
   }
   // Mana-poor rounds still train the weapon: swing instead of standing around.
   L.push('WEAKSWING:');

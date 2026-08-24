@@ -81,6 +81,13 @@ export class WireSession {
     };
     this.ws.onclose = () => {
       if (this.done) return;
+      // A dropped socket usually means a world restart: the observed graph
+      // may be stale or half-poisoned by mid-boot partial responses. Drop
+      // back to pure disk adjacency and let the next room messages rebuild
+      // ground truth. vitals.room stays (the character is where they were).
+      this.observedEdges = {};
+      this.liveExits = {};
+      this.pendingMove = null;
       if (++this.reconnects > 5) return this.handlers.onFatal?.('disconnected (no reconnection left)');
       this.handlers.onReconnect?.(this.reconnects);
       setTimeout(() => this.connect(handlers), 2500);

@@ -276,15 +276,24 @@ class SweepAgent {
     const room = s.vitals.room;
     if (!room || !ROOMS[room]) return;
     let arena = this.nearestSpawnRoom(room);
-    if (!arena) {
-      // No spawn room reachable from here (mid-regrid or unexplored area):
-      // head for the bazaar hub, which connects to every town road.
+    // Town-strand guard: shops, halls, and other interior rooms have no
+    // spawns and thin exits — pathing "regenerates" fine but the hunt just
+    // walks back into the same dead end (the cleric-dies-in-a-shop bug).
+    // If we're parked in an interior room, escape to the bazaar hub first
+    // and re-derive everything from there next tick.
+    const r = ROOMS[room];
+    const exitCount = Object.keys(r.exits || {}).length;
+    const interior = !r.spawns?.length && exitCount <= 1;
+    if (!arena || interior) {
+      if (!arena) this.appendLog(`[regen] no arena reachable from ${room}`);
+      else this.appendLog(`[regen] stranded in interior room ${room} (${arena.id} is ${arena.path.length} steps away) — bazaar escape`);
       const toBazaar = s.bfsPath(room, 'bazaar', this.diskAdj());
       if (toBazaar?.length) {
-        this.appendLog(`[regen] no arena reachable — walking to bazaar (${toBazaar.length} steps)`);
         this.escapePath = toBazaar.map((e) => e.dir);
+        return; // walk out now; regenerateFromHere runs again on arrival
       }
-      return;
+      if (!arena) return;
+      // Couldn't reach bazaar either — at least try the distant arena.
     }
     this.arena = arena.id;
     const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0 };

@@ -66,7 +66,21 @@ export function createRunner(src, args = [], io = {}) {
         s.matches.push({ label, text: null, re: new RegExp(sp.join(' ').replace(/^\/(.*)\/$/, '$1'), 'i') });
         return true;
       }
-      case 'matchwait': s.mode = 'match'; return false;
+      case 'matchwait': {
+        // matchwait [secs] — wait for any registered match, but time out
+        // after N seconds (default: none, DR-style) and fall through to
+        // the next line. The timeout is what lets generated hunt scripts
+        // bail out of a FIGHT loop when the target has vanished.
+        const tmo = parseFloat(rest);
+        s.mode = 'match';
+        if (Number.isFinite(tmo) && tmo > 0) {
+          s.matchDeadline = Date.now() + tmo * 1000;
+          s.timerAt = s.matchDeadline;
+        } else {
+          s.matchDeadline = null;
+        }
+        return false;
+      }
       case 'goto': {
         const target = rest.toLowerCase();
         if (cur().labels[target] !== undefined) cur().pc = cur().labels[target];
@@ -166,11 +180,21 @@ export function createRunner(src, args = [], io = {}) {
       if (hit) {
         s.matches = [];
         s.mode = null;
+        s.matchDeadline = null;
         const f = cur();
         if (f.labels[hit.label] !== undefined) f.pc = f.labels[hit.label];
         advance();
         return;
       }
+    }
+    // matchwait timeout: no prose matched within the window — fall through
+    // to the next line so the script can re-scan or bail out.
+    if (s.mode === 'match' && s.matchDeadline && Date.now() >= s.matchDeadline) {
+      s.matches = [];
+      s.mode = null;
+      s.matchDeadline = null;
+      advance();
+      return;
     }
     // Movement rejections: roundtime gets a timed retry; anything else
     // (creatures blocking, closed doors) retries once, then falls through
