@@ -25,9 +25,11 @@ function buildHuntScript({ cap, arena, hallPath }) {
   // a genuinely unarmed character walks to the bazaar to buy.
   L.push('  matchre ARMED Worn:.*(club|sword|axe|staff|dagger|mace|blade|bow|hammer)');
   L.push('  matchre GETCLUB carrying:.*club');
-  L.push('  matchre BUY carrying:');
+  // Carrying something but unarmed: walk to the bazaar weapon shop first.
+  // (BUY alone would try "buy club" wherever we stand — no shopkeeper there.)
+  L.push('  matchre GETWEAPON carrying:');
   L.push('  put inventory');
-  L.push('  matchwait');
+  L.push('  matchwait 6');
   L.push('GETCLUB:');
   L.push('  put wield club');
   L.push('  wait');
@@ -36,8 +38,21 @@ function buildHuntScript({ cap, arena, hallPath }) {
   if (cap.bazaarPath?.length) L.push(...moves(cap.bazaarPath));
   L.push('BUY:');
   L.push('  matchre WIELD You buy|You pay|hands you');
-  L.push('  matchre ARMED do not sell|already have|no such|do not have|out of stock|cannot afford|no shopkeeper');
+  L.push('  matchre ARMED do not sell|already have|no such|do not have|out of stock|no shopkeeper');
+  // Silver exhaustion: the healer/bank loop below keeps a broke sim alive —
+  // withdraw from the bank, and if even that fails, fight bare-handed
+  // (fists train Defending and Evasion too) rather than spinning on BUY.
+  L.push('  matchre BROKE cannot afford');
   L.push('  put buy club');
+  L.push('  matchwait');
+  // Silver exhaustion: one bank withdrawal attempt, then give up on buying
+  // and hunt bare-handed (fists train Defending and Evasion too) — an
+  // infinite BUY loop starves the whole run.
+  L.push('BROKE:');
+  L.push('  put withdraw 100');
+  L.push('  wait');
+  L.push('  matchre BUY You withdraw');
+  L.push('  matchre WIELD does not hold|no banker');
   L.push('  matchwait');
   L.push('WIELD:');
   L.push('  put wield club');
@@ -66,7 +81,10 @@ function buildHuntScript({ cap, arena, hallPath }) {
     L.push(`  matchre FIGHT_${sp.replace(/\W/g, '_')} ${nounOf(sp)} is here`);
   }
   L.push('  matchre WANDER \\[\\[');
-  L.push('  matchwait');
+  // Timeout matters: in a creature-less room (post-flee town stranding) no
+  // prose will ever match — an untimed matchwait wedges here until the
+  // external watchdog restarts the whole cycle ~90s later.
+  L.push('  matchwait 8');
   for (const sp of species) {
     const label = `FIGHT_${sp.replace(/\W/g, '_')}`;
     const noun = nounOf(sp);
