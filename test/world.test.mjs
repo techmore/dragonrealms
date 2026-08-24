@@ -5,6 +5,12 @@ import {
   auth, db, createCharacter, loadPlayer, Game, handleCommand, fakeWs, game,
   setupGame, teardownGame,
 } from './helpers.mjs';
+// Walk a player along the derived grid path between rooms (layout-agnostic).
+import { findPath } from '../data/grid.js';
+function walk(game, p, to) {
+  for (const step of findPath(p.room, to)) game.move(p, step);
+}
+
 
 before(() => setupGame());
 after(() => teardownGame());
@@ -26,7 +32,7 @@ test('ask <npc> <topic> responses', async () => {
   const msgs = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
   assert.match(msgs, /Old Sewers/, 'crier should describe hunting areas');
 
-  game.move(p, 'e'); game.move(p, 'e'); // bazaar (Marlene's general store)
+  walk(game, p, 'bazaar'); // general store
   handleCommand(game, p, 'ask Marlene list');
   const shopMsgs = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
   assert.match(shopMsgs, /list/i);
@@ -52,13 +58,13 @@ test('quest: assign, progress via kills, claim once', async () => {
   game.addPlayer(p);
 
   // Not at the crier -> no assignment.
-  game.move(p, 'e'); game.move(p, 'e'); // bazaar (no crier)
+  walk(game, p, 'bazaar'); // no crier here
   handleCommand(game, p, 'quest');
   assert.equal(p.quest, null);
 
   // At the crier -> assignment (the crier hands out four kinds; keep
   // asking until a kill quest is given so the kill loop below applies).
-  game.move(p, 'w'); game.move(p, 'w'); // square
+  walk(game, p, 'square');
   let guardKind = 0;
   while ((!p.quest || p.quest.kind !== 'kill') && guardKind++ < 10) {
     p.quest = null;
@@ -93,7 +99,7 @@ test('forage works in wild zones but not town', async () => {
   const resTown = game.forage(p);
   assert.equal(resTown.ok, false, 'no foraging in town');
 
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // temple row -> sewers (wild)
+  walk(game, p, 'sewers_2'); // sewers (wild)
   const resWild = game.forage(p);
   assert.equal(resWild.ok, true);
   assert.ok(learned(p, 'foraging') > 0, 'foraging earns exp');
@@ -114,7 +120,7 @@ test('rest recovers hp and stops on movement', async () => {
   assert.equal(res.ok, true);
   await new Promise((r) => setTimeout(r, 2300));
   assert.ok(p.hp > 50, 'rest regains hp');
-  game.move(p, 'n'); // moving stops rest
+  walk(game, p, 'tg_n'); // moving stops rest
   assert.equal(p.restTimer, null, 'rest stops on movement');
   assert.equal(p.resting, false);
 
@@ -131,7 +137,7 @@ test('look <direction> peeks into adjacent rooms', async () => {
 
   handleCommand(game, p, 'look n');
   const msgs = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
-  assert.match(msgs, /Town Green North/, 'should describe the room to the north');
+  assert.match(msgs, /You peer north into /, 'look <dir> describes the adjacent room');
 
   game.removePlayer(p);
 });
@@ -147,7 +153,7 @@ test('hunt verb trains perception in the wilds only', async () => {
   const resTown = game.hunt(p);
   assert.equal(resTown.ok, false, 'no hunting in town');
 
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // temple row -> sewers (wild)
+  walk(game, p, 'sewers_2'); // sewers (wild)
   let attempts = 0;
   let gained = false;
   while (!gained && attempts++ < 200) {
@@ -195,20 +201,20 @@ test('organic exp sources for DR requirement skills', async () => {
   assert.ok(exp('performance') >= 3, 'perform grants base field exp');
 
   // appraise trains appraisal on items and creatures.
-  game.move(p, 'e'); game.move(p, 'e'); // bazaar (Marlene's store)
+  walk(game, p, 'bazaar'); // store
   handleCommand(game, p, 'buy salve');
   const apprBefore = exp('appraisal');
   handleCommand(game, p, 'appraise salve');
   assert.ok(exp('appraisal') > apprBefore, 'appraise trains appraisal');
 
   // ask an info NPC about a topic trains scholarship.
-  game.move(p, 'w'); game.move(p, 'w'); // back to the square (the crier is here)
+  walk(game, p, 'square'); // back to the square (the crier is here)
   const scholBefore = exp('scholarship');
   handleCommand(game, p, 'ask crier hunting');
   assert.ok(exp('scholarship') > scholBefore, 'asking topics trains scholarship');
 
   // forage trains outdoorsmanship (foraging id); wild movement trains athletics.
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // temple row -> sewers
+  walk(game, p, 'sewers_1'); // sewers
   const outdoorBefore = exp('foraging');
   handleCommand(game, p, 'forage');
   assert.ok(exp('foraging') > outdoorBefore, 'forage trains outdoorsmanship (foraging id)');
@@ -239,7 +245,7 @@ test('organic exp sources for DR requirement skills', async () => {
   const tws = fakeWs();
   t.ws = tws;
   game.addPlayer(t);
-  game.move(t, 'nw'); game.move(t, 'w'); game.move(t, 'w'); game.move(t, 'd');
+  walk(game, t, 'sewers_1');
   const tcreature = game.creaturesIn(t.room)[0];
   const bsBefore = learned(t, 'backstab');
   handleCommand(game, t, `attack ${tcreature.def.id}`);
@@ -260,7 +266,7 @@ test('guild leader tasks assign, complete, and reward guild skill exp', async ()
   game.addPlayer(p);
 
   // At the thief hall.
-  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 's'); game.move(p, 's'); game.move(p, 's'); game.move(p, 's');
+  walk(game, p, 'hall_thief');
   assert.equal(p.room, 'hall_thief');
   handleCommand(game, p, 'ask Mist task');
   assert.ok(p.quest && p.quest.source === 'leader', 'leader task assigned');

@@ -89,7 +89,8 @@ export function migrate() {
       qty INTEGER NOT NULL DEFAULT 1,
       condition INTEGER,
       quality REAL,
-      maker TEXT
+      maker TEXT,
+      bundle TEXT
     );
 
     CREATE TABLE IF NOT EXISTS equipment (
@@ -173,6 +174,10 @@ export function migrate() {
   }
   try {
     db.exec("ALTER TABLE character_quest ADD COLUMN state TEXT NOT NULL DEFAULT '{}'");
+  } catch { /* column already exists */ }
+  // Bundled stacks (bundle command) remember what is inside the wrap.
+  try {
+    db.exec('ALTER TABLE inventory ADD COLUMN bundle TEXT');
   } catch { /* column already exists */ }
 }
 

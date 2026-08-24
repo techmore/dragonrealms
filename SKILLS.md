@@ -172,10 +172,6 @@ General armor proficiency; grows with any armor training.
 
 ## Combat Manipulation
 
-### Martial Arts
-
-Mastered unarmed forms.
-
 ### Warding
 
 Turn aside blows with disciplined parries.

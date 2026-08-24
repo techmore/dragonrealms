@@ -6,6 +6,12 @@ import {
   auth, createCharacter, loadPlayer, Game, handleCommand, fakeWs, game,
   setupGame, teardownGame,
 } from './helpers.mjs';
+// Walk a player along the derived grid path between rooms (layout-agnostic).
+import { findPath } from '../data/grid.js';
+function walk(game, pl, to) {
+  for (const step of findPath(pl.room, to)) game.move(pl, step);
+}
+
 import { weaponRT, vitalityLabel } from '../server/combat.js';
 
 before(() => setupGame());
@@ -25,7 +31,7 @@ test('attack presses in to melee and resolves a fight in the sewers', async () =
   const { addItem } = await import('../server/player.js');
   addItem(p, 'short_sword', 1);
   handleCommand(game, p, 'wield short_sword');
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // sewers -> pole range
+  walk(game, p, 'sewers_2'); // pole range
   const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   handleCommand(game, p, `attack ${rat.def.id}`);
   let combat = game.combat.getFor(p);
@@ -40,7 +46,7 @@ test('attack presses in to melee and resolves a fight in the sewers', async () =
 
 test('assess reports ranges and your weapon reach', async () => {
   const p = await fresh('RangetestB');
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd');
+  walk(game, p, 'sewers_1');
   const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   game.startCombat(p, [rat.def]);
   handleCommand(game, p, 'assess');
@@ -53,7 +59,7 @@ test('assess reports ranges and your weapon reach', async () => {
 
 test('advance closes a range; retreat backs off; retreat at missile disengages', async () => {
   const p = await fresh('RangetestC');
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd');
+  walk(game, p, 'sewers_1');
   const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   game.startCombat(p, [rat.def]);
   const combat = game.combat.getFor(p);
@@ -72,7 +78,7 @@ test('advance closes a range; retreat backs off; retreat at missile disengages',
 
 test('movement is blocked at melee/pole, allowed when only at missile', async () => {
   const p = await fresh('RangetestD');
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd');
+  walk(game, p, 'sewers_1');
   const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   game.startCombat(p, [rat.def]);
   const combat = game.combat.getFor(p);

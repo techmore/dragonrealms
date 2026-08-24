@@ -143,6 +143,16 @@ export function parsePrompt(text) {
     resting: /\[Resting\]/.test(plain),
     stance: stance ? stance[1].toLowerCase() : null,
   };
+  // Bleeding wounds (server prompt tag): map each "part (severity)" to the
+  // paper-doll region it pulses red. DR shows wounds on the body.
+  const bleed = /\[bleeding: ([^\]]+)\]/.exec(plain);
+  promptState.wounds = bleed
+    ? bleed[1].split(', ').map((s) => {
+        const m = /^([a-z ]+?) \(([a-z]+)(?:, tended)?\)$/.exec(s.trim());
+        return m ? { part: m[1], severity: m[2] } : { part: s.trim(), severity: 'light' };
+      })
+    : [];
+  renderWounds();
   renderStatusStrip();
   renderCombatStatus();
 }
@@ -216,6 +226,36 @@ function renderDollHealth(current, maximum) {
   doll.dataset.health = level;
   const word = vitalityWord(current, maximum);
   doll.setAttribute('aria-label', `Your adventurer — ${word}`);
+}
+
+// Wounded body parts pulse on the paper doll: map a wound's body-part name
+// to the closest doll region and mark it pd-wounded (+pd-tended if bandaged).
+const PART_TO_REGION = {
+  head: ['head'], chest: ['torso'], abdomen: ['torso'], back: ['torso'],
+  'left arm': ['arms'], 'right arm': ['arms'],
+  'left leg': ['legs'], 'right leg': ['legs'],
+};
+function renderWounds() {
+  const doll = $('hands-doll');
+  if (!doll) return;
+  const wounds = (promptState && promptState.wounds) || [];
+  const woundedParts = new Set();
+  for (const w of wounds) {
+    for (const region of PART_TO_REGION[w.part] || []) woundedParts.add(region);
+  }
+  for (const g of doll.querySelectorAll('.pd-region')) {
+    const slot = g.dataset.slot;
+    g.classList.toggle('pd-wounded', woundedParts.has(slot));
+    const w = wounds.find((x) => (PART_TO_REGION[x.part] || []).includes(slot));
+    g.classList.toggle('pd-tended', Boolean(w && w.tended));
+    if (w) {
+      g.setAttribute('data-wound-severity', w.severity);
+      const title = g.querySelector('title');
+      if (title) title.textContent += ` — bleeding (${w.severity}${w.tended ? ', tended' : ''})`;
+    } else {
+      g.removeAttribute('data-wound-severity');
+    }
+  }
 }
 
 function renderRtBlocks(left) {

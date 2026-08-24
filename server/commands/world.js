@@ -6,7 +6,7 @@ import { creatureById } from '../../data/creatures.js';
 import { QUALITY_LADDER } from '../../data/forging.js';
 import { npcById } from '../../data/npcs.js';
 import { barbarianAbilityById, FORGET_COOLDOWN_MS } from '../../data/abilities.js';
-import { gainSkillExp, addItem } from '../player.js';
+import { gainSkillExp, addItem, skillRank } from '../player.js';
 import { itemById } from '../../data/items.js';
 import { setAlias, removeAlias, setRoundtime } from '../player.js';
 import { pad, matchSkill, findNpcByName, findInventoryItem, broadcastRoom, gameTime } from './util.js';
@@ -235,8 +235,10 @@ export const commands = {
     const { p, emit } = ctx;
     const atAcademy = p.room === 'academy';
     if (p.room !== 'temple' && p.room !== 'temple_row' && !atAcademy) return emit('You need books. The Temple of the Pantheon keeps a library, and Asemath Academy keeps a better one.');
-    const leveled = gainSkillExp(p, 'scholarship', 10);
-    const leveled2 = gainSkillExp(p, 'appraisal', atAcademy ? 6 : 2);
+    // Scholarship compounds: each rank speeds the mind's work at books
+    // (DR: Scholarship governs all learning speed).
+    const leveled = gainSkillExp(p, 'scholarship', 10 + skillRank(p, 'scholarship') * 0.5);
+    const leveled2 = gainSkillExp(p, 'appraisal', (atAcademy ? 6 : 2) + skillRank(p, 'scholarship') * 0.2);
     setRoundtime(p, 4);
     emit(`${atAcademy ? 'You pore over the Academy\'s scrolls of appraisal and trade.' : 'You pore over a dusty tome of lore.'}${leveled ? ' Your Scholarship improved!' : ''}${leveled2 ? ' Your Appraisal improved!' : ''}`);
   },
@@ -397,12 +399,18 @@ function standUp(ctx) {
 }
 
 function perform(ctx) {
-  const { p, emit } = ctx;
+  const { game, p, emit } = ctx;
   const n = p.guild.id === 'bard' ? 2 : 1;
   const leveled = gainSkillExp(p, 'performance', 5 * n);
   setRoundtime(p, 5);
+  // Performance rank draws coin: passers-by tip what pleases their ear.
+  // Bards earn double; high ranks in any guild's hands fill the hat faster.
+  const rank = skillRank(p, 'performance');
+  const tip = Math.random() < Math.min(0.6, 0.15 + rank * 0.01)
+    ? Math.ceil((2 + rank * 0.4) * n) : 0;
+  if (tip) p.silver += tip;
   const flavor = ['a somber dirge', 'a bawdy tavern tune', 'an old war ballad', 'a wordless hum'][Math.floor(Math.random() * 4)];
-  emit(`You perform ${flavor} for a moment, filling the air with your voice.${leveled ? ' Your Performance improved!' : ''}`);
+  emit(`You perform ${flavor} for a moment, filling the air with your voice.${tip ? ` A listener tosses you ${tip} silvers.` : ''}${leveled ? ' Your Performance improved!' : ''}`);
 }
 
 function appraise(ctx) {

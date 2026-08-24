@@ -150,11 +150,6 @@ export const SKILLS = {
   },
 
   // ================= COMBAT MANIPULATION =================
-  martial_arts: {
-    id: 'martial_arts', name: 'Martial Arts', cat: CATEGORIES.COMBAT,
-    subskills: [],
-    training: 'Mastered unarmed forms.',
-  },
   warding: {
     id: 'warding', name: 'Warding', cat: CATEGORIES.COMBAT,
     subskills: [],
@@ -482,7 +477,7 @@ export const PULSE_GROUPS = [
   /* 2 (40 s) blunt & missiles */
   ['blunt', 'large_blunt', 'twohanded_blunt', 'slings', 'bow', 'crossbow'],
   /* 3 (60 s) poles, thrown, brawling, offhand */
-  ['staff', 'polearm', 'thrown', 'heavy_thrown', 'brawling', 'offhand', 'melee_mastery', 'martial_arts'],
+  ['staff', 'polearm', 'thrown', 'heavy_thrown', 'brawling', 'offhand', 'melee_mastery'],
   /* 4 (80 s) magic core + schools */
   ['missile_mastery', 'primary_magic', 'attunement', 'arcana', 'targeted_magic', 'augmentation',
    'offensive_magic', 'defensive_magic', 'warding_magic', 'healing_magic', 'holy_magic',

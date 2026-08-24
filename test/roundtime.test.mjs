@@ -7,6 +7,12 @@ import {
   auth, createCharacter, loadPlayer, Game, handleCommand, fakeWs, game,
   setupGame, teardownGame,
 } from './helpers.mjs';
+// Walk a player along the derived grid path between rooms (layout-agnostic).
+import { findPath } from '../data/grid.js';
+function walk(game, p, to) {
+  for (const step of findPath(p.room, to)) game.move(p, step);
+}
+
 import { setRoundtime, roundtimeLeft } from '../server/player.js';
 
 before(() => setupGame());
@@ -94,7 +100,7 @@ test('combat swing grants roundtime matching weapon speed', async () => {
   addItem(p, 'hunting_bow', 1);
   addItem(p, 'arrows', 40); // dual-load burns 2/shot; enough that misses can't starve it
   handleCommand(game, p, 'wield bow');
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // sewers
+  walk(game, p, 'sewers_1'); // sewers
   const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   game.startCombat(p, [rat.def]);
   const combat = game.combat.getFor(p);

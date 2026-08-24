@@ -5,6 +5,12 @@ import {
   auth, db, createCharacter, loadPlayer, Game, handleCommand, fakeWs, game,
   setupGame, teardownGame,
 } from './helpers.mjs';
+// Walk a player along the derived grid path between rooms (layout-agnostic).
+import { findPath } from '../data/grid.js';
+function walk(game, p, to) {
+  for (const step of findPath(p.room, to)) game.move(p, step);
+}
+
 
 before(() => setupGame());
 after(() => teardownGame());
@@ -127,11 +133,8 @@ test('circle command requires own hall and raises circle', async () => {
   handleCommand(game, p, 'circle');
   assert.equal(p.circle, 1);
 
-  // Walk to own guild hall: square -> tg_w -> guild_district -> guild_halls_s -> hall_paladin
-  game.move(p, 'w');
-  game.move(p, 'w');
-  game.move(p, 's');
-  game.move(p, 's');
+  // Walk to own guild hall.
+  walk(game, p, 'hall_paladin');
   assert.equal(p.room, 'hall_paladin');
 
   handleCommand(game, p, 'circle');
@@ -155,8 +158,7 @@ test('train command spends silvers to advance guild skills at hall', async () =>
   assert.equal(skillRank(p, 'war_magic'), 0);
 
   // non-guild skill rejected even at hall
-  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 's'); game.move(p, 's');
-  game.move(p, 's'); game.move(p, 's'); game.move(p, 'w'); game.move(p, 's'); // -> hall_warmage
+  walk(game, p, 'hall_warmage');
   assert.equal(p.room, 'hall_warmage');
   handleCommand(game, p, 'train holy_magic');
   assert.equal(skillRank(p, 'holy_magic'), 0);
@@ -234,8 +236,7 @@ test('TDPs: earned from rank-ups, spent on stats and any skill', async () => {
   const tdpBefore = p.tdp;
   handleCommand(game, p, 'raise int'); // refused outside the fane
   assert.equal(p.tdp, tdpBefore, 'raise is gated to the fane');
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); // temple row
-  game.move(p, 'w'); // fane
+  walk(game, p, 'fane');
   assert.equal(p.room, 'fane');
   handleCommand(game, p, 'raise int');
   assert.equal(p.tdp, tdpBefore - cost, 'raise works at the fane');
@@ -362,8 +363,7 @@ test('guild skills train at the hall and via guild activity', async () => {
   game.addPlayer(p);
 
   // Trainer teaches the guild skill: backstab for thief.
-  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 's'); game.move(p, 's');
-  game.move(p, 's'); game.move(p, 's'); // hall_thief (green -> district -> south row -> paladin -> ranger -> thief)
+  walk(game, p, 'hall_thief');
   assert.equal(p.room, 'hall_thief');
   handleCommand(game, p, 'train backstab');
   assert.ok(p.skills.backstab.exp > 0, 'guild skill trainable at hall');

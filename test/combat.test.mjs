@@ -5,9 +5,16 @@ import {
   auth, db, createCharacter, loadPlayer, Game, handleCommand, fakeWs, game,
   setupGame, teardownGame,
 } from './helpers.mjs';
+// Walk a player along the derived grid path between rooms (layout-agnostic).
+import { findPath } from '../data/grid.js';
+function walk(game, p, to) {
+  for (const step of findPath(p.room, to)) game.move(p, step);
+}
+
 
 before(() => setupGame());
 after(() => teardownGame());
+
 
 // Total learning in a skill under the pool model: banked field exp + residual
 // rank bits + ranks (ranks stand in for already-consumed bits in >0 checks).
@@ -28,7 +35,7 @@ test('full gameplay: alloc, shop, combat, skin, sell', async () => {
   assert.equal(p.unspentStat, 20);
 
   // buy a sword and wield it
-  game.move(p, 'e'); game.move(p, 'e'); // bazaar (shops)
+  walk(game, p, 'bazaar'); // shops
   handleCommand(game, p, 'buy short_sword');
   assert.ok(p.silver < 150);
   handleCommand(game, p, 'wield short_sword');
@@ -37,8 +44,8 @@ test('full gameplay: alloc, shop, combat, skin, sell', async () => {
   assert.ok(ws.msgs.some((m) => m.t === 'msg' && /You buy/.test(m.msg)));
 
   // go to the sewers and hunt
-  game.move(p, 'w'); game.move(p, 'w'); // square
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // temple row -> sewers entrance
+  walk(game, p, 'square');
+  walk(game, p, 'sewers_1');
   const creatures = game.creaturesIn(p.room);
   assert.ok(creatures.length >= 1, 'sewers should have spawns');
   const def = creatures[0].def;
@@ -62,15 +69,16 @@ test('full gameplay: alloc, shop, combat, skin, sell', async () => {
   // exp gained
   assert.ok(learned(p, 'medium_edged') > 0);
 
-  // skin the corpse and sell the loot
-  handleCommand(game, p, `skin ${def.id}`);
+  // skin the corpse and sell the loot (skill check can fumble; retry)
+  let tries = 0;
+  while (p.corpses.length && tries++ < 30) handleCommand(game, p, `skin ${def.id}`);
   assert.ok(p.corpses.length === 0, 'corpse consumed');
   handleCommand(game, p, 'inventory');
   const invMsg = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
   assert.match(invMsg, /pelt|hide/i, 'loot should be in inventory');
 
   // sell it (go back to the market)
-  game.move(p, 'u'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'se'); game.move(p, 'e'); game.move(p, 'e'); handleCommand(game, p, 'sell pelt');
+  walk(game, p, 'bazaar'); handleCommand(game, p, 'sell pelt');
   const sellMsg = ws.msgs.filter((m) => m.t === 'msg' && /sell|not interested/i.test(m.msg)).at(-1)?.msg || '';
   assert.match(sellMsg, /You sell/i, 'should sell the loot');
 
@@ -85,12 +93,12 @@ test('defending and parry train when struck in combat', async () => {
   p.ws = ws;
   game.addPlayer(p);
 
-  game.move(p, 'e'); game.move(p, 'e'); // bazaar (shops)
+  walk(game, p, 'bazaar'); // shops
   handleCommand(game, p, 'buy shield_wood');
   handleCommand(game, p, 'wear shield_wood');
   assert.equal(p.equipment.shield.id, 'shield_wood');
 
-  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // sewers (square -> temple row -> sewers_1)
+  walk(game, p, 'sewers_1');
   const creature = game.creaturesIn(p.room)[0];
   const defBefore = learned(p, 'defending');
   const parryBefore = learned(p, 'parry');
@@ -112,7 +120,7 @@ test('ranged weapons consume ammo', async () => {
   p.ws = ws;
   game.addPlayer(p);
 
-  game.move(p, 'e'); game.move(p, 'e'); // bazaar (shops)
+  walk(game, p, 'bazaar'); // shops
   p.silver = 400;
   handleCommand(game, p, 'buy hunting_bow');
   handleCommand(game, p, 'buy arrows 10');
@@ -121,7 +129,7 @@ test('ranged weapons consume ammo', async () => {
   const { countItems } = await import('../server/player.js');
   assert.equal(countItems(p, 'arrows'), 10);
 
-  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd');
+  walk(game, p, 'sewers_1');
   const creature = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   handleCommand(game, p, `attack ${creature.def.id}`);
   let combat = game.combat.getFor(p);
@@ -223,12 +231,12 @@ test('armor skill trains when struck in combat', async () => {
   p.ws = ws;
   game.addPlayer(p);
 
-  game.move(p, 'e'); game.move(p, 'e'); // bazaar (shops)
+  walk(game, p, 'bazaar'); // shops
   handleCommand(game, p, 'buy leather');
   handleCommand(game, p, 'wear leather');
   assert.equal(p.equipment.torso.id, 'leather');
 
-  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // sewers
+  walk(game, p, 'sewers_1'); // sewers
   const creature = game.creaturesIn(p.room)[0];
   const expBefore = learned(p, 'light_armor');
   game.startCombat(p, [creature.def]);
@@ -258,7 +266,7 @@ test('capstones: circle 10 unlocks passive + trader sell bonus', async () => {
   p.silver = 0;
   const { addItem } = await import('../server/player.js');
   addItem(p, 'rat_pelt', 1); // value 8 -> 4 normally, 5 with Golden Touch
-  game.move(p, 'e'); game.move(p, 'e'); // bazaar (shopkeeper)
+  walk(game, p, 'bazaar'); // shopkeeper
   handleCommand(game, p, 'sell pelt');
   assert.equal(p.silver, 5, 'Golden Touch multiplies sell price');
 
@@ -273,7 +281,7 @@ test('maneuvers: disarm, trip, shield-bash resolve in combat', async () => {
   p.ws = ws;
   game.addPlayer(p);
 
-  game.move(p, 's'); game.move(p, 'd'); // sewers (temple row -> sewers_1)
+  walk(game, p, 'sewers_1'); // sewers
   const { CREATURES } = await import('../data/creatures.js');
   game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.rat));
   const creature = game.creaturesIn(p.room)[0];
@@ -313,7 +321,7 @@ test('inner fire: berserk costs, burns out, kills recharge, pulses cap passively
   assert.equal(SKILLS.inner_fire.guildSkill, 'barbarian');
 
   // Berserk costs inner fire and trains the skill.
-  game.move(p, 's'); game.move(p, 'd'); // sewers
+  walk(game, p, 'sewers_1'); // sewers
   const creature = game.creaturesIn(p.room)[0];
   game.startCombat(p, [creature.def]);
   let combat = game.combat.getFor(p);
@@ -369,7 +377,7 @@ test('barbarian abilities: slots, paths, forms, roars, and masteries', async () 
   handleCommand(game, p, 'learn dragon');
   const noHall = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
   assert.match(noHall, /guildhall/, 'learning requires the hall');
-  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'w'); // square -> guild district -> north row -> barbarian hall
+  walk(game, p, 'hall_barbarian');
   assert.equal(p.room, 'hall_barbarian');
 
   handleCommand(game, p, 'learn screech');
@@ -384,7 +392,7 @@ test('barbarian abilities: slots, paths, forms, roars, and masteries', async () 
 
   // Use the form in combat: costs inner fire, decays over ticks.
   p.abilities = ['dragon', 'everilds_rage', 'screech'];
-  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // hall row -> district -> green -> temple row -> sewers
+  walk(game, p, 'sewers_1');
   const creature = game.creaturesIn(p.room)[0];
   game.startCombat(p, [creature.def]);
   let combat = game.combat.getFor(p);
@@ -427,7 +435,7 @@ test('barbarian specials: whirlwind, war stomp, choke, analyze, and forgetting',
   game.addPlayer(p);
 
   // Learning is slot-gated; use is circle-gated.
-  game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'w'); // -> hall_barbarian
+  walk(game, p, 'hall_barbarian');
   handleCommand(game, p, 'learn choke');
   assert.equal(p.abilities.includes('choke'), true, 'choke learned at the hall');
 
@@ -443,7 +451,7 @@ test('barbarian specials: whirlwind, war stomp, choke, analyze, and forgetting',
   assert.equal(p.abilities.includes('choke'), true, 'still known after cooldown refusal');
 
   // Head to the sewers; grant the specials and a high circle for the test.
-  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd');
+  walk(game, p, 'sewers_1');
   p.abilities = ['whirlwind', 'war_stomp', 'choke'];
   p.circle = 8;
   p.innerFire = 100;
@@ -503,7 +511,7 @@ test('barbarian kit: dual load, warhorn, chakrel, magic resistance, flavor verbs
   addItem(p, 'hunting_bow', 1);
   addItem(p, 'arrows', 20);
   handleCommand(game, p, 'wield bow');
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // sewers
+  walk(game, p, 'sewers_1'); // sewers
   const rat = game.creaturesIn(p.room).find((c) => c.def.id === 'rat') || game.creaturesIn(p.room)[0];
   game.startCombat(p, [rat.def]);
   let combat = game.combat.getFor(p);

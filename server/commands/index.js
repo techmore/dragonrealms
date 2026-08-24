@@ -30,7 +30,7 @@ export function mergeCommandModules(modules) {
 
 const REGISTRY = mergeCommandModules(COMMAND_MODULES);
 
-import { setRoundtime, roundtimeLeft } from '../player.js';
+import { setRoundtime, roundtimeLeft, netBurden } from '../player.js';
 
 // Commands that take roundtime (DR): each sets its own RT when it runs, and
 // is refused while RT is still counting down. Movement, passive reads, and
@@ -41,7 +41,7 @@ export const RT_BLOCK = new Set([
   'attack', 'cast', 'berserk', 'roar', 'meditate', 'form', 'whirlwind', 'stomp', 'choke',
   'mageslash', 'dispel', 'backstab', 'snipe', 'slip', 'smite', 'impede', 'ambush', 'hide',
   'forage', 'scavenge', 'track', 'hunt', 'skin', 'steal', 'pick', 'study', 'perform', 'appraise',
-  'unlock', 'sing', 'appr', 'forge', 'shape', 'tailor', 'craft', 'imbue',
+  'unlock', 'sing', 'appr', 'forge', 'shape', 'tailor', 'craft', 'imbue', 'tend', 'bandage',
   'repair', 'use', 'drink', 'eat', 'khri', 'predict', 'harness', 'perceive', 'charge', 'invoke',
   'focus', 'animate', 'ritual', 'beseech', 'enchante', 'glyph', 'summon', 'sacrifice',
   'advance', 'retreat', 'flee',
@@ -88,8 +88,10 @@ export function handleCommand(game, p, input, depth = 0, opts = {}) {
   const emit = (msg) => { say(msg); game.status(p); };
   const ctx = { game, p, cmd, arg1, arg2, rest, args, say, emit };
 
-  // Movement (single-letter and "go <dir>").
+  // Movement (single-letter and "go <dir>"). Overloaded hunters must shed
+  // weight before their legs will carry them (DR encumbrance).
   if (cmd === 'go') {
+    if (netBurden(p) >= 6) return emit('You are overloaded! Drop, bundle, or sell something before you can walk.');
     const dir = DIR_ALIASES[arg1 && arg1.toLowerCase()];
     if (!dir) return emit('Go where? Try a direction (n, s, e, w, u, d).');
     const res = game.move(p, dir);
@@ -98,6 +100,7 @@ export function handleCommand(game, p, input, depth = 0, opts = {}) {
   }
   const dir = DIR_ALIASES[cmd];
   if (dir) {
+    if (netBurden(p) >= 6) return emit('You are overloaded! Drop, bundle, or sell something before you can walk.');
     const res = game.move(p, dir);
     if (!res.ok) emit(res.msg);
     return;

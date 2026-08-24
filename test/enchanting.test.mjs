@@ -22,8 +22,8 @@ test('enchant command: room-gated, ingredients consumed, enchanted piece created
   let msgs = wsText(p);
   assert.match(msgs, /Enchanting Society/, 'enchant requires the Society');
 
-  // Teleport next to the circle via the street grid: herald_st is adjacent.
-  p.room = 'herald_st';
+  // Teleport next to the circle via the street grid: craft_row_w is adjacent.
+  p.room = 'craft_row_w';
   game.move(p, 'w');
   assert.equal(p.room, 'enchanting_soc', 'test path reaches the Society');
 

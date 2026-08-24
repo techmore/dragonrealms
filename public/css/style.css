@@ -482,6 +482,34 @@ button { color: inherit; }
   fill: color-mix(in srgb, var(--red) calc(var(--pd-cond, 50) * 0.5%), color-mix(in srgb, var(--amber) 30%, transparent));
   stroke: color-mix(in srgb, var(--red) 60%, var(--amber));
 }
+/* Bleeding wounds pulse on the wounded region (server prompt [bleeding: …]
+   tag → pd-wounded; tended wounds hold a steady amber instead of pulsing). */
+#hands-doll .pd-region.pd-wounded circle,
+#hands-doll .pd-region.pd-wounded path,
+#hands-doll .pd-region.pd-wounded ellipse {
+  animation: pd-bleed 1.6s ease-in-out infinite;
+}
+#hands-doll .pd-region.pd-wounded[data-wound-severity="severe"] circle,
+#hands-doll .pd-region.pd-wounded[data-wound-severity="profuse"] circle,
+#hands-doll .pd-region.pd-wounded[data-wound-severity="gushing"] circle,
+#hands-doll .pd-region.pd-wounded[data-wound-severity="severe"] path,
+#hands-doll .pd-region.pd-wounded[data-wound-severity="profuse"] path,
+#hands-doll .pd-region.pd-wounded[data-wound-severity="gushing"] path,
+#hands-doll .pd-region.pd-wounded[data-wound-severity="severe"] ellipse,
+#hands-doll .pd-region.pd-wounded[data-wound-severity="profuse"] ellipse,
+#hands-doll .pd-region.pd-wounded[data-wound-severity="gushing"] ellipse {
+  animation-duration: 0.7s; /* bad bleeders pulse faster */
+}
+@keyframes pd-bleed {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+#hands-doll .pd-region.pd-tended circle,
+#hands-doll .pd-region.pd-tended path,
+#hands-doll .pd-region.pd-tended ellipse {
+  animation: none;
+  stroke: var(--amber);
+}
 
 /* Field experience tracker (DR FE window) */
 #fe-row { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }

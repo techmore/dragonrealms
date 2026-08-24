@@ -462,7 +462,52 @@ test('carry allowance: strong backs haul more before encumbrance bites', async (
   game.removePlayer(weak); game.removePlayer(strong);
 });
 
-// ------------------- Load display & over-encumbrance -------------------
+// ------------------- Bleeding wounds & tend -------------------
+test('wounds: hits inflict bleeding, ticks drain, tend stops it', async () => {
+  const wounds = await import('../server/wounds.js');
+  const p = await mkChar('Bleeder', 'barbarian');
+  const hp0 = p.maxHp;
+  p.hp = hp0;
+
+  // Forced wound roll: big damage always opens a wound.
+  const w = wounds.rollWound(30, 5, () => 0.01);
+  assert.ok(w && w.level >= 1, `big hit opens a wound (level ${w && w.level})`);
+  assert.ok(wounds.BODY_PARTS.includes(w.part), 'wound has a body part');
+  // Tiny damage never wounds.
+  assert.equal(wounds.rollWound(2, 1, () => 0.01), null, 'grazes do not wound');
+
+  // Bleed rate sums untended wounds only.
+  p.wounds = [
+    { part: 'chest', level: 4, tended: false, since: Date.now() },
+    { part: 'head', level: 2, tended: true, since: Date.now() },
+  ];
+  assert.equal(wounds.bleedRate(p.wounds), 5, 'only untended wounds bleed');
+
+  // Tend with high First Aid: succeeds and steps severity down.
+  const realRandom = Math.random;
+  Math.random = () => 0.001;
+  const before = p.wounds[0].level;
+  handleCommand(game, p, 'tend chest');
+  Math.random = realRandom;
+  assert.equal(p.wounds.find((x) => x.part === 'chest').level, before - 1, 'good tend steps severity down');
+
+  // Repeated tending reaches tended state.
+  Math.random = () => 0.001;
+  for (let i = 0; i < 5 && !p.wounds[0].tended; i++) handleCommand(game, p, 'tend chest');
+  Math.random = realRandom;
+  assert.ok(!p.wounds.some((x) => x.part === 'chest' && !x.tended), 'chest wound fully tended');
+  assert.match(lastMsg(p), /bleeding stops|No bleeding/, 'tend reports the stop');
+
+  // Botched tend worsens the wound.
+  p.wounds = [{ part: 'abdomen', level: 2, tended: false, since: Date.now() }];
+  Math.random = () => 0.999; // force failure
+  handleCommand(game, p, 'tend abdomen');
+  Math.random = realRandom;
+  assert.ok(p.wounds[0].level > 2, `botched tend worsens the wound (${p.wounds[0].level})`);
+  game.removePlayer(p);
+});
+
+
 test('load: health and inventory report encumbrance; overloaded blocks movement', async () => {
   const { addItem } = await import('../server/player.js');
   const p = await mkChar('LoadMule', 'empath');

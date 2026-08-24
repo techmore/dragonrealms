@@ -39,10 +39,12 @@ async function combatWithWisp(p) {
 
 const sumDamage = (combat, n) => {
   // Every damage run starts from the same seed: hit/damage sequences are
-  // identical across compared configs, so differences are exact.
-  seed = 42;
+  // identical across compared configs, so differences are exact. The seed
+  // resets PER HIT because wound rolls consume a variable number of RNG
+  // draws, which would otherwise desync the sequences being compared.
   let total = 0;
   for (let i = 0; i < n; i++) {
+    seed = 42 + i * 7919;
     const before = combat.player.hp;
     combat.creatureAttack(combat.enemies[0]);
     total += before - combat.player.hp;

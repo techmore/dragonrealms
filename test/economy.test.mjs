@@ -5,6 +5,12 @@ import {
   auth, db, createCharacter, loadPlayer, Game, handleCommand, fakeWs, game,
   setupGame, teardownGame,
 } from './helpers.mjs';
+// Walk a player along the derived grid path between rooms (layout-agnostic).
+import { findPath } from '../data/grid.js';
+function walk(game, p, to) {
+  for (const step of findPath(p.room, to)) game.move(p, step);
+}
+
 
 before(() => setupGame());
 after(() => teardownGame());
@@ -18,13 +24,12 @@ test('heal and bank services', async () => {
   game.addPlayer(p);
 
   p.hp = 50;
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); // temple row (healer)
+  walk(game, p, 'temple_row'); // healer
   handleCommand(game, p, 'heal');
   assert.equal(p.hp, p.maxHp, 'healed to full');
 
   p.silver = 150;
-  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'se'); // temple row -> green
-  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); // -> bazaar -> market way -> bank plaza (banker)
+  walk(game, p, 'bank_plaza'); // banker
   handleCommand(game, p, 'deposit 100');
   assert.equal(p.bank, 100);
   assert.equal(p.silver, 50);
@@ -76,8 +81,7 @@ test('craft command: alchemy recipes, ingredient consumption, success', async ()
   assert.match(errMsg, /alchemist/, 'craft requires the alchemist');
 
   // Go to the brewery (square -> bazaar -> market way, north).
-  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e');
-  game.move(p, 'n');
+  walk(game, p, 'brewery');
   assert.equal(p.room, 'brewery');
 
   addItem(p, 'herb_root', 2);
@@ -242,7 +246,7 @@ test('forging: ore, quality ladder, and crafted steel', async () => {
   handleCommand(game, p, 'forge forged_short_sword');
   assert.match(ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' '), /Ember Forge/, 'gated to the forge');
 
-  game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'e'); game.move(p, 'n'); game.move(p, 'e'); // square -> bazaar -> market way -> brewery -> forge
+  walk(game, p, 'forge');
   assert.equal(p.room, 'forge');
   handleCommand(game, p, 'forge forged_short_sword');
   assert.match(ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' '), /You lack materials/, 'materials required');

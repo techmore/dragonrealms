@@ -159,12 +159,18 @@ test('movement, real async combat, and combat-state analysis', async () => {
   let s = await state();
   assert.equal(s.player.room, 'square');
 
-  s = (await call('POST', '/command', token, { command: 'nw' })).json.state;
-  assert.equal(s.player.room, 'tg_nw');
-  s = (await call('POST', '/command', token, { command: 'w' })).json.state;
-  assert.equal(s.player.room, 'nw_road');
-  s = (await call('POST', '/command', token, { command: 'w' })).json.state;
-  assert.equal(s.player.room, 'temple_row');
+  // Walk to a target through possibly-densified corridors: repeat `dir`
+  // (bounded) until the expected room is reached.
+  async function walkTo(dir, target, maxSteps = 12) {
+    for (let i = 0; i < maxSteps; i++) {
+      s = (await call('POST', '/command', token, { command: dir })).json.state;
+      if (s.player.room === target) return;
+    }
+    assert.equal(s.player.room, target, `walk ${dir} never reached ${target}`);
+  }
+  await walkTo('nw', 'tg_nw');
+  await walkTo('n', 'nw_road');
+  await walkTo('n', 'temple_row');
   s = (await call('POST', '/command', token, { command: 'd' })).json.state;
   assert.equal(s.player.room, 'sewers_1');
 
@@ -189,13 +195,20 @@ test('movement, real async combat, and combat-state analysis', async () => {
 
 test('state analysis: shops, inventory, equipment round-trip', async () => {
   await waitCombatEnd();
-  // sewers_1 -> temple_row -> nw_road -> tg_nw -> square -> tg_e -> bazaar
-  await call('POST', '/command', token, { command: 'u' });
-  await call('POST', '/command', token, { command: 'e' });
-  await call('POST', '/command', token, { command: 'e' });
-  await call('POST', '/command', token, { command: 'se' });
-  await call('POST', '/command', token, { command: 'e' });
-  let r = await call('POST', '/command', token, { command: 'e' });
+  // sewers_1 -> temple_row -> ... -> bazaar (corridor may be densified)
+  async function walkTo(dir, target, maxSteps = 12) {
+    for (let i = 0; i < maxSteps; i++) {
+      const r2 = await call('POST', '/command', token, { command: dir });
+      if (r2.json.state.player.room === target) return r2;
+    }
+    assert.fail(`walk ${dir} never reached ${target}`);
+  }
+  await walkTo('u', 'temple_row');
+  await walkTo('s', 'nw_road');
+  await walkTo('s', 'tg_nw');
+  await walkTo('se', 'square');
+  await walkTo('e', 'bazaar');
+  let r = await call('POST', '/command', token, { command: 'look' });
   assert.equal(r.json.state.player.room, 'bazaar');
 
   r = await call('POST', '/command', token, { command: 'buy dagger' });
@@ -241,6 +254,7 @@ test('death drops a corpse at the death site; reclaim via the API', async () => 
   r = await call('POST', '/command', token, { command: 'search' });
 
   assert.match(msg(r.json), /dagger/, 'search lists corpse contents');
+  await new Promise((res) => setTimeout(res, 2100)); // let roundtime lapse
 
   r = await call('POST', '/command', token, { command: 'get dagger from corpse' });
   assert.ok(r.json.state.inventory.some((i) => i.id === 'dagger'), 'gear reclaimed over the API');

@@ -5,6 +5,12 @@ import {
   auth, db, createCharacter, loadPlayer, Game, handleCommand, fakeWs, game,
   setupGame, teardownGame,
 } from './helpers.mjs';
+// Walk a player along the derived grid path between rooms (layout-agnostic).
+import { findPath } from '../data/grid.js';
+function walk(game, pl, to) {
+  for (const step of findPath(pl.room, to)) game.move(pl, step);
+}
+
 
 before(() => setupGame());
 after(() => teardownGame());
@@ -84,7 +90,7 @@ test('mana system: types, perceive, harness, and held mana empowers casts', asyn
 
   // held mana is consumed by the next combat cast.
   p.heldMana = 40;
-  game.move(p, 'nw'); game.move(p, 'w'); game.move(p, 'w'); game.move(p, 'd'); // temple row -> sewers
+  walk(game, p, 'sewers_1'); // sewers
   const creature = game.creaturesIn(p.room)[0];
   game.startCombat(p, [creature.def]);
   const combat = game.combat.getFor(p);
@@ -192,7 +198,7 @@ test('prepare/cast: overchanneling scales cost and risks backlash', async () => 
   const ws2 = fakeWs();
   p2.ws = ws2;
   game.addPlayer(p2);
-  game.move(p2, 'nw'); game.move(p2, 'w'); game.move(p2, 'w'); game.move(p2, 'd'); // sewers
+  walk(game, p2, 'sewers_1'); // sewers
   const creature = game.creaturesIn(p2.room)[0];
   game.startCombat(p2, [creature.def]);
   p2.mana = 100;
@@ -370,6 +376,7 @@ test('ranger: wolf companion bonds and fights; beseech buffs', async () => {
   p.circle = 4;
   p.skills.medium_edged = { rank: 15, exp: 0 };
   p.skills.evasion = { rank: 12, exp: 0 };
+  p.stats.con = Math.max(p.stats.con, 30); // soak variance: bleeding makes fights deadlier
   addItem(p, 'short_sword', 1);
   addItem(p, 'padded_cloth', 1);
   handleCommand(game, p, 'wield short_sword');
