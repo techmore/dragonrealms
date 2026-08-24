@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dragon Realms — Sim Players</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    html, body { height: auto !important; overflow: auto !important; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-mono), ui-monospace, Menlo, monospace; }
+    .admin { max-width: 1180px; margin: 0 auto; padding: 24px 20px 60px; }
+    h1 { color: var(--amber); font-size: 20px; margin: 0; }
+    .sub { color: var(--dim); font-size: 12px; }
+    a { color: var(--cyan); text-decoration: none; }
+    header.pagehead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+    header.pagehead .spacer { flex: 1; }
+    section {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      padding: 14px 16px; margin-top: 16px;
+    }
+    section > h2 {
+      margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--dim); font-weight: normal;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    section > h2 .right { margin-left: auto; text-transform: none; letter-spacing: 0; display: flex; gap: 8px; align-items: center; }
+    .note { color: var(--dim); font-size: 12px; }
+    .controls { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; flex-wrap: wrap; }
+    .btn, select, input[type=text] {
+      background: var(--panel-inset); color: var(--text); border: 1px solid var(--line);
+      border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 12px; cursor: pointer;
+    }
+    input[type=text] { cursor: text; }
+    .btn:hover, select:hover { border-color: var(--amber); }
+    .btn.active { border-color: var(--amber); color: var(--amber); }
+
+    .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .tbl th, .tbl td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .tbl th { color: var(--dim); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: .05em; cursor: pointer; user-select: none; }
+    .tbl th:hover { color: var(--amber); }
+    .tbl tbody tr.run { cursor: pointer; }
+    .tbl tbody tr.run:hover td { background: var(--panel-inset); }
+    .tbl tbody tr.sel td { background: var(--panel-inset); }
+    td.wrap { white-space: normal; }
+
+    .badge {
+      background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 4px;
+      padding: 1px 6px; font-size: 10px; color: var(--dim); white-space: nowrap;
+    }
+    .badge.live { color: var(--green); border-color: var(--green); }
+    .badge.grade-A, .badge.grade-B { color: var(--green); border-color: var(--green); }
+    .badge.grade-C { color: var(--amber); border-color: var(--amber); }
+    .badge.grade-D, .badge.grade-F { color: var(--red); border-color: var(--red); }
+    .badge.death { color: var(--red); border-color: var(--red); }
+
+    /* ---- detail ---- */
+    #detail { margin-top: 14px; }
+    .dgrid { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr); gap: 14px 20px; }
+    @media (max-width: 860px) { .dgrid { grid-template-columns: 1fr; } }
+    .dcard h3 {
+      margin: 0 0 6px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--dim); font-weight: normal;
+    }
+    canvas.spark { width: 100%; height: 110px; display: block; background: var(--panel-inset);
+      border: 1px solid var(--line); border-radius: 8px; }
+    .chips { display: flex; gap: 5px; flex-wrap: wrap; }
+    .chip {
+      border: 1px solid var(--line); border-radius: 4px; padding: 1px 7px; font-size: 11px;
+      background: rgba(255,255,255,.05); white-space: nowrap;
+    }
+    .chip b { color: var(--amber); }
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-size: 12px; }
+    .kv dt { color: var(--dim); }
+    .kv dd { margin: 0; }
+
+    #logwrap {
+      position: relative;
+      background: var(--panel-inset); border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px 12px; font-size: 12px; line-height: 1.45; white-space: pre-wrap;
+      word-break: break-word; max-height: 46vh; overflow-y: auto; margin-top: 8px;
+    }
+    #logwrap.errors-only .l-normal { display: none; }
+    #logwrap.timeline .l-normal { display: none; }
+    #logwrap:not(.timeline) .l-cmd { display: none; }
+    .l-cmd { color: var(--cyan); }
+    .l-bad { color: var(--red); }
+    .l-ok { color: var(--green); }
+    #logstate.live { color: var(--green); }
+    .legend { font-size: 11px; }
+    .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 10px; vertical-align: -1px; }
+
+    /* ---- character tracker ---- */
+    .skilltbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .skilltbl th, .skilltbl td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+    .skilltbl th { color: var(--dim); font-weight: 500; text-transform: uppercase; font-size: 10px; cursor: pointer; user-select: none; }
+    .skilltbl th:hover { color: var(--amber); }
+    .skilltbl tr:hover td { background: var(--panel-inset); }
+    .expbar { width: 120px; height: 6px; background: rgba(255,255,255,.05); border-radius: 99px; overflow: hidden; display: inline-block; vertical-align: middle; }
+    .expbar i { display: block; height: 100%; background: var(--cyan); }
+    .statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .stat { background: var(--panel-inset); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+    .stat b { display: block; font-size: 19px; color: var(--amber); line-height: 1.15; }
+    .stat span { color: var(--dim); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+    #pv-note { margin-top: 8px; }
+    #toast {
+      position: fixed; right: 18px; bottom: 18px; z-index: 9;
+      background: var(--panel-raised); border: 1px solid var(--amber-soft); border-radius: 8px;
+      color: var(--text); padding: 10px 16px; font-size: 12px; opacity: 0;
+      transform: translateY(8px); transition: all .25s; pointer-events: none; max-width: 380px;
+    }
+    #toast.show { opacity: 1; transform: none; }
+  </style>
+</head>
+<body data-page="sims">
+  <main class="admin">
+    <header class="pagehead">
+      <h1>&#129489;&#8205;&#128187; Sim Players</h1>
+      <span id="sum" class="sub"></span>
+      <span class="spacer"></span>
+      <a href="/admin.html">&larr; Admin dash</a>
+    </header>
+    <p class="sub">Launch sims from the dash or sweep scripts — this page reviews every
+      run (<code>public/live/*.log</code> + grades from <code>fidelity-summary.jsonl</code>) and tracks any
+      character's leveling &amp; skills. Sims use the public game API; the character tracker needs the
+      GM token (paste it in on the dash or open this page as <code>/sims#gm=&lt;token&gt;</code>).</p>
+
+    <!-- ===================== RUNS ===================== -->
+    <section>
+      <h2>Runs
+        <span class="right">
+          <label class="sub"><input type="checkbox" id="only-live"> live only</label>
+          <button class="btn" id="refresh-runs">&#8635; refresh</button>
+        </span>
+      </h2>
+      <table class="tbl">
+        <thead><tr>
+          <th data-k="run">Run</th><th data-k="char">Char</th><th data-k="guild">Guild</th><th data-k="race">Race</th>
+          <th data-k="ts">Ended</th><th data-k="circle">Circle</th><th data-k="circles">&#8593;</th>
+          <th data-k="kills">Kills</th><th data-k="deaths">Deaths</th><th data-k="trains">Trains</th>
+          <th data-k="grade">Grade</th><th></th>
+        </tr></thead>
+        <tbody id="runs"><tr><td colspan="12" class="note">loading…</td></tr></tbody>
+      </table>
+
+      <!-- detail -->
+      <div id="detail" hidden>
+        <h2 style="margin-top:14px"><span id="d-title" style="color:var(--amber);text-transform:none;letter-spacing:0;font-size:14px;font-weight:bold"></span>
+          <span class="right">
+            <span id="d-state" class="sub"></span>
+            <button class="btn" id="d-errors">errors only</button>
+            <button class="btn" id="d-timeline">command timeline</button>
+          </span>
+        </h2>
+        <div class="dgrid">
+          <div class="dcard">
+            <h3>Pacing — circle &amp; kills over minutes</h3>
+            <canvas class="spark" id="d-spark" width="900" height="220"></canvas>
+            <p class="legend"><i style="background:var(--amber)"></i>circle
+              <i style="background:var(--cyan)"></i>kills/min ×5
+              <i style="background:var(--red)"></i>death events</p>
+          </div>
+          <div class="dcard">
+            <h3>Summary</h3>
+            <dl class="kv" id="d-kv"></dl>
+            <h3 style="margin-top:12px">Fidelity checks</h3>
+            <div class="chips" id="d-chips"></div>
+          </div>
+        </div>
+        <div id="logwrap">(no log selected)</div>
+      </div>
+    </section>
+
+    <!-- ===================== CHARACTER TRACKER ===================== -->
+    <section>
+      <h2>Character tracker
+        <span class="right sub">circle · TDP · silver · all skill ranks (offline too)</span>
+      </h2>
+      <div class="controls">
+        <input id="track-name" type="text" placeholder="character name…" autocomplete="off" spellcheck="false" style="min-width:200px">
+        <button class="btn" id="track-go">&#128269; Track</button>
+        <select id="track-pick"><option value="">recent runs…</option></select>
+        <span id="track-state" class="sub"></span>
+        <span style="flex:1"></span>
+        <label class="sub"><input type="checkbox" id="track-trained" checked> hide rank-0</label>
+        <a id="track-spectate" href="#" target="_blank" rel="opener" hidden>&#128065; watch live</a>
+      </div>
+      <div id="tracker" class="note">Pick a character from a run above or type a name. Requires the GM token.</div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+  <script src="/js/admin-nav.js"></script>
+  <script>
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const stripAnsi = (s) => String(s ?? '').replace(/\x1b\[\d+m/g, '');
+
+    // GM token handoff — same regex contract as admin/core.js (must include _-%).
+    const TOKEN = (() => {
+      try {
+        const m = location.hash.match(/^#gm=([A-Za-z0-9_%-]+)$/);
+        if (m) { localStorage.setItem('dr_gm_token', decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname); }
+      } catch {}
+      return localStorage.getItem('dr_gm_token') || '';
+    })();
+
+    let toastTimer = null;
+    function toast(msg) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+    }
+
+    async function gm(path) {
+      try {
+        const r = await fetch('/api/gm/' + path, { cache: 'no-store',
+          headers: TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {} });
+        const d = await r.json().catch(() => null);
+        return { code: r.status, ok: !!r.ok && d?.ok !== false, d };
+      } catch { return { code: 0, ok: false, d: null }; }
+    }
+
+    function fmtAge(ts) {
+      if (!ts) return '—';
+      const s = Math.max(0, (Date.now() - ts) / 1000);
+      if (s < 90) return Math.round(s) + 's ago';
+      if (s < 5400) return Math.round(s / 60) + 'm ago';
+      if (s < 172800) return Math.round(s / 3600) + 'h ago';
+      return Math.round(s / 86400) + 'd ago';
+    }
+
+    /* ================= runs table ================= */
+    // Merge public/live/index.json (logs that exist) with
+    // fidelity-summary.jsonl (structured results per guild×race sweep run).
+    // A summary row matches a log when run = `fidelity-<guild>-<race>`.
+    let RUNS = [];           // { run, char?, ts?, reason?, circle, circles, kills, deaths, trains, grade?, fidelity? }
+    let SORT = { k: 'ts', dir: -1 };
+    let SELECTED = null;
+
+    async function loadRuns() {
+      let logs = [];
+      try { logs = await fetch('/live/index.json', { cache: 'no-store' }).then((r) => r.json()) || []; } catch {}
+      let summaries = [];
+      try {
+        const txt = await fetch('/live/fidelity-summary.jsonl', { cache: 'no-store' }).then((r) => r.text());
+        summaries = txt.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+      } catch {}
+
+      // Latest summary per guild×race key.
+      const latest = new Map();
+      for (const s of summaries) latest.set(`${s.guild}:${s.race}`, s);
+
+      const seen = new Set();
+      RUNS = [];
+      for (const run of logs) {
+        seen.add(run);
+        const m = /^fidelity-(.+)-([a-z]+)$/.exec(run); // guild may contain dashes? ids are single words; race last segment
+        const s = m ? latest.get(`${m[1]}:${m[2]}`) : null;
+        RUNS.push({
+          run, char: s?.char || null, ts: s?.ts ? Date.parse(s.ts) : null,
+          reason: s?.reason || null, circle: s?.circle ?? null,
+          circles: s?.circles ?? null, kills: s?.kills ?? null,
+          deaths: s?.deaths ?? null, trains: s?.trains ?? null,
+          guild: s?.guild || (m ? m[1] : null), race: s?.race || (m ? m[2] : null),
+          grade: s?.grade || null, score: s?.fidelityScore || null, fidelity: s?.fidelity || null,
+        });
+      }
+      for (const [, s] of latest) { // summaries without a surviving log file
+        if (!logs.includes(`fidelity-${s.guild}-${s.race}`)) {
+          RUNS.push({ run: `fidelity-${s.guild}-${s.race} (no log)`, char: s.char,
+            ts: Date.parse(s.ts), reason: s.reason, circle: s.circle, circles: s.circles,
+            kills: s.kills, deaths: s.deaths, trains: s.trains, guild: s.guild, race: s.race,
+            grade: s.grade, score: s.fidelityScore, fidelity: s.fidelity });
+        }
+      }
+      renderRuns();
+    }
+
+    function isLive(ts) { return ts && (Date.now() - ts) < 15000; }
+
+    function renderRuns() {
+      const liveOnly = $('only-live').checked;
+      let rows = [...RUNS];
+      if (liveOnly) rows = rows.filter((r) => isLive(r.ts) || !r.ts); // no summary timestamp → can't tell; keep
+      rows.sort((a, b) => {
+        const va = a[SORT.k], vb = b[SORT.k];
+        if (va == null && vb == null) return 0;
+        if (va == null) return 1;
+        if (vb == null) return -1;
+        return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * SORT.dir;
+      });
+      $('sum').textContent = `${RUNS.length} runs · ${RUNS.filter((r) => isLive(r.ts)).length} recently active`;
+      document.querySelectorAll('#runs th[data-k]').forEach((th) => {
+        th.textContent = th.textContent.replace(/ [▲▼]$/, '') + (SORT.k === th.dataset.k ? (SORT.dir > 0 ? ' ▲' : ' ▼') : '');
+      });
+      if (!rows.length) {
+        $('runs').innerHTML = '<tr><td colspan="12" class="note">no sim logs in public/live yet — launch one from the dash</td></tr>';
+        return;
+      }
+      $('runs').innerHTML = rows.map((r) => `
+        <tr class="run ${SELECTED === r.run ? 'sel' : ''}" data-run="${esc(r.run)}">
+          <td>${esc(r.run.replace(/^fidelity-/, ''))}</td>
+          <td>${esc(r.char || '—')}</td>
+          <td>${esc(r.guild || '—')}</td>
+          <td>${esc(r.race || '—')}</td>
+          <td title="${r.ts ? new Date(r.ts).toLocaleString() : ''}">${isLive(r.ts) ? '<span class="badge live">● LIVE</span> ' : ''}${fmtAge(r.ts)}</td>
+          <td><b>${r.circle ?? '—'}</b></td>
+          <td>${r.circles ?? '—'}</td>
+          <td>${r.kills ?? '—'}</td>
+          <td>${r.deaths ? `<span class="badge death">${r.deaths}</span>` : '0'}</td>
+          <td>${r.trains ?? '—'}</td>
+          <td>${r.grade ? `<span class="badge grade-${esc(String(r.grade)[0])}" title="fidelity ${esc(r.score || '')}">${esc(r.grade)}</span>` : (r.score ? esc(r.score) : '—')}</td>
+          <td><button class="btn" data-open="${esc(r.run)}">open &#8594;</button>
+              ${r.guild && r.race && r.char ? `<button class="btn" data-rerun="${esc(r.run)}" title="prefill the dash launch form with this run's params">&#9654; rerun</button>` : ''}</td>
+        </tr>`).join('');
+      $('runs').querySelectorAll('tr.run').forEach((tr) =>
+        tr.addEventListener('click', () => openRun(tr.dataset.run)));
+      $('runs').querySelectorAll('[data-open]').forEach((b) =>
+        b.addEventListener('click', (e) => { e.stopPropagation(); openRun(b.dataset.open); }));
+      $('runs').querySelectorAll('[data-rerun]').forEach((b) =>
+        b.addEventListener('click', (e, ) => {
+          e.stopPropagation();
+          const r = RUNS.find((x) => x.run === b.dataset.rerun);
+          if (!r) return;
+          // Hand params to the dash through sessionStorage (same-tab origin);
+          // admin boot consumes and clears it.
+          try {
+            sessionStorage.setItem('dr_rerun', JSON.stringify({
+              name: r.char, race: r.race, guild: r.guild,
+            }));
+          } catch {}
+          location.href = '/admin.html?rerun=' + encodeURIComponent(r.run);
+        }));
+      // tracker quick-pick: distinct chars
+      const chars = [...new Set(RUNS.filter((r) => r.char).map((r) => r.char))];
+      const pick = $('track-pick');
+      const cur = pick.value;
+      pick.innerHTML = '<option value="">recent runs…</option>' +
+        chars.map((c) => `<option ${c === cur ? 'selected' : ''}>${esc(c)}</option>`).join('');
+    }
+
+    /* ================= run detail ================= */
+    let LOG_TEXT = '';
+    async function openRun(run) {
+      SELECTED = run;
+      renderRuns();
+      $('detail').hidden = false;
+      const r = RUNS.find((x) => x.run === run) || {};
+      $('d-title').textContent = r.char ? `${r.char} — ${r.guild || '?'} ${r.race || '?'}` : run;
+
+      $('d-kv').innerHTML = [
+        ['result', r.grade ? `${esc(r.grade)} (fidelity ${esc(r.score || '—')})` : '—'],
+        ['circle reached', `<b>${r.circle ?? '—'}</b> (${r.circles ?? 0} circle-ups)`],
+        ['kills / deaths', `${r.kills ?? '—'} / ${r.deaths ?? '—'}`],
+        ['train commands', r.trains ?? '—'],
+        ['ended', r.reason ? esc(r.reason) : fmtAge(r.ts)],
+      ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+
+      const fid = Object.entries(r.fidelity || {});
+      $('d-chips').innerHTML = fid.length
+        ? fid.map(([k, n]) => `<span class="chip">${esc(k)} <b>×${n}</b></span>`).join('')
+        : '<span class="note">no fidelity counters recorded</span>';
+
+      // log
+      LOG_TEXT = '';
+      $('logwrap').textContent = 'loading…';
+      if (!/\(no log\)$/.test(run)) {
+        try {
+          LOG_TEXT = stripAnsi(await fetch('/live/' + encodeURIComponent(run.replace(/ \(no log\)$/, '')) + '.log', { cache: 'no-store' }).then((x) => x.text()));
+        } catch { LOG_TEXT = ''; }
+      }
+      renderLog();
+      drawSpark();
+      pollDetail();
+    }
+
+    function classify(line) {
+      if (/script&gt; |^script> /.test(line)) return 'l-cmd';
+      if (/error|FAILED|died|UNIQUE constraint|watchdog/i.test(line)) return 'l-bad';
+      if (/now circle|CIRCLE-UP|Results/.test(line)) return 'l-ok';
+      return 'l-normal';
+    }
+    function renderLog() {
+      const el = $('logwrap');
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 40;
+      el.innerHTML = LOG_TEXT.split('\n').map((l) => {
+        const cls = classify(esc(l));
+        return cls === 'l-normal' ? esc(l) : `<span class="${cls}">${esc(l)}</span>`;
+      }).join('\n') || '(empty)';
+      if (atBottom) el.scrollTop = el.scrollHeight;
+    }
+
+    // Live badge refresh while a run's log keeps appending.
+    let DETAIL_TIMER = null;
+    function pollDetail() {
+      clearInterval(DETAIL_TIMER);
+      if (!SELECTED) return;
+      DETAIL_TIMER = setInterval(async () => {
+        if (!SELECTED || /\(no log\)$/.test(SELECTED)) return;
+        try {
+          const head = await fetch('/live/' + encodeURIComponent(SELECTED) + '.log', { method: 'HEAD', cache: 'no-store' });
+          const age = Date.now() - Number(head.headers.get('last-modified') || 0);
+          $('d-state').innerHTML = age < 15000 ? '<span class="badge live">● appending</span>' : `idle · last write ${Math.round(age / 1000)}s ago`;
+          const atBottom = $('logwrap').scrollTop + $('logwrap').clientHeight >= $('logwrap').scrollHeight - 40;
+          const fresh = stripAnsi(await fetch('/live/' + encodeURIComponent(SELECTED) + '.log', { cache: 'no-store' }).then((x) => x.text()));
+          if (fresh.length !== LOG_TEXT.length) {
+            LOG_TEXT = fresh;
+            renderLog();
+            drawSpark();
+            if (!atBottom) {} else $('logwrap').scrollTop = $('logwrap').scrollHeight;
+          }
+        } catch { $('d-state').textContent = ''; }
+      }, 3000);
+    }
+
+    /* ================= pacing spark ================= */
+    function parseProgress(text) {
+      // "[progress] 4m circle 1 hp 133/133 kills 3 circles 0 trains 44 deaths 0 …"
+      const pts = [];
+      for (const m of text.matchAll(/\[progress\]\s+(\d+)m\s+circle\s+(\d+)\s+hp\s+(\d+)\/(\d+)\s+kills\s+(\d+)\s+circles\s+(\d+)\s+trains\s+(\d+)\s+deaths\s+(\d+)/g)) {
+        pts.push({ min: +m[1], circle: +m[2], kills: +m[5], circles: +m[6], trains: +m[7], deaths: +m[8] });
+      }
+      // collapse to last sample per minute
+      const perMin = new Map();
+      for (const p of pts) perMin.set(p.min, p);
+      return [...perMin.values()].sort((a, b) => a.min - b.min);
+    }
+    function drawSpark() {
+      const cv = $('d-spark'), ctx = cv.getContext('2d');
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      const pts = parseProgress(LOG_TEXT);
+      if (pts.length < 2) {
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dim').trim() || '#888';
+        ctx.font = '13px monospace';
+        ctx.fillText(pts.length ? 'not enough samples' : 'no [progress] lines in this log (browser-launched runs don’t emit them)', 14, 30);
+        return;
+      }
+      const W = cv.width, H = cv.height, pad = 24;
+      const maxX = pts[pts.length - 1].min || 1;
+      const maxC = Math.max(...pts.map((p) => p.circle), 1);
+      // kill-rate per minute bucket
+      const rate = pts.map((p, i) => ({ x: p.min, y: i ? Math.max(0, p.kills - pts[i - 1].kills) : 0 }));
+      const maxR = Math.max(...rate.map((r) => r.y), 1);
+      const X = (t) => pad + (t / maxX) * (W - pad * 2);
+      const Yc = (v) => H - pad - (v / maxC) * (H - pad * 2);
+      const Yr = (v) => H - pad - ((v / maxR) * (H - pad * 2)) * 0.85;
+      const css = (n, f) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || f;
+      // deaths markers first (behind)
+      ctx.fillStyle = css('--red', '#e55');
+      for (const p of pts) if (p.deaths) { ctx.beginPath(); ctx.arc(X(p.min), Yc(p.circle), 5, 0, 7); ctx.fill(); }
+      // kill rate line
+      ctx.strokeStyle = css('--cyan', '#6cc'); ctx.lineWidth = 1.5; ctx.beginPath();
+      rate.forEach((r, i) => i ? ctx.lineTo(X(r.x), Yr(r.y)) : ctx.moveTo(X(r.x), Yr(r.y)));
+      ctx.stroke();
+      // circle step line
+      ctx.strokeStyle = css('--amber', '#fa0'); ctx.lineWidth = 2.5; ctx.beginPath();
+      pts.forEach((p, i) => i ? ctx.lineTo(X(p.min), Yc(p.circle)) : ctx.moveTo(X(p.min), Yc(p.circle)));
+      ctx.stroke();
+      // axes labels
+      ctx.fillStyle = css('--dim', '#999'); ctx.font = '11px monospace';
+      ctx.fillText(`circle max ${maxC}`, pad, pad - 8);
+      ctx.fillText(`${maxX}m`, W - pad - 30, H - 8);
+      ctx.fillText('0', pad - 6, H - 8);
+    }
+
+    /* ================= character tracker ================= */
+    let TRACK_SORT = { k: 'rank', dir: -1 };
+    let TRACK_DATA = null;
+    async function track(name) {
+      name = (name || '').trim();
+      if (!name) return;
+      $('track-state').textContent = 'loading…';
+      const r = await gm('player/' + encodeURIComponent(name));
+      if (!r.ok) {
+        TRACK_DATA = null;
+        $('tracker').className = 'note';
+        $('tracker').innerHTML = r.code === 401
+          ? 'GM token required — paste it on the dash, or reopen as <code>/sims#gm=&lt;token&gt;</code>.'
+          : (r.d?.error ? esc(r.d.error) : `lookup failed (HTTP ${r.code}).`);
+        $('track-state').textContent = '';
+        return;
+      }
+      const d = r.d;
+      TRACK_DATA = d;
+      const pl = d.player;
+      $('track-spectate').hidden = d.offline;
+      $('track-spectate').href = '/?spectate=' + encodeURIComponent(pl.name) + '#gm=' + encodeURIComponent(TOKEN);
+      $('track-state').innerHTML = d.offline
+        ? '<span class="badge">offline</span>'
+        : '<span class="badge live">● online</span>';
+      renderTracker();
+      drawTrend(pl.name);
+      drawSkillDeltas(pl.name, document.getElementById('trend').parentElement);
+      $('track-state').textContent = '';
+    }
+    /* ---- skill-rank deltas from sims-history.jsonl (sweep hook) ---- */
+    async function drawSkillDeltas(charName, host) {
+      let hist = [];
+      try {
+        const txt = await fetch('/live/sims-history.jsonl', { cache: 'no-store' }).then((r) => r.text());
+        hist = txt.split('\n').filter(Boolean).map((l) => JSON.parse(l))
+          .filter((h) => h.char === charName).sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+      } catch {}
+      if (hist.length < 2) return; // trend chart already notes single-run chars
+      const prev = hist[hist.length - 2], last = hist[hist.length - 1];
+      const rows = Object.entries(last.topSkills || {})
+        .map(([id, s]) => ({ id, rank: s.rank,
+          delta: s.rank - ((prev.topSkills || {})[id]?.rank ?? s.rank) }))
+        .sort((a, b) => Math.abs(b.delta - a.delta * 0) || b.rank - a.rank);
+      const el = document.createElement('div');
+      el.innerHTML = `<h3 style="margin:14px 0 6px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:normal">Rank change since previous run (${esc(String(prev.ts || '').slice(0, 10))} → ${esc(String(last.ts || '').slice(0, 10))}) · total ranks ${prev.totalRanks} → <b style="color:var(--amber)">${last.totalRanks}</b> (${last.totalRanks >= prev.totalRanks ? '+' : ''}${last.totalRanks - prev.totalRanks})</h3>
+        <table class="skilltbl"><thead><tr><th>Skill</th><th>Rank now</th><th>Δ</th></tr></thead>
+        <tbody>${rows.slice(0, 12).map((r) => `
+          <tr><td>${esc(r.id)}</td><td><b>${r.rank}</b></td>
+            <td>${r.delta > 0 ? `<span style="color:var(--green)">+${r.delta}</span>` : r.delta < 0 ? `<span style="color:var(--red)">${r.delta}</span>` : '<span class="sub">±0</span>'}</td></tr>`).join('')}
+        </tbody></table>`;
+      host.appendChild(el);
+    }
+    /* ---- level-over-time trend from fidelity-summary.jsonl ---- */
+    // Every sweep run appends a summary row per char; plotting circle (and
+    // total kills/trains) across those rows shows progression between runs.
+    async function drawTrend(charName) {
+      const host = document.createElement('div');
+      host.id = 'trend';
+      document.getElementById('tracker').prepend(host);
+      let hist = [];
+      try {
+        const txt = await fetch('/live/fidelity-summary.jsonl', { cache: 'no-store' }).then((r) => r.text());
+        hist = txt.split('\n').filter(Boolean).map((l) => JSON.parse(l))
+          .filter((s) => s.char === charName && s.ts)
+          .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+      } catch {}
+      if (hist.length < 2) {
+        host.innerHTML = `<p class="note" style="margin-bottom:10px">trend: ${hist.length} recorded run${hist.length === 1 ? '' : 's'} for this character — rerun the same sim to build history</p>`;
+        return;
+      }
+      const W = 900, H = 160, pad = 26;
+      const maxC = Math.max(...hist.map((h) => h.circle || 0), 1);
+      const t0 = Date.parse(hist[0].ts), t1 = Date.parse(hist[hist.length - 1].ts);
+      const X = (t) => pad + ((t - t0) / Math.max(1, t1 - t0)) * (W - pad * 2);
+      const Y = (v) => H - pad - (v / maxC) * (H - pad * 2);
+      const css = (n, f) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || f;
+      const cv = document.createElement('canvas');
+      cv.className = 'spark'; cv.width = W; cv.height = H;
+      const ctx = cv.getContext('2d');
+      ctx.strokeStyle = css('--amber', '#fa0'); ctx.lineWidth = 2.5; ctx.beginPath();
+      hist.forEach((h, i) => { const x = X(Date.parse(h.ts)), y = Y(h.circle || 0); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.stroke();
+      ctx.fillStyle = css('--amber', '#fa0');
+      for (const h of hist) {
+        ctx.beginPath(); ctx.arc(X(Date.parse(h.ts)), Y(h.circle || 0), 4, 0, 7); ctx.fill();
+        ctx.fillStyle = css('--dim', '#999'); ctx.font = '11px monospace';
+        ctx.fillText(`${h.circle}`, X(Date.parse(h.ts)) - 6, Y(h.circle || 0) - 9);
+        ctx.fillStyle = css('--amber', '#fa0');
+      }
+      host.innerHTML = `<h3 style="margin:0 0 6px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:normal">Circle over recorded runs (${hist.length})</h3>`;
+      host.appendChild(cv);
+    }
+    function renderTracker() {
+      const d = TRACK_DATA;
+      if (!d) return;
+      const pl = d.player;
+      const skills = Object.entries(d.skills || {})
+        .filter(([, s]) => !$('track-trained').checked || s.rank > 0)
+        .sort((a, b) => (b[1].rank - a[1].rank) || (b[1].exp - a[1].exp));
+      // exp-to-next approximation: rank N needs ~N*100+100 exp pool; show fill vs current bucket
+      const expPct = (s) => Math.min(100, Math.round(100 * s.exp / Math.max(100, (s.rank + 1) * 60)));
+      $('tracker').className = '';
+      $('tracker').innerHTML = `
+        <div class="statgrid">
+          <div class="stat"><b>${pl.circle}</b><span>circle</span></div>
+          <div class="stat"><b>${pl.tdpPool ?? pl.tdp ?? 0}</b><span>TDP pool</span></div>
+          <div class="stat"><b>${pl.silver ?? '—'}</b><span>silvers</span></div>
+          <div class="stat"><b>${pl.bank ?? '—'}</b><span>banked</span></div>
+          <div class="stat"><b>${skills.length}</b><span>trained skills</span></div>
+          <div class="stat"><b>${Object.keys(d.skills || {}).length}</b><span>total skills</span></div>
+        </div>
+        <div class="note" style="margin-bottom:8px">${esc(pl.race || '?')} ${esc(pl.guild || '?')} · room ${esc(String(pl.room ?? '—'))}
+          · HP ${pl.hp}/${pl.maxHp}${pl.maxMana ? ` · mana ${pl.mana}/${pl.maxMana}` : ''}</div>
+        <table class="skilltbl">
+          <thead><tr>
+            <th data-tk="id">Skill</th><th data-tk="rank">Rank</th><th data-tk="exp">Exp progress</th>
+          </tr></thead>
+          <tbody>${skills.slice(0, 400).map(([id, s]) => `
+            <tr><td>${esc(id)}</td><td><b>${s.rank}</b></td>
+              <td><span class="expbar"><i style="width:${expPct(s)}%"></i></span>
+                  <span class="sub" style="margin-left:8px">${s.exp} exp</span></td></tr>`).join('')}
+          </tbody>
+        </table>
+        ${skills.length > 400 ? `<p class="note">…and ${skills.length - 400} more rank-0 skills (toggle “hide rank-0” off)</p>` : ''}`;
+      $('tracker').querySelectorAll('th[data-tk]').forEach((th) => th.addEventListener('click', () => {
+        const k = th.dataset.tk;
+        TRACK_SORT = { k, dir: TRACK_SORT.k === k ? -TRACK_SORT.dir : -1 };
+        renderTrackerSorted(k);
+      }));
+    }
+    function renderTrackerSorted() {
+      // simple re-render path for sort clicks
+      const d = TRACK_DATA;
+      if (!d) return;
+      const skills = Object.entries(d.skills || {})
+        .filter(([, s]) => !$('track-trained').checked || s.rank > 0)
+        .sort((a, b) => {
+          const va = TRACK_SORT.k === 'id' ? a[0] : a[1][TRACK_SORT.k];
+          const vb = TRACK_SORT.k === 'id' ? b[0] : b[1][TRACK_SORT.k];
+          return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * TRACK_SORT.dir;
+        });
+      const expPct = (s) => Math.min(100, Math.round(100 * s.exp / Math.max(100, (s.rank + 1) * 60)));
+      $('tracker').querySelector('tbody').innerHTML = skills.slice(0, 400).map(([id, s]) => `
+        <tr><td>${esc(id)}</td><td><b>${s.rank}</b></td>
+          <td><span class="expbar"><i style="width:${expPct(s)}%"></i></span>
+              <span class="sub" style="margin-left:8px">${s.exp} exp</span></td></tr>`).join('');
+    }
+
+    /* ================= wiring ================= */
+    $('refresh-runs').addEventListener('click', loadRuns);
+    $('only-live').addEventListener('change', renderRuns);
+    document.querySelectorAll('th[data-k]').forEach((th) => th.addEventListener('click', () => {
+      const k = th.dataset.k;
+      SORT = { k, dir: SORT.k === k ? -SORT.dir : -1 };
+      renderRuns();
+    }));
+    $('d-errors').addEventListener('click', () => {
+      $('logwrap').classList.toggle('errors-only');
+      $('d-errors').classList.toggle('active');
+    });
+    $('d-timeline').addEventListener('click', () => {
+      $('logwrap').classList.toggle('timeline');
+      $('d-timeline').classList.toggle('active');
+    });
+    $('track-go').addEventListener('click', () => track($('track-name').value));
+    $('track-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') track($('track-name').value); });
+    $('track-pick').addEventListener('change', () => {
+      if ($('track-pick').value) { $('track-name').value = $('track-pick').value; track($('track-pick').value); }
+    });
+    $('track-trained').addEventListener('change', () => TRACK_DATA && renderTracker());
+
+    loadRuns();
+    setInterval(loadRuns, 15000);
+    // deep link: /sims.html?char=Name
+    const want = new URLSearchParams(location.search).get('char');
+    if (want) { $('track-name').value = want; track(want); }
+  </script>
+</body>
+</html>

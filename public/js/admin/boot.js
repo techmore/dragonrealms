@@ -7,6 +7,23 @@ import { launchAgent, stopAgent, agents, initAgentForm, AG_RACES, AG_GUILDS, cap
 
 initAgentForm();
 
+// "Rerun" handoff from /sims.html: prefill the launch form with a past
+// run's params (sessionStorage dr_rerun, set by the Sims runs table).
+try {
+  const rerun = JSON.parse(sessionStorage.getItem('dr_rerun') || 'null');
+  if (rerun?.name) {
+    $('ag-name').value = rerun.name;
+    if (rerun.race) $('ag-race').value = rerun.race;
+    // Guild option values are lowercase ids ("warrior mage"); match loosely.
+    const g = String(rerun.guild || '').toLowerCase();
+    for (const opt of $('ag-guild').options) {
+      if (opt.value === g || g.includes(opt.value)) { $('ag-guild').value = opt.value; break; }
+    }
+    toast(`Prefilled launch form from run "${rerun.name}" — adjust minutes/circle, then Launch.`);
+  }
+  sessionStorage.removeItem('dr_rerun');
+} catch {}
+
 $('ag-launch').addEventListener('click', () => {
   let name = $('ag-name').value.trim();
   if (!/^[A-Za-z]{2,20}$/.test(name)) {

@@ -6,6 +6,7 @@
   const tabs = [
     ['admin.html', 'Dashboard', 'monitor the world'],
     ['characters.html', 'Characters', 'sim & test toons'],
+    ['sims.html', 'Sims', 'runs, grades & tracking'],
     ['jobs.html', 'Sim logs', 'run output'],
     ['gm.html', 'GM Console', 'inspector & streams'],
     ['/', 'Play', null],

@@ -17,6 +17,34 @@ const AG_PASS = 'AdminRun1!';
 
 const AG = { agents: [] };
 
+// Persist last-known agent state so a tab reload doesn't amnesia the sim
+// list — reloaded rows render as "(tab closed)" until their sockets die
+// server-side or a new run with the same name starts.
+function agPersist() {
+  try {
+    const rows = AG.agents.slice(-40).map((a) => ({
+      char: a.char, race: a.race, guild: a.guild, circleTarget: a.circleTarget,
+      boost: a.boost, circle: a.v?.circle ?? 1,
+      hp: a.v?.hp ?? 0, maxhp: a.v?.maxhp ?? 0,
+      live: Boolean(a.ws), at: Date.now(),
+    }));
+    localStorage.setItem('dr_admin_agents', JSON.stringify(rows));
+  } catch {}
+}
+function agRestore() {
+  try {
+    const rows = JSON.parse(localStorage.getItem('dr_admin_agents') || '[]');
+    for (const r of rows) {
+      if (!r.live || AG.agents.some((a) => a.char === r.char)) continue;
+      // Only resurrect rows from the last hour, marked as dead.
+      if (Date.now() - (r.at || 0) > 36e5) continue;
+      AG.agents.push({ char: r.char, race: r.race, guild: r.guild,
+        circleTarget: r.circleTarget, boost: r.boost, ws: null,
+        v: { hp: r.hp, maxhp: r.maxhp, circle: r.circle }, restored: true });
+    }
+  } catch {}
+}
+
 export const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const AG_RACES = ['human', 'dwarf', 'elf', 'elothean', 'gnome', 'gortog',
   'halfling', 'skra', 'giantman'];
@@ -48,17 +76,37 @@ function agLog(agent, text, cls) {
 }
 
 function agRenderState() {
+  const el = $('agstate');
   const live = AG.agents.filter((a) => a.ws);
-  const st = $('agstate');
-  if (!AG.agents.length) { st.innerHTML = '&#9675; none running'; return; }
-  const bits = AG.agents.map((a) => {
-    const v = a.v;
-    const hp = v.maxhp ? ` HP ${Math.round(100 * v.hp / v.maxhp)}%` : '';
-    return `${a.char} c${v.circle}${hp}${a.ws ? '' : ' (stopped)'}`;
-  });
-  st.innerHTML = live.length ? `&#9679; ${live.length} running` : '&#9675; stopped';
-  st.style.color = live.length ? 'var(--green)' : 'var(--dim)';
-  st.title = bits.join(' · ');
+  if (!AG.agents.length) { el.innerHTML = '&#9675; none running'; return; }
+  // Per-agent rows: name, guild, circle, HP bar, room state, Stop button.
+  const host = $('agroster');
+  if (host) {
+    host.innerHTML = AG.agents.map((a) => {
+      const v = a.v || {};
+      const f = v.maxhp > 0 ? Math.max(0, Math.min(1, v.hp / v.maxhp)) : null;
+      const col = f == null ? 'var(--dim)' : f > 0.6 ? 'var(--green)' : f > 0.3 ? 'var(--amber)' : 'var(--red)';
+      return `<div class="row" data-ag="${esc(a.char)}">
+        <span class="nm">${esc(a.char)}</span>
+        <span class="cl">${esc(a.guild || '')} · c${v.circle ?? '?'}${a.circleTarget ? ` → c${esc(a.circleTarget)}` : ''}</span>
+        ${f == null ? '' : `<span class="hpbar" title="${v.hp}/${v.maxhp} HP"><i style="width:${Math.round(f * 100)}%;background:${col}"></i></span>`}
+        ${a.ws ? '<span class="badge live">&#9679; running</span>'
+          : a.restored ? '<span class="badge" title="this tab was reloaded — the socket is gone">(tab closed)</span>'
+          : '<span class="badge">stopped</span>'}
+        <button class="watch" data-agstop="${esc(a.char)}" ${a.ws ? '' : 'disabled'}>&#9208; stop</button>
+      </div>`;
+    }).join('');
+    host.querySelectorAll('[data-agstop]').forEach((b) => b.addEventListener('click', () => {
+      const a = AG.agents.find((x) => x.char === b.dataset.agstop);
+      if (a) stopAgent(a, 'stopped by GM');
+    }));
+  }
+  const bits = AG.agents.map((a) =>
+    `${a.char} c${a.v?.circle ?? '?'}${a.ws ? '' : ' (stopped)'}`);
+  el.innerHTML = live.length ? `&#9679; ${live.length} running` : '&#9675; stopped';
+  el.style.color = live.length ? 'var(--green)' : 'var(--dim)';
+  el.title = bits.join(' · ');
+  agPersist();
 }
 
 export function launchAgent({ name, race, guild, minutes, circleTarget, boost }) {
@@ -318,6 +366,10 @@ export function initAgentForm() {
   $('ag-race').addEventListener('change', agSuggestName);
   $('ag-guild').addEventListener('change', agSuggestName);
   agSuggestName();
+  // Reloaded tab: show previously-running agents as "(tab closed)" rows.
+  agRestore();
+  agRenderState();
+  setInterval(agRenderState, 3000); // HP bars move even between prompts
 }
 
 export { AG_RACES, AG_GUILDS };

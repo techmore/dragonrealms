@@ -391,7 +391,7 @@ class SweepAgent {
     return `[progress] ${mins}m circle ${v.circle} hp ${v.hp}/${v.maxhp} kills ${this.kills} circles ${this.circles} trains ${this.trains} deaths ${this.deaths} boost x${BOOST} fidelity:${JSON.stringify(this.fidelity)} [room ${v.room}]`;
   }
 
-  finish(reason) {
+  async finish(reason) {
     if (this.done) return;
     this.done = true;
     this.runner?.stop();
@@ -419,6 +419,41 @@ class SweepAgent {
     };
     try { appendFileSync(join(LIVE_DIR, 'fidelity-summary.jsonl'), JSON.stringify(summary) + '\n'); } catch {}
     log(`[${this.guild}/${this.race}] FINISHED (${reason}): circle ${summary.circle}, fidelity ${summary.fidelityScore}`, JSON.stringify(summary.fidelity));
+    await this.appendHistory(summary);
+  }
+
+  // Run-end history snapshot for the Sims page trending charts: appends
+  // {ts, char, circle, topSkills[]} to public/live/sims-history.jsonl so
+  // skill-rank deltas between runs can be charted over time. Reads the GM
+  // token from the world's published token file (same host); skips
+  // silently when unavailable — history is best-effort, never fatal.
+  async appendHistory(summary) {
+    try {
+      const { readFile } = await import('node:fs/promises');
+      const port = Number(process.env.DR_PORT || process.env.PORT || 3000);
+      let token = null;
+      try {
+        token = JSON.parse(await readFile(`/tmp/dr-world-token-${port}.json`, 'utf8')).token;
+      } catch {}
+      if (!token) return;
+      const r = await fetch(`http://127.0.0.1:${port}/api/gm/player/${encodeURIComponent(this.char)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((x) => x.json());
+      if (!r?.ok) return;
+      const skills = Object.entries(r.skills || {});
+      const ranked = skills.filter(([, s]) => s.rank > 0)
+        .sort((a, b) => b[1].rank - a[1].rank);
+      const row = {
+        ts: summary.ts, char: this.char, guild: this.guild, race: this.race,
+        circle: summary.circle, kills: summary.kills, trains: summary.trains,
+        totalRanks: ranked.reduce((n, [, s]) => n + s.rank, 0),
+        topSkills: Object.fromEntries(ranked.slice(0, 12)),
+      };
+      appendFileSync(join(LIVE_DIR, 'sims-history.jsonl'), JSON.stringify(row) + '\n');
+      log(`[${this.guild}/${this.race}] history: ${ranked.length} trained skills, ${row.totalRanks} total ranks`);
+    } catch (e) {
+      log(`[${this.guild}/${this.race}] history snapshot skipped: ${e.message}`);
+    }
   }
 
   run(minutes) {

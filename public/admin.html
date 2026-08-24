@@ -229,8 +229,8 @@
       <span id="updated"></span>
     </header>
 
-    <p class="sub">Monitoring and inspection. The server runs via <code>npm start</code> or the
-      <code>dragonrealms.service</code> unit (see <code>deploy/</code>). GM surfaces are read-only
+    <p class="sub">Monitoring and inspection. The world runs via the
+      <code>com.dragonrealms.world</code> LaunchAgent (menu-bar app can start/stop it). GM surfaces are read-only
       except where marked.</p>
 
     <div class="controls">
@@ -306,9 +306,9 @@
         <select id="ag-guild"></select>
         <label for="ag-minutes">minutes</label>
         <input id="ag-minutes" class="numsel" type="number" min="1" max="240" value="10">
-        <label for="ag-circle">circle &#8594;</label>
+        <label for="ag-circle" title="sim stops itself when this circle is reached">target circle</label>
         <input id="ag-circle" class="numsel" type="number" min="1" max="20" value="2">
-        <label for="ag-boost">exp boost</label>
+        <label for="ag-boost" title="test-only server boost: multiplies skill exp, rank conversion, and rest recovery">exp boost <span class="sub">(test-only)</span></label>
         <select id="ag-boost">
           <option value="0">off</option>
           <option value="10">x10</option>
@@ -318,6 +318,7 @@
         <button class="btn" id="ag-launch">&#9654; Launch</button>
         <button class="btn warn" id="ag-stop">&#9208; Stop all</button>
       </div>
+      <div id="agroster" class="note" style="margin-bottom:8px"></div>
       <div id="aglog">(no sims launched from here)</div>
 
       <!-- Log viewer for any sim (browser-launched or script-launched) -->
@@ -325,7 +326,9 @@
         <div class="jobs" id="joblist" style="flex:1"></div>
         <span id="jobstate" class="idle">&#9675; idle</span>
       </div>
-      <div class="note" style="margin:4px 0 6px">Sim run logs (<code>public/live/&lt;run&gt;.log</code>) — includes runs launched by scripts as well as the ones above.</div>
+      <div class="note" style="margin:4px 0 6px">Sim run logs (<code>public/live/&lt;run&gt;.log</code>) — includes runs launched by scripts as well as the ones above.
+        Full run history, pacing charts, grades, and character skill tracking live on the
+        <a href="/sims.html">Sim Players page</a>.</div>
       <div id="joblog">(no log selected)</div>
     </section>
 
@@ -361,6 +364,7 @@
     <div class="cards">
       <a class="card" href="/gm.html"><span class="t">&#128269; GM Console</span><span class="d">Read-only inspector: world, DB, live streams, world feed</span></a>
       <a class="card" href="/characters.html"><span class="t">&#128101; Characters</span><span class="d">Sim &amp; test toon cleanup: browse, delete, jump into any character</span></a>
+      <a class="card" href="/sims.html"><span class="t">&#129489;&#8205;&#128187; Sim Players</span><span class="d">Run history &amp; grades, pacing charts, character leveling/skills tracker</span></a>
       <a class="card" href="/jobs.html"><span class="t">&#128200; Sim logs</span><span class="d">Standalone tail viewer for sim runs and verify output</span></a>
       <a class="card" href="/"><span class="t">&#127918; Play</span><span class="d">Launch the game client / spectator</span></a>
       <a class="card" href="/ROADMAP.html"><span class="t">&#128202; Roadmap</span><span class="d">Feature tracker and status</span></a>
