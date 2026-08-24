@@ -137,7 +137,7 @@
         <label for="ag-guild" class="sub">guild</label>
         <select id="ag-guild"></select>
         <label for="ag-minutes" class="sub">minutes</label>
-        <input id="ag-minutes" type="number" min="1" max="240" value="10" style="width:64px">
+        <input id="ag-minutes" type="number" min="1" max="720" value="10" style="width:64px">
         <label for="ag-circle" class="sub" title="sim stops itself when this circle is reached">target circle</label>
         <input id="ag-circle" type="number" min="1" max="20" value="2" style="width:56px">
         <label for="ag-boost" class="sub" title="test-only server boost: multiplies skill exp, rank conversion, and rest recovery">exp boost <span class="sub">(test-only)</span></label>
@@ -147,14 +147,38 @@
           <option value="20" selected>x20</option>
           <option value="50">x50</option>
         </select>
+        <label for="ag-flee" class="sub" title="HP fraction below which the sim flees combat">flee at HP</label>
+        <select id="ag-flee">
+          <option value="15">15%</option>
+          <option value="25">25%</option>
+          <option value="35" selected>35%</option>
+          <option value="50">50%</option>
+          <option value="65">65%</option>
+        </select>
+        <label for="ag-tick" class="sub" title="watchdog tick interval — lower = more responsive, higher = lighter">tick ms</label>
+        <input id="ag-tick" type="number" min="500" max="10000" step="250" value="1500" style="width:70px">
         <button class="btn" id="ag-launch">&#9654; Launch</button>
         <button class="btn" id="ag-stop">&#9208; Stop all</button>
       </div>
       <div id="agroster"></div>
       <style>
         #agroster .row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; flex-wrap: wrap; }
+        #agroster .row[data-ag] { cursor: pointer; }
         #agroster .nm { color: var(--amber); min-width: 130px; }
         #agroster .cl { color: var(--dim); }
+        /* Per-sim tweak panel (click a row) */
+        #agroster .agpanel {
+          width: 100%; margin: 2px 0 6px 12px; padding: 7px 10px;
+          background: var(--panel-inset); border: 1px solid var(--line);
+          border-radius: 8px; display: flex; flex-direction: column; gap: 6px;
+          cursor: default;
+        }
+        #agroster .agpanel .agp-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 11.5px; }
+        #agroster .agpanel label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+        #agroster .agpanel input, #agroster .agpanel select {
+          background: var(--bg); border: 1px solid var(--line); border-radius: 5px;
+          color: var(--text); padding: 3px 6px; font: inherit;
+        }
         #aglog { background: var(--panel-inset); border: 1px solid var(--line); border-radius: 8px;
           padding: 8px 10px; font-size: 11px; line-height: 1.5; max-height: 180px; overflow-y: auto;
           white-space: pre-wrap; margin-top: 8px; }
@@ -717,6 +741,8 @@
           minutes: Math.max(1, Number($('ag-minutes').value) || 10),
           circleTarget: Math.max(2, Number($('ag-circle').value) || 2),
           boost: Number($('ag-boost').value) || 0,
+          fleePct: Number($('ag-flee').value) / 100,
+          tickMs: Number($('ag-tick').value) || 1500,
         });
       }
       $('ag-launch').addEventListener('click', launchFromForm);
@@ -725,6 +751,93 @@
         const live = SIMS.agents.filter((a) => a.ws);
         if (!live.length) { toast('No running sims.'); return; }
         for (const a of live) SIMS.stopAgent(a, 'stopped by GM');
+      });
+
+      /* ---- per-sim tweak panel ---- */
+      // Clicking a sim row expands an inline control strip under it:
+      // boost, +minutes, flee %, tick ms, and a command box.
+      let openPanelFor = null;
+      function buildPanel(agent) {
+        const live = Boolean(agent.ws);
+        return `<div class="agpanel" data-agpanel="${esc(agent.char)}">
+          <div class="agp-row">
+            <label>boost
+              <select data-act="boost">
+                <option value="0"${!agent.boost ? ' selected' : ''}>off</option>
+                <option value="10"${agent.boost === 10 ? ' selected' : ''}>x10</option>
+                <option value="20"${agent.boost === 20 ? ' selected' : ''}>x20</option>
+                <option value="50"${agent.boost === 50 ? ' selected' : ''}>x50</option>
+              </select></label>
+            <label>+min <input type="number" min="1" max="720" value="15" data-act="ext-min" style="width:56px">
+              <button class="btn" data-act="extend" ${live ? '' : 'disabled'}>&#10133; time</button></label>
+            <label>flee %
+              <input type="number" min="5" max="95" value="${Math.round((agent.fleePct || 0.35) * 100)}" data-act="flee" style="width:52px"></label>
+            <label>tick ms
+              <input type="number" min="500" max="10000" step="250" value="${agent.tickMs || 1500}" data-act="tick" style="width:70px"></label>
+            <span class="sub">${live ? `time left ~${Math.max(0, Math.ceil((agent.deadline - Date.now()) / 60000))}m` : 'not running'}</span>
+          </div>
+          <div class="agp-row">
+            <input type="text" placeholder="${live ? 'type a command for this sim… (look, rest, hide…)' : 'sim not running'}"
+                   data-act="cmd" spellcheck="false" autocomplete="off" style="flex:1;min-width:180px" ${live ? '' : 'disabled'}>
+            <button class="btn" data-act="send-cmd" ${live ? '' : 'disabled'}>send</button>
+          </div>
+        </div>`;
+      }
+
+      const rosterEl = $('agroster');
+
+      function bindPanel() {
+        const panel = rosterEl.querySelector('.agpanel');
+        if (!panel) return;
+        const agent = SIMS.find(panel.dataset.agpanel);
+        if (!agent) return;
+        panel.querySelector('[data-act="boost"]').addEventListener('change', (e) => {
+          SIMS.tweakBoost(agent, e.target.value);
+        });
+        panel.querySelector('[data-act="extend"]').addEventListener('click', () => {
+          SIMS.extendTimer(agent, panel.querySelector('[data-act="ext-min"]').value);
+        });
+        panel.querySelector('[data-act="flee"]').addEventListener('change', (e) => {
+          SIMS.setFleePct(agent, e.target.value);
+        });
+        panel.querySelector('[data-act="tick"]').addEventListener('change', (e) => {
+          SIMS.setTickMs(agent, e.target.value);
+        });
+        const sendIt = () => {
+          const inp = panel.querySelector('[data-act="cmd"]');
+          if (inp.value.trim()) { void SIMS.simCommand(agent, inp.value); inp.value = ''; }
+        };
+        panel.querySelector('[data-act="send-cmd"]').addEventListener('click', sendIt);
+        panel.querySelector('[data-act="cmd"]').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendIt(); });
+      }
+
+      // agRenderState fires this after each render (prompts move HP bars
+      // often); re-pin the open panel under its agent's row.
+      SIMS.onRendered = () => {
+        if (!openPanelFor) return;
+        if (rosterEl.querySelector('.agpanel')) return;
+        const row = rosterEl.querySelector(`.row[data-ag="${CSS.escape(openPanelFor)}"]`);
+        if (row && SIMS.find(openPanelFor)) {
+          row.insertAdjacentHTML('afterend', buildPanel(SIMS.find(openPanelFor)));
+          bindPanel();
+        } else if (!SIMS.find(openPanelFor)) {
+          openPanelFor = null; // agent pruned — close the orphaned panel
+        }
+      };
+
+      rosterEl.addEventListener('click', (e) => {
+        if (e.target.closest('.agpanel')) return; // clicks inside the panel
+        const row = e.target.closest('.row[data-ag]');
+        if (!row) return;
+        const name = row.dataset.ag;
+        const existing = rosterEl.querySelector('.agpanel');
+        if (openPanelFor === name && existing) {
+          existing.remove(); openPanelFor = null; return;   // toggle closed
+        }
+        if (existing) existing.remove();
+        openPanelFor = name;
+        row.insertAdjacentHTML('afterend', buildPanel(SIMS.find(name)));
+        bindPanel();
       });
       return true;
     }

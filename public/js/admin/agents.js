@@ -27,6 +27,8 @@ function agPersist() {
       char: a.char, race: a.race, guild: a.guild, circleTarget: a.circleTarget,
       boost: a.boost, circle: a.v?.circle ?? 1,
       hp: a.v?.hp ?? 0, maxhp: a.v?.maxhp ?? 0,
+      fleePct: a.fleePct, tickMs: a.tickMs,
+      minutesLeft: a.ws && a.deadline ? Math.max(0, Math.round((a.deadline - Date.now()) / 60000)) : null,
       live: Boolean(a.ws), at: Date.now(),
     }));
     localStorage.setItem('dr_admin_agents', JSON.stringify(rows));
@@ -118,11 +120,14 @@ function agRenderState() {
     }));
   }
   agPersist();
+  if (AG.onRendered) { try { AG.onRendered(); } catch {} }
 }
 
-export function launchAgent({ name, race, guild, minutes, circleTarget, boost }) {
+export function launchAgent({ name, race, guild, minutes, circleTarget, boost, fleePct, tickMs }) {
   const agent = {
     char: name, race, guild, circleTarget, boost,
+    fleePct: Number.isFinite(Number(fleePct)) && Number(fleePct) > 0 ? Number(fleePct) : 0.35,
+    tickMs: Number.isFinite(Number(tickMs)) && Number(tickMs) >= 500 ? Number(tickMs) : 1500,
     user: `admin_${guild}_${race}`,
     ws: null, token: null, knownCharId: null,
     lastCmdAt: 0, rtUntil: 0, deadline: 0, stopping: false,
@@ -130,13 +135,63 @@ export function launchAgent({ name, race, guild, minutes, circleTarget, boost })
     target: null, lastLookAt: 0, kills: 0,
   };
   AG.agents.push(agent);
-  agLog(agent, `launching as ${agent.user} (${race} ${guild}, ${minutes}m, circle ${circleTarget}, boost x${boost || 'off'})`);
+  agLog(agent, `launching as ${agent.user} (${race} ${guild}, ${minutes || '?'}m, circle ${circleTarget}, boost x${boost || 'off'}, flee ${Math.round(agent.fleePct * 100)}%)`);
   agRenderState();
   loadWorldGraph().catch((e) => agLog(agent, `world graph unavailable: ${e.message}`, 'bad'));
   agHttpLogin(agent)
-    .then(() => agConnect(agent))
+    .then(() => { agConnect(agent, minutes); })
     .catch((e) => { agLog(agent, `FAILED: ${e.message}`, 'bad'); agent.ws = null; agRenderState(); });
   return agent;
+}
+
+// Mid-run tweaks (per-sim panel): all safe to call on a live agent.
+export function tweakBoost(agent, mult) {
+  const m = Math.max(0, Math.min(100, Math.floor(Number(mult) || 0)));
+  if (!agent.ws) return false;
+  agent.boost = m > 1 ? m : (m === 1 ? 1 : 0);
+  // Server semantics: {t:'boost', mult:<=0} disengages; >=1 sets. Send as-is.
+  agSend(agent, { t: 'boost', mult: m });
+  agLog(agent, `boost set to x${m || 'off'}`, 'ok');
+  return true;
+}
+
+export function extendTimer(agent, minutes) {
+  const add = Math.max(1, Math.min(240, Math.floor(Number(minutes) || 0)));
+  if (!agent.deadline) agent.deadline = Date.now();
+  const wasPast = Date.now() > agent.deadline;
+  agent.deadline += add * 60000;
+  // A stopped-for-time-up agent has no socket; only a live one can resume.
+  if (wasPast && !agent.ws) {
+    agLog(agent, `timer extended ${add}m but the run already ended — relaunch to resume`, 'bad');
+    return false;
+  }
+  agLog(agent, `timer extended +${add}m (ends ~${new Date(agent.deadline).toLocaleTimeString()})`, 'ok');
+  return true;
+}
+
+export function setFleePct(agent, pct) {
+  const p = Math.max(5, Math.min(95, Math.round(Number(pct))));
+  if (!Number.isFinite(p)) return false;
+  agent.fleePct = p / 100;
+  agLog(agent, `flee threshold set to ${p}% HP`);
+  return true;
+}
+
+export function setTickMs(agent, ms) {
+  const t = Math.max(500, Math.min(10000, Math.floor(Number(ms) || 0)));
+  if (!Number.isFinite(t)) return false;
+  agent.tickMs = t;
+  agLog(agent, `tick loop interval set to ${t}ms`);
+  return true;
+}
+
+// Type an arbitrary command into a running sim's session.
+export async function simCommand(agent, line) {
+  const cmd = String(line || '').trim();
+  if (!cmd || !agent.ws) return false;
+  await agCmd(agent, cmd);
+  agLog(agent, `> ${cmd}`);
+  return true;
 }
 
 // register-or-login, mirroring WireSession.httpLogin
@@ -153,18 +208,29 @@ async function agHttpLogin(agent) {
   }
   if (!r.ok) throw new Error(r.error || 'account setup failed');
   agent.token = r.token;
-  const known = (r.characters || []).find((c) => c.name === agent.char);
+  const chars = r.characters || [];
+  const known = chars.find((c) => c.name === agent.char);
   agent.knownCharId = known ? known.charId : null;
-  agLog(agent, `authed as ${agent.user} (${known ? 'existing' : 'new'} char)`, 'ok');
+  // Slot-cap fallback: remember existing char ids so a full account can
+  // reuse one instead of failing creation.
+  agent.existingIds = chars.map((c) => c.charId);
+  agent.existingNames = chars.map((c) => c.name);
+  if (!agent.knownCharId && agent.existingIds.length) {
+    // Name not on this account but the account has chars: at cap, the
+    // newest existing char is the best reuse candidate.
+    agent.fallbackCharId = agent.existingIds[agent.existingIds.length - 1];
+    agent.fallbackName = agent.existingNames[agent.existingNames.length - 1];
+  }
+  agLog(agent, `authed as ${agent.user} (${known ? 'existing' : 'new'} char${!known && agent.existingIds.length ? `, ${agent.existingIds.length} reusable` : ''})`, 'ok');
 }
 
-function agConnect(agent) {
+function agConnect(agent, minutes) {
   // ?bot=1: self-identify as a sim so rosters/status can tag these
   // characters (same convention as the wire-level sweep agents' cousins).
   const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?bot=1';
   const ws = new WebSocket(url);
   agent.ws = ws;
-  agent.deadline = Date.now() + Number($('ag-minutes').value || 10) * 60000;
+  agent.deadline = Date.now() + Number(minutes || $('ag-minutes').value || 10) * 60000;
   ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } agOnMessage(agent, m); };
   ws.onclose = () => {
     if (agent.stopping) return;
@@ -194,6 +260,13 @@ function agOnMessage(agent, m) {
       agSend(agent, { t: 'token', token: agent.token });
       break;
     case 'charselect':
+      if (agent.pendingSelectId) {
+        // Slot-cap recovery: select the reused char immediately.
+        const id = agent.pendingSelectId;
+        agent.pendingSelectId = null;
+        agSend(agent, { t: 'charselect', id });
+        break;
+      }
       agLog(agent, `chargen: ${agent.knownCharId ? 'selecting ' + agent.char : 'creating new char'}`);
       agSend(agent, { t: 'charselect', id: agent.knownCharId || 'new' });
       break;
@@ -210,7 +283,6 @@ function agOnMessage(agent, m) {
       // starter hunt/circle/mega library and auto-run it. The tick loop
       // stays as a watchdog (flee/heal) underneath the script.
       agSend(agent, { t: 'gen_starter' });
-      agent.deadline = Date.now() + Number($('ag-minutes').value || 10) * 60000;
       agTickLoop(agent);
       break;
     case 'autorun':
@@ -264,6 +336,23 @@ function agOnMessage(agent, m) {
         stopAgent(agent, 'name collision');
       } else if (/not a valid character|no such character/i.test(String(m.msg))) {
         agSend(agent, { t: 'charselect', id: 'new' });
+      } else if (/already has \d+ characters/i.test(String(m.msg))) {
+        // Account slot cap: reuse an existing char instead of failing —
+        // sims are disposable by design. Prefer the exact-name char, then
+        // the newest existing one. The session is in 'charcreate' state
+        // after a failed creation, and doCharSelect only runs from
+        // 'charselect' — re-token to get back there first.
+        const fallback = agent.knownCharId || agent.fallbackCharId;
+        if (fallback) {
+          agLog(agent, `slot cap hit — reusing char "${agent.fallbackName || agent.char}" (id ${fallback})`, 'ok');
+          agent.knownCharId = fallback;
+          agent.char = agent.fallbackName || agent.char;
+          agent.reused = true;
+          agSend(agent, { t: 'token', token: agent.token }); // resets state to charselect
+          agent.pendingSelectId = fallback;
+        } else {
+          stopAgent(agent, 'account at character cap and no reusable char');
+        }
       }
       break;
   }
@@ -325,15 +414,15 @@ function agTickLoop(agent) {
   // While the starter circling script runs, it owns combat/movement; the
   // tick loop only watches vitals and bails out if things go wrong.
   if (agent.scripting) {
-    const hurtNow = v.maxhp > 0 && v.hp / v.maxhp < 0.2;
+    const hurtNow = v.maxhp > 0 && v.hp / v.maxhp < agent.fleePct * 0.6;
     if (hurtNow) void agCmd(agent, 'flee');
     agRenderState();
-    setTimeout(() => agTickLoop(agent), 1500);
+    setTimeout(() => agTickLoop(agent), agent.tickMs);
     return;
   }
 
   const rtBound = Date.now() < agent.rtUntil;
-  const hurt = v.maxhp > 0 && v.hp / v.maxhp < 0.35;
+  const hurt = v.maxhp > 0 && v.hp / v.maxhp < agent.fleePct;
   if (hurt && !v.resting) {
     void agCmd(agent, 'flee');
   } else if (v.resting && !hurt) {
@@ -359,7 +448,7 @@ function agTickLoop(agent) {
     }
   }
   agRenderState();
-  setTimeout(() => agTickLoop(agent), 1500);
+  setTimeout(() => agTickLoop(agent), agent.tickMs);
 }
 
 export function stopAgent(agent, why) {
@@ -374,8 +463,18 @@ export const agents = AG.agents;
 
 // Classic-script bridge: /sims.html loads this file as an ES module via
 // <script type="module"> and reads the API off window.DRSims.
+// onRendered: optional host hook — called after every roster render so the
+// page can re-pin its per-sim panel (see sims.html bindSims).
+AG.onRendered = null;
+
 if (typeof window !== 'undefined') {
-  window.DRSims = { initAgentForm, launchAgent, stopAgent, agents };
+  window.DRSims = {
+    initAgentForm, launchAgent, stopAgent, agents,
+    tweakBoost, extendTimer, setFleePct, setTickMs, simCommand,
+    find: (name) => AG.agents.find((a) => a.char === name),
+    set onRendered(fn) { AG.onRendered = typeof fn === 'function' ? fn : null; },
+    renderRoster: () => agRenderState(),
+  };
 }
 
 // Populate the launch form once on boot (races/guilds + name suggestion).
