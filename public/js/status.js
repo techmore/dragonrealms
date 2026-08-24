@@ -80,6 +80,10 @@ export function renderHands(msg) {
       g.classList.toggle('pd-damaged', items.length > 0 && cond < 60);
       if (items.length) g.style.setProperty('--pd-cond', String(cond));
       else g.style.removeProperty('--pd-cond');
+      // Keyboard operability: every region is focusable and announces its
+      // gear state (mirrors the hover tooltip for non-mouse players).
+      if (!g.hasAttribute('tabindex')) g.setAttribute('tabindex', '0');
+      g.setAttribute('role', 'img');
       g.setAttribute('aria-label', `${DOLL_SLOT_LABELS[slot] || slot}: ${names.join(', ') || 'empty'}`);
       const title = g.querySelector('title') || document.createElementNS('http://www.w3.org/2000/svg', 'title');
       title.textContent = `${DOLL_SLOT_LABELS[slot] || slot}: ${names.join(', ') || 'empty'}${items.length ? ` (${cond}% condition)` : ''}`;
@@ -153,14 +157,24 @@ export function parsePrompt(text, msg = null) {
     resting: /\[Resting\]/.test(plain),
     stance: stance ? stance[1].toLowerCase() : null,
   };
-  // Bleeding wounds (server prompt tag): map each "part (severity)" to the
-  // paper-doll region it pulses red. DR shows wounds on the body.
+  // Bleeding wounds (server prompt tag): map each "part (severity[, tended])"
+  // to the paper-doll region it pulses red. DR shows wounds on the body.
+  // Entries are joined with '; ' because a tended entry's comma sits INSIDE
+  // its parens — splitting on ', ' would shred "left arm (light, tended)"
+  // into garbage. The tended flag MUST survive the parse so .pd-tended
+  // styling can hold tended wounds steady instead of pulsing.
   const bleed = /\[bleeding: ([^\]]+)\]/.exec(plain);
   promptState.wounds = bleed
-    ? bleed[1].split(', ').map((s) => {
-        const m = /^([a-z ]+?) \(([a-z]+)(?:, tended)?\)$/.exec(s.trim());
-        return m ? { part: m[1], severity: m[2] } : { part: s.trim(), severity: 'light' };
-      })
+    ? bleed[1]
+        .split(/;\s*/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => {
+          const m = /^([a-z ]+?) \(([a-z]+)(?:, tended)?\)$/.exec(s);
+          return m
+            ? { part: m[1], severity: m[2], tended: /, tended/.test(s) }
+            : { part: s.replace(/[()]/g, '').trim(), severity: 'light', tended: false };
+        })
     : [];
   renderWounds();
   // Structured buff list (server): every active effect with remaining ticks,
@@ -266,7 +280,9 @@ function renderDollHealth(current, maximum) {
   const doll = $('hands-doll');
   if (!doll) return;
   const level = HEALTH_LEVEL_OF_WORD[vitalityWord(current, maximum)] || 'healthy';
-  doll.dataset.health = level === 'dead' ? 'critical' : level;
+  // Dead keeps its own state — CSS gives it a distinct collapsed look, and
+  // the next `enter` (fresh prompt at full HP) naturally resets to healthy.
+  doll.dataset.health = level;
   const word = vitalityWord(current, maximum);
   doll.setAttribute('aria-label', `Your adventurer — ${word}`);
 }
@@ -297,18 +313,20 @@ function renderWounds() {
     const regionWounds = woundByRegion.get(slot) || [];
     g.classList.toggle('pd-wounded', regionWounds.length > 0);
     g.classList.toggle('pd-tended', regionWounds.some((w) => w.tended));
+    // Rebuild the tooltip UNCONDITIONALLY: the bleed section must disappear
+    // when the wound heals, not just when it's present (stale suffix bug).
+    const title = g.querySelector('title');
+    if (!title) continue;
+    const base = title.textContent.split(' — bleeding')[0];
     if (regionWounds.length) {
       g.setAttribute('data-wound-severity', worstSeverity(regionWounds));
-      const title = g.querySelector('title');
-      if (title) {
-        const base = title.textContent.split(' — bleeding')[0];
-        const bleed = regionWounds
-          .map((w) => `${w.part} (${w.severity}${w.tended ? ', tended' : ''})`)
-          .join(', ');
-        title.textContent = `${base} — bleeding: ${bleed}`;
-      }
+      const bleed = regionWounds
+        .map((w) => `${w.part} (${w.severity}${w.tended ? ', tended' : ''})`)
+        .join(', ');
+      title.textContent = `${base} — bleeding: ${bleed}`;
     } else {
       g.removeAttribute('data-wound-severity');
+      title.textContent = base;
     }
   }
 }

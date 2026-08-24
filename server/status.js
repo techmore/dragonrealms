@@ -65,9 +65,12 @@ export const status = {
       });
     }
     // Bleeding wounds show in the prompt (DR shows bleeders in health).
+    // Tended wounds carry ", tended" so the client's paper doll can hold
+    // them steady instead of pulsing (pd-tended). Entries are joined with
+    // '; ' — commas inside parens belong to the entry, not the separator.
     const openWounds = (p.wounds || []).filter((w) => !w.resolved);
     const bleedTxt = openWounds.length
-      ? `  \x1b[31m[bleeding: ${openWounds.map((w) => `${w.part} (${BLEED_NAMES[w.level] || w.level})`).join(', ')}]\x1b[0m`
+      ? `  \x1b[31m[bleeding: ${openWounds.map((w) => `${w.part} (${BLEED_NAMES[w.level] || w.level}${w.tended ? ', tended' : ''})`).join('; ')}]\x1b[0m`
       : '';
     // Structured buff list for the client's BUFFS window: every active effect
     // with remaining ticks, plus the agent boost (a test-only "buff") when on.

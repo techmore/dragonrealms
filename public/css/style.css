@@ -405,6 +405,24 @@ button { color: inherit; }
    faint amber outlines (like the compass keys); equipped regions fill warm.
    Damaged gear shifts the fill toward red so wear reads at a glance. */
 #hands-doll { width: 104px; height: auto; align-self: center; display: block; }
+/* Neck connector: not an interactive region, but part of the figure —
+   follows the region stroke and every health tint. */
+#hands-doll .pd-spine {
+  fill: transparent;
+  stroke: var(--amber-soft);
+  stroke-width: 1.25;
+  opacity: 0.55;
+  transition: stroke 0.25s, opacity 0.25s;
+}
+#hands-doll[data-health="hurt"] .pd-spine,
+#hands-doll[data-health="battered"] .pd-spine,
+#hands-doll[data-health="critical"] .pd-spine { opacity: 0.75; }
+#hands-doll[data-health="battered"] .pd-spine,
+#hands-doll[data-health="critical"] .pd-spine {
+  stroke: color-mix(in srgb, var(--red) 45%, var(--amber));
+}
+#hands-doll[data-health="critical"] .pd-spine { stroke: var(--red); }
+#hands-doll[data-health="dead"] .pd-spine { stroke: var(--dim); opacity: 0.45; }
 #hands-doll .pd-region circle,
 #hands-doll .pd-region path,
 #hands-doll .pd-region ellipse {
@@ -422,9 +440,20 @@ button { color: inherit; }
 }
 #hands-doll .pd-region:hover circle,
 #hands-doll .pd-region:hover path,
-#hands-doll .pd-region:hover ellipse {
+#hands-doll .pd-region:hover ellipse,
+#hands-doll .pd-region:focus-visible circle,
+#hands-doll .pd-region:focus-visible path,
+#hands-doll .pd-region:focus-visible ellipse {
   stroke: var(--amber);
   opacity: 1;
+}
+/* Keyboard focus ring: mirrors the hover highlight plus a dashed outer
+   ring so Tab users can see WHERE they are on the figure. */
+#hands-doll .pd-region:focus-visible {
+  outline: none;
+}
+#hands-doll .pd-region:focus-visible * {
+  stroke-width: 2;
 }
 #hands-doll .pd-region.pd-filled circle,
 #hands-doll .pd-region.pd-filled path,
@@ -475,13 +504,28 @@ button { color: inherit; }
   fill: color-mix(in srgb, var(--red) 55%, transparent);
   stroke: var(--red);
 }
-/* Worn/damaged gear: condition below 60 shifts the fill red. The client sets
+/* Death: the figure goes grey and hollow — unmistakably not "just hurt".
+   The next prompt at full HP (temple awakening) resets to healthy. */
+#hands-doll[data-health="dead"] {
+  filter: grayscale(1) brightness(0.75);
+}
+#hands-doll[data-health="dead"] circle,
+#hands-doll[data-health="dead"] path,
+#hands-doll[data-health="dead"] ellipse {
+  stroke: var(--dim);
+  opacity: 0.45;
+}
+/* Worn/damaged gear: condition below 60 shifts the fill red AND switches the
+   outline to a dashed stroke — damage must read in grayscale too (the amber
+   vs red distinction is invisible to deuteranopes). The client sets
    pd-damaged + inline --pd-cond (0-100) from the hands snapshot. */
 #hands-doll .pd-region.pd-filled.pd-damaged circle,
 #hands-doll .pd-region.pd-filled.pd-damaged path,
 #hands-doll .pd-region.pd-filled.pd-damaged ellipse {
   fill: color-mix(in srgb, var(--red) calc(var(--pd-cond, 50) * 0.5%), color-mix(in srgb, var(--amber) 30%, transparent));
   stroke: color-mix(in srgb, var(--red) 60%, var(--amber));
+  stroke-width: 2;
+  stroke-dasharray: 4 2;
 }
 /* Bleeding wounds pulse on the wounded region (server prompt [bleeding: …]
    tag → pd-wounded; tended wounds hold a steady amber instead of pulsing). */

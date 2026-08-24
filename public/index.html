@@ -64,8 +64,9 @@
               <ellipse cx="70" cy="22" rx="13.5" ry="15"/>
               <text x="104" y="27">head</text>
             </g>
-            <!-- neck -->
-            <path d="M65 36 h10 v7 h-10 z" fill="none" stroke="none"/>
+            <!-- neck connector: styled like a region (not stroke=none) so
+                 health tints reach the whole spine of the figure -->
+            <path d="M65 36 h10 v7 h-10 z" class="pd-spine"/>
             <!-- torso: shoulders (x 48..92 at y=45) taper to waist (x 58..82
                  at y=108); collar dips slightly at the throat -->
             <g data-slot="torso" class="pd-region">
