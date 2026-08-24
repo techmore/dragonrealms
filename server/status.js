@@ -65,9 +65,24 @@ export const status = {
     const bleedTxt = openWounds.length
       ? `  \x1b[31m[bleeding: ${openWounds.map((w) => `${w.part} (${BLEED_NAMES[w.level] || w.level})`).join(', ')}]\x1b[0m`
       : '';
+    // Structured buff list for the client's BUFFS window: every active effect
+    // with remaining ticks, plus the agent boost (a test-only "buff") when on.
+    // Names mirror the `effects` command in commands/character.js.
+    const BUFF_NAMES = {
+      frenzy: 'Frenzy', ironhide: 'Ironhide', shadow: 'Shadow Veil',
+      omen: "Omen's Edge", wind: 'Windborne', warpaint: 'Warpaint',
+      glyph_ward: 'Glyph of Warding', glyph_valor: 'Glyph of Valor',
+      glyph_shield: 'Glyph of Shielding', keen: 'Keen Mind',
+      vigor: 'Vigor', sun: 'Sun Blessing',
+    };
+    const buffs = Object.entries(p.buffs || {})
+      .filter(([, v]) => v > 0)
+      .map(([k, v]) => ({ key: k, name: BUFF_NAMES[k] || k, ticks: v }));
+    if (bm > 1) buffs.push({ key: '_boost', name: `Agent Boost x${bm}`, ticks: null, permanent: true });
     sayRaw(p, {
       t: 'prompt',
       msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${hidden}${resting}${boost}${prep}${bleedTxt}\n> `,
+      buffs,
     });
     // FE tracker (DR field-experience pane): push skills currently learning,
     // throttled to ~10s.

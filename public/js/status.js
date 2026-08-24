@@ -1,5 +1,5 @@
 // Status strip + room/prompt state, all derived from server output.
-import { $, stripAnsi } from './util.js';
+import { $, stripAnsi, escapeHtml as esc } from './util.js';
 import { settings, stripEffective, saveSettings } from './settings.js';
 import { buildCompassRose } from './compass.js';
 import { revealWindow, clearWindowSeen, applyWindow } from './windows.js';
@@ -117,7 +117,7 @@ export function roomAreaOf(text) {
   return parts.length > 1 ? parts.slice(1).join(', ').trim() : null;
 }
 
-export function parsePrompt(text) {
+export function parsePrompt(text, msg = null) {
   const plain = stripAnsi(text);
   const hp = /HP:\s*(\d+)\s*\/\s*(\d+)/i.exec(plain);
   // Barbarians channel inner fire instead of mana — same gauge, honest label.
@@ -153,8 +153,32 @@ export function parsePrompt(text) {
       })
     : [];
   renderWounds();
+  // Structured buff list (server): every active effect with remaining ticks,
+  // plus the agent boost. The BUFFS window appears only when non-empty.
+  renderBuffs(Array.isArray(msg.buffs) ? msg.buffs : []);
   renderStatusStrip();
   renderCombatStatus();
+}
+
+// BUFFS window: one chip per active effect — name + remaining ticks ("~2m"
+// at DR's ~6s/tick), boost listed without a countdown while it lasts.
+function renderBuffs(buffs) {
+  const win = $('buffs-window');
+  const body = $('buffs-body');
+  if (!win || !body) return;
+  if (!buffs.length) {
+    win.hidden = true;
+    body.innerHTML = '';
+    return;
+  }
+  win.hidden = false;
+  revealWindow('buffs');
+  body.innerHTML = buffs.map((b) => {
+    const left = b.permanent
+      ? '<span class="buff-perm">while active</span>'
+      : `<span class="buff-ticks">${b.ticks} tick${b.ticks === 1 ? '' : 's'} (~${Math.max(1, Math.round((b.ticks || 0) * 6 / 60))}m)</span>`;
+    return `<div class="buff-row" data-buff="${esc(b.key)}"><b>${esc(b.name)}</b>${left}</div>`;
+  }).join('');
 }
 
 export function renderStatusStrip() {

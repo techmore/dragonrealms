@@ -518,6 +518,19 @@ button { color: inherit; }
 #fe-row .fe-ms { color: var(--muted); flex-shrink: 0; }
 #fe-row .fe-empty { color: var(--muted); font-size: 10px; }
 
+/* BUFFS window: active effects + remaining duration. Appears only when the
+   server reports at least one active effect (boost, spells, glyphs). */
+#buffs-body { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
+#buffs-body .buff-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 6px;
+  padding: 2px 6px; border-radius: 5px;
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  border-left: 2px solid var(--amber);
+}
+#buffs-body .buff-row b { color: var(--text); font-weight: 600; white-space: nowrap; }
+#buffs-body .buff-ticks { color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+#buffs-body .buff-perm { color: var(--amber); flex-shrink: 0; }
+
 /* Navigation hint inside the room panel */
 #room-panel .room-panel-hint { margin-top: 6px; color: var(--muted); font-size: 10.5px; line-height: 1.45; }
 #room-panel .room-panel-hint b { color: var(--amber); }

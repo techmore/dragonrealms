@@ -11,6 +11,7 @@ export const WINDOWS = [
   { id: 'status-strip', label: 'Vitals',  rail: true, empty: false },
   { id: 'hands-bar',    label: 'Hands',   rail: true, empty: true },
   { id: 'fe-tracker',   label: 'Exp / Thoughts', rail: true, empty: true },
+  { id: 'buffs',        label: 'Buffs',   rail: true, empty: true },
   { id: 'room-panel',   label: 'Room',    rail: false, empty: true },
   { id: 'target-widget',label: 'Combat / Targets', rail: false, empty: true },
   { id: 'chat-widget',  label: 'Conversations', rail: false, empty: true },
