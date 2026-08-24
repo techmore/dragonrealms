@@ -1,4 +1,9 @@
-# DragonRealms Web Client — UI/UX Audit (2026-08-22)
+# Dragon Realms Web Client — UI/UX Audit (2026-08-22)
+
+> Resolution log: P0#2 (chargen modal race) fixed 2026-08-24 — the alloc phase
+> collapses the create form, retitles to ALLOCATE & ENTER, and focuses the
+> command bar so typed `enter`/`alloc` work. P0#1 (North Gate dead end)
+> fixed 2026-08-24 — the gate opens onto the North Fields hunting ground.
 
 Tested as fresh account `uiaudit1` / barbarian `UiAudit`, ~15 min live play: register → create → navigate the Crossing → bought/wielded club at Mongers' Bazaar → sewer rat combat (kills, skinning, RT) → all toolbar panels, settings, error paths.
 

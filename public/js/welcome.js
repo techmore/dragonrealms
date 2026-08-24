@@ -140,6 +140,13 @@ function showChargen() {
   raceSel.innerHTML = RACES.map(([id, name]) => `<option value="${id}">${name}</option>`).join('');
   const guildSel = $('cg-guild');
   guildSel.innerHTML = GUILDS.map(([id, name]) => `<option value="${id}">${name}</option>`).join('');
+  // A failed create loops back here: make sure the form half is visible again
+  // even if a previous alloc phase collapsed it.
+  for (const elId of ['cg-name', 'cg-race', 'cg-guild', 'cg-city', 'cg-submit']) {
+    const wrap = $(elId)?.closest('label, .cg-choice-grid') || $(elId)?.parentElement;
+    if (wrap) wrap.hidden = false;
+  }
+  document.querySelector('#chargen .form-kicker').textContent = 'NEW ADVENTURER';
   $('cg-alloc').textContent = '';
   $('cg-alloc-row').hidden = true;
   chargenEl.hidden = false;
@@ -173,6 +180,17 @@ export function showAlloc(panel) {
     statSel.innerHTML = STATS.map((s) => `<option value="${s}">${s.toUpperCase()}</option>`).join('');
   }
   $('cg-alloc-row').hidden = false;
+  // Creation succeeded: collapse the create-form half of the card so the
+  // alloc sheet reads as the next step, not a second competing flow
+  // (UI audit P0#2 — "two creation flows shown simultaneously").
+  for (const elId of ['cg-name', 'cg-race', 'cg-guild', 'cg-city', 'cg-submit']) {
+    const wrap = $(elId)?.closest('label, .cg-choice-grid') || $(elId)?.parentElement;
+    if (wrap) wrap.hidden = true;
+  }
+  document.querySelector('#chargen .form-kicker').textContent = 'ALLOCATE & ENTER';
+  // Typed "alloc"/"enter" must land in the command bar: pull focus out of
+  // the (now hidden) form inputs so keystrokes reach the game.
+  import('./input.js').then((i) => i.focusInput());
 }
 
 function submitChargen() {
