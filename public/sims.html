@@ -400,7 +400,11 @@
           }
           if (r.char) $('ag-name').value = r.char;
           toast(`Relaunching "${r.char || 'sim'}" — same params as run ${r.run}.`);
-          launchFromForm();
+          // Click the Launch button rather than calling launchFromForm():
+          // that function lives inside bindSims()'s scope and is NOT visible
+          // here — this handler threw ReferenceError on every rerun click,
+          // so the form prefilled but nothing ever launched.
+          $('ag-launch').click();
         }));
       // tracker quick-pick: distinct chars
       const chars = [...new Set(RUNS.filter((r) => r.char).map((r) => r.char))];

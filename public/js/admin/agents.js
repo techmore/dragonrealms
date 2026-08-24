@@ -332,8 +332,25 @@ function agOnMessage(agent, m) {
     case 'error':
       agLog(agent, `server: ${stripAnsi(m.msg)}`, 'bad');
       if (/UNIQUE constraint failed: characters\.name/i.test(String(m.msg))) {
-        agLog(agent, 'character name already exists on another account — pick a new name and relaunch', 'bad');
-        stopAgent(agent, 'name collision');
+        // Cross-account name collision (sims share a global unique name
+        // space). Retry once with a numbered suffix instead of dying —
+        // this is exactly what "rerun" from a saved run hits when the
+        // original sweep still owns the name.
+        if (!agent.retriedName) {
+          agent.retriedName = true;
+          // Names are letters-only server-side (validName), so the suffix
+          // must be a letter, not a digit. Clip to 19 so base+letter fits
+          // even at the 20-char cap.
+          const base = agent.char.replace(/[A-Z]$/, '').slice(0, 19);
+          const suffix = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)];
+          agent.char = `${base}${suffix}`;
+          agLog(agent, `name taken — retrying as "${agent.char}"`, 'ok');
+          // Session is stuck in charcreate after the failed create; re-token
+          // to get back to charselect, which re-walks the creation path.
+          agSend(agent, { t: 'token', token: agent.token });
+        } else {
+          stopAgent(agent, 'name collision after retry');
+        }
       } else if (/not a valid character|no such character/i.test(String(m.msg))) {
         agSend(agent, { t: 'charselect', id: 'new' });
       } else if (/already has \d+ characters/i.test(String(m.msg))) {
