@@ -598,6 +598,55 @@ body:not(.in-combat) #hands-doll { animation: pd-breathe 5.5s ease-in-out infini
 }
 #hands-worn .worn-row.worn-damaged { text-decoration: underline wavy var(--red) 1px; }
 
+/* Hericons: glyph chip strip beside the doll. One 24px line-art chip per
+   slot plus the hand/weapon chip. Empty = dim outline; worn = amber;
+   damaged = dashed red ring; bleeding part = pulsing red dot. */
+.heri-strip {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  justify-content: center;
+  padding: 4px 0 2px;
+}
+.heri {
+  position: relative;
+  width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--amber) 18%, transparent);
+  background: transparent;
+  cursor: default;
+  transition: border-color 0.15s, background 0.15s;
+}
+.heri .heri-svg {
+  width: 20px; height: 20px;
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 1.5;
+  opacity: 0.45;
+  transition: stroke 0.2s, opacity 0.2s;
+}
+.heri.heri-filled { border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+.heri.heri-filled .heri-svg { stroke: var(--amber); opacity: 1; }
+.heri.heri-damaged {
+  border-style: dashed;
+  border-color: var(--red);
+}
+/* Bleeding dot: top-right pulsing marker when that body part bleeds. */
+.heri .heri-bleed {
+  position: absolute; top: -2px; right: -2px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--red);
+  animation: heri-bleed-pulse 1.2s ease-in-out infinite;
+}
+@keyframes heri-bleed-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+/* Cross-linking with the doll (same pattern as the worn list). */
+.heri.heri-hot {
+  background: color-mix(in srgb, var(--amber) 18%, transparent);
+}
+.heri:focus-visible { outline: 1px dashed var(--amber); outline-offset: 1px; }
+
 /* Gear silhouettes: garment overlays drawn ON the figure. Hidden until
    status.js picks a material class for the region (applyGearClass). They
    fill solid so they read as clothing, and sit above the region fill but

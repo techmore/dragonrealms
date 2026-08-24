@@ -116,6 +116,94 @@ function applyGearClass(regionEl, slot, names) {
 let dollSeen = false;
 let rtTimer = null;
 
+/* ============ Hericons: glyph chips for the hero's kit ============ */
+// One chip per equipment slot + a hand chip showing the wielded weapon's
+// class. Chips are inline SVG line-art (24px) in the same amber language as
+// the doll: dim outline when empty, amber-filled when worn, dashed red ring
+// when damaged, pulsing dot when that body part is bleeding.
+
+// Weapon classes → hand-chip glyph. Driven by the item's combat skill
+// (server sends handSkill); keyword fallback for legacy snapshots.
+const WEAPON_CLASSES = {
+  edged: ['small_edged', 'medium_edged', 'large_edged', 'twohanded_edged'],
+  blunt: ['blunt', 'large_blunt', 'twohanded_blunt', 'brawling'],
+  bow: ['bow'],
+  crossbow: ['crossbow'],
+  staff: ['staff', 'polearm'],
+  thrown: ['thrown', 'heavy_thrown', 'slings'],
+};
+function weaponClass(skill) {
+  if (!skill) return null;
+  for (const [cls, list] of Object.entries(WEAPON_CLASSES)) {
+    if (list.includes(skill)) return cls;
+  }
+  return 'edged'; // unknown skill: an edge is a decent guess
+}
+
+// 24×24 line-art glyphs. Each is the inner content of an <svg viewBox="0 0 24 24">.
+const HERICON_GLYPHS = {
+  // slot chips
+  head: '<path d="M12 3c4 0 6 2.5 6 5.5 0 1.8-.8 3-2 3.8V14H8v-1.7C6.8 11.5 6 10.3 6 8.5 6 5.5 8 3 12 3z"/>',
+  torso: '<path d="M7 5l5-2 5 2 3 3-2 3-2-1v9H8v-9l-2 1-2-3z"/>',
+  arms: '<path d="M6 4l2 1v6l-1 8h3v2H5l1-9-1-5zM18 4l-2 1v6l1 8h-3v2h5l-1-9 1-5z"/>',
+  hands: '<path d="M9 21V11L7 7l1.5-.8L11 10V4a1.2 1.2 0 012.4 0v5h1V6a1.2 1.2 0 012.4 0v4h.7V8.5a1.1 1.1 0 012.2 0V15c0 3-2 6-6 6z"/>',
+  shield: '<path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z"/>',
+  legs: '<path d="M8 3h3.5l-.3 9 .8 9H8l.5-9zM16 3h-3.5l.3 9-.8 9H16l-.5-9z"/>',
+  feet: '<path d="M7 13h4v4h5.5c1.5 0 2.5 1 2.5 3H7zM17 13h-4v4"/>',
+  neck: '<path d="M9 4c0 4-3 5-3 8a6 6 0 0012 0c0-3-3-4-3-8"/><circle cx="12" cy="15" r="2.5"/>',
+  accessory: '<path d="M9 4c0 4-3 5-3 8a6 6 0 0012 0c0-3-3-4-3-8"/><circle cx="12" cy="15" r="2.5"/>',
+  // hand-chip weapon glyphs
+  edged: '<path d="M5 19L15 9l1.5-4.5L21 3l-1.5 4.5L15 9zM7 17l-2 4M9.5 18.5L6 22"/>',
+  blunt: '<path d="M13 4l7 7-3 3-7-7zM11 9l-7 7 1.5 4L9 18.5 10 20l2-2-1.5-1.5L14 13"/>',
+  bow: '<path d="M6 3c6 2 10 7 12 15M6 3l3 1-2 2zM18 18l-1-3-2 2zM8 8l8 8" stroke-linecap="round"/>',
+  crossbow: '<path d="M12 3v18M5 8h14M12 8l-5 8M12 8l5 8M9 21h6"/>',
+  staff: '<path d="M11 22L13 8"/><circle cx="13.5" cy="5" r="2.5"/>',
+  thrown: '<path d="M12 3a7 7 0 100 14 7 7 0 000-14z M12 8a2 2 0 100 4 2 2 0 000-4z"/>',
+  brawling: '<path d="M7 21V11l-1.5-3L7 7l1.5 3V4.5a1.2 1.2 0 012.4 0V10m0-6a1.2 1.2 0 012.4 0V10m0-5a1.2 1.2 0 012.4 0v6h.7V9a1.1 1.1 0 012.2 0v6c0 3-2 6-6 6z"/>',
+};
+
+function hericonSvg(name, filled) {
+  const inner = HERICON_GLYPHS[name] || '';
+  return `<svg viewBox="0 0 24 24" class="heri-svg${filled ? ' heri-on' : ''}" aria-hidden="true">${inner}</svg>`;
+}
+export function renderHericons(msg) {
+  const strip = $('heri-strip');
+  if (!strip) return;
+  const slots = msg.slots || {};
+  const wounds = (promptState && promptState.wounds) || [];
+  const bleedingRegions = new Set();
+  for (const w of wounds) {
+    for (const region of PART_TO_REGION[w.part] || []) bleedingRegions.add(region);
+  }
+  const chips = [];
+  // Hand chip first: what you're wielding, by weapon class.
+  const wcls = msg.hand ? weaponClass(msg.handSkill || null) : null;
+  chips.push(`
+    <span class="heri heri-hand${msg.hand ? ' heri-filled' : ''}" data-slot="hand"
+          tabindex="0" role="img"
+          aria-label="hands: ${esc(msg.hand || 'empty')}"
+          title="hands: ${esc(msg.hand || 'empty')}">
+      ${wcls ? hericonSvg(wcls, true) : hericonSvg('hands', false)}
+      ${bleedingRegions.has('hand') ? '<i class="heri-bleed"></i>' : ''}
+    </span>`);
+  // Slot chips in doll order.
+  for (const slot of ['head', 'torso', 'arms', 'shield', 'legs', 'feet', 'neck']) {
+    const items = slots[slot] || [];
+    const cond = items.length ? Math.min(...items.map((it) => (typeof it === 'string' ? 100 : it.cond))) : null;
+    const label = DOLL_SLOT_LABELS[slot] || slot;
+    const names = items.map((it) => (typeof it === 'string' ? it : it.name)).join(', ');
+    chips.push(`
+      <span class="heri${items.length ? ' heri-filled' : ''}${cond !== null && cond < 60 ? ' heri-damaged' : ''}"
+            data-slot="${slot}" tabindex="0" role="img"
+            aria-label="${label}: ${esc(names) || 'empty'}"
+            title="${label}: ${esc(names) || 'empty'}${cond !== null ? ` — ${conditionWord(cond)} (${cond}%)` : ''}">
+        ${hericonSvg(slot, Boolean(items.length))}
+        ${bleedingRegions.has(slot) ? '<i class="heri-bleed"></i>' : ''}
+      </span>`);
+  }
+  strip.innerHTML = chips.join('');
+}
+
 // Worn entries with their source slot: [{slot, name, cond}] — the raw msg.worn
 // array is names only, so rebuild from slots (the same fold the doll uses).
 function wornSlots(msg) {
@@ -152,12 +240,28 @@ function bindWornCrosslinks() {
   if (dollEl) {
     dollEl.addEventListener('mouseover', (e) => {
       const g = e.target.closest('.pd-region');
-      if (g) rowsFor(g).forEach((r) => r.classList.add('worn-hot'));
+      if (!g) return;
+      rowsFor(g).forEach((r) => r.classList.add('worn-hot'));
+      document.querySelectorAll(`.heri[data-slot="${g.dataset.slot}"]`).forEach((c) => c.classList.add('heri-hot'));
     });
     dollEl.addEventListener('mouseout', (e) => {
       const g = e.target.closest('.pd-region');
-      if (g) rowsFor(g).forEach((r) => r.classList.remove('worn-hot'));
+      if (!g) return;
+      rowsFor(g).forEach((r) => r.classList.remove('worn-hot'));
+      document.querySelectorAll(`.heri[data-slot="${g.dataset.slot}"]`).forEach((c) => c.classList.remove('heri-hot'));
     });
+    // Chips → doll region highlight too.
+    const strip = $('heri-strip');
+    if (strip) {
+      strip.addEventListener('mouseover', (e) => {
+        const chip = e.target.closest('.heri');
+        if (chip) document.querySelector(`#hands-doll .pd-region[data-slot="${chip.dataset.slot}"]`)?.classList.add('pd-link');
+      });
+      strip.addEventListener('mouseout', (e) => {
+        const chip = e.target.closest('.heri');
+        if (chip) document.querySelector(`#hands-doll .pd-region[data-slot="${chip.dataset.slot}"]`)?.classList.remove('pd-link');
+      });
+    }
   }
 }
 export function renderHands(msg) {
@@ -185,6 +289,7 @@ export function renderHands(msg) {
   }
   $('hands-carried').textContent = `Carried: ${msg.carried || 0}`;
   bindWornCrosslinks();
+  renderHericons(msg);
   // Paper doll: fill regions whose slot has gear; tooltip names the item and
   // its condition. Damaged gear (<60 condition) gains a red tint via
   // pd-damaged + --pd-cond so wear reads at a glance.

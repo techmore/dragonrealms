@@ -59,6 +59,7 @@ export const status = {
       sayRaw(p, {
         t: 'hands',
         hand: w ? w.name : null,
+        handSkill: w ? w.skill || 'brawling' : null,
         worn,
         carried,
         slots,
