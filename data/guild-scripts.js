@@ -57,6 +57,9 @@ export const GUILD_SCRIPTS = {
     fight: ['put attack %target'],
     preFight: [],
     signature: { cmd: 'appraise club', ok: /worth about|apprais/i, probe: 'appraise' },
+    // Identity verbs fired at the bazaar before the hunt: haggle like a
+    // trader (chaffer), then work the field.
+    identityVerbs: ['chaffer'],
     armVerb: 'wield',
     trainSets: {
       weapon: ['small_blunt', 'staff', 'thrown', 'large_blunt'],
@@ -68,6 +71,9 @@ export const GUILD_SCRIPTS = {
       'perception', 'foraging', 'athletics'],
     fidelityChecks: [
       { name: 'appraise-item', re: /worth about \d+ silvers/i },
+      // Chaffer is the trader's signature haggling verb (fires in town before
+      // the hunt; refusal prose still proves the verb ran).
+      { name: 'chaffer', re: /roll your shoulders|next sale will run|Chaffer with whom/i },
     ],
   },
 

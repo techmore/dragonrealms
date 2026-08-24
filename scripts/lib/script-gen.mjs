@@ -94,6 +94,14 @@ function buildHuntScript({ cap, arena, hallPath }) {
       L.push(`  put ${cfg.signature.cmd}`);
       L.push('  wait');
     }
+    // Trader identity: chaffer before selling loot — failure prose ('need a
+    // shopkeeper') still counts as a fidelity observation of the verb.
+    if (cfg.identityVerbs) {
+      for (const v of cfg.identityVerbs) {
+        L.push(`  put ${v}`);
+        L.push('  wait');
+      }
+    }
     L.push('  wait');
     L.push('  pause 3');
     L.push('  iflt hp 40 goto REST');
