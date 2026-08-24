@@ -94,6 +94,7 @@ function persistentStateFor(p) {
     cambrinth: p.cambrinth || null,
     chafferNext: Boolean(p.chafferNext),
     wounds: Array.isArray(p.wounds) ? p.wounds : [],
+    flags: p.flags && typeof p.flags === 'object' ? p.flags : {},
     scripts: p.scripts && typeof p.scripts === 'object' ? p.scripts : {},
     spellsKnown: Array.isArray(p.spellsKnown) ? p.spellsKnown : [],
     spellsForgotten: Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [],
@@ -262,6 +263,7 @@ export function loadPlayer(charId) {
     cambrinth: persisted.cambrinth || null,
     chafferNext: Boolean(persisted.chafferNext),
     wounds: Array.isArray(persisted.wounds) ? persisted.wounds : [],
+    flags: persisted.flags && typeof persisted.flags === 'object' ? persisted.flags : {},
   };
   for (const key of PERSISTED_TIMESTAMPS) {
     player[key] = Number.isFinite(cooldowns[key]) ? cooldowns[key] : 0;

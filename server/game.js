@@ -481,6 +481,14 @@ export class Game {
     const exits = Object.entries(room.exits).map(([d]) => DIRS[d]).filter(Boolean);
     if (exits.length) out += `\n${indoor ? 'Obvious exits' : 'Obvious paths'}: ${exits.join(', ')}.`;
 
+    // New-adventurer signpost: the crier on the Town Green points fresh
+    // arrivals at their first steps (hunting grounds, guild hall, quest).
+    if (p.circle === 1 && !p.flags?.seenCrierHint && (room.npcs || []).includes('towncrier')) {
+      p.flags = p.flags || {};
+      p.flags.seenCrierHint = true;
+      out += `\n\x1b[3mThe crier catches your eye: "New steel in town? Ask me about \x1b[4mhunting\x1b[0m\x1b[3m for the gates' grounds, or see your guild master west of the green — and say 'quest' to me for honest coin work."`;
+    }
+
     const contents = {
       npcs: (room.npcs || []).map(npcById).filter(Boolean).map((n) => n.name),
       creatures: creatures.map((c) => ({ name: cap(c.def.name), state: vitalityLabel(c.hp, c.maxHp) })),
