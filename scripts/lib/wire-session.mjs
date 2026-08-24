@@ -161,6 +161,9 @@ export class WireSession {
         if (this.pendingMove) {
           const { from, dir } = this.pendingMove;
           this.pendingMove = null;
+          // Only record when the room actually changed: a stale pendingMove
+          // (move blocked by RT/combat) plus an unrelated room msg — e.g. a
+          // scripted 'look' elsewhere — must not fabricate an edge.
           if (from && m.roomId && from !== m.roomId) {
             const list = (this.observedEdges[from] ||= []);
             const hit = list.find((e) => e.dir === dir);
@@ -244,5 +247,10 @@ export class WireSession {
 export function trackMove(session, line) {
   if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) {
     session.pendingMove = { from: session.vitals.room, dir: line };
+  } else if (line === 'look') {
+    // Non-move commands that trigger room messages must clear any pending
+    // move attribution first — otherwise the look's room msg records a
+    // phantom edge from the stale from-room and poisons BFS pathing.
+    session.pendingMove = null;
   }
 }
