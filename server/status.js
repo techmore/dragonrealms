@@ -47,10 +47,14 @@ export const status = {
       // Per-slot map for the client's paper doll (head/torso/shield/feet/...).
       // Each entry carries the display name plus condition so the doll can
       // tint damaged gear red (DR shows wear on appraise; we surface it live).
+      // 'chest' is normalized into 'torso' — some legacy items use it and the
+      // doll has no chest region (a stained vest never used to light up).
+      const SLOT_ALIAS = { chest: 'torso' };
       const slots = {};
       for (const [slot, i] of Object.entries(p.equipment)) {
-        if (!slots[slot]) slots[slot] = [];
-        slots[slot].push({ name: i.name, cond: Math.round(i.condition ?? 100) });
+        const key = SLOT_ALIAS[slot] || slot;
+        if (!slots[key]) slots[key] = [];
+        slots[key].push({ name: i.name, cond: Math.round(i.condition ?? 100) });
       }
       sayRaw(p, {
         t: 'hands',

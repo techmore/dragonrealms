@@ -44,8 +44,10 @@ export function hideRoomPanel() {
 }
 
 // Persistent hands bar: what you hold, wear, and carry (DR hands window),
-// plus a paper doll — body regions light up per equipped slot.
-const DOLL_SLOT_LABELS = { head: 'head', torso: 'body', arms: 'arms', hand: 'hands', shield: 'shield', legs: 'legs', feet: 'feet', neck: 'neck', accessory: 'worn' };
+// plus a paper doll — body regions light up per equipped slot. Slots without
+// a dedicated region fold into the closest one (accessory → neck pendant).
+const DOLL_SLOT_LABELS = { head: 'head', torso: 'body', arms: 'arms', hand: 'hands', shield: 'shield', legs: 'legs', feet: 'feet', neck: 'neck', accessory: 'neck' };
+const DOLL_SLOT_REGION = { accessory: 'neck' };
 let dollSeen = false;
 let rtTimer = null;
 export function renderHands(msg) {
@@ -58,12 +60,20 @@ export function renderHands(msg) {
   // Paper doll: fill regions whose slot has gear; tooltip names the item and
   // its condition. Damaged gear (<60 condition) gains a red tint via
   // pd-damaged + --pd-cond so wear reads at a glance.
+  // Slots fold into their region first (accessory → neck), then each region
+  // aggregates every item mapped onto it — so a neck slot AND an accessory
+  // both light the same pendant instead of one being silently invisible.
   const slots = msg.slots || {};
+  const regions = {};
+  for (const [slot, items] of Object.entries(slots)) {
+    const region = DOLL_SLOT_REGION[slot] || slot;
+    (regions[region] = regions[region] || []).push(...items);
+  }
   const doll = $('hands-doll');
   if (doll) {
     for (const g of doll.querySelectorAll('.pd-region')) {
       const slot = g.dataset.slot;
-      const items = slots[slot] || [];
+      const items = regions[slot] || [];
       const names = items.map((it) => (typeof it === 'string' ? it : it.name));
       const cond = items.length ? Math.min(...items.map((it) => (typeof it === 'string' ? 100 : it.cond))) : 100;
       g.classList.toggle('pd-filled', items.length > 0);
@@ -241,13 +251,22 @@ export function renderStatusStrip() {
 // DR injuries show on the body: as your vitality drops the paper doll's
 // regions pale, then take on a bruised red tint — a haggard figure near
 // death. Purely visual; numbers stay in the vitals gauge.
+// The tint level derives from the SAME word ladder as the HP label, so the
+// figure and the prose never disagree (the doll said "healthy" while the
+// strip read "HP: battered" under raw-percentage thresholds).
+const HEALTH_LEVEL_OF_WORD = {
+  healthy: 'healthy',
+  'in good shape': 'healthy',
+  bruised: 'hurt', hurt: 'hurt', battered: 'hurt', 'beat up': 'hurt',
+  'very beat up': 'battered', 'badly hurt': 'battered', 'very badly hurt': 'battered',
+  'smashed up': 'critical', 'terribly wounded': 'critical', 'near death': 'critical',
+  dead: 'dead',
+};
 function renderDollHealth(current, maximum) {
   const doll = $('hands-doll');
   if (!doll) return;
-  const pct = maximum > 0 ? current / maximum : 1;
-  // healthy → hurt (pale wash) → battered (bruise) → near death (deep red)
-  const level = pct >= 0.8 ? 'healthy' : pct >= 0.5 ? 'hurt' : pct >= 0.25 ? 'battered' : 'critical';
-  doll.dataset.health = level;
+  const level = HEALTH_LEVEL_OF_WORD[vitalityWord(current, maximum)] || 'healthy';
+  doll.dataset.health = level === 'dead' ? 'critical' : level;
   const word = vitalityWord(current, maximum);
   doll.setAttribute('aria-label', `Your adventurer — ${word}`);
 }
@@ -263,23 +282,46 @@ function renderWounds() {
   const doll = $('hands-doll');
   if (!doll) return;
   const wounds = (promptState && promptState.wounds) || [];
-  const woundedParts = new Set();
+  // Wound info per region, collected first so the tooltip can be REBUILT in
+  // full each prompt (appending used to grow one string per combat tick —
+  // a two-minute fight left "— bleeding (slight)" repeated 39 times).
+  const woundByRegion = new Map();
   for (const w of wounds) {
-    for (const region of PART_TO_REGION[w.part] || []) woundedParts.add(region);
+    for (const region of PART_TO_REGION[w.part] || []) {
+      if (!woundByRegion.has(region)) woundByRegion.set(region, []);
+      woundByRegion.get(region).push(w);
+    }
   }
   for (const g of doll.querySelectorAll('.pd-region')) {
     const slot = g.dataset.slot;
-    g.classList.toggle('pd-wounded', woundedParts.has(slot));
-    const w = wounds.find((x) => (PART_TO_REGION[x.part] || []).includes(slot));
-    g.classList.toggle('pd-tended', Boolean(w && w.tended));
-    if (w) {
-      g.setAttribute('data-wound-severity', w.severity);
+    const regionWounds = woundByRegion.get(slot) || [];
+    g.classList.toggle('pd-wounded', regionWounds.length > 0);
+    g.classList.toggle('pd-tended', regionWounds.some((w) => w.tended));
+    if (regionWounds.length) {
+      g.setAttribute('data-wound-severity', worstSeverity(regionWounds));
       const title = g.querySelector('title');
-      if (title) title.textContent += ` — bleeding (${w.severity}${w.tended ? ', tended' : ''})`;
+      if (title) {
+        const base = title.textContent.split(' — bleeding')[0];
+        const bleed = regionWounds
+          .map((w) => `${w.part} (${w.severity}${w.tended ? ', tended' : ''})`)
+          .join(', ');
+        title.textContent = `${base} — bleeding: ${bleed}`;
+      }
     } else {
       g.removeAttribute('data-wound-severity');
     }
   }
+}
+
+// Worst active bleed in the region drives the pulse intensity (CSS keys on
+// severity for severe/profuse/gushing; lighter bleeds stay at the base pulse).
+const SEVERITY_ORDER = ['slight', 'light', 'moderate', 'bad', 'heavy', 'severe', 'profuse', 'gushing'];
+function worstSeverity(wounds) {
+  let worst = 'slight';
+  for (const w of wounds) {
+    if (SEVERITY_ORDER.indexOf(w.severity) > SEVERITY_ORDER.indexOf(worst)) worst = w.severity;
+  }
+  return worst;
 }
 
 function renderRtBlocks(left) {

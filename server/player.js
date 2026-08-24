@@ -56,7 +56,7 @@ export function sayRoom(game, roomId, msg, exceptCharId = null) {
 export function charsFor(accountId) {
   return db.prepare('SELECT id, name, race, guild, circle FROM characters WHERE account_id=? ORDER BY created_at')
     .all(accountId)
-    .map((c) => ({ charId: c.id, name: c.name, race: c.race, guild: c.guild, circle: c.circle }));
+    .map((c) => ({ id: c.id, charId: c.id, name: c.name, race: c.race, guild: c.guild, circle: c.circle }));
 }
 
 

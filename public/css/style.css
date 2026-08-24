@@ -445,12 +445,13 @@ button { color: inherit; }
 }
 #hands-doll .pd-weapon .pd-weapon-guard { fill: none; stroke-width: 2.5; }
 /* DR injuries show on the body: as YOUR vitality drops, the whole figure
-   pales, then takes a bruised tint — haggard near death. */
+   pales (hurt), then takes a bruised tint (battered), then deepens to red
+   (critical). Selectors are all scoped under [data-health=…] — an earlier
+   draft left `.pd-region.pd-filled` unscoped here, which dimmed filled gear
+   at every health level. */
 #hands-doll[data-health="hurt"] .pd-region circle,
 #hands-doll[data-health="hurt"] .pd-region path,
-#hands-doll .pd-region.pd-filled circle,
-#hands-doll .pd-region.pd-filled path,
-#hands-doll .pd-region.pd-filled ellipse { opacity: 0.8; }
+#hands-doll[data-health="hurt"] .pd-region ellipse { opacity: 0.8; }
 #hands-doll[data-health="battered"] circle,
 #hands-doll[data-health="battered"] path,
 #hands-doll[data-health="battered"] ellipse {

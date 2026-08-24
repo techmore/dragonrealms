@@ -34,6 +34,26 @@ test('duplicate registration rejected', async () => {
   assert.equal(dup.ok, false);
 });
 
+// Char-select rows must carry the numeric character id — the welcome modal
+// builds its buttons from these rows, and terminal players type the number.
+test('charselect rows expose numeric ids for every owned character', async () => {
+  const { charsFor } = await import('../server/player.js');
+  const acc = await auth.registerAccount('Rowstest', 'hunter2secret');
+  const idA = createCharacter(acc.accountId, { name: 'Rowan', race: 'human', guild: 'thief' });
+  const idB = createCharacter(acc.accountId, { name: 'Sable', race: 'human', guild: 'barbarian' });
+  const chars = charsFor(acc.accountId);
+  for (const c of chars) {
+    assert.ok(Number.isInteger(c.id), `row id must be a number (got ${c.id})`);
+    assert.match(
+      `${c.id}) ${c.name}`,
+      /^\d+\) \w+/,
+      'rendered row must start "N) Name" so typed selection works'
+    );
+  }
+  assert.deepEqual(chars.map((c) => c.id).sort(), [idA, idB].sort());
+});
+
+
 test('character creation + persistence', async () => {
   const acc = await auth.registerAccount('Swordtest', 's3cretword');
   const charId = createCharacter(acc.accountId, { name: 'Brennus', race: 'human', guild: 'warmage' });
