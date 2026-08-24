@@ -196,7 +196,24 @@ export class WireSession {
       case 'scripts': this.handlers.onScripts?.(m); break;
       case 'error':
         this.handlers.onError?.(stripAnsi(m.msg));
-        if (/not a valid character|no such character/i.test(String(m.msg))) {
+        if (/UNIQUE constraint failed: characters\.name/i.test(String(m.msg))) {
+          // Cross-account name collision (global unique name space). Retry
+          // once with a letter suffix — names are letters-only server-side.
+          // Mirrors the browser agent's recovery in public/js/admin/agents.js.
+          if (!this.retriedName) {
+            this.retriedName = true;
+            const base = this.char.replace(/[A-Z]$/, '').slice(0, 19);
+            const suffix = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)];
+            const old = this.char;
+            this.char = `${base}${suffix}`;
+            console.error(`  [${old}] name taken — retrying as ${this.char}`);
+            // Re-token to reset the session back to charselect, then the
+            // normal handshake re-walks creation under the new name.
+            this.sendObj({ t: 'token', token: this.token });
+          } else {
+            this.handlers.onFatal?.('character name collision (retry also taken)');
+          }
+        } else if (/not a valid character|no such character/i.test(String(m.msg))) {
           this.sendObj({ t: 'charselect', id: 'new' });
         }
         break;
