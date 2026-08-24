@@ -55,49 +55,56 @@
         <div class="dwin-head rail-kicker">HANDS<button class="dwin-collapse" data-collapse="hands-bar" title="Collapse hands" aria-label="Collapse hands" aria-expanded="true">&#9660;</button></div>
         <div class="dwin-body" id="hands-bar">
           <svg id="hands-doll" viewBox="0 0 140 230" role="img" aria-label="Equipment paper doll" class="paper-doll">
+            <!-- All regions share ONE vertical axis at x=70; every pair of
+                 limbs is mirror-symmetric about it. The old figure mixed two
+                 centerlines (head/limbs at x=60, torso at x=70) which made
+                 the whole body read as lopsided. -->
             <!-- head -->
             <g data-slot="head" class="pd-region">
-              <path d="M60 8 c9 0 14 6 14 15 c0 9 -5 16 -14 16 c-9 0 -14 -7 -14 -16 c0 -9 5 -15 14 -15 z"/>
-              <text x="104" y="28">head</text>
+              <ellipse cx="70" cy="22" rx="13.5" ry="15"/>
+              <text x="104" y="27">head</text>
             </g>
-            <!-- neck + torso (shoulders taper to waist) -->
+            <!-- neck -->
+            <path d="M65 36 h10 v7 h-10 z" fill="none" stroke="none"/>
+            <!-- torso: shoulders (x 48..92 at y=45) taper to waist (x 58..82
+                 at y=108); collar dips slightly at the throat -->
             <g data-slot="torso" class="pd-region">
-              <path d="M50 42 h20 v6 h0 c10 2 18 4 22 8 l6 26 c1 5 -2 8 -6 7 l-8 -3 v24 h-28 v-24 l-8 3 c-4 1 -7 -2 -6 -7 l6 -26 c4 -4 12 -6 22 -8 z"/>
+              <path d="M58 43 q12 -5 24 0 l9 3 4 26 c1 5 -2 8 -6 7 l-6 -2 v20 h-28 v-20 l-6 2 c-4 1 -7 -2 -6 -7 l4 -26 z"/>
               <text x="104" y="76">body</text>
             </g>
-            <!-- neck: amulet/band hangs at the collarbone -->
+            <!-- neck slot: amulet/band hangs below the collar -->
             <g data-slot="neck" class="pd-region">
-              <circle cx="70" cy="52" r="4.5"/>
-              <text x="104" y="54">neck</text>
+              <circle cx="70" cy="53" r="4.5"/>
+              <text x="104" y="56">neck</text>
             </g>
-            <!-- arms: shoulder pauldrons down to gauntlets -->
+            <!-- arms: mirrored pauldron -> upper arm -> gauntlet cuffs -->
             <g data-slot="arms" class="pd-region">
-              <path d="M46 48 l-10 6 -4 30 3 12 6 0 -2 -14 4 -26 z"/>
-              <path d="M74 48 l10 6 4 30 -3 12 -6 0 2 -14 -4 -26 z"/>
+              <path d="M47 46 l-8 4 -4 28 3 14 7 0 -2 -15 4 -25 z"/>
+              <path d="M93 46 l8 4 4 28 -3 14 -7 0 2 -15 -4 -25 z"/>
             </g>
             <!-- hands (weapon side filled by hand slot) -->
             <g data-slot="hand" class="pd-region">
-              <circle cx="36" cy="102" r="6"/>
-              <circle cx="84" cy="102" r="6"/>
+              <circle cx="42" cy="99" r="6"/>
+              <circle cx="98" cy="99" r="6"/>
               <!-- wielded weapon: visible only when the hand slot is filled -->
               <g class="pd-weapon" aria-hidden="true">
-                <path d="M 88 96 L 112 72 L 118 78 L 94 102 Z"/>
-                <path class="pd-weapon-guard" d="M 86 98 L 94 106"/>
+                <path d="M 102 93 L 124 69 L 130 75 L 108 99 Z"/>
+                <path class="pd-weapon-guard" d="M 100 95 L 108 103"/>
               </g>
-              <text x="104" y="106">hands</text>
+              <text x="118" y="106">hands</text>
             </g>
             <!-- shield strapped to off arm -->
             <g data-slot="shield" class="pd-region">
-              <path d="M22 72 q10 -4 14 0 q3 12 -7 22 q-10 -10 -7 -22 z"/>
-              <text x="4" y="66">shld</text>
+              <path d="M26 66 q11 -5 16 0 q4 14 -8 25 q-12 -11 -8 -25 z"/>
+              <text x="4" y="64">shld</text>
             </g>
-            <!-- legs: two tapered limbs from the hip plate -->
+            <!-- legs: hip plate splits into two tapered limbs with knee notch -->
             <g data-slot="legs" class="pd-region">
-              <path d="M48 112 h11 v44 h-13 l2 -44 z M62 112 h11 l2 44 h-13 z"/>
+              <path d="M57 110 h12 v40 l-2 6 h-12 l2 -6 v-40 z M71 110 h12 v40 l2 6 h-12 l-2 -6 v-40 z"/>
             </g>
-            <!-- feet -->
+            <!-- feet: mirrored boots pointing outward -->
             <g data-slot="feet" class="pd-region">
-              <path d="M44 158 h15 v8 h-17 q-1 -6 2 -8 z M61 158 h15 q3 2 2 8 h-17 z"/>
+              <path d="M55 158 h14 v8 h-21 q0 -6 3 -8 z M71 158 h14 q4 2 4 8 h-21 z"/>
               <text x="104" y="166">feet</text>
             </g>
           </svg>
