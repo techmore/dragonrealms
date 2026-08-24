@@ -90,13 +90,23 @@ class SweepAgent {
   diskAdj() { return (id) => Object.entries(ROOMS[id]?.exits || {}).map(([dir, to]) => ({ dir, to })); }
 
   nearestSpawnRoom(from) {
-    let best = null;
+    let best = null, bestAny = null;
+    const myCircle = this.session.vitals.circle || 1;
     for (const id of Object.keys(ROOMS)) {
       if (!(ROOMS[id].spawns || []).length) continue;
       const p = this.session.bfsPath(from, id, this.diskAdj());
-      if (p && (!best || p.length < best.path.length)) best = { id, path: p };
+      if (!p) continue;
+      if (!bestAny || p.length < bestAny.path.length) bestAny = { id, path: p };
+      // Prefer hunting grounds within our weight class: a c1 character sent
+      // against c5 spawns dies in RT-locked cycles (live-sim pitfall).
+      const tooStrong = ROOMS[id].spawns.some((sid) => {
+        const c = creatureById(sid);
+        return c && (c.circle || 1) > myCircle + 2;
+      });
+      if (tooStrong) continue;
+      if (!best || p.length < best.path.length) best = { id, path: p };
     }
-    return best;
+    return best || bestAny;
   }
 
   async start() {
@@ -121,11 +131,23 @@ class SweepAgent {
       onError: (msg) => {
         this.appendLog(`[error] ${new Date().toISOString()} ${msg}`);
         // Ghost-session guard: back-to-back runs reuse the char; if the old
-        // socket is still winding down server-side, 'enter' is refused. Wait
-        // for the logout to settle, then re-request entry.
+        // socket is still winding down server-side, 'enter' is refused. The
+        // server's idle-session reaper needs well over 30s to release the
+        // character, so retry entry on a longer, repeating backoff until a
+        // real room message confirms we're in.
         if (/already active in another session/i.test(String(msg))) {
-          setTimeout(() => { this.session.sendObj({ t: 'charselect', id: this.session.knownChar?.charId ?? 0 }); }, 4000);
-          setTimeout(() => { this.session.sendObj({ t: 'enter' }); }, 6500);
+          const retries = [5, 15, 35, 60];
+          for (const delay of retries) {
+            setTimeout(() => {
+              if (this.done || this.session.vitals.room) return;
+              this.appendLog(`[ghost-retry] re-select + enter after ${delay}s`);
+              this.session.sendObj({ t: 'token', token: this.session.token });
+              setTimeout(() => {
+                this.session.sendObj({ t: 'charselect', id: this.session.knownChar?.charId ?? 'new' });
+                setTimeout(() => this.session.sendObj({ t: 'enter' }), 1200);
+              }, 800);
+            }, delay * 1000);
+          }
         }
       },
       onFatal: (reason) => this.finish(reason),
@@ -251,6 +273,18 @@ class SweepAgent {
       this.refusals = (this.refusals || 0) + 1;
       if (this.refusals <= 200) {
         this.appendLog(`[refuse] ${stripAnsi(text).slice(0, 120)} [room ${this.session.vitals.room}]`);
+      }
+      // A "cannot go that way" disproves a learned edge — drop it so the
+      // graph re-derives from live exits instead of re-baking the same
+      // broken path on every regeneration cycle.
+      const pm = this.session.pendingMove;
+      if (/cannot go that way/.test(stripAnsi(text)) && pm?.from) {
+        const list = this.session.observedEdges[pm.from];
+        if (list) {
+          const i = list.findIndex((e) => e.dir === pm.dir);
+          if (i >= 0) list.splice(i, 1);
+          this.appendLog(`[graph] dropped disproven edge ${pm.from} --${pm.dir}-->`);
+        }
       }
     }
     if (/not yet ready to circle/.test(text)) {
