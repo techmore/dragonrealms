@@ -299,12 +299,16 @@ export class Game {
     }
     this.stopRest(p);
     p.hidden = false;
+    // Seizure check runs on BOTH sides of the move: a criminal is taken if
+    // they start next to a guard or end next to one (guards watch their
+    // whole street, not just the cell they stand in).
+    const watchedFrom = this.guardInRoom(p);
     p.room = target;
     if (this.isWild(target)) gainSkillExp(p, 'athletics', 1);
     this.persistPlayer(p);
     this.enterRoom(p);
     // A wanted criminal walking past the guard is seized.
-    this.pursueWarrant(p);
+    if (!watchedFrom) this.pursueWarrant(p); else this.seizeWanted(p);
     return { ok: true };
   }
 
@@ -399,6 +403,12 @@ export class Game {
       }
     }
     if (!p.warrant || !this.guardInRoom(p)) return;
+    this.seizeWanted(p);
+  }
+
+  // The actual arrest: fine, cell, warrant stands until the plea.
+  seizeWanted(p) {
+    if (!p.warrant) return; // debtor walk-by: garnish only, no arrest
     p.silver = Math.max(0, p.silver - Math.floor(p.silver * 0.3));
     p.jailUntil = Date.now() + 120 * 1000;
     p.room = 'jail';

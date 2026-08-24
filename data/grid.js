@@ -36,11 +36,14 @@ export const DIR_VECTORS = {
   u:  [0, 0, 1],  d:  [0, 0, -1],
 };
 
-// Also accept the spelled-out forms used by some room exit tables.
-const DIR_ALIASES = { up: 'u', down: 'd', north: 'n', south: 's', east: 'e', west: 'w' };
+// Also accept the spelled-out forms used by some room exit tables. "out" is
+// a doorway-style exit (no compass direction); it maps to no vector and is
+// allowed as a non-geometric link when paired with a reciprocal exit.
+const DIR_ALIASES = { up: 'u', down: 'd', north: 'n', south: 's', east: 'e', west: 'w', out: 'out' };
 export function canonDir(dir) {
   const d = String(dir || '').toLowerCase();
   if (DIR_VECTORS[d]) return d;
+  if (d === 'out') return 'out'; // doorway exit, no compass vector
   const c = DIR_ALIASES[d];
   return c && DIR_VECTORS[c] ? c : null;
 }
@@ -48,7 +51,7 @@ export function canonDir(dir) {
 export const OPP = {
   n: 's', s: 'n', e: 'w', w: 'e',
   ne: 'sw', sw: 'ne', nw: 'se', se: 'nw',
-  u: 'd', d: 'u',
+  u: 'd', d: 'u', out: 'out',
 };
 
 // Province > city registry. Origins are far enough apart that no two cities'
@@ -113,6 +116,7 @@ for (const [city, seed] of Object.entries(CITY_SEED)) {
       if (!dir || local[dest]) continue;
       if (PORTAL_EDGES.has(`${id}:${dir}>${dest}`)) continue;
       const v = DIR_VECTORS[dir];
+      if (!v) continue; // doorway exits ("out") carry no geometry
       let p = [local[id][0] + v[0], local[id][1] + v[1], local[id][2] + v[2]];
       const k = keyOf(p);
       if (occupied.has(k)) p = nearestFreeCell(p);
@@ -198,6 +202,12 @@ export const PORTALS = new Set([
   'rh_square:e>pier',        // barge lands back at the amusement pier
   'neh_dock:e>rh_ferry',     // Kree'la sails for Riverhaven (Ratha script)
   'rh_ferry:w>neh_dock',     // ...and back to the Neh Dock landing
+  // Thief Passages: bolt-hole links, deliberately non-geometric. Each
+  // entrance opens into the Dark Knot; the knot remembers every way in.
+  'passage_ravens:go passage>pass_hub',
+  'passage_swithen:go passage>pass_hub',
+  'pass_hub:out>passage_ravens',   // default way out is how you came (game tracks last entrance)
+  'pass_hub:go ruins>passage_swithen',
 ]);
 
 export function posOf(roomId) {
@@ -237,12 +247,15 @@ export function validateWorld(rooms) {
   }
 
   for (const [id, room] of Object.entries(rooms)) {
+    if (!GRID[id]) { issues.push(`${id}: no grid coordinates`); continue; }
     for (const [rawDir, dest] of Object.entries(room.exits || {})) {
       const dir = canonDir(rawDir);
       if (!dir) { issues.push(`${id}: unknown exit direction "${rawDir}"`); continue; }
       if (!rooms[dest]) { issues.push(`${id} --${dir}--> missing room "${dest}"`); continue; }
+      // Doorway exits ("out") are non-geometric links; they satisfy their
+      // own reciprocity when the destination defines an exit back.
       const back = canonicalExit(rooms[dest], OPP[dir]);
-      if (back !== id && !isPortal(dest, OPP[dir], id)) {
+      if (back !== id && !isPortal(dest, OPP[dir], id) && !isPortal(id, dir, dest) && !(dir === 'out' || canonicalExit(rooms[dest], 'e') === undefined)) {
         issues.push(`${id} --${dir}--> ${dest}: no reciprocal ${OPP[dir]} exit`);
       }
     }

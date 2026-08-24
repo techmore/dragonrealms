@@ -599,8 +599,10 @@ test('warrants: killing an OPEN target in town draws a warrant and guards take y
   handleCommand(game, attacker, 'recall warrant');
   assert.match(lastMsg(attacker), /MURDER/, 'recall reads the charge');
 
-  // Walk past the gate guard: seized.
-  attacker.room = 'west_road';
+  // Walk past the gate guard: seized. (Raven's Court now sits between the
+  // West Road and the gate; stepping into the court puts the thief-adjacent
+  // guard at the gate one step away, and the next step is watched.)
+  attacker.room = 'passage_ravens';
   const mv = game.move(attacker, 'w');
   assert.equal(mv.ok, true, 'moved toward the gate');
   assert.equal(attacker.room, 'jail', 'guard took the murderer');

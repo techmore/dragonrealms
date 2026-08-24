@@ -123,6 +123,9 @@ export const NPCS = {
   leader_paladin: { id: 'leader_paladin', name: 'Sir Valeran', role: 'guild', guild: 'paladin', desc: 'A knight in silvered plate, shield bearing a radiant sun.', greeting: 'Steel and faith. Say "circle" when you are proven.' },
   leader_ranger: { id: 'leader_ranger', name: 'Keeper Rowan', role: 'guild', guild: 'ranger', desc: 'A lean woodsman in greens, fox-cloak over one shoulder.', greeting: 'The woods keep their own score. Say "circle" when the trail calls.' },
   leader_thief: { id: 'leader_thief', name: 'Mist, of the shadow hand', role: 'guild', guild: 'thief', desc: 'A figure you only half-notice, hooded and still as stone.', greeting: 'Quiet work. Say "circle" when the shadows know your name.' },
+  // Passage fence (Thief Passages): buys hot goods at a discount, no
+  // questions — the guild's cut is the point. DR: binning builds reputation.
+  fence: { id: 'fence', name: 'Wick, a passage fence', role: 'shop', desc: 'A wiry half-elf with ink-stained fingers and a ledger he pretends is a prayer book.', greeting: 'Got goods that glow too bright? "list" what I carry, or "sell <item>" and I\'ll make them disappear.' },
   leader_trader: { id: 'leader_trader', name: 'Margrave Kessel', role: 'guild', guild: 'trader', desc: 'A merchant in rich silks, rings flashing on every finger.', greeting: 'Everything is a bargain. Say "circle" when your ledger is full.' },
   leader_warmage: { id: 'leader_warmage', name: 'Pyra Ignis', role: 'guild', guild: 'warmage', desc: 'A battle-mage whose gauntlets glow with faint runes.', greeting: 'Burn brightly. Say "circle" when you command the elements.' },
 };

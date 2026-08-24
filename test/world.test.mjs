@@ -48,6 +48,60 @@ test('bandit camp content exists', async () => {
   assert.ok(creatures.CREATURES.bandit_captain, 'bandit captain should exist');
 });
 
+test('thief passages: thief-only bolt-holes with hub travel and heat risk', async () => {
+  const acc = await auth.registerAccount('Passagetest', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Skulk', race: 'halfling', guild: 'thief' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+
+  // Non-thief at an entrance sees nothing.
+  walk(game, p, 'passage_ravens');
+  assert.equal(p.room, 'passage_ravens', 'reached the entrance');
+  handleCommand(game, p, 'passage');
+  // (still thief — swap to a non-guilded alt for the refusal check)
+  const acc2 = await auth.registerAccount('Passagetest2', 's3cretword');
+  const id2 = createCharacter(acc2.accountId, { name: 'Blunt', race: 'human', guild: 'barbarian' });
+  const p2 = loadPlayer(id2);
+  p2.ws = fakeWs();
+  game.addPlayer(p2);
+  p2.room = 'passage_ravens';
+  handleCommand(game, p2, 'passage');
+  assert.equal(p2.room, 'passage_ravens', 'non-thief does not move');
+  const bluntMsgs = p2.ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
+  assert.match(bluntMsgs, /only thieves know the passages/i, 'non-thief refused');
+
+  // Thief enters the Dark Knot.
+  handleCommand(game, p, 'passage');
+  assert.equal(p.room, 'pass_hub', 'thief slips into the hub');
+  // Hub lists ways out.
+  ws.msgs.length = 0;
+  handleCommand(game, p, 'passage');
+  const listed = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
+  assert.match(listed, /ravens.*swithens|swithens.*ravens/s, 'hub lists both ways out');
+  // Take a way out.
+  handleCommand(game, p, 'passage swithens');
+  assert.equal(p.room, 'passage_swithen', 'bolt-hole surfaces at Swithen\'s');
+  // And re-enter from there, then leave via the other way.
+  handleCommand(game, p, 'passage');
+  assert.equal(p.room, 'pass_hub', 're-entered from Swithen\'s');
+  handleCommand(game, p, 'passage ravens');
+  assert.equal(p.room, 'passage_ravens', 'exited via Raven\'s');
+
+  // Heat risk: a very hot thief can be turned away at the door (forced roll).
+  p.crimeHeat = 10;
+  const realRandom = Math.random;
+  Math.random = () => 0.01; // force the mugging branch
+  p.hp = p.maxHp;
+  handleCommand(game, p, 'passage');
+  Math.random = realRandom;
+  assert.ok(p.hp < p.maxHp, 'guild mugging drew blood');
+  assert.equal(p.room, 'passage_ravens', 'mugged thief stays in the street');
+
+  game.removePlayer(p); game.removePlayer(p2);
+});
+
 test('quest: assign, progress via kills, claim once', async () => {
   const { CREATURES } = await import('../data/creatures.js');
   const acc = await auth.registerAccount('Questtest', 's3cretword');

@@ -1,7 +1,7 @@
 // World commands: exploration, wilds skills, rest, NPC dialogue, social, meta.
 import { DIR_ALIASES } from './dirs.js';
 import { guildById, circleRequirements, circleRequirementSummary, guildTrainedSkills } from '../../data/guilds.js';
-import { roomById } from '../../data/world.js';
+import { roomById, ROOMS } from '../../data/world.js';
 import { creatureById } from '../../data/creatures.js';
 import { QUALITY_LADDER } from '../../data/forging.js';
 import { npcById } from '../../data/npcs.js';
@@ -10,6 +10,14 @@ import { gainSkillExp, addItem, skillRank } from '../player.js';
 import { itemById } from '../../data/items.js';
 import { setAlias, removeAlias, setRoundtime } from '../player.js';
 import { pad, matchSkill, findNpcByName, findInventoryItem, broadcastRoom, gameTime } from './util.js';
+
+// Thief Passages: chalk-sign ways out of the Dark Knot (name -> destination).
+// The hub remembers every bolt-hole that leads in; each way out is named for
+// where it surfaces.
+const PASSAGE_WAYS_OUT = {
+  ravens: 'passage_ravens',   // Raven's Court, by the West Road
+  swithens: 'passage_swithen', // Swithen's Court ruins, by the Sand Spit
+};
 
 const HELP = `
 \x1b[1mDragon Realms — quick help\x1b[0m
@@ -182,6 +190,40 @@ export const commands = {
     const res = game.scavenge(p);
     setRoundtime(p, 5);
     emit(res.msg);
+  },
+
+  // PASSAGE — Thief Passages (DR clean-room). At a marked entrance
+  // (PASSAGE_ENTRANCE room flag), guilded thieves slip inside; at the hub,
+  // 'passage' lists the bolt-hole ways out and 'passage <name>' takes one.
+  // High crime heat risks a mugging at the threshold (DR: worst reputation
+  // means the guild turns on you).
+  passage(ctx) {
+    const { game, p, arg1, emit } = ctx;
+    if (p.guild.id !== 'thief') return emit('You see nothing remarkable about this place. (Only thieves know the passages.)');
+    const room = roomById(p.room);
+    if (!room) return emit('There is no passage here.');
+    if (room.PASSAGE_HUB) {
+      const ways = Object.entries(PASSAGE_WAYS_OUT);
+      if (!arg1) {
+        return emit(`Chalked signs mark the ways out: ${ways.map(([k, v]) => `${k} (${ROOMS[v].name})`).join(', ')}. ("passage <name>")`);
+      }
+      const key = arg1.toLowerCase();
+      const dest = PASSAGE_WAYS_OUT[key];
+      if (!dest) return emit(`No chalk sign reads "${arg1}". Ways out: ${ways.map(([k]) => k).join(', ')}.`);
+      game.moveTo(p, dest);
+      return;
+    }
+    if (!room.PASSAGE_ENTRANCE) return emit('You see no passage here.');
+    const heat = p.crimeHeat || 0;
+    if (heat >= 8 && Math.random() < 0.5) {
+      const dmg = Math.max(3, Math.floor(p.maxHp * 0.15));
+      p.hp = Math.max(1, p.hp - dmg);
+      p.wounds = p.wounds || [];
+      p.wounds.push({ part: 'left arm', level: 2, tended: false, since: Date.now() });
+      game.status(p);
+      return emit(`You move to knock — and shadows peel off the wall. Your own guild leaves you bleeding in the gutter: your heat has shamed them. (${dmg} damage, a new wound.) Clear your name before you come back.`);
+    }
+    game.moveTo(p, room.PASSAGE_ENTRANCE);
   },
 
   play(ctx) {

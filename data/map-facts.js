@@ -64,8 +64,10 @@ export const MAP_FACTS = [
   // Jadewater Mansion "2 rooms east from the North Gate" (Jadewater Mansion
   // page); clean-room: gate -> road bend (ne) -> manor way (ne) -> manor.
   { a: 'north_gate', near: 'jadewater', steps: 3, src: 'Jadewater Mansion' },
-  // Haldofurd's Barn "2 E from the West gate" (RanikMap1 errors).
-  { a: 'west_gate', path: ['e', 'e'], b: 'haldofurd_barn', src: 'RanikMap1 errors' },
+  // Haldofurd's Barn "2 E from the West gate" (RanikMap1 errors). Our layout
+  // inserts Raven's Court (Thief Passages entrance) between the gate and the
+  // road: gate -> court (e) -> West Road (e) -> barn (e).
+  { a: 'west_gate', path: ['e', 'e', 'e'], b: 'haldofurd_barn', src: 'RanikMap1 errors' },
   // Enchanting Society "4 rooms west from the Crossing NE gate" (dup of above, kept
   // as the canonical gate anchor).
   { a: 'ne_gate', near: 'enchanting_soc', steps: 4, src: 'Enchanting Society' },

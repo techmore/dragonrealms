@@ -56,13 +56,13 @@ export const ROOMS = {
   },
   west_road: {
     id: 'west_road', zone: 'town', name: 'West Road', npcs: ['tanner'],
-    desc: 'The last stretch of road before the wall. The Needle & Thread sits to the north, and a rough track splits south toward the hills beyond the river.',
-    exits: { e: 'haldofurd_barn', w: 'west_gate', n: 'dens_tailor_shop_west_road_1' },
+    desc: "The last stretch of road before the wall. The Needle & Thread sits to the north, a rough track splits south toward the hills beyond the river, and a cramped alley mouth slips between tenements to the west.",
+    exits: { e: 'haldofurd_barn', w: 'passage_ravens', n: 'dens_tailor_shop_west_road_1' },
   },
   west_gate: {
     id: 'west_gate', zone: 'town', name: 'West Gate', npcs: ['guard'],
     desc: 'The massive west gate stands open. Guards watch the road that vanishes toward the Siergelde Ruins, and a caravan barn stands two rooms back inside the wall.',
-    exits: { e: 'west_road', s: 'trav_grove_16' },
+    exits: { e: 'passage_ravens', s: 'trav_grove_16' },
   },
   tailor_shop: {
     id: 'tailor_shop', zone: 'town', name: 'The Needle & Thread', npcs: ['tailor'],
@@ -546,8 +546,38 @@ export const ROOMS = {
   },
   sand_spit: {
     id: 'sand_spit', zone: 'town', name: 'Sand Spit Tavern', tavern: true, APPROXIMATE: true,
-    desc: 'A nautical tavern of ship-lap and brass, all riverfront theme: a barroom, dark corners, a cellar with a witchclaw door, and a speakeasy called the Raven\'s Nest below.',
-    exits: { w: 'dens_market_end_sand_spit_1' },
+    desc: "A nautical tavern of ship-lap and brass, all riverfront theme: a barroom, dark corners, a cellar with a witchclaw door, and a speakeasy called the Raven's Nest below. A door in the back wall opens onto the ruins next door.",
+    exits: { w: 'dens_market_end_sand_spit_1', out: 'passage_swithen' },
+  },
+  // Thief Passages (DR clean-room): hidden bolt-holes scattered around town,
+  // no central hub above ground. Entrances are marked by the guild's sign —
+  // visible only to guilded thieves who know Passages. Sources: Elanthipedia
+  // Thief page (Crossing has many passages, no hub) + Thief Secrets (Raven's
+  // Court/Silver Walk knocker-door; Swithen's Court prison ruins; Sand Spit
+  // barrel). Our three entrances sit at the tavern and the west quarter.
+  passage_ravens: {
+    id: 'passage_ravens', zone: 'town', name: "Raven's Court", PASSAGE_ENTRANCE: 'pass_hub',
+    desc: "A cramped court behind Silver Walk's tenements, so named for the birds that own its eaves. A slitted door with a golden knocker faces the alley — unremarkable, unless you know what it opens.",
+    exits: { e: 'west_road', w: 'west_gate' },
+  },
+  passage_swithen: {
+    id: 'passage_swithen', zone: 'town', name: "Swithen's Court Ruins", PASSAGE_ENTRANCE: 'pass_hub',
+    desc: "The ruins of the old prison: tumbled foundation stones and one leaning wall. Among the rubble, some stones carry a carved sign — the mark of the Thieves' Guild.",
+    exits: { e: 'sand_spit' },
+  },
+  // The tunnel network itself: no hub above ground, but below there is one
+  // dark knot of passages under the guild quarter. Portal-linked to each
+  // entrance (registered in grid.js PORTALS) — geometry is deliberately
+  // non-literal; these are bolt-holes, not streets.
+  pass_hub: {
+    id: 'pass_hub', zone: 'town', name: "Thieves' Passage, Dark Knot", PASSAGE_HUB: true,
+    desc: "A low-ceiled knot of smugglers' tunnels beneath the west quarter. Torchlight from no visible source stains the brickwork amber, and chalked signs mark the ways out.",
+    exits: { d: 'pass_den' },
+  },
+  pass_den: {
+    id: 'pass_den', zone: 'town', name: "Passage Bolt-Hole", npcs: ['fence'],
+    desc: 'A dry bolt-hole behind a false wall: a stool, a lantern, and a donation bin for goods that need to disappear. The guild keeps its friends close, and its loot closer.',
+    exits: { u: 'pass_hub' },
   },
   docks: {
     id: 'docks', zone: 'town', name: 'The Docks', npcs: ['dockmaster'],
