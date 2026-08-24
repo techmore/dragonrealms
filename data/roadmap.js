@@ -31,7 +31,7 @@ export const STAGES = [
     desc:"Hunting ladders, Crossing/Riverhaven depth, skill-system structure, magic mechanics, crafting, PvP & justice." },
   { id:14, title:"Stage 14 — Tooling & Ops", badge:"done",
     desc:"Progression simulator, skills doc builder, mapper agent walker, server ops (single-world guard + token publishing)." },
-  { id:15, title:"Stage 15 — Code Health & Modularity", badge:"",
+  { id:15, title:"Stage 15 — Code Health & Modularity", badge:"done",
     desc:"Refactor pass from the modularity audit: extract delegates out of the Game facade, unify transport/auth helpers, split admin console modules." },
 ];
 
