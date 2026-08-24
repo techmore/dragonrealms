@@ -26,6 +26,10 @@ import * as weather from './weather.js';
 import * as corpses from './corpses.js';
 
 const RESPAWN_MS = 25 * 1000;
+// DR_SPAWN_MULT: optional spawn-density multiplier for test/sweep windows
+// (e.g. DR_SPAWN_MULT=2 doubles creature instances per room at init). Purely
+// additive — unset/1 keeps production behavior identical.
+const SPAWN_MULT = Math.max(1, Number(process.env.DR_SPAWN_MULT) || 1);
 const MANA_PULSE_MS = 6 * 1000;
 
 // Weather kinds and their weightings by season — see server/weather.js.
@@ -67,11 +71,14 @@ export class Game {
     for (const [roomId, room] of Object.entries(ROOMS)) {
       const spawns = [];
       for (const defId of room.spawns || []) {
-        const base = creatureById(defId);
-        if (!base) continue;
-        const rare = RARES[room.zone];
-        const def = rare && Math.random() < 0.08 ? rare : base;
-        spawns.push(this.makeCreature(def));
+        // Spawn-density multiplier (sweep windows): repeat each entry N times.
+        for (let i = 0; i < SPAWN_MULT; i++) {
+          const base = creatureById(defId);
+          if (!base) continue;
+          const rare = RARES[room.zone];
+          const def = rare && Math.random() < 0.08 ? rare : base;
+          spawns.push(this.makeCreature(def));
+        }
       }
       this.roomCreatures.set(roomId, spawns);
       this.floorItems.set(roomId, []);
@@ -178,7 +185,7 @@ export class Game {
     if (!this.spawnLog) return false;
     const t = this.spawnLog.get(roomId) || [];
     const recent = t.filter((x) => now - x < 5 * 60 * 1000);
-    if (recent.length < 14) return false;
+    if (recent.length < 14 * SPAWN_MULT) return false;
     // Tell anyone camping this room once per throttle period.
     const key = `throttle_${roomId}`;
     if (!this.throttleNotices || this.throttleNotices.get(key) !== this.throttleEpoch) {
