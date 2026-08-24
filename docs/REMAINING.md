@@ -46,7 +46,7 @@ Each guild has a fidelity v1; the pending items per guild:
 | Necromancer | Slip (stealth), States of Being + Outrage meters, Call/Creation rituals |
 | Paladin | Armor Proficiency, Lead/Protect (party interception), soulstone/holy weapon |
 | Ranger | horse wrangling (mounts), trailmarkers, raccoon companions |
-| Thief | Passages (city shortcuts), lockpick carving, reputation/heat depth, voice throw, Mark/Glance |
+| Thief | ~~Passages (city shortcuts)~~ ✅ live (`passage` bolt-holes: Raven's Court + Swithen's Court → Dark Knot hub, heat-risk at the door); lockpick carving, reputation/heat depth, voice throw, Mark/Glance |
 | Trader | TELL LEAD/SPOOK/TIE/RECALL caravan commands, pack animals, tessera remote learning, Trade Route Justice, rumors/ledgers |
 | Warrior Mage | Aethereal Pathways, SUMMON ADMITTANCE, talisman familiars/scrying, 89-slot tree |
 
