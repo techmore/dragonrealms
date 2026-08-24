@@ -103,6 +103,9 @@ export const GUILD_SCRIPTS = {
     fallbackFight: ['put attack %target'],
     // Bardic identity first: start an enchante, then fight under it.
     preFight: ['put enchant war'],
+    // Segue cycles between the other two songs each hunt (DR Segue) —
+    // exercises transitions and keeps Bardic Lore training in the field.
+    segueCycle: ['bravery', 'regen'],
     signature: { cmd: 'enchant war', ok: /begin an enchante|driving war march/i, probe: 'enchante' },
     armVerb: 'wield',
     spellsByCircle: { 1: 'chime', 3: 'lullaby', 5: 'song_of_woe' },

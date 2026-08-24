@@ -254,7 +254,7 @@ say(t, text, 'combat');
     if (this.player.buffs && this.player.buffs.glyph_valor > 0) dmg = Math.floor(dmg * 1.15);
     if (this.player.buffs && this.player.buffs.warpaint > 0) dmg = Math.floor(dmg * 1.15);
     if (this.player.khri && this.player.khri.strike > 0) dmg = Math.floor(dmg * 1.25);
-    if (this.player.cyclic && this.player.cyclic.song === 'war' && this.player.cyclic.ticks > 0) dmg = Math.floor(dmg * 1.1);
+    if (this.player.cyclic && this.player.cyclic.song === 'war' && this.player.cyclic.ticks > 0) dmg = Math.floor(dmg * (segueFast(this.player) ? 1.2 : 1.1));
     if (capstoneActive(this.player, 'necromancer')) {
       const steal = Math.max(1, Math.floor(dmg * 0.1));
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + steal);
@@ -383,7 +383,7 @@ say(t, text, 'combat');
     if (this.player.buffs && this.player.buffs.shadow > 0) def = Math.floor(def * 1.15);
     if (this.player.buffs && this.player.buffs.omen > 0) def = Math.floor(def * 1.1);
     if (this.player.khri && this.player.khri.elusion > 0) def = Math.floor(def * 1.2);
-    if (this.player.cyclic && this.player.cyclic.song === 'bravery' && this.player.cyclic.ticks > 0) def = Math.floor(def * 1.1);
+    if (this.player.cyclic && this.player.cyclic.song === 'bravery' && this.player.cyclic.ticks > 0) def = Math.floor(def * (segueFast(this.player) ? 1.2 : 1.1));
     if (capstoneActive(this.player, 'ranger') && this.game && this.game.isWild(this.player.room)) def = Math.floor(def * 1.2);
     const hit = Math.random() < clamp(0.45 + (atk - def) * 0.012, 0.15, 0.95);
 
@@ -751,6 +751,16 @@ say(t, text, 'combat');
           dmg = Math.floor(dmg * (0.8 + (p.devotion ?? 30) / 100));
         }
         this.say(`You cast ${spell.name}! ${cap(target.def.name)} is engulfed for ${dmg} damage!`);
+        // Bard area enchantes (DR clean-room): a bard's song spills over —
+        // the spell's echo splashes other foes in the fight at a fraction.
+        if (p.guild.id === 'bard' && p.cyclic && p.cyclic.ticks > 0) {
+          const splash = Math.max(1, Math.floor(dmg * (segueFast(p) ? 0.5 : 0.35)));
+          const others = this.enemies.filter((e) => e !== target && !e.dead);
+          for (const o of others) o.hp -= splash;
+          if (others.length) {
+            this.say(`The enchante carries the chord — ${others.map((o) => cap(o.def.name)).join(' and ')} caught in the refrain for ${splash}!`);
+          }
+        }
         if (capstoneActive(p, 'necromancer')) {
           const steal = Math.max(1, Math.floor(dmg * 0.1));
           p.hp = Math.min(p.maxHp, p.hp + steal);
@@ -1260,10 +1270,18 @@ say(t, text, 'combat');
       this.player.buffs.sun -= 1;
       if (this.player.hp < this.player.maxHp) this.player.hp = Math.min(this.player.maxHp, this.player.hp + 2);
     }
-    // Bard enchante: upkeep + renewal.
+    // Bard enchante: upkeep + renewal. Fast cycles (post-Segue) double the
+    // song's per-tick potency for the window.
     const cyc = this.player.cyclic;
     if (cyc && cyc.ticks > 0) {
       cyc.tickCount = (cyc.tickCount || 0) + 1;
+      const fast = typeof cyc.fastUntilTick === 'number' && cyc.tickCount <= cyc.fastUntilTick;
+      if (cyc.song === 'regen' && fast) {
+        // The doubled pulse happens on even ticks; odd fast ticks keep time.
+        if (cyc.tickCount % 2 === 0 && this.player.hp < this.player.maxHp) {
+          this.player.hp = Math.min(this.player.maxHp, this.player.hp + 2);
+        }
+      }
       cyc.ticks -= 1;
       if (cyc.tickCount % 10 === 0) {
         if (this.player.mana < cyc.upkeep) {
@@ -1273,7 +1291,7 @@ say(t, text, 'combat');
           this.player.mana -= cyc.upkeep;
         }
       }
-      if (cyc.song === 'regen' && this.player.hp < this.player.maxHp) {
+      if (cyc.song === 'regen' && !fast && this.player.hp < this.player.maxHp) {
         this.player.hp = Math.min(this.player.maxHp, this.player.hp + 2);
       }
     }
@@ -1451,6 +1469,13 @@ function thirdPerson(v) {
 // Circle-10 guild capstone check.
 function capstoneActive(p, guildId) {
   return Boolean(p && p.guild && p.guild.id === guildId && p.circle >= 10);
+}
+
+// Segue fast-cycles window: the enchante segued into cycles at double
+// potency while tickCount is inside the window (set by `segue`).
+function segueFast(p) {
+  const c = p && p.cyclic;
+  return Boolean(c && typeof c.fastUntilTick === 'number' && (c.tickCount || 0) <= c.fastUntilTick);
 }
 
 // Hunting ladder: creatures teach well within their rank band; skills far

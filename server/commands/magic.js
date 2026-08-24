@@ -465,19 +465,39 @@ export const commands = {
     }
     const song = arg1.toLowerCase();
     if (!['war', 'bravery', 'regen'].includes(song)) return emit('You know three enchantes: enchant war (fury), enchant bravery (ward), enchant regen (renewal).');
-    if (p.cyclic) return emit(`You are already singing an enchante. "enchant off" to end it.`);
     // Bardic Lore is the craft behind the song: ranks lengthen the enchante
     // and ease its mana upkeep (DR: Bardic Lore powers music abilities).
     const bl = skillRank(p, 'bardic_lore');
     const ticks = 60 + Math.min(60, bl * 2);
     const cost = Math.max(2, (song === 'regen' ? 5 : 4) - Math.floor(bl / 25));
-    p.cyclic = { song, ticks, tickCount: 0, upkeep: cost };
+    // Segue (DR, clean-room condensation): a bard may flow from one active
+    // enchante straight into another without ending the first. The incoming
+    // song rides "fast cycles" for a stretch based on Bardic Lore.
+    let segueFrom = null;
+    if (p.cyclic && p.cyclic.song !== song) {
+      segueFrom = p.cyclic.song;
+    }
+    p.cyclic = { song, ticks, tickCount: 0, upkeep: cost, ...(segueFrom ? { fastUntilTick: Math.min(30, 10 + Math.floor(bl / 5)) } : {}) };
     gainSkillExp(p, 'bardic_lore', 5);
     gainSkillExp(p, 'illusion', 6);
     gainSkillExp(p, 'performance', 6);
+    if (segueFrom) {
+      // DR: seguing trains Bardic Lore; mojo cost folded into a small mana
+      // charge that only applies when the new song benefits from speed.
+      const mojoCost = Math.min(3, p.mana);
+      p.mana -= mojoCost;
+      gainSkillExp(p, 'bardic_lore', 12);
+      return emit(`You segue mid-phrase — the ${segueFrom === 'war' ? 'war march' : segueFrom === 'bravery' ? 'ballad of bravery' : 'hymn of renewal'} becomes ${song === 'war' ? 'a driving war march' : song === 'bravery' ? 'a steady ballad of bravery' : 'a gentle hymn of renewal'} without a missed beat! The new song cycles swiftly.${mojoCost ? ` (${mojoCost} mana for the flourish)` : ''}`);
+    }
     emit(`You begin an enchante — ${song === 'war' ? 'a driving war march' : song === 'bravery' ? 'a steady ballad of bravery' : 'a gentle hymn of renewal'}. It costs ${cost} mana every few beats to sustain.${bl >= 10 ? ' Your lore lends the song real weight.' : ''}`);
   },
   enchante(ctx) { /* alias */ const { p, emit } = ctx; const c = p.cyclic; emit(c ? `Enchante active: ${c.song} (${c.ticks} beats left)` : 'No enchante is playing.'); },
+  // SEGUE <enchante> — DR syntax for the transition (same path as `enchant`).
+  segue(ctx) {
+    const { p, emit } = ctx;
+    if (!p.cyclic) return emit('You have no song going to segue from. Begin an enchante first.');
+    return commands.enchant(ctx);
+  },
   devotion(ctx) {
     const { p, emit } = ctx;
     if (p.guild.id !== 'cleric') return emit('Only clerics keep devotion.');

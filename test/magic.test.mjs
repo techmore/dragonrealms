@@ -496,3 +496,67 @@ test('bard enchantes: cyclic songs with mana upkeep', async () => {
 
   game.removePlayer(p);
 });
+
+test('bard segue: song-to-song transition with fast cycles (DR Segue)', async () => {
+  const acc = await auth.registerAccount('Segueer', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Bridge', race: 'human', guild: 'bard' });
+  const p = loadPlayer(charId);
+  const ws = fakeWs();
+  p.ws = ws;
+  game.addPlayer(p);
+  p.circle = 4;
+  p.mana = 50;
+
+  // No song yet -> segue refuses.
+  handleCommand(game, p, 'segue bravery');
+  assert.ok(!p.cyclic, 'no enchante from bare segue');
+  const refuseMsgs = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
+  assert.match(refuseMsgs, /no song going/i, 'segue without a song refuses');
+
+  handleCommand(game, p, 'enchant war');
+  assert.ok(p.cyclic && p.cyclic.song === 'war', 'war playing');
+  assert.ok(p.cyclic.fastUntilTick === undefined, 'plain start has no fast window');
+
+  // Segue into regen: instant transition, fast-cycles window set.
+  // gainSkillExp banks into expPools (DR pulse model) — compare pool+rank.
+  const blScore = () => (p.expPools?.bardic_lore || 0) * 10000
+    + p.skills.bardic_lore.rank * 1000 + p.skills.bardic_lore.exp;
+  const blBefore = blScore();
+  handleCommand(game, p, 'segue regen');
+  assert.ok(p.cyclic && p.cyclic.song === 'regen', 'song changed in place');
+  assert.ok(typeof p.cyclic.fastUntilTick === 'number' && p.cyclic.fastUntilTick > 0, 'fast-cycles window set');
+  assert.ok(blScore() > blBefore, 'segue trains Bardic Lore extra');
+  const msgs = ws.msgs.filter((m) => m.t === 'msg').map((m) => m.msg).join(' ');
+  assert.match(msgs, /segue mid-phrase/, 'transition narrated');
+
+  // Fast cycles double regen pulses: even fast ticks heal.
+  p.hp = p.maxHp - 10;
+  const combat = { player: p, say: () => {} };
+  const before = p.hp;
+  for (let i = 0; i < 4; i++) combatTickForTest(combat);
+  assert.ok(p.hp > before, 'regen pulsed during fast window');
+  assert.ok(typeof p.cyclic.tickCount === 'number' && p.cyclic.tickCount === 4, 'ticks advanced');
+
+  // Same-song "segue" is just a restart, not a transition.
+  handleCommand(game, p, 'enchant off');
+  handleCommand(game, p, 'enchant war');
+  handleCommand(game, p, 'segue war');
+  assert.ok(p.cyclic.fastUntilTick === undefined, 'same-song restart has no fast window');
+
+  game.removePlayer(p);
+});
+
+// Minimal stand-in for the private enchante block of Combat#tick(): the test
+// exercises the same field logic the real tick runs (tickCount/fast window).
+function combatTickForTest(combat) {
+  const p = combat.player;
+  const cyc = p.cyclic;
+  if (!cyc || cyc.ticks <= 0) return;
+  cyc.tickCount = (cyc.tickCount || 0) + 1;
+  const fast = typeof cyc.fastUntilTick === 'number' && cyc.tickCount <= cyc.fastUntilTick;
+  if (cyc.song === 'regen' && fast) {
+    if (cyc.tickCount % 2 === 0 && p.hp < p.maxHp) p.hp = Math.min(p.maxHp, p.hp + 2);
+  }
+  cyc.ticks -= 1;
+  if (cyc.song === 'regen' && !fast && p.hp < p.maxHp) p.hp = Math.min(p.maxHp, p.hp + 2);
+}

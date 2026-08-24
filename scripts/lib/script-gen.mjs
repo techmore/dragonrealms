@@ -55,6 +55,11 @@ function buildHuntScript({ cap, arena, hallPath }) {
   L.push('  iflt hp 40 goto REST');
   if (cfg.magic) L.push('  iflt mana 8 goto WEAKSWING');
   for (const pre of cfg.preFight || []) L.push(`  put ${pre.replace(/^put /, '').replace('%target', '')}`);
+  // Bard area enchantes: segue mid-hunt so the song stays fresh and the
+  // splash keeps training (DR Segue; also exercises the transition path).
+  if (cfg.segueCycle?.length) {
+    for (const s of cfg.segueCycle) L.push(`  put segue ${s}`);
+  }
   L.push('  put look');
   const species = [...new Set(ROOMS[arena.id]?.spawns || [])];
   for (const sp of species) {
