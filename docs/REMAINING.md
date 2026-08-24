@@ -4,10 +4,15 @@ Canonical handoff list. Generated from the tracker's partial rows
 (`data/roadmap.js`) plus known divergences. Edit the tracker first; this
 document is the narrative companion to `/ROADMAP.html`.
 
-**State at time of writing:** 178 tracked features — 133 done / 45 partial /
-0 todo. Stages 1, 2, 6, 7, 8 fully done. P1 and P2 backlogs complete.
-Verification: 236 server tests, 68-check client CDP suite, data audit,
-docs verification — all green.
+**State at time of writing:** 195 tracked features — 152 done / 43 partial /
+0 todo. Stages 1, 2, 6, 7, 8, 14, 15 fully done. P1 and P2 backlogs complete.
+Verification: 278 server tests, client CDP suite, data audit, docs
+verification — all green.
+
+Recent additions (2026-08-24): bleeding wounds & tending, BUFFS window,
+North Fields hunting ground through the North Gate, Thief Passages,
+Bard Segue + area enchantes, one-time crier onboarding signpost, /sims.html
+(run history/grades/launch), sharded fidelity sweep with spawn-density knob.
 
 ---
 
@@ -39,7 +44,7 @@ Each guild has a fidelity v1; the pending items per guild:
 | Guild | Pending |
 |---|---|
 | Barbarian | full berserk/form/roar families; ability-path trees; registers; ACM-check cooldown reduction; stance-point allocation effects |
-| Bard | Segue (song-to-song transition), area-effect enchantes, PRACTICE VOICE, BLUFF/Recall/Showmanship, 55-slot tree |
+| Bard | ~~Segue (song-to-song transition), area-effect enchantes~~ ✅ live (fast-cycles + splash damage); 55-slot tree, PRACTICE VOICE, BLUFF/Recall, Engineering affinity |
 | Cleric | Align (39 Immortals), Infusion matrices, Resurrection ritual, holy quests/visions/altar network, Enchanting affinity |
 | Empath | Shift, Unity Link, Manipulate, Hand of Hodierna, Khalaen, full spellbooks |
 | Moon Mage | astral travel, ALIGN/sects, Event Prediction, six spellbooks |
@@ -67,8 +72,9 @@ Plus the shared **guild spellbook expansion**: every magic guild has 5 spells
 ## 5. Suggested order for the next contributor
 
 1. Playtest + pacing pass (unblocks S9 and several "pending playtest" rows).
-2. Bard Segue + area enchantes (smallest guild tree; enchante infra exists).
-3. Thief Passages + reputation (urban systems pair well with justice loop).
+2. ~~Bard Segue + area enchantes~~ ✅ done (fast-cycles + splash, sweep-exercised).
+3. ~~Thief Passages~~ ✅ done (bolt-holes + heat risk); reputation depth next.
 4. Warrior Mage pathways + Trader caravan commands (both extend live v1s).
 5. Spellbook expansion as a shared system (slot budgets already live — this
    is content authoring against `data/guilds.js` spell lists).
+6. Lockpick carving (thief, circle 12+) — pairs with the justice loop.
