@@ -20,7 +20,7 @@ const flag = (name, dflt) => {
   return i >= 0 ? ARGS[i + 1] : dflt;
 };
 const BASE = 'http://localhost:3000';
-const ORIGIN = 'ws://localhost:3000/ws';
+const ORIGIN = 'ws://localhost:3000/ws?bot=1'; // sims self-identify for roster tagging
 const MINUTES = Number(flag('minutes', 15));
 const NAME_BASE = flag('name-base', 'Sim');
 const RACE = flag('race', 'human');

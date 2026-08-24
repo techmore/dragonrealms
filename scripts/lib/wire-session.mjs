@@ -14,7 +14,7 @@
 import WebSocket from 'ws';
 
 const BASE = 'http://localhost:3000';
-const ORIGIN = 'ws://localhost:3000/ws';
+const ORIGIN = 'ws://localhost:3000/ws?bot=1'; // sims self-identify for roster tagging
 const DIR_SHORT = {
   north: 'n', south: 's', east: 'e', west: 'w',
   northeast: 'ne', northwest: 'nw', southeast: 'se', southwest: 'sw',
