@@ -1,9 +1,21 @@
 # Dragon Realms Web Client — UI/UX Audit (2026-08-22)
 
-> Resolution log: P0#2 (chargen modal race) fixed 2026-08-24 — the alloc phase
-> collapses the create form, retitles to ALLOCATE & ENTER, and focuses the
-> command bar so typed `enter`/`alloc` work. P0#1 (North Gate dead end)
-> fixed 2026-08-24 — the gate opens onto the North Fields hunting ground.
+> Resolution log (2026-08-24): **P0#1** fixed — North Gate opens onto the
+> North Fields hunting ground (fields_gate→furrows/orchard/stonebridge,
+> live-verified in-browser). **P0#2** fixed — alloc phase collapses the
+> create form, retitles ALLOCATE & ENTER, focuses the command bar; typed
+> `enter` enters the world (live-verified). **P0#3** largely addressed by
+> the densification pass (unique room names, grid addresses in GM tools);
+> minimap still open. **P1#4** fixed — crier hunting hint lists five grounds
+> incl. the new fields; one-time crier signpost on entry for circle-1 toons.
+> **P1#5** fixed earlier (prose condition on score; raw pools only in
+> health; info aliased intentionally). **P1#6** fixed earlier (red RT blocks
+> overlay the input bar's left edge, expiring fade). **P1#7** fixed earlier
+> (.pd-weapon renders on the doll when the hand slot fills). **P1#8** fixed
+> earlier (≤820px leftrail reflows to a horizontal scroller above the log).
+> **P1#9** fixed earlier (kill hint teaches the distinctive noun: "skin rat").
+> **P2#14** fixed earlier (worn list excludes the wielded hand slot).
+> **P2#15** fixed — login/register typed at char-select route as auth verbs.
 
 Tested as fresh account `uiaudit1` / barbarian `UiAudit`, ~15 min live play: register → create → navigate the Crossing → bought/wielded club at Mongers' Bazaar → sewer rat combat (kills, skinning, RT) → all toolbar panels, settings, error paths.
 
