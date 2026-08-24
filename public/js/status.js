@@ -48,15 +48,96 @@ export function hideRoomPanel() {
 // a dedicated region fold into the closest one (accessory → neck pendant).
 const DOLL_SLOT_LABELS = { head: 'head', torso: 'body', arms: 'arms', hand: 'hands', shield: 'shield', legs: 'legs', feet: 'feet', neck: 'neck', accessory: 'neck' };
 const DOLL_SLOT_REGION = { accessory: 'neck' };
+// Gear condition prose — the real DR appraise ladder (Elanthipedia
+// "Appraisal skill" → Condition table). Numbers stay tooltip-adjacent per
+// house style, but the words are what a player actually reads.
+const CONDITION_WORDS = [
+  [100, 'in pristine condition'],
+  [91, 'practically in mint condition'],
+  [81, 'in good condition'],
+  [71, 'rather scuffed up'],
+  [61, 'some minor scratches'],
+  [51, 'a few dents and dings'],
+  [41, 'several unsightly notches'],
+  [31, 'heavily scratched and notched'],
+  [21, 'badly damaged'],
+  [0, 'battered and practically destroyed'],
+];
+function conditionWord(cond) {
+  return (CONDITION_WORDS.find(([min]) => cond >= min) || CONDITION_WORDS[CONDITION_WORDS.length - 1])[1];
+}
 let dollSeen = false;
 let rtTimer = null;
+
+// Worn entries with their source slot: [{slot, name, cond}] — the raw msg.worn
+// array is names only, so rebuild from slots (the same fold the doll uses).
+function wornSlots(msg) {
+  const out = [];
+  for (const [slot, items] of Object.entries(msg.slots || {})) {
+    if (slot === 'hand') continue;
+    for (const it of items) {
+      const name = typeof it === 'string' ? it : it.name;
+      const cond = typeof it === 'string' ? 100 : it.cond;
+      out.push({ slot: DOLL_SLOT_REGION[slot] || slot, name, cond });
+    }
+  }
+  return out;
+}
+
+// Hover cross-linking: hovering a worn row highlights its doll region and
+// vice versa. Delegated listeners survive the per-snapshot row rebuilds.
+let crosslinksBound = false;
+function bindWornCrosslinks() {
+  const wornEl = $('hands-worn');
+  if (!wornEl || crosslinksBound) return;
+  crosslinksBound = true;
+  const regionFor = (row) => document.querySelector(`#hands-doll .pd-region[data-slot="${row.dataset.slot}"]`);
+  const rowsFor = (g) => [...wornEl.querySelectorAll(`.worn-row[data-slot="${g.dataset.slot}"]`)];
+  wornEl.addEventListener('mouseover', (e) => {
+    const row = e.target.closest('.worn-row');
+    if (row) regionFor(row)?.classList.add('pd-link');
+  });
+  wornEl.addEventListener('mouseout', (e) => {
+    const row = e.target.closest('.worn-row');
+    if (row) regionFor(row)?.classList.remove('pd-link');
+  });
+  const dollEl = $('hands-doll');
+  if (dollEl) {
+    dollEl.addEventListener('mouseover', (e) => {
+      const g = e.target.closest('.pd-region');
+      if (g) rowsFor(g).forEach((r) => r.classList.add('worn-hot'));
+    });
+    dollEl.addEventListener('mouseout', (e) => {
+      const g = e.target.closest('.pd-region');
+      if (g) rowsFor(g).forEach((r) => r.classList.remove('worn-hot'));
+    });
+  }
+}
 export function renderHands(msg) {
   const bar = $('hands-bar');
   if (!bar) return;
   const hand = msg.hand || 'empty hands';
   $('hands-hand').textContent = `Hand: ${hand}`;
-  $('hands-worn').textContent = msg.worn && msg.worn.length ? `Worn: ${msg.worn.join(', ')}` : '';
+  // Worn list: one row per item, tagged with its slot so the paper doll and
+  // the list can highlight each other on hover (cross-linking below).
+  const wornEl = $('hands-worn');
+  const worn = msg.worn || [];
+  wornEl.innerHTML = '';
+  if (worn.length) {
+    const label = document.createElement('span');
+    label.className = 'worn-label';
+    label.textContent = 'Worn:';
+    wornEl.appendChild(label);
+  }
+  for (const entry of wornSlots(msg)) {
+    const row = document.createElement('span');
+    row.className = 'worn-row' + (entry.cond < 60 ? ' worn-damaged' : '');
+    row.dataset.slot = entry.slot;
+    row.textContent = ` ${entry.name}`;
+    wornEl.appendChild(row);
+  }
   $('hands-carried').textContent = `Carried: ${msg.carried || 0}`;
+  bindWornCrosslinks();
   // Paper doll: fill regions whose slot has gear; tooltip names the item and
   // its condition. Damaged gear (<60 condition) gains a red tint via
   // pd-damaged + --pd-cond so wear reads at a glance.
@@ -86,7 +167,9 @@ export function renderHands(msg) {
       g.setAttribute('role', 'img');
       g.setAttribute('aria-label', `${DOLL_SLOT_LABELS[slot] || slot}: ${names.join(', ') || 'empty'}`);
       const title = g.querySelector('title') || document.createElementNS('http://www.w3.org/2000/svg', 'title');
-      title.textContent = `${DOLL_SLOT_LABELS[slot] || slot}: ${names.join(', ') || 'empty'}${items.length ? ` (${cond}% condition)` : ''}`;
+      title.textContent = items.length
+        ? `${DOLL_SLOT_LABELS[slot] || slot}: ${names.join(', ')} — ${conditionWord(cond)} (${cond}%)`
+        : `${DOLL_SLOT_LABELS[slot] || slot}: empty`;
       if (!title.parentNode) g.appendChild(title);
     }
     if (!dollSeen && Object.keys(slots).length) {
@@ -311,8 +394,15 @@ function renderWounds() {
   for (const g of doll.querySelectorAll('.pd-region')) {
     const slot = g.dataset.slot;
     const regionWounds = woundByRegion.get(slot) || [];
+    const wasWounded = g.classList.contains('pd-wounded');
     g.classList.toggle('pd-wounded', regionWounds.length > 0);
     g.classList.toggle('pd-tended', regionWounds.some((w) => w.tended));
+    // Wound-onset flash: a region that JUST started bleeding flares once
+    // (pd-just-hit, one-shot CSS animation) so new cuts read at a glance.
+    if (!wasWounded && regionWounds.length) {
+      g.classList.add('pd-just-hit');
+      setTimeout(() => g.classList.remove('pd-just-hit'), 950);
+    }
     // Rebuild the tooltip UNCONDITIONALLY: the bleed section must disappear
     // when the wound heals, not just when it's present (stale suffix bug).
     const title = g.querySelector('title');

@@ -33,7 +33,12 @@ function extractObjectLiteral(source, name) {
 
 test('HEALTH_LEVEL_OF_WORD covers every vitality word', async () => {
   // VITALITY_WORDS is client-side too; both ladders live in status.js.
-  const words = [...statusJs.matchAll(/\[[-\d.]+, '([a-z ]+)'\]/g)].map((m) => m[1]);
+  // Extract only the VITALITY_WORDS block — CONDITION_WORDS uses the same
+  // [number, 'phrase'] shape and must not pollute the word set.
+  const start = statusJs.indexOf('const VITALITY_WORDS = [');
+  const end = statusJs.indexOf('];', start);
+  const block = statusJs.slice(start, end);
+  const words = [...block.matchAll(/\[[-\d.]+, '([a-z ]+)'\]/g)].map((m) => m[1]);
   assert.ok(words.length >= 10, `expected the full vitality ladder, got ${words.length} words`);
   const map = extractObjectLiteral(statusJs, 'HEALTH_LEVEL_OF_WORD');
   for (const w of words) {

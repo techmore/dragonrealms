@@ -555,6 +555,48 @@ button { color: inherit; }
   animation: none;
   stroke: var(--amber);
 }
+/* Idle breathing: the whole figure's torso rises and falls very slowly.
+   Subtle by design — you should notice it only when staring. Applied to the
+   svg root so all regions move together (no joint seams opening). */
+#hands-doll { transform-origin: 70px 100px; }
+body:not(.in-combat) #hands-doll { animation: pd-breathe 5.5s ease-in-out infinite; }
+@keyframes pd-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.008, 1.02); }
+}
+/* Wound-onset flash: when a region flips to pd-wounded, JS adds
+   pd-just-hit for one beat — a sharp red flare that says "you got cut
+   THERE" louder than the ambient pulse can. */
+#hands-doll .pd-region.pd-just-hit circle,
+#hands-doll .pd-region.pd-just-hit path,
+#hands-doll .pd-region.pd-just-hit ellipse {
+  animation: pd-hit-flash 0.9s ease-out 1;
+}
+@keyframes pd-hit-flash {
+  0% { opacity: 1; fill: color-mix(in srgb, var(--red) 85%, transparent); stroke: var(--red); stroke-width: 3; }
+  100% { opacity: 1; fill: transparent; }
+}
+/* Hover cross-linking: a region hovered on the doll (pd-link from the list)
+   or a list row hovered from the doll (worn-hot) lights its counterpart. */
+#hands-doll .pd-region.pd-link circle,
+#hands-doll .pd-region.pd-link path,
+#hands-doll .pd-region.pd-link ellipse {
+  stroke: var(--amber);
+  opacity: 1;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--amber) 60%, transparent));
+}
+.hands-item .worn-label { color: var(--dim); }
+#hands-worn .worn-row {
+  cursor: default;
+  border-radius: 3px;
+  padding: 0 2px;
+  transition: background 0.15s, color 0.15s;
+}
+#hands-worn .worn-row.worn-hot {
+  background: color-mix(in srgb, var(--amber) 18%, transparent);
+  color: var(--amber);
+}
+#hands-worn .worn-row.worn-damaged { text-decoration: underline wavy var(--red) 1px; }
 
 /* Field experience tracker (DR FE window) */
 #fe-row { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
