@@ -66,6 +66,53 @@ const CONDITION_WORDS = [
 function conditionWord(cond) {
   return (CONDITION_WORDS.find(([min]) => cond >= min) || CONDITION_WORDS[CONDITION_WORDS.length - 1])[1];
 }
+
+// Gear silhouettes: map item names to a material class per slot, then show
+// that garment overlay inside the region. Keyword-driven so new items work
+// with zero client changes; heaviest material wins when several are worn.
+// Classes match data-gear attributes in index.html.
+const GEAR_MATRIX = {
+  head: {
+    helm: ['helm', 'basinet', 'great helm', 'circlet', 'crown'],
+    hood: ['hood', 'cap', 'hat', 'bandana'],
+  },
+  torso: {
+    cuirass: ['mail', 'chain', 'plate', 'cuirass', 'brigandine', 'hauberk', 'ring mail', 'breastplate'],
+    robe: ['robe', 'robe-like', 'cloak', 'ritual', 'sorcerous', 'shaman'],
+    tunic: [], // fallback for any other torso item
+  },
+  arms: { sleeves: [] }, // single overlay; any arms item shows it
+  legs: { leggings: [] },
+  feet: {
+    boots: ['boot', 'shoe', 'sandal', 'slipper'], // boots rise above the ankle
+  },
+};
+const GEAR_RANK = { cuirass: 3, robe: 2, tunic: 1 }; // heavier wins on torso
+function gearClassFor(slot, names) {
+  const matrix = GEAR_MATRIX[slot];
+  if (!matrix) return null;
+  const text = names.join(' ').toLowerCase();
+  // First matching keyword per class, then the heaviest class overall.
+  let best = null;
+  let bestRank = -1;
+  for (const [cls, keywords] of Object.entries(matrix)) {
+    if (keywords.some((k) => text.includes(k))) {
+      const rank = GEAR_RANK[cls] ?? 2;
+      if (rank > bestRank) { best = cls; bestRank = rank; }
+    }
+  }
+  return best;
+}
+function applyGearClass(regionEl, slot, names) {
+  // Clear previous garment choice on this region, then apply the new one
+  // via pd-wearing class (CSS default hides .pd-gear; the class reveals it).
+  regionEl.querySelectorAll('.pd-gear').forEach((p) => p.classList.remove('pd-wearing'));
+  if (!names.length) return;
+  const cls = gearClassFor(slot, names) || (GEAR_MATRIX[slot] && Object.keys(GEAR_MATRIX[slot])[0]);
+  if (!cls) return;
+  const path = regionEl.querySelector(`.pd-gear-${cls}`);
+  if (path) path.classList.add('pd-wearing');
+}
 let dollSeen = false;
 let rtTimer = null;
 
@@ -161,6 +208,10 @@ export function renderHands(msg) {
       g.classList.toggle('pd-damaged', items.length > 0 && cond < 60);
       if (items.length) g.style.setProperty('--pd-cond', String(cond));
       else g.style.removeProperty('--pd-cond');
+      // Gear silhouettes: pick the material class from the item names and
+      // show that garment overlay (pd-gear-<class> visible). One class per
+      // region — the heaviest material wins (plate hides leather).
+      applyGearClass(g, slot, names);
       // Keyboard operability: every region is focusable and announces its
       // gear state (mirrors the hover tooltip for non-mouse players).
       if (!g.hasAttribute('tabindex')) g.setAttribute('tabindex', '0');
@@ -419,6 +470,35 @@ function renderWounds() {
       title.textContent = base;
     }
   }
+  renderHealthWindow(wounds);
+}
+
+// HEALTH window: DR renders open wounds as prose rows ("left arm — bleeding
+// heavily") rather than only tooltips. Same promptState.wounds source the
+// doll uses; rows highlight their doll region on hover. Hidden entirely when
+// nothing bleeds — an empty health window is noise.
+function renderHealthWindow(wounds) {
+  const win = $('health-window');
+  const body = $('health-body');
+  if (!win || !body) return;
+  if (!wounds.length) {
+    win.hidden = true;
+    body.innerHTML = '';
+    return;
+  }
+  win.hidden = false;
+  revealWindow('health-win');
+  const untended = wounds.some((w) => !w.tended);
+  $('health-tend-hint').textContent = untended ? '"tend <part>"' : 'all tended';
+  body.innerHTML = wounds.map((w) => `
+    <div class="health-row${w.tended ? ' health-tended' : ''}" data-part="${esc(w.part)}" data-sev="${esc(w.severity)}">
+      <b>${esc(capWords(w.part))}</b>
+      <span class="health-sev">bleeding ${esc(w.severity)}${w.tended ? ' <i>(tended)</i>' : ''}</span>
+    </div>`).join('');
+}
+
+function capWords(s) {
+  return String(s).replace(/\b[a-z]/g, (c) => c.toUpperCase());
 }
 
 // Worst active bleed in the region drives the pulse intensity (CSS keys on

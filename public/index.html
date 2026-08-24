@@ -62,6 +62,11 @@
             <!-- head -->
             <g data-slot="head" class="pd-region">
               <ellipse cx="70" cy="22" rx="13.5" ry="15"/>
+              <!-- gear silhouettes (B1): garment overlays drawn per material
+                   class by status.js via pd-gear-<class>. Base figure first,
+                   garments after so they paint on top. -->
+              <path data-gear="helm" d="M57 20 q0 -12 13 -12 q13 0 13 12 l0 4 q-6.5 -3 -13 -3 q-6.5 0 -13 3 z" class="pd-gear pd-gear-helm" aria-hidden="true"/>
+              <path data-gear="hood" d="M56 24 q-1 -16 14 -16 q15 0 14 16 l-3 2 q0 -11 -11 -11 q-11 0 -11 11 z" class="pd-gear pd-gear-hood" aria-hidden="true"/>
               <text x="104" y="27">head</text>
             </g>
             <!-- neck connector: styled like a region (not stroke=none) so
@@ -71,6 +76,13 @@
                  at y=108); collar dips slightly at the throat -->
             <g data-slot="torso" class="pd-region">
               <path d="M58 43 q12 -5 24 0 l9 3 4 26 c1 5 -2 8 -6 7 l-6 -2 v20 h-28 v-20 l-6 2 c-4 1 -7 -2 -6 -7 l4 -26 z"/>
+              <!-- cuirass plate: mail/plate torso — solid breastplate with
+                   waist taper, rivet line down the sternum -->
+              <path data-gear="cuirass" d="M59 44 h22 l8 3 4 25 c1 5 -2 8 -6 7 l-6 -2 v18 h-22 v-18 l-6 2 c-4 1 -7 -2 -6 -7 l4 -25 z M70 47 v40" class="pd-gear pd-gear-cuirass" aria-hidden="true"/>
+              <!-- tunic: cloth/leather — soft shoulder-to-waist vest -->
+              <path data-gear="tunic" d="M60 45 q10 4 20 0 l8 4 3 22 c1 5 -2 8 -6 7 l-5 -2 v16 h-20 v-16 l-5 2 c-4 1 -7 -2 -6 -7 l3 -22 z" class="pd-gear pd-gear-tunic" aria-hidden="true"/>
+              <!-- robe: full-length cloth to the knees, worn over everything -->
+              <path data-gear="robe" d="M60 45 q10 4 20 0 l9 4 5 30 3 34 h-52 l3 -34 5 -30 z" class="pd-gear pd-gear-robe" aria-hidden="true"/>
               <text x="104" y="76">body</text>
             </g>
             <!-- neck slot: amulet/band hangs below the collar -->
@@ -82,6 +94,8 @@
             <g data-slot="arms" class="pd-region">
               <path d="M47 46 l-8 4 -4 28 3 14 7 0 -2 -15 4 -25 z"/>
               <path d="M93 46 l8 4 4 28 -3 14 -7 0 2 -15 -4 -25 z"/>
+              <!-- sleeves: leather/mail arm wraps following both limbs -->
+              <path data-gear="sleeves" d="M48 48 l-7 4 -3 24 2 11 5 0 -1.5 -12 3.5 -21 z M92 48 l7 4 3 24 -2 11 -5 0 1.5 -12 -3.5 -21 z" class="pd-gear pd-gear-sleeves" aria-hidden="true"/>
             </g>
             <!-- hands (weapon side filled by hand slot) -->
             <g data-slot="hand" class="pd-region">
@@ -102,10 +116,14 @@
             <!-- legs: hip plate splits into two tapered limbs with knee notch -->
             <g data-slot="legs" class="pd-region">
               <path d="M57 110 h12 v40 l-2 6 h-12 l2 -6 v-40 z M71 110 h12 v40 l2 6 h-12 l-2 -6 v-40 z"/>
+              <!-- leggings: leather/mail leg wraps -->
+              <path data-gear="leggings" d="M58.5 112 h9 v36 l-1.5 4 h-9 l1.5 -4 v-36 z M72.5 112 h9 v36 l1.5 4 h-9 l-1.5 -4 v-36 z" class="pd-gear pd-gear-leggings" aria-hidden="true"/>
             </g>
             <!-- feet: mirrored boots pointing outward -->
             <g data-slot="feet" class="pd-region">
               <path d="M55 158 h14 v8 h-21 q0 -6 3 -8 z M71 158 h14 q4 2 4 8 h-21 z"/>
+              <!-- tall boots: rise above the ankle -->
+              <path data-gear="boots" d="M55 150 h14 v16 h-21 q0 -6 3 -8 l0 -4 q2 -3 4 -4 z M71 150 h14 q2 1 4 4 l0 4 q3 2 3 8 h-21 z" class="pd-gear pd-gear-boots" aria-hidden="true"/>
               <text x="104" y="166">feet</text>
             </g>
           </svg>
@@ -124,6 +142,13 @@
       <section class="dwin" data-window="buffs" id="buffs-window" hidden>
         <div class="dwin-head rail-kicker">BUFFS<button class="dwin-collapse" data-collapse="buffs" title="Collapse buffs" aria-label="Collapse buffs" aria-expanded="true">&#9660;</button></div>
         <div class="dwin-body" id="buffs-body"></div>
+      </section>
+      <!-- HEALTH window (DR): open wounds as prose rows. Hidden until a
+           prompt reports at least one unresolved wound; rows cross-link to
+           their paper-doll regions like the worn list does. -->
+      <section class="dwin" data-window="health-win" id="health-window" hidden>
+        <div class="dwin-head rail-kicker">HEALTH<button id="health-tend-hint" class="dwin-status"></button><button class="dwin-collapse" data-collapse="health-win" title="Collapse health" aria-label="Collapse health" aria-expanded="true">&#9660;</button></div>
+        <div class="dwin-body" id="health-body"></div>
       </section>
     </aside>
     <div id="story" aria-label="Story stream">
