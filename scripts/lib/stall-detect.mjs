@@ -7,7 +7,8 @@
 //             refusals and zero kills (the catrox_forge signature), OR no
 //             progress of any kind for WEDGE_SILENCE_MS, OR pinned under
 //             25% HP for minutes without dying or escaping.
-//   stalled — no progress recently, or a sustained refusal storm.
+//   stalled — idle and killless despite a sustained refusal storm, or no
+//             progress recently, or parked out of combat.
 //   slow    — alive but killing far below the guild baseline.
 //   healthy — none of the above.
 //
@@ -78,13 +79,18 @@ export function classifyStall(st, now = Date.now()) {
   }
 
   // ---- stalled ----
-  if (recentRefusals >= STALL_REFUSALS) {
+  // A refusal storm only means "stalled" when the agent is idle and killless:
+  // productive agents trip move refusals constantly (RT-gated steps, crowded
+  // spawns) while still killing — that noise must not read as a stall.
+  if (recentRefusals >= STALL_REFUSALS && st.kills === 0 && silentMs >= STALL_SILENCE_MS) {
     return { verdict: 'stalled', reason: `refusal storm: ${recentRefusals}/${REFUSAL_WINDOW_MS / 60000}m [room ${st.room || '?'}]` };
   }
   if (silentMs >= STALL_SILENCE_MS) {
     return { verdict: 'stalled', reason: `no progress for ${fmtDur(silentMs)} [room ${st.room || '?'}]` };
   }
-  if (st.room && roomParkedMs >= STALL_ROOM_MS && !st.inCombat) {
+  // Parked counts as stalled only when nothing has progressed either — an
+  // agent resting between fights in the same arena room is working, not stuck.
+  if (st.room && roomParkedMs >= STALL_ROOM_MS && !st.inCombat && silentMs >= STALL_SILENCE_MS) {
     return { verdict: 'stalled', reason: `parked in ${st.room} ${fmtDur(roomParkedMs)}, idle` };
   }
 
