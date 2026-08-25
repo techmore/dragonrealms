@@ -89,18 +89,44 @@ test('barbarian curriculum orders guild-taught skills before off-guild fillers',
   }
 });
 
-test('barbarian fight loop drains weapon roundtime before follow-up verbs', () => {
+test('barbarian fight loop relies on engine WAIT semantics (no hand pauses)', () => {
   const src = buildHuntScript({
     cap: { guild: 'barbarian', race: 'human', char: 'T', scriptBase: 'tb', bazaarPath: [] },
     arena: { id: 'sewers_1', fromArmed: [], fromHere: [{ dir: 'e' }] },
   });
-  // The swing block must be followed by an RT drain before skin/signature.
+  // The swing block flows straight into skin/signature — the ENGINE parks
+  // RT-blocked verbs and applies them when roundtime clears.
   const fightIdx = src.indexOf('FIGHT_NOW:');
-  const attackIdx = src.indexOf('put attack', fightIdx);
-  const pauseIdx = src.indexOf('pause 3', attackIdx);
-  const skinIdx = src.indexOf('put skin', pauseIdx);
-  assert.ok(attackIdx >= 0 && pauseIdx > attackIdx, 'an RT pause follows the swing');
-  assert.ok(skinIdx > pauseIdx, 'skin comes after the RT drain, not inside it');
-  const skinDrain = src.indexOf('pause 2', skinIdx);
-  assert.ok(skinDrain > skinIdx, 'skinning own roundtime drained before signature');
+  const skinIdx = src.indexOf('put skin', fightIdx);
+  const roarIdx = src.indexOf('put roar', skinIdx);
+  assert.ok(skinIdx > fightIdx, 'skin follows the swings');
+  assert.ok(roarIdx > skinIdx, 'signature follows skin');
+  const seg = src.slice(fightIdx, roarIdx);
+  assert.ok(!/pause/.test(seg), `no hand-tuned pauses between fight verbs, saw: ${seg}`);
+});
+
+test('engine parks a put fired during roundtime and applies it after', async () => {
+  const sent = [];
+  const seen = [];
+  const r = createRunner([
+    'F:',
+    '  put attack rat',
+    '  wait',
+    '  put skin',
+    '  wait',
+    '  echo SKINNED',
+    '  exit',
+  ].join('\n'), [], { send: (l) => sent.push(l), say: (l) => seen.push(l), getScript: () => null });
+  r.start();
+  assert.deepEqual(sent, ['attack rat'], 'first swing applies immediately');
+  // Prompt arms RT=2s AND satisfies the wait -> `put skin` parks on the timer.
+  r.feed('HP: 90/100  Mana: 10/10  RT: 2  Circle 1', true);
+  assert.equal(r.running, true);
+  assert.deepEqual(sent, ['attack rat'], 'skin parked while roundtime active');
+  await new Promise((res) => setTimeout(res, 2400)); // let RT clear
+  r.feed(''); // heartbeat applies the parked verb
+  assert.deepEqual(sent, ['attack rat', 'skin'], 'skin applied once RT cleared');
+  // Skin's response prompt satisfies its wait; loop finishes.
+  r.feed('HP: 90/100  Mana: 10/10  RT: 0  Circle 1', true);
+  assert.ok(seen.includes('SKINNED'), `script completed, saw ${JSON.stringify(seen)}`);
 });

@@ -34,6 +34,9 @@ export function createRunner(src, args = [], io = {}) {
     timerAt: 0,
     lastMove: undefined, // last move command (for RT-blocked retries)
     retryLine: null,     // move pending re-send after roundtime
+    rtUntil: 0,          // wall clock until roundtime clears (WAIT semantics)
+    lastRtSeen: null,    // last prompt RT value — only re-arm when it changes
+    pendingRtLine: null, // verb parked by WAIT semantics, applies at rtUntil
   };
   const say = io.say || (() => {});
   const out = io.send || (() => {});
@@ -45,7 +48,22 @@ export function createRunner(src, args = [], io = {}) {
     const rest = line.slice(cmd.length).trim();
     switch (cmd) {
       case 'echo': say(rest); return true;
-      case 'put': out(rest); return true;
+      // WAIT semantics: a `put` fired while roundtime is still counting
+      // doesn't refuse-and-lose the verb — it parks the script until RT
+      // clears, then applies (DR's WAIT-then-act). The refused re-send path
+      // in feed() covers the race where we fired anyway and the server
+      // answered "You must wait N seconds".
+      case 'put': {
+        if (!/^look\b|^inventory\b|^tdp\b/.test(rest) && Date.now() < s.rtUntil) {
+          s.pendingRtLine = rest;
+          s.mode = 'timer';
+          s.timerAt = s.rtUntil + 100;
+          return false;
+        }
+        out(rest);
+        s.pendingRtLine = null;
+        return true;
+      }
       case 'move': out(rest); s.lastMove = rest; s.mode = 'room';
         // Safety deadline: if no room event (or recognized refusal) resolves
         // this move, feed()'s watchdog below abandons the chain instead of
@@ -187,7 +205,20 @@ export function createRunner(src, args = [], io = {}) {
       const tdp = /TDPs?:\s*(\d+)/i.exec(plain);
       if (tdp) vars.tdp = tdp[1];
       const rt = /RT:\s*(\d+)/.exec(plain);
-      if (rt) { vars.rt = rt[1]; }
+      if (rt) {
+        vars.rt = rt[1];
+        // Arm rtUntil from prompt RT — but only when the value CHANGES.
+        // Prompts are event-driven and repeat the same stale count for a
+        // while; re-arming on every echo would extend RT indefinitely.
+        const n = Number(rt[1]);
+        if (n > 0 && s.lastRtSeen !== `${n}@${vars.hp}`) {
+          s.lastRtSeen = `${n}@${vars.hp}`;
+          s.rtUntil = Date.now() + n * 1000;
+        } else if (n === 0) {
+          s.lastRtSeen = null;
+          s.rtUntil = Math.min(s.rtUntil, Date.now());
+        }
+      }
       vars.combat = /\[COMBAT\]/.test(plain) ? '1' : '0';
     }
     // TDP balance surfaces in command OUTPUT (training refusals state the
@@ -203,6 +234,22 @@ export function createRunner(src, args = [], io = {}) {
         else {
           const spent = /You (?:spend|invest) (\d+) TDPs/i.exec(text);
           if (spent && vars.tdp !== undefined) vars.tdp = String(Math.max(0, Number(vars.tdp) - Number(spent[1])));
+        }
+      }
+    }
+    // Roundtime refusals arm WAIT semantics: "You must wait N seconds" is
+    // the server telling us exactly when the verb can apply. Park the script
+    // on a timer that re-sends the refused verb at rtUntil — DR's WAIT.
+    if (typeof text === 'string') {
+      const wrt = /You must wait (\d+) seconds?/i.exec(text);
+      if (wrt) {
+        const until = Date.now() + Number(wrt[1]) * 1000 + 150;
+        if (until > s.rtUntil) s.rtUntil = until;
+        if (s.pendingRtLine) {
+          s.retryLine = s.pendingRtLine; // re-apply when RT clears
+          s.mode = 'timer';
+          s.timerAt = s.rtUntil;
+          return;
         }
       }
     }
@@ -305,6 +352,20 @@ export function createRunner(src, args = [], io = {}) {
       if (hit) { s.mode = null; advance(); return; }
     }
     if (s.mode === 'timer' && Date.now() >= s.timerAt) {
+      // WAIT-parked verb: roundtime has cleared, apply it now. The script
+      // stays on this line (pc unchanged) — the next `wait`/matchwait in the
+      // script handles the verb's response as usual.
+      if (s.pendingRtLine) {
+        const line = s.pendingRtLine;
+        s.pendingRtLine = null;
+        out(line);
+        s.rtUntil = Math.min(s.rtUntil, Date.now());
+        // Continue synchronously into the next script line (usually `wait`,
+        // which parks on the verb's response) rather than idling a beat.
+        s.mode = null;
+        advance();
+        return;
+      }
       if (s.retryLine !== undefined && s.retryLine !== null) {
         const line = s.retryLine;
         s.retryLine = null;
