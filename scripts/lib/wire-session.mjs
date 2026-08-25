@@ -304,7 +304,10 @@ export class WireSession {
   injectState(runner) {
     if (!runner?.running || !this.vitals.maxhp) return;
     const v = this.vitals;
-    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}`, true);
+    // isPrompt 'inject': state refresh, not a real prompt — the engine uses
+    // it for %var mirroring but must NOT re-arm roundtime from the stale
+    // RT count (a fresh roundtime arrives with the next REAL prompt).
+    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}`, 'inject');
   }
 }
 

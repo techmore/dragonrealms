@@ -191,8 +191,9 @@ export function createRunner(src, args = [], io = {}) {
     if (s.done) return;
     // Prompts carry live game state: mirror it into %vars so scripts can
     // branch on HP / mana / circle / roundtime ("iflt hp 35 goto FLEE",
-    // "iflt mana 10 goto WAITMANA").
-    if ((isPrompt === true || isPrompt === 'prompt') && typeof text === 'string') {
+    // "iflt mana 10 goto WAITMANA"). 'inject' = sim heartbeat refresh:
+    // mirrors %vars but must NOT re-arm roundtime (its RT count is stale).
+    if ((isPrompt === true || isPrompt === 'prompt' || isPrompt === 'inject') && typeof text === 'string') {
       const plain = text.replace(/\x1b\[\d+m/g, '');
       const hp = /HP:\s*(\d+)\s*\/\s*(\d+)/.exec(plain);
       if (hp) { vars.hp = hp[1]; vars.maxhp = hp[2]; }
@@ -208,18 +209,17 @@ export function createRunner(src, args = [], io = {}) {
       if (rt) {
         vars.rt = rt[1];
         const n = Number(rt[1]);
-        // Arm only on a CHANGED count. Repeated identical RT numbers are
-        // echoes of the last real prompt (the sim heartbeat re-injects them
-        // every second, and combat shakes hp constantly) — re-arming from
-        // echoes extends roundtime forever. A genuinely new roundtime
-        // arrives with a changed count, or right after RT:0 cleared the
-        // tracker. A same-length back-to-back roundtime under-arms here,
-        // but the server's own refusal ("You must wait N") re-arms
-        // precisely and reschedules the verb — self-healing.
+        // Arm only for REAL prompts (isPrompt true/'prompt'). Injected sim
+        // heartbeats ('inject') replay a STALE count every second and would
+        // freeze agents forever. For real prompts: a changed count is a new
+        // roundtime; an UNCHANGED count is a new roundtime too when the old
+        // deadline already passed (attack and skin both charge RT:3 — the
+        // second one must arm, not read as an echo of the first).
         if (n === 0) {
           s.lastRtSeen = null;
           s.rtUntil = Math.min(s.rtUntil, Date.now());
-        } else if (s.lastRtSeen !== n) {
+        } else if (isPrompt !== 'inject'
+          && (s.lastRtSeen !== n || Date.now() >= s.rtUntil)) {
           s.lastRtSeen = n;
           s.rtUntil = Date.now() + n * 1000 + 150;
         }
@@ -243,15 +243,20 @@ export function createRunner(src, args = [], io = {}) {
       }
     }
     // Roundtime refusals arm WAIT semantics: "You must wait N seconds" is
-    // the server telling us exactly when the verb can apply. Park the script
-    // on a timer that re-sends the refused verb at rtUntil — DR's WAIT.
+    // the server telling us exactly when the verb can apply. If a script
+    // verb is parked, reschedule it at the new deadline; if the refusal hit
+    // a BLIND verb (fired before rtUntil was armed), re-arm and let the
+    // script's own `wait`/matchwait handle the retry — parking here would
+    // strand the pc mid-label.
     if (typeof text === 'string') {
       const wrt = /You must wait (\d+) seconds?/i.exec(text);
       if (wrt) {
         const until = Date.now() + Number(wrt[1]) * 1000 + 150;
-        if (until > s.rtUntil) s.rtUntil = until;
-        if (s.pendingRtLine) {
+        s.rtUntil = Math.max(s.rtUntil, until);
+        s.lastRtSeen = Number(wrt[1]);
+        if (s.pendingRtLine && (s.mode === 'timer' || s.mode === 'prompt')) {
           s.retryLine = s.pendingRtLine; // re-apply when RT clears
+          s.pendingRtLine = null;
           s.mode = 'timer';
           s.timerAt = s.rtUntil;
           return;

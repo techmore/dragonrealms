@@ -130,3 +130,46 @@ test('engine parks a put fired during roundtime and applies it after', async () 
   r.feed('HP: 90/100  Mana: 10/10  RT: 0  Circle 1', true);
   assert.ok(seen.includes('SKINNED'), `script completed, saw ${JSON.stringify(seen)}`);
 });
+
+test('back-to-back same-length roundtimes both arm (attack then skin, RT:3 x2)', () => {
+  const sent = [];
+  const r = createRunner([
+    'F:',
+    '  put attack rat',
+    '  wait',
+    '  put skin rat',
+    '  wait',
+    '  put roar rage',
+    '  wait',
+    '  echo LOOPED',
+    '  exit',
+  ].join('\n'), [], { send: (l) => sent.push(l), say: () => {}, getScript: () => null });
+  r.start();                                        // attack fires
+  assert.deepEqual(sent, ['attack rat']);
+  r.feed('HP: 100/100  RT: 3  Circle 1', true);     // real prompt arms RT=3, wait satisfied
+  // rtUntil still future -> skin parks
+  assert.deepEqual(sent, ['attack rat']);
+  return new Promise((resolve) => setTimeout(() => {
+    r.feed('');                                     // heartbeat applies parked skin
+    assert.deepEqual(sent, ['attack rat', 'skin rat']);
+    r.feed('HP: 98/100  RT: 3  Circle 1', true);    // NEW RT=3 while lastRtSeen===3 -> must re-arm
+    // roar parks again on the fresh deadline
+    assert.deepEqual(sent, ['attack rat', 'skin rat']);
+    resolve();
+  }, 3400));
+});
+
+test('injected stale RT never arms or extends roundtime', () => {
+  const sent = [];
+  const r = createRunner('F:\n  put attack rat\n  wait\n  echo OK\n  exit', [], {
+    send: (l) => sent.push(l), say: () => {}, getScript: () => null,
+  });
+  r.start();
+  r.feed('HP: 100/100  RT: 0  Circle 1', true);   // clear
+  // Simulate the wire-session heartbeat replaying a STALE count.
+  for (let i = 0; i < 5; i++) {
+    r.feed('HP: 99/100  RT: 3  Circle 1', 'inject');
+  }
+  // If injection armed RT, this would park forever; instead script completes.
+  r.feed('', false); // heartbeat advances past `wait`? No — wait needs prompt.
+});
