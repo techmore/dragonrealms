@@ -65,6 +65,11 @@ function toast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
 }
+// Sims-page agent panels (js/admin/agents.js) may ask this page to surface
+// a message (e.g. "live watch needs DR_GM_TOKEN") instead of opening a tab.
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.t === 'gm-toast' && e.data.text) toast(String(e.data.text));
+});
 
 async function gm(path) {
   const headers = S.token ? { Authorization: 'Bearer ' + S.token } : {};

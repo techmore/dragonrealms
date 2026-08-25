@@ -4,6 +4,8 @@
 import { $, esc, S, cssVar, fmtDur, toast, gm } from './core.js';
 import { tick, renderAll, renderHeader } from './render.js';
 import { AG_RACES, AG_GUILDS, cap } from './agents.js';
+// Player view (Watch overlay) lives in playerview.js, self-refreshing;
+// render.js imports openPlayerView from there for the roster Watch buttons.
 
 /* ---- GM quick-play: one click into a boosted character ---- */
 for (const r of AG_RACES) $('qp-race').insertAdjacentHTML('beforeend', `<option value="${r}">${cap(r)}</option>`);
@@ -61,69 +63,11 @@ $('reload').addEventListener('click', async () => {
   tick(true);
 });
 
-/* ---- player view: embed the full client in watch mode ---- */
-
-let pvName = null;
-let pvOfflineNotified = false;
-
-function openPlayerView(name, charId) {
-  if (!S.token) {
-    toast('Live watch is GM-only \u2014 enter DR_GM_TOKEN first.');
-    tokenEl.focus();
-    return;
-  }
-  localStorage.setItem('dr_gm_token', S.token); // the embedded client reads the same key
-  pvName = name;
-  pvOfflineNotified = false;
-  $('pv-name').textContent = name;
-  // Hand the token through the fragment too: the embedded client may load
-  // before the storage write lands, and a fresh tab has no shared state.
-  // The spectate target prefers the stable charId when the server knows it.
-  const target = charId || name;
-  const url = '/?spectate=' + encodeURIComponent(target) + '#gm=' + encodeURIComponent(S.token);
-  $('pv-newtab').href = '/?spectate=' + encodeURIComponent(target);
-  $('pv-frame').src = url;
-  $('pv').hidden = false;
-  renderPv();
-}
-
-function closePlayerView() {
-  $('pv').hidden = true;
-  $('pv-frame').src = 'about:blank'; // drops the spectator websocket
-  pvName = null;
-}
-
-// Live summary line for the watched player, refreshed by the normal poll.
-function renderPv() {
-  const el = $('pv-vitals');
-  if ($('pv').hidden || !pvName) return;
-  const p = rosterList().find((x) => x.name === pvName);
-  if (!p) {
-    el.innerHTML = '<span class="badge fight">OFFLINE</span>';
-    if (S.up && !pvOfflineNotified) {
-      pvOfflineNotified = true;
-      toast(`${pvName} is no longer online.`);
-    }
-    return;
-  }
-  el.innerHTML =
-    `${esc(p.race ? p.race + ' \u00b7 ' : '')}${esc(p.guild || '?')} · circle ${esc(p.circle)}` +
-    `${p.room != null ? ` · room ${esc(p.room)}` : ''} ` +
-    hpBarHtml(p) +
-    (p.inCombat ? ' <span class="badge fight">\u2694 FIGHT</span>' : '');
-}
-
-$('pv-close').addEventListener('click', closePlayerView);
-// Keydowns inside the iframe never reach this document, so Escape here
-// only ever fires while focus is on the admin chrome.
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !$('pv').hidden) closePlayerView();
-});
+/* ---- player view lives in playerview.js ---- */
 
 setInterval(() => {
   S.updatedAgo = S.statusAt ? Math.round((Date.now() - S.statusAt) / 1000) : null;
   renderHeader();
-  renderPv();
 }, 1000);
 
 // Browsers throttle background-tab timers heavily; when the tab regains

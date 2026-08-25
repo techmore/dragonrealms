@@ -116,6 +116,12 @@ function agRenderState() {
         const t = localStorage.getItem('dr_gm_token');
         if (t) frag = '#gm=' + encodeURIComponent(t);
       } catch {}
+      // No credential anywhere -> the tab would dead-end at the GM prompt.
+      // Say so instead of opening something that cannot work.
+      if (!frag) {
+        try { window.parent.postMessage({ t: 'gm-toast', text: 'Live watch needs your DR_GM_TOKEN — enter it on the Admin dash first.' }, '*'); } catch {}
+        return;
+      }
       window.open('/?spectate=' + encodeURIComponent(b.dataset.agwatch) + frag, '_blank');
     }));
   }

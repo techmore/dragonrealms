@@ -1,6 +1,7 @@
 // Polling loop and all dashboard rendering: health/status/summary
 // fetches, vitals + sparklines, roster, zones drill-down, high scores.
 import { $, esc, trim, S, cssVar, fmtDur, fmtBytes, toast, gm } from './core.js';
+import { openPlayerView } from './playerview.js';
 
 /* ================= high scores ================= */
 const HS = { page: 1, perPage: 25, sort: 'circle' };
@@ -239,7 +240,7 @@ function drawSpark(cv, data, color) {
   ctx.globalAlpha = 1;
 }
 
-function hpBarHtml(p) {
+export function hpBarHtml(p) {
   if (typeof p.hp !== 'number') return '';
   const max = typeof p.maxHp === 'number' && p.maxHp > 0 ? p.maxHp : null;
   if (!max) return `<span class="badge" title="HP">HP ${esc(p.hp)}</span>`;
@@ -248,7 +249,7 @@ function hpBarHtml(p) {
   return `<span class="hpbar" title="${esc(p.hp)}/${esc(max)} HP"><i style="width:${Math.round(f * 100)}%;background:${col}"></i></span>`;
 }
 
-function rosterList() {
+export function rosterList() {
   const out = [];
   if (S.gm === 'ok' && S.summary) {
     for (const o of S.summary.online) out.push({ ...o, bot: Boolean(S.base[o.name]?.bot), gmToon: Boolean(S.base[o.name]?.gmToon) });
@@ -279,13 +280,14 @@ function renderRoster() {
       ${isSim ? '<a class="watch tab" href="/sims.html" title="run history & grades on the Sims page" style="text-decoration:none;font-size:10px;align-self:center;border:1px solid var(--line);border-radius:4px;padding:2px 7px;color:var(--dim)">SIMS</a>' : ''}
       ${p.inCombat ? '<span class="badge fight">\u2694 FIGHT</span>' : ''}
       <button class="watch" data-name="${esc(p.name)}" data-charid="${esc(p.charId || '')}" title="watch their live interface here">\u{1F441} Watch</button>
-      <button class="watch tab" data-name="${esc(p.name)}" title="open the full client in a new tab">\u2197</button>
+      <button class="watch tab" data-name="${esc(p.name)}" data-charid="${esc(p.charId || '')}" title="open the full client in a new tab">\u2197</button>
     </div>`;
   const simsEl = $('simsroster');
   if (sims.length) {
     simsEl.hidden = false;
     $('simssum').textContent = `${sims.length} running`;
     simsEl.innerHTML = sims.map((p) => rowHtml(p, true)).join('');
+    bindRosterButtons(simsEl);
   } else {
     simsEl.hidden = true;
     simsEl.innerHTML = '';
@@ -296,10 +298,22 @@ function renderRoster() {
     return;
   }
   el.innerHTML = adventurers.map((p) => rowHtml(p, false)).join('');
-  el.querySelectorAll('.watch:not(.tab)').forEach((b) => b.addEventListener('click', () => openPlayerView(b.dataset.name, b.dataset.charId)));
-  el.querySelectorAll('button.watch.tab').forEach((b) => b.addEventListener('click', () => {
-    window.open('/?spectate=' + encodeURIComponent(b.dataset.name), '_blank');
-  }));
+  bindRosterButtons(el);
+}
+
+// Wire Watch (in-dash overlay) and ↗ (new tab) for one roster container.
+// Sims and adventurers live in SEPARATE containers (#simsroster / #roster);
+// binding only one used to leave every sim-row button dead. The ↗ URL MUST
+// carry the #gm= fragment — a fresh tab has no shared state and module consts
+// capture the token before localStorage is readable there.
+function bindRosterButtons(root) {
+  root.querySelectorAll('.watch:not(.tab)').forEach((b) => b.addEventListener('click', () => openPlayerView(b.dataset.name, b.dataset.charId)));
+  root.querySelectorAll('button.watch.tab').forEach((b) => {
+    const target = b.dataset.charid || b.dataset.name;
+    b.addEventListener('click', () => {
+      window.open('/?spectate=' + encodeURIComponent(target) + '#gm=' + encodeURIComponent(S.token), '_blank');
+    });
+  });
 }
 
 /* ================= zones ================= */
