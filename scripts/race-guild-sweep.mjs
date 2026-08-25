@@ -15,8 +15,10 @@
 //      parsed from player-facing prose and appended to
 //      public/live/fidelity-<guild>.log plus a JSON summary line.
 import { mkdirSync, appendFileSync, readFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { openSweepsDb, insertSweep } from './lib/sweeps-db.mjs';
 
 const ARGS = process.argv.slice(2);
 const flag = (name, dflt) => {
@@ -27,6 +29,15 @@ const MINUTES = Number(flag('minutes', 10));
 const CIRCLE_TARGET = Number(flag('circle', 2));
 const BOOST = Number(flag('boost', 20)); // agent speed multiplier (0/1 = off)
 const PASS = 'SweepRun1!';
+// Per-invocation run id: 4 random lowercase letters appended to every
+// character name AND to the account username so concurrent sweeps never
+// collide ("already active in another session"). Constraints:
+//   - char names: server/player.js validName = 2-20 chars, letters/'/- only,
+//     so the suffix is letters and base is sliced to 15 (+1 hyphen +4 = 20).
+//   - usernames: server/auth.js = 3-24 chars after normalizeName.
+// A unique account per run also avoids the MAX_CHARS=5 slot cap filling up
+// across repeated runs (server/player.js).
+const RUN_ID = Array.from(randomBytes(4), (b) => String.fromCharCode(97 + (b % 26))).join('');
 
 const { GUILDS } = await import('../data/guilds.js');
 const { ROOMS } = await import('../data/world.js');
@@ -62,9 +73,13 @@ class SweepAgent {
   constructor({ guild, race }) {
     this.guild = guild;
     this.race = race;
-    this.char = ('Sw' + guild[0].toUpperCase() + guild.slice(1).replace(/[^a-zA-Z]/g, '')
-      + race[0].toUpperCase() + race.slice(1).replace(/[^a-zA-Z]/g, '')).replace(/[^a-zA-Z]/g, '').slice(0, 16);
-    this.user = `sweep_${guild}_${race}`;
+    this.char = (('Sw' + guild[0].toUpperCase() + guild.slice(1).replace(/[^a-zA-Z]/g, '')
+      + race[0].toUpperCase() + race.slice(1).replace(/[^a-zA-Z]/g, '')).replace(/[^a-zA-Z]/g, '').slice(0, 15)
+    ) + '-' + RUN_ID;
+    // Keep RUN_ID intact in the username (never blind-slice it off the end):
+    // shorten guild/race instead so distinct runs never share an account.
+    this.user = `sw_${guild}_${race}_${RUN_ID}`;
+    if (this.user.length > 24) this.user = `sw_${guild.slice(0, 4)}_${race.slice(0, 4)}_${RUN_ID}`;
     this.scriptBase = guild.slice(0, 6); // e.g. "warmag", "barbar"
     this.session = new WireSession({
       user: this.user, pass: PASS, char: this.char, race, guild,
@@ -114,7 +129,7 @@ class SweepAgent {
     log(`[${this.guild}/${this.race}] authed as ${this.user} (${this.session.knownChar ? 'existing' : 'new'} char)`);
     this.session.connect({
       onEnter: () => {
-        this.appendLog(`=== sweep ${this.char} (${this.race} ${this.guild}) entered ${new Date().toISOString()} ===`);
+        this.appendLog(`=== sweep run ${RUN_ID} ${this.char} (${this.race} ${this.guild}) entered ${new Date().toISOString()} ===`);
         if (BOOST > 1) this.session.sendObj({ t: 'boost', mult: BOOST });
         void this.beginPlaying();
       },
@@ -310,11 +325,22 @@ class SweepAgent {
       const steps = this.escapePath;
       this.escapePath = null;
       const s = this.session;
-      this.runner = createRunner(steps.map((d) => 'move ' + d).join('\n') + '\nput look\nwait', [], {
-        send: async (line) => { trackMove(s, line); void s.cmd(line); },
-        say: () => {},
-      });
-      this.runner.start();
+      // Walk the escape chain resiliently: on a refused move, recompute the
+      // remaining path from wherever we actually are instead of aborting the
+      // whole walk (a single refusal used to strand the char mid-escape for
+      // another 90s watchdog cycle).
+      const walkEscape = () => {
+        const here = s.vitals.room;
+        const fresh = (here && here !== 'bazaar') ? s.bfsPath(here, 'bazaar', this.diskAdj()) : null;
+        const use = fresh?.length ? fresh : steps;
+        this.appendLog(`[escape] ${use.length} steps from ${here}`);
+        this.runner = createRunner(use.map((d) => 'move ' + d).join('\n') + '\nput look\nwait', [], {
+          send: async (line) => { trackMove(s, line); void s.cmd(line); },
+          say: () => {},
+        });
+        this.runner.start();
+      };
+      walkEscape();
       return;
     }
     this.regenerateFromHere();
@@ -334,10 +360,16 @@ class SweepAgent {
     // and re-derive everything from there next tick.
     const r = ROOMS[room];
     const exitCount = Object.keys(r.exits || {}).length;
-    const interior = !r.spawns?.length && exitCount <= 1;
+    // Interior OR transit room (dens: spawnless 2-exit corridors off the
+    // bazaar): parking here means a baked path died mid-transit. Escape to
+    // the hub and distrust this room's learned edges.
+    const interior = !r.spawns?.length && exitCount <= 2;
     if (!arena || interior) {
       if (!arena) this.appendLog(`[regen] no arena reachable from ${room}`);
-      else this.appendLog(`[regen] stranded in interior room ${room} (${arena.id} is ${arena.path.length} steps away) — bazaar escape`);
+      else if (interior) {
+        this.appendLog(`[regen] stranded in transit room ${room} — bazaar escape`);
+        delete this.session.observedEdges[room]; // edges here just failed us
+      }
       const toBazaar = s.bfsPath(room, 'bazaar', this.diskAdj());
       if (toBazaar?.length) {
         this.escapePath = toBazaar.map((e) => e.dir);
@@ -492,6 +524,7 @@ class SweepAgent {
     else if (this.kills >= 5 && this.deaths <= 1) grade = 'D+';
     else grade = 'D';
     const summary = {
+      run_id: RUN_ID,
       ts: new Date().toISOString(), guild: this.guild, race: this.race, char: this.char,
       reason, circle: this.session.vitals.circle, circles: this.circles,
       kills: this.kills, deaths: this.deaths, trains: this.trains,
@@ -500,7 +533,19 @@ class SweepAgent {
       grade,
     };
     try { appendFileSync(join(LIVE_DIR, 'fidelity-summary.jsonl'), JSON.stringify(summary) + '\n'); } catch {}
-    log(`[${this.guild}/${this.race}] FINISHED (${reason}): circle ${summary.circle}, fidelity ${summary.fidelityScore}`, JSON.stringify(summary.fidelity));
+    // SQLite sweeps history (sim artifact — public/live/sweeps.db, NOT the
+    // game DB). One row per agent run.
+    try {
+      const db = openSweepsDb(LIVE_DIR);
+      insertSweep(db, {
+        run_id: RUN_ID, ts: summary.ts, guild: this.guild, race: this.race,
+        grade, circle: summary.circle, kills: this.kills, trains: this.trains,
+        circles_up: this.circles, deaths: this.deaths, refusals: this.refusals || 0,
+        durationMs: Date.now() - this.startedAt, notes: reason,
+      });
+      db.close();
+    } catch (e) { log(`[${this.guild}/${this.race}] sweeps-db write failed: ${e.message}`); }
+    log(`[${this.guild}/${this.race}] FINISHED run ${RUN_ID} (${reason}): circle ${summary.circle}, fidelity ${summary.fidelityScore}`, JSON.stringify(summary.fidelity));
     await this.appendHistory(summary);
   }
 
@@ -547,35 +592,55 @@ class SweepAgent {
 }
 
 
-// --report: render fidelity-summary.jsonl as a guild x race results table.
+// --report: render sweep results from the SQLite history DB
+// (public/live/sweeps.db). Flags:
+//   --since <ts>     only runs at/after this ISO timestamp (or 'today')
+//   --last <N>       last N runs per guild x race instead of the latest one
+// Falls back to fidelity-summary.jsonl if the DB doesn't exist yet.
 function report() {
-  const file = join(LIVE_DIR, 'fidelity-summary.jsonl');
-  let rows = [];
+  const since = flag('since', null);
+  const lastN = Number(flag('last', 1));
+  let rows;
   try {
-    rows = readFileSync(file, 'utf8').trim().split('\n').filter(Boolean)
-      .map((l) => { try { return JSON.parse(l); } catch { return null; } })
-      .filter(Boolean);
-  } catch { console.log('no summary yet:', file); return; }
-  // Latest entry per (guild, race)
+    const db = openSweepsDb(LIVE_DIR);
+    let sql = 'SELECT run_id, ts, guild, race, grade, circle, kills, trains, circles_up, deaths, refusals, durationMs FROM sweeps';
+    const params = [];
+    if (since) {
+      const cutoff = since === 'today'
+        ? new Date().toISOString().slice(0, 10)
+        : since;
+      sql += ' WHERE ts >= ?'; params.push(cutoff);
+    }
+    sql += ' ORDER BY ts ASC';
+    rows = db.prepare(sql).all(...params);
+    db.close();
+  } catch {
+    // Backward compat: no DB yet — read the jsonl summary.
+    const file = join(LIVE_DIR, 'fidelity-summary.jsonl');
+    try {
+      rows = readFileSync(file, 'utf8').trim().split('\n').filter(Boolean)
+        .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+        .filter(Boolean);
+    } catch { console.log('no sweeps.db or summary yet:', LIVE_DIR); return; }
+  }
+  if (!rows.length) { console.log('no sweep rows found'); return; }
+  console.log(`\n=== Fidelity sweep results (${rows.length} rows${since ? `, since ${since}` : ''}) ===`);
+  console.log(pad('run', 6) + pad('guild', 13) + pad('race', 10) + pad('grade', 6)
+    + pad('circle', 7) + pad('kills', 6) + pad('deaths', 7) + pad('refus', 6)
+    + pad('mins', 5) + 'ts');
+  for (const r of rows.slice(-Math.max(1, lastN) * 200)) {
+    console.log(pad(r.run_id || '-', 6) + pad(r.guild, 13) + pad(r.race, 10)
+      + pad(r.grade || '-', 6) + pad(String(r.circle ?? '-'), 7)
+      + pad(String(r.kills ?? 0), 6) + pad(String(r.deaths ?? 0), 7)
+      + pad(String(r.refusals ?? 0), 6)
+      + pad(r.durationMs ? String(Math.round(r.durationMs / 60000)) : '-', 5)
+      + r.ts);
+  }
+  // Latest per guild x race rollup
   const latest = new Map();
   for (const r of rows) latest.set(r.guild + '|' + r.race, r);
-  const byGuild = new Map();
-  for (const r of latest.values()) {
-    if (!byGuild.has(r.guild)) byGuild.set(r.guild, []);
-    byGuild.get(r.guild).push(r);
-  }
-  console.log('\n=== Fidelity sweep results (latest run per guild/race) ===');
-  console.log(pad('guild', 13) + pad('race', 10) + pad('grade', 6) + pad('circle', 7)
-    + pad('kills', 6) + pad('deaths', 7) + pad('fidelity', 10) + 'checks');
-  for (const [guild, rs] of [...byGuild.entries()].sort()) {
-    for (const r of rs.sort((a, b) => a.race.localeCompare(b.race))) {
-      console.log(pad(guild, 13) + pad(r.race, 10) + pad(r.grade || '-', 6)
-        + pad(String(r.circle), 7) + pad(String(r.kills), 6) + pad(String(r.deaths), 7)
-        + pad(r.fidelityScore, 10) + Object.keys(r.fidelity || {}).join(','));
-    }
-  }
-  const circles = [...latest.values()].reduce((s, r) => s + r.circles, 0);
-  console.log(`\n${latest.size} combos, ${circles} total circle-ups`);
+  const circles = [...latest.values()].reduce((s, r) => s + (r.circles_up ?? r.circles ?? 0), 0);
+  console.log(`\n${latest.size} combos (latest per combo shown above), ${circles} total circle-ups`);
 }
 function pad(s, n) { return String(s).padEnd(n); }
 
@@ -584,7 +649,7 @@ function pad(s, n) { return String(s).padEnd(n); }
 if (ARGS.includes('--report')) { report(); process.exit(0); }
 
 const agents = wanted.map((w) => new SweepAgent(w));
-log(`sweep: ${agents.length} agents over ${new Set(wanted.map((w) => w.guild)).size} guilds, ${MINUTES}m each`);
+log(`sweep run ${RUN_ID}: ${agents.length} agents over ${new Set(wanted.map((w) => w.guild)).size} guilds, ${MINUTES}m each`);
 
 for (const a of agents) {
   try { await a.start(); a.run(MINUTES); }
