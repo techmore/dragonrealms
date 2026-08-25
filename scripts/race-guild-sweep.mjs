@@ -289,19 +289,25 @@ class SweepAgent {
       },
     });
     const megaSrc = buildMegaScript(cap);
-    this.library = {
+    // NOTE: this.library must stay null until startCycle below — the 1s
+    // heartbeat restarts a mega cycle whenever (runner==null && library set),
+    // so publishing early double-runs the hunt and interleaves both move
+    // chains (the 10x-'move e' bazaar overshoot into catrox_forge).
+    this.libraryPending = {
       [this.scriptBase + 'hunt']: huntSrc,
       [this.scriptBase + 'circle']: circleSrc,
       [this.scriptBase + 'mega']: megaSrc,
     };
-    for (const [name, body] of Object.entries(this.library)) {
+    for (const [name, body] of Object.entries(this.libraryPending || this.library || {})) {
       s.sendObj({ t: 'scripts_put', name, body });
       await sleep(250);
     }
-    this.appendLog(`library saved: ${Object.keys(this.library).join(', ')} (${huntSrc.split('\n').length} hunt lines)`);
+    this.appendLog(`library saved: ${Object.keys(this.libraryPending || {}).join(', ')} (${huntSrc.split('\n').length} hunt lines)`);
     if (process.env.SWEEP_DUMP) this.appendLog('--- hunt.dr ---\n' + huntSrc);
     log(`[${this.guild}/${this.race}] arena ${ROOMS[arena.id].name} — species: ${[...new Set(ROOMS[arena.id].spawns)].map(nounOf).join(', ')}`);
     await sleep(600);
+    this.library = this.libraryPending || this.library;
+    this.libraryPending = null;
     this.startCycle(megaSrc, this.scriptBase + 'mega');
   }
 
@@ -316,8 +322,9 @@ class SweepAgent {
     if (name.endsWith('mega')) this.lastSendAt = Date.now();
     const s = this.session;
     this.runner = createRunner(src, [], {
+      roomNow: () => s.vitals.room,
       send: async (line) => {
-        if (/^(attack|tdptrain|flee|rest|stand|circle|buy|wield|prepare|cast|khri|enchant|backstab|analyze|roar|drink|effects|stealth|hide)/.test(line)) {
+        if (process.env.SWEEP_DEBUG || /^(attack|tdptrain|flee|rest|stand|circle|buy|wield|prepare|cast|khri|enchant|backstab|analyze|roar|drink|effects|stealth|hide)/.test(line)) {
           this.appendLog(`script> ${line}`);
           log(`[${this.guild}/${this.race}] > ${line}`);
         } else if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) {
@@ -339,6 +346,11 @@ class SweepAgent {
 
   onText(text, type) {
     const cfg = GUILD_SCRIPTS[this.guild];
+    // Raw-prose trace (opt-in): diagnosing script wedges needs the actual
+    // room/shop prose the runner saw, not just the commands it sent.
+    if (process.env.SWEEP_TEXT && text && text.trim()) {
+      this.appendLog(`[text:${type}] ${text.replace(/\n+/g, ' | ').slice(0, 160)}`);
+    }
     // fidelity checks
     const allChecks = [...(cfg.fidelityChecks || [])];
     for (const chk of allChecks) {
@@ -415,8 +427,11 @@ class SweepAgent {
   }
 
   restartCycle() {
-    if (this.done || !this.library) return;
+    if (this.done || !this.library || this.restarting) return;
+    this.restarting = true;
+    const done = () => { this.restarting = false; };
     this.runner?.stop();
+    this.curName = null;
     // Dead-end escape: if flagged, walk to the bazaar hub first, then re-path
     // everything from there (the hub connects to every town road).
     if (this.escapePath?.length && this.session.vitals.room !== 'bazaar') {
@@ -430,9 +445,15 @@ class SweepAgent {
       const walkEscape = () => {
         const here = s.vitals.room;
         const fresh = (here && here !== 'bazaar') ? s.bfsPath(here, 'bazaar', this.diskAdj()) : null;
-        const use = fresh?.length ? fresh : steps;
-        this.appendLog(`[escape] here=${here} fresh=${fresh?.length ?? 'null'} using ${use.length} steps: ${use.join(',')}`);
-        this.runner = createRunner(use.map((d) => 'move ' + d).join('\n') + '\nput look\nwait', [], {
+        // bfsPath returns EDGE OBJECTS ({dir,to}) — extract .dir before
+        // building move lines. Raw objects used to render "move [object
+        // Object]"-style garbage (or a stale first-step dir), refusing every
+        // step and wedging the escape loop.
+        const dirs = (fresh?.length ? fresh : steps).map((e) => (typeof e === 'string' ? e : e?.dir)).filter(Boolean);
+        if (!dirs.length) { this.regenerateFromHere(); return; }
+        this.appendLog(`[escape] ${dirs.length} steps from ${here}: ${dirs.join(',')}`);
+        this.runner = createRunner(dirs.map((d) => 'move ' + d).join('\n') + '\nput look\nwait', [], {
+          roomNow: () => s.vitals.room,
           send: async (line) => { trackMove(s, line); void s.cmd(line); },
           onRefusedMove: (dir) => trackRefusedMove(s, dir),
           say: () => {},
@@ -440,10 +461,12 @@ class SweepAgent {
         this.runner.start();
       };
       walkEscape();
+      done();
       return;
     }
     this.regenerateFromHere();
     this.startCycle(this.library[this.scriptBase + 'mega'], this.scriptBase + 'mega');
+    done();
   }
 
   // Rebuild baked paths from wherever the character actually stands.
@@ -461,8 +484,9 @@ class SweepAgent {
     const exitCount = Object.keys(r.exits || {}).length;
     // Interior OR transit room (dens: spawnless 2-exit corridors off the
     // bazaar): parking here means a baked path died mid-transit. Escape to
-    // the hub and distrust this room's learned edges.
-    const interior = !r.spawns?.length && exitCount <= 2;
+    // the hub and distrust this room's learned edges. The bazaar itself is
+    // the hub — never "stranded" there, or we escape-loop forever.
+    const interior = room !== 'bazaar' && !r.spawns?.length && exitCount <= 2;
     if (!arena || interior) {
       if (!arena) this.appendLog(`[regen] no arena reachable from ${room}`);
       else if (interior) {
@@ -575,6 +599,9 @@ class SweepAgent {
     try { this.runner?.feed('', false); } catch {}
     this.session.injectState(this.runner);
     if (!this.runner || !this.runner.running) {
+      // Restart guard: a restartCycle/escape-walk in flight has already
+      // begun building the next runner — don't stack a second cycle on top.
+      if (this.restarting) return;
       if (Date.now() - this.lastSendAt > 4000 && this.library) {
         this.startCycle(this.library[this.scriptBase + 'mega'], this.scriptBase + 'mega');
       }
@@ -751,7 +778,7 @@ function report() {
   let rows;
   try {
     const db = openSweepsDb(LIVE_DIR);
-    let sql = 'SELECT run_id, ts, guild, race, grade, circle, kills, trains, circles_up, deaths, refusals, durationMs FROM sweeps';
+    let sql = 'SELECT run_id, ts, guild, race, grade, circle, kills, trains, circles_up, deaths, refusals, durationMs, variant, timeToCircleMs, stallVerdict, stallReason FROM sweeps';
     const params = [];
     if (since) {
       const cutoff = since === 'today'
@@ -987,6 +1014,7 @@ void launchAll();
 
 process.on('uncaughtException', (e) => {
   log(`uncaught: ${e.code || e.message} — finishing agents gracefully`);
+  log(`uncaught-stack: ${String(e.stack || '').split('\n').slice(0, 4).join(' | ')}`);
   for (const a of agents) if (!a.done) { a.session.close(); a.finish(`error: ${e.code || e.message}`); }
 });
 process.on('SIGINT', () => { for (const a of agents) a.finish('interrupted'); process.exit(0); });

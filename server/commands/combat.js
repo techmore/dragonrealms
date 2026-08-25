@@ -37,6 +37,17 @@ function khri(ctx) {
   p.khri = p.khri || {};
   if ((p.khri[def.id] || 0) > 0) return emit(`Khri ${def.name} is already active.`);
   p.khri[def.id] = KHRI_TICKS;
+  // Khri are thief supernatural arts. Thieves cannot cast or harness
+  // (Thief.md), so khri are the ONLY way they raise the supernatural skills
+  // their circle table demands (Augmentation, Debilitation, Inner Magic,
+  // Utility, Warding — Thief.md "Magic Skills"). Each khri feeds its school.
+  gainSkillExp(p, 'primary_magic', 4);
+  const KHRI_SCHOOLS = {
+    elusion: 'augmentation', nimbleness: 'augmentation', swiftness: 'augmentation',
+    focus: 'debilitation', strike: 'debilitation', dampen: 'debilitation',
+    sight: 'utility_magic', stealth: 'utility_magic', clarity: 'warding_magic',
+  };
+  if (KHRI_SCHOOLS[def.id]) gainSkillExp(p, KHRI_SCHOOLS[def.id], 3);
   gainSkillExp(p, 'stealth', 4);
   emit(`You focus Khri ${def.name}. (${khriConcentrationUsed(p)}/${concentrationPool(p)} concentration)`);
 }

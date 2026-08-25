@@ -140,6 +140,26 @@ export class WireSession {
 
   bfsPath(from, to, diskAdj) {
     const direct = this.bfsOver(from, to, (id) => this.adjacencyFor(id, diskAdj));
+    // Validate the learned path against the disk map hop-by-hop: message
+    // interleaving can stitch a chain of individually-legal edges into a
+    // route that doesn't actually connect (each 'e' legal locally, but the
+    // chain never touches the destination). One bad link → discard entirely.
+    if (direct && direct.length && diskAdj) {
+      let here = from;
+      let ok = true;
+      for (const step of direct) {
+        const diskEdge = diskAdj(here).find((e) => e.dir === step.dir);
+        // The dir must exist on disk from the current room; the learned 'to'
+        // (when resolved) must agree with disk. Otherwise the chain was
+        // stitched from misattributed hops and can't be trusted.
+        if (!diskEdge || (step.to && step.to !== diskEdge.to)) { ok = false; break; }
+        here = diskEdge.to;
+      }
+      if (!ok || here !== to) {
+        this.observedEdges = {}; // chain was stitched from misattributed hops
+        return diskAdj ? this.bfsOver(from, to, diskAdj) : null;
+      }
+    }
     if (direct || from === to) return direct;
     // Learned-graph BFS failed (stale/poisoned observations, mid-regrid):
     // fall back to pure disk adjacency rather than reporting "unreachable"

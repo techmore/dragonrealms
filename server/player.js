@@ -619,9 +619,11 @@ export function pulseExp(p, tick) {
       value = drain * 3;
       p.rexp = Math.max(0, p.rexp - 1 / 3);
     }
-    // Agent boost: ranks convert at the boosted rate as well.
-    const pbm = Number(p.boostMult) || 1;
-    if (pbm > 1) value *= pbm;
+    // NOTE: agent boost is NOT applied here. It multiplies field exp exactly
+    // once, at gain time (gainSkillExp), so rank velocity scales linearly
+    // with the multiplier. Multiplying the converted value too compounded
+    // the two passes (~x400 rank velocity at boost x20), which broke the
+    // benchmarks' production-relative pacing.
     p.expPools[skillId] = pool - drain;
     if (p.expPools[skillId] <= 0) delete p.expPools[skillId];
     pulsed += drain;

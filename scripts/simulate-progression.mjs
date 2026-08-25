@@ -190,8 +190,12 @@ function tdpBoost() {
   // defensive requirement lags, spend TDPs on it rather than stalling.
   const taught = new Set(trainableSkills(p.guild));
   const DEFENSIVE = new Set(['parry', 'defending']);
+  // Spell-school skills grow only by casting: organic for magic guilds,
+  // dead weight for martials (barbarian 1st Supernatural, thief Inner
+  // Magic-adjacent breadth). Those must fall through to TDP training.
+  const CAST_ONLY = new Set(['augmentation', 'debilitation', 'targeted_magic', 'utility_magic', 'warding_magic', 'primary_magic']);
   for (const [skill, need] of requirementNeeds()) {
-    if (ORGANIC_SKILLS.has(skill) && !DEFENSIVE.has(skill)) continue;
+    if (ORGANIC_SKILLS.has(skill) && !DEFENSIVE.has(skill) && !(CAST_ONLY.has(skill) && !p.guild.magic)) continue;
     if (!DEFENSIVE.has(skill) && taught.has(skill)) continue;
     let rank = (p.skills[skill] || {}).rank || 0;
     let guard = 0;
@@ -252,6 +256,12 @@ while (p.circle < 10 && safety++ < 30000) {
     if (guard === 2 || guard % 8 === 0) handleCommand(game, p, 'disarm');
     if (p.guild.id === 'barbarian' && guard % 6 === 0) handleCommand(game, p, 'analyze flame');
     if (p.guild.id === 'barbarian' && guard === 3 && !combat.berserk) handleCommand(game, p, 'berserk');
+    // Thieves weave khri every fight (concentration arts): feeds Stealth,
+    // Inner Magic (primary_magic), and the khri's supernatural school —
+    // the wiki-documented way thieves raise those circle requirements.
+    if (p.guild.id === 'thief' && guard % 6 === 0) {
+      handleCommand(game, p, ['khri elusion', 'khri focus', 'khri sight'][guard % 3 === 0 ? 0 : guard % 3 - 1]);
+    }
   }
   hunts += 1;
   if (p.hp <= 0) {

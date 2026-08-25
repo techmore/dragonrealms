@@ -146,7 +146,11 @@ recovery, visible as `[BOOST xN]` in the prompt. Real DR has no such mechanic;
 it exists purely so test agents can exercise progression (circles, TDP
 curricula, guild halls) in minutes instead of hours. Implementation:
 `server/boost.js`, `server/player.js` (gainSkillExp), `server/wilds.js`
-(startRest), `server/status.js` (prompt tag).
+(startRest), `server/status.js` (prompt tag). **Semantics (2026-08 audit):**
+the multiplier applies exactly ONCE, at field-exp gain time; pulse conversion
+is unboosted, so rank velocity is linear in N (a 2026-08 bug applied it twice,
+compounding to ~×400 at ×20 and poisoning benchmark pacing — regression-tested
+in test/boost.test.mjs).
 
 ### 3.1 Structural
 

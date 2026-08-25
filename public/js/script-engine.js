@@ -51,6 +51,12 @@ export function createRunner(src, args = [], io = {}) {
         // this move, feed()'s watchdog below abandons the chain instead of
         // leaving the script wedged in 'room' mode forever.
         s.moveDeadline = Date.now() + 12000;
+        // Room-change gate: the caller may pass io.roomNow(); when present,
+        // a room event only resolves this move if the reported room differs
+        // from the room we were in when the move was sent. Stale look echoes
+        // and enter-look replies otherwise resolve moves that are still in
+        // flight, desyncing the whole chain by one room per echo.
+        s.moveFromRoom = io.roomNow ? (io.roomNow() || null) : null;
         return false;
       case 'nextroom': s.mode = 'room'; return false;
       case 'pause': {
@@ -266,7 +272,14 @@ export function createRunner(src, args = [], io = {}) {
       return;
     }
     if (s.mode === 'prompt' && isPrompt) { s.mode = null; advance(); return; }
-    if (s.mode === 'room' && isPrompt === 'room') { s.moveFails = 0; s.skipMoves = false; s.moveDeadline = null; s.mode = null; advance(); return; }
+    if (s.mode === 'room' && isPrompt === 'room') {
+      // Room-change gate (see 'move' dispatch): with io.roomNow, a room event
+      // only resolves the pending move when the room actually CHANGED since
+      // the move was sent. Same-room echoes (look replies) are ignored here
+      // and fall through to matcher processing below.
+      if (s.moveFromRoom != null && io.roomNow && io.roomNow() === s.moveFromRoom) return;
+      s.moveFails = 0; s.skipMoves = false; s.moveDeadline = null; s.moveFromRoom = null; s.mode = null; advance(); return;
+    }
     if (s.mode === 'text' && text) {
       const hit = s.waitRe ? s.waitRe.test(text) : (s.waitText && text.toLowerCase().includes(s.waitText));
       if (hit) { s.mode = null; advance(); return; }
@@ -293,6 +306,7 @@ export function createRunner(src, args = [], io = {}) {
     // Diagnostics for supervisors: why is this script sitting still?
     get state() {
       const f = cur();
+      if (!f) return { mode: 'done', depth: 0, pc: -1, pendingMatches: 0 };
       return { mode: s.mode, depth: frames.length - 1, pc: f.pc,
         pendingMatches: s.matches.length };
     },

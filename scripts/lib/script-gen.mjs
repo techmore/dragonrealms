@@ -23,8 +23,12 @@ function buildHuntScript({ cap, arena, hallPath }) {
   L.push('ARMCHECK:');
   // Order matters: equipped wins, then a carried weapon is wielded, and only
   // a genuinely unarmed character walks to the bazaar to buy.
-  L.push('  matchre ARMED Worn:.*(club|sword|axe|staff|dagger|mace|blade|bow|hammer)');
-  L.push('  matchre GETCLUB carrying:.*club');
+  // The inventory reply is MULTI-LINE ("You are carrying:\n  a club\nWorn:
+  // ..."), and RegExp '.' does not cross newlines — use [\s\S]* for
+  // cross-line matching. A plain .* silently never matched a carried club,
+  // sending armed agents to re-buy every cycle (the 0-kill wedge).
+  L.push('  matchre ARMED Worn:[\\s\\S]*(club|sword|axe|staff|dagger|mace|blade|bow|hammer)');
+  L.push('  matchre GETCLUB carrying:[\\s\\S]*club');
   // Carrying something but unarmed: walk to the bazaar weapon shop first.
   // (BUY alone would try "buy club" wherever we stand — no shopkeeper there.)
   L.push('  matchre GETWEAPON carrying:');
@@ -96,8 +100,13 @@ function buildHuntScript({ cap, arena, hallPath }) {
     // Target-presence gate: prose matched a moment ago, but the creature may
     // have been slain (or despawned) between then and now. Re-look; if the
     // noun is gone, return to SCAN instead of swinging at nothing.
+    // The room message is MULTI-LINE; a '(?!.*noun)' lookahead anchored to
+    // any line matched the first rat-free line ('Obvious paths: ...') and
+    // declared the target gone even while it stood in front of us — the
+    // never-fight wedge. Anchor ^ at string start with [\s\S]* so the
+    // detector only fires when the noun is absent from the WHOLE message.
     L.push('  put look');
-    L.push(`  matchre TARGET_GONE (?:^|\\.\\s+|\\n)(?!.*${noun} is here)`);
+    L.push(`  matchre TARGET_GONE ^(?![\\s\\S]*${noun} is here)`);
     L.push(`  matchre FIGHT_NOW ${noun} is here`);
     L.push('  matchwait 4');
     L.push('TARGET_GONE:');

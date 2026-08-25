@@ -262,19 +262,28 @@ const NTH_POOLS = {
 
 // Eligibility exceptions are guild-specific in the source tables. Thievery
 // is a soft survival requirement for Thieves, while guilds such as Barbarians
-// explicitly restrict it from Nth-skill credit.
+// explicitly restrict it from Nth-skill credit. Thieves cannot learn
+// Attunement or Targeted Magic at all (Thief.md), so those never count.
 const NTH_ADDITIONS = {
   thief: { survival: ['thievery'] },
+};
+const NTH_EXCLUSIONS = {
+  thief: { magic: ['attunement', 'targeted_magic'] },
 };
 
 // DR-style circle requirement tables (Elanthipedia, 1-10 band). Each rank is
 // the per-circle increment for that band, not the cumulative circle-10 total.
 // Rows: { skill, rank, hard } for named skills; { nth, set, rank } for Nth-of-skillset.
 const CIRCLE_TABLES = {
+  // Rows verified against docs/elanthipedia/<Guild>.md "Circle Requirements"
+  // (1-10 band column) + "Cumulative"@10 anchor checks, 2026-08 audit.
   barbarian: [
     { skill: 'expertise', rank: 4, hard: true },
+    // wiki "Primary Mastery" — melee mastery for the all-melee guild.
+    { skill: 'melee_mastery', rank: 4, hard: true },
     { skill: 'inner_fire', rank: 1, hard: true },
-    { nth: 5, set: 'survival', rank: 1 },
+    // wiki "1st Supernatural" band 1 (cumulative@10 = 10).
+    { nth: 1, set: 'supernatural', rank: 1 },
     { skill: 'parry', rank: 4, hard: true },
     { nth: 1, set: 'weapon', rank: 4 }, { nth: 2, set: 'weapon', rank: 4 },
     { nth: 3, set: 'weapon', rank: 2 }, { nth: 4, set: 'weapon', rank: 1 },
@@ -283,7 +292,8 @@ const CIRCLE_TABLES = {
     { nth: 1, set: 'survival', rank: 2 }, { nth: 2, set: 'survival', rank: 2 },
     { nth: 3, set: 'survival', rank: 2 }, { nth: 4, set: 'survival', rank: 1 },
     { skill: 'tactics', rank: 1, hard: true },
-    { nth: 1, set: 'lore', rank: 2 },
+    // wiki "1st Lore" AND "2nd Lore" are both band 1 (@c10 = 10 each).
+    { nth: 1, set: 'lore', rank: 1 }, { nth: 2, set: 'lore', rank: 1 },
   ],
   bard: [
     { nth: 1, set: 'armor', rank: 2 },
@@ -355,6 +365,10 @@ const CIRCLE_TABLES = {
     { nth: 3, set: 'survival', rank: 1 }, { nth: 4, set: 'survival', rank: 1 },
   ],
   ranger: [
+    // wiki "Instinct" = First Aid under its ranger display name. Soft
+    // requirement: it demands its own ranks AND still counts toward the
+    // survival Nth pool ("can be used toward Nth survival requirements").
+    { skill: 'first_aid', rank: 2 },
     { nth: 1, set: 'survival', rank: 4 }, { nth: 2, set: 'survival', rank: 4 },
     { nth: 3, set: 'survival', rank: 3 }, { nth: 4, set: 'survival', rank: 3 },
     { nth: 5, set: 'survival', rank: 3 }, { nth: 6, set: 'survival', rank: 2 },
@@ -369,6 +383,9 @@ const CIRCLE_TABLES = {
   thief: [
     { skill: 'thievery', rank: 2 },
     { skill: 'stealth', rank: 2 },
+    // wiki "Inner Magic" = Primary Magic under the thief skillset rename
+    // (khri concentration), band 1 (@c10 = 10).
+    { skill: 'primary_magic', rank: 1, hard: true },
     { nth: 1, set: 'survival', rank: 4 }, { nth: 2, set: 'survival', rank: 4 },
     { nth: 3, set: 'survival', rank: 3 }, { nth: 4, set: 'survival', rank: 3 },
     { nth: 5, set: 'survival', rank: 3 }, { nth: 6, set: 'survival', rank: 2 },
@@ -376,6 +393,8 @@ const CIRCLE_TABLES = {
     { nth: 1, set: 'weapon', rank: 3 }, { nth: 2, set: 'weapon', rank: 1 },
     { skill: 'parry', rank: 1, hard: true },
     { nth: 1, set: 'armor', rank: 2 },
+    // wiki "1st Magic" band 1 (@c10 = 10); "2nd Magic" is zero in the 1-10 band.
+    { nth: 1, set: 'magic', rank: 1 },
     { nth: 1, set: 'lore', rank: 1 }, { nth: 2, set: 'lore', rank: 1 }, { nth: 3, set: 'lore', rank: 1 },
   ],
   trader: [
@@ -414,8 +433,9 @@ function nthCandidates(guildId, table, set) {
     table.filter((r) => r.skill && r.hard).map((r) => r.skill),
   );
   const additions = NTH_ADDITIONS[guildId]?.[set] || [];
+  const exclusions = new Set(NTH_EXCLUSIONS[guildId]?.[set] || []);
   return [...(NTH_POOLS[set] || []), ...additions]
-    .filter((id, idx, all) => all.indexOf(id) === idx && !hardSkills.has(id));
+    .filter((id, idx, all) => all.indexOf(id) === idx && !hardSkills.has(id) && !exclusions.has(id));
 }
 
 function nthLabel(n) {

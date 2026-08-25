@@ -8,6 +8,8 @@
 //   - rest ticks restore N× health / mana / stamina (rest recovery)
 // The multiplier lives on the player object (p.boostMult) and is applied in
 // the shared game systems, so scripts, bots, and manual play all see it.
+// It is applied EXACTLY ONCE, at gain time — pulse conversion (pulseExp)
+// deliberately does not multiply again, keeping rank velocity linear in N.
 //
 // DR-fidelity note: this is a declared test-only divergence — real DR has no
 // such mechanic. It exists so scripted agents can exercise progression

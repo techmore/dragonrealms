@@ -104,23 +104,25 @@ test('DR circle engine: nth-skill, hard skills, and circle-10 band values', asyn
 
   // Barbarian, circle 10: the 1-10 figures are per-circle increments
   // (Expertise 4/circle => 40 cumulative, 4th weapon 1/circle => 10).
+  // Primary Mastery (melee_mastery) is its own wiki band-4 named row, and
+  // the lore band supplies TWO slots at 10 each.
   const barb = GUILDS.barbarian;
   let s = zero();
-  setRanks(s, { expertise: 40, primary_magic: 40, parry: 40, evasion: 30, tactics: 10, inner_fire: 10 });
+  setRanks(s, { expertise: 40, melee_mastery: 40, parry: 40, evasion: 30, tactics: 10, inner_fire: 10 });
   setRanks(s, { small_edged: 40, large_edged: 40, twohanded_edged: 20, blunt: 10 });
   setRanks(s, { light_armor: 30, chain_armor: 10 });
   setRanks(s, { perception: 20, stealth: 20, skinning: 20, athletics: 10, first_aid: 10 });
-  setRanks(s, { appraisal: 20 });
+  setRanks(s, { appraisal: 20, scholarship: 10 });
   setRanks(s, { augmentation: 10 });
   assert.equal(circleRequirements(barb, s, 10).ok, true, 'full band values pass circle 10');
 
   // Nth skill semantics: 3rd weapon needs rank 20 at circle 10 — drop it below that.
   let s2 = zero();
-  setRanks(s2, { expertise: 40, primary_magic: 40, parry: 40, evasion: 30, tactics: 10, inner_fire: 10 });
+  setRanks(s2, { expertise: 40, melee_mastery: 40, parry: 40, evasion: 30, tactics: 10, inner_fire: 10 });
   setRanks(s2, { small_edged: 40, large_edged: 40, twohanded_edged: 19, blunt: 10 });
   setRanks(s2, { light_armor: 30, chain_armor: 10 });
   setRanks(s2, { perception: 20, stealth: 20, skinning: 20, athletics: 10, first_aid: 10 });
-  setRanks(s2, { appraisal: 20, augmentation: 10 });
+  setRanks(s2, { appraisal: 20, scholarship: 10, augmentation: 10 });
   const req2 = circleRequirements(barb, s2, 10);
   assert.equal(req2.ok, false, '3rd weapon below band fails');
   assert.ok(req2.missing.some((m) => /3rd weapon/.test(m)), 'missing lists the 3rd weapon row');
