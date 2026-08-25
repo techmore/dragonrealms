@@ -207,16 +207,21 @@ export function createRunner(src, args = [], io = {}) {
       const rt = /RT:\s*(\d+)/.exec(plain);
       if (rt) {
         vars.rt = rt[1];
-        // Arm rtUntil from prompt RT — but only when the value CHANGES.
-        // Prompts are event-driven and repeat the same stale count for a
-        // while; re-arming on every echo would extend RT indefinitely.
         const n = Number(rt[1]);
-        if (n > 0 && s.lastRtSeen !== `${n}@${vars.hp}`) {
-          s.lastRtSeen = `${n}@${vars.hp}`;
-          s.rtUntil = Date.now() + n * 1000;
-        } else if (n === 0) {
+        // Arm only on a CHANGED count. Repeated identical RT numbers are
+        // echoes of the last real prompt (the sim heartbeat re-injects them
+        // every second, and combat shakes hp constantly) — re-arming from
+        // echoes extends roundtime forever. A genuinely new roundtime
+        // arrives with a changed count, or right after RT:0 cleared the
+        // tracker. A same-length back-to-back roundtime under-arms here,
+        // but the server's own refusal ("You must wait N") re-arms
+        // precisely and reschedules the verb — self-healing.
+        if (n === 0) {
           s.lastRtSeen = null;
           s.rtUntil = Math.min(s.rtUntil, Date.now());
+        } else if (s.lastRtSeen !== n) {
+          s.lastRtSeen = n;
+          s.rtUntil = Date.now() + n * 1000 + 150;
         }
       }
       vars.combat = /\[COMBAT\]/.test(plain) ? '1' : '0';
