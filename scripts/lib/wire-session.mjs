@@ -124,12 +124,21 @@ export class WireSession {
   }
 
   bfsPath(from, to, diskAdj) {
+    const direct = this.bfsOver(from, to, (id) => this.adjacencyFor(id, diskAdj));
+    if (direct || from === to) return direct;
+    // Learned-graph BFS failed (stale/poisoned observations, mid-regrid):
+    // fall back to pure disk adjacency rather than reporting "unreachable"
+    // forever. Disk edges are how the room was reached in the first place.
+    return diskAdj ? this.bfsOver(from, to, diskAdj) : null;
+  }
+
+  bfsOver(from, to, adjFn) {
     if (from === to) return [];
     const prev = new Map([[from, null]]);
     const q = [from];
     while (q.length) {
       const curRoom = q.shift();
-      for (const edge of this.adjacencyFor(curRoom, diskAdj)) {
+      for (const edge of adjFn(curRoom)) {
         if (edge.to.startsWith('?')) continue;
         if (prev.has(edge.to)) continue;
         prev.set(edge.to, { via: curRoom, dir: edge.dir });
@@ -200,6 +209,16 @@ export class WireSession {
         // rest ticks carry vitals outside prompts
         const restHp = /hp (\d+)\/(\d+)/i.exec(text);
         if (restHp) { v.hp = Number(restHp[1]); v.maxhp = Number(restHp[2]); }
+        // Refused move: disarm move attribution NOW. A blocked 'n' leaves
+        // pendingMove armed otherwise, and the next room change (flee
+        // relocation, temple awaken, scripted transit) gets recorded as a
+        // phantom edge from the old room — e.g. the fabricated
+        // dens_bazaar_market_way_1 --n--> edge that live movement then
+        // refuses forever. World data was right; the learner lied.
+        if (/^(You cannot go that way|You must wait|Creatures block your path|You are overloaded|Go where)/.test(text)
+          || /You awaken in the Temple/.test(text)) {
+          this.pendingMove = null;
+        }
         this.handlers.onText?.(text, m.t);
         break;
       }
@@ -242,8 +261,6 @@ export class WireSession {
   }
 }
 
-// Track a move command issued by an agent/script so the next room event
-// records a ground-truth edge.
 export function trackMove(session, line) {
   if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) {
     session.pendingMove = { from: session.vitals.room, dir: line };
@@ -253,4 +270,10 @@ export function trackMove(session, line) {
     // phantom edge from the stale from-room and poisons BFS pathing.
     session.pendingMove = null;
   }
+}
+
+// Called when the engine reports a refused move ('cannot go that way'):
+// drop the pending attribution so no future room msg records a bogus edge.
+export function trackRefusedMove(session) {
+  session.pendingMove = null;
 }

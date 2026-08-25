@@ -44,7 +44,7 @@ const { ROOMS } = await import('../data/world.js');
 const { creatureById } = await import('../data/creatures.js');
 const { GUILD_SCRIPTS, RACE_MATRIX } = await import('../data/guild-scripts.js');
 const { nounOf, moves, buildHuntScript, buildCircleScript, buildMegaScript, reversePath, trainListFromMissing } = await import('./lib/script-gen.mjs');
-const { WireSession, stripAnsi, trackMove } = await import('./lib/wire-session.mjs');
+const { WireSession, stripAnsi, trackMove, trackRefusedMove } = await import('./lib/wire-session.mjs');
 const { createRunner } = await import('../public/js/script-engine.js');
 
 const LIVE_DIR = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'public', 'live');
@@ -245,6 +245,7 @@ class SweepAgent {
         if (/^tdptrain /.test(line)) this.trains += 1;
         void s.cmd(line);
       },
+      onRefusedMove: () => trackRefusedMove(s),
       say: (t) => { if (t && !/^--/.test(t)) this.appendLog(`[echo] ${t}`); },
       getScript: (n) => this.getScript(n),
     });
@@ -336,6 +337,7 @@ class SweepAgent {
         this.appendLog(`[escape] ${use.length} steps from ${here}`);
         this.runner = createRunner(use.map((d) => 'move ' + d).join('\n') + '\nput look\nwait', [], {
           send: async (line) => { trackMove(s, line); void s.cmd(line); },
+          onRefusedMove: () => trackRefusedMove(s),
           say: () => {},
         });
         this.runner.start();

@@ -21,6 +21,7 @@ export function createRunner(src, args = [], io = {}) {
   // labels/lines/pc. `exit` pops back to the caller; exiting the top frame
   // ends the whole run — like DR's nested script calls.
   const getScript = io.getScript || (() => null);
+  const onRefusedMove = io.onRefusedMove;
   const frames = [parseScript(src)];
   frames[0].pc = 0;
   const cur = () => frames[frames.length - 1];
@@ -45,7 +46,12 @@ export function createRunner(src, args = [], io = {}) {
     switch (cmd) {
       case 'echo': say(rest); return true;
       case 'put': out(rest); return true;
-      case 'move': out(rest); s.lastMove = rest; s.mode = 'room'; return false;
+      case 'move': out(rest); s.lastMove = rest; s.mode = 'room';
+        // Safety deadline: if no room event (or recognized refusal) resolves
+        // this move, feed()'s watchdog below abandons the chain instead of
+        // leaving the script wedged in 'room' mode forever.
+        s.moveDeadline = Date.now() + 12000;
+        return false;
       case 'nextroom': s.mode = 'room'; return false;
       case 'pause': {
         const secs = parseFloat(rest) || 1;
@@ -206,9 +212,34 @@ export function createRunner(src, args = [], io = {}) {
       s.timerAt = Date.now() + 1500;
       return;
     }
-    // Wrong direction: no point retrying — abandon the chain at once.
+    // Hard refusals that retrying can't fix (encumbrance, justice): abandon
+    // the move chain immediately so the script reacts (drop loot, change plan).
+    if (s.mode === 'room' && text && typeof text === 'string'
+      && /overloaded|in the stocks|cell door is barred/i.test(text)
+      && s.lastMove !== undefined) {
+      s.skipMoves = true;
+      s.lastMove = undefined;
+      s.mode = null;
+      advance();
+      return;
+    }
+    // Move watchdog: a move that produced neither a room event nor a
+    // recognized refusal within its deadline is treated as a hard failure —
+    // fall through so the script re-scans instead of hanging in 'room' mode
+    // until an external supervisor restarts it.
+    if (s.mode === 'room' && s.moveDeadline && Date.now() >= s.moveDeadline) {
+      s.moveDeadline = null;
+      s.skipMoves = true;
+      s.lastMove = undefined;
+      s.mode = null;
+      advance();
+      return;
+    }
+    // Wrong direction: no point retrying — abandon the chain at once. Also
+    // tell the session the move was refused so no phantom edge is recorded.
     if (s.mode === 'room' && text && typeof text === 'string'
       && /cannot go that way/i.test(text) && s.lastMove !== undefined) {
+      onRefusedMove?.(s.lastMove);
       s.skipMoves = true;
       s.lastMove = undefined;
       s.mode = null;
@@ -235,7 +266,7 @@ export function createRunner(src, args = [], io = {}) {
       return;
     }
     if (s.mode === 'prompt' && isPrompt) { s.mode = null; advance(); return; }
-    if (s.mode === 'room' && isPrompt === 'room') { s.moveFails = 0; s.skipMoves = false; s.mode = null; advance(); return; }
+    if (s.mode === 'room' && isPrompt === 'room') { s.moveFails = 0; s.skipMoves = false; s.moveDeadline = null; s.mode = null; advance(); return; }
     if (s.mode === 'text' && text) {
       const hit = s.waitRe ? s.waitRe.test(text) : (s.waitText && text.toLowerCase().includes(s.waitText));
       if (hit) { s.mode = null; advance(); return; }
@@ -259,5 +290,11 @@ export function createRunner(src, args = [], io = {}) {
     stop() { s.done = true; s.matches = []; },
     get running() { return !s.done; },
     get depth() { return frames.length; },
+    // Diagnostics for supervisors: why is this script sitting still?
+    get state() {
+      const f = cur();
+      return { mode: s.mode, depth: frames.length - 1, pc: f.pc,
+        pendingMatches: s.matches.length };
+    },
   };
 }
