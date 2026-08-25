@@ -324,7 +324,7 @@ class SweepAgent {
     this.runner = createRunner(src, [], {
       roomNow: () => s.vitals.room,
       send: async (line) => {
-        if (process.env.SWEEP_DEBUG || /^(attack|tdptrain|flee|rest|stand|circle|buy|wield|prepare|cast|khri|enchant|backstab|analyze|roar|drink|effects|stealth|hide)/.test(line)) {
+        if (process.env.SWEEP_DEBUG || /^(attack|tdptrain|flee|rest|stand|circle|buy|wield|prepare|cast|khri|enchant|backstab|analyze|roar|drink|effects|stealth|hide|skin|withdraw)/.test(line)) {
           this.appendLog(`script> ${line}`);
           log(`[${this.guild}/${this.race}] > ${line}`);
         } else if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) {
@@ -454,7 +454,15 @@ class SweepAgent {
         this.appendLog(`[escape] ${dirs.length} steps from ${here}: ${dirs.join(',')}`);
         this.runner = createRunner(dirs.map((d) => 'move ' + d).join('\n') + '\nput look\nwait', [], {
           roomNow: () => s.vitals.room,
-          send: async (line) => { trackMove(s, line); void s.cmd(line); },
+          send: async (line) => {
+            trackMove(s, line);
+            this.lastSendAt = Date.now();
+            // Escape moves ARE progress: without refreshing lastProgressAt
+            // the classifier reads the escape itself as silence and the
+            // watchdog re-fires mid-walk (the catrox_forge loop).
+            if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) this.lastProgressAt = Date.now();
+            void s.cmd(line);
+          },
           onRefusedMove: (dir) => trackRefusedMove(s, dir),
           say: () => {},
         });

@@ -114,11 +114,17 @@ function buildHuntScript({ cap, arena, hallPath }) {
     L.push('  goto SCAN');
     L.push('FIGHT_NOW:');
     for (const step of cfg.fight) L.push('  ' + step.replace(/%target/g, noun));
+    // Weapon roundtime: the swing above leaves ~3s of RT, and everything
+    // queued behind it (skin/signature) used to refuse with "You must wait"
+    // — 260+ dead refusals per run and zero successful skins. Drain RT once,
+    // THEN run the follow-up verbs.
+    L.push('  pause 3');
     if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('skinning')) {
       // Skinning guilds (ranger, barbarian...): attempt a skin after the
       // swing — failure prose ('no such corpse') is harmless.
       L.push('  put skin');
       L.push('  wait');
+      L.push('  pause 2'); // skinning charges its own roundtime
     }
     if (cfg.signature && cfg.signature.probe === 'ability') {
       // Signature guild ability: fire it every few swings; failure prose

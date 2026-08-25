@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseScript, createRunner } from '../public/js/script-engine.js';
-import { buildCircleScript } from '../scripts/lib/script-gen.mjs';
+import { buildCircleScript, buildHuntScript } from '../scripts/lib/script-gen.mjs';
 
 const out = [];
 function runner(src) {
@@ -87,4 +87,20 @@ test('barbarian curriculum orders guild-taught skills before off-guild fillers',
       assert.ok(!taught.has(sk), `untaught skill "${lines[firstUntaught]}" must not be followed by taught skill "${sk}"`);
     }
   }
+});
+
+test('barbarian fight loop drains weapon roundtime before follow-up verbs', () => {
+  const src = buildHuntScript({
+    cap: { guild: 'barbarian', race: 'human', char: 'T', scriptBase: 'tb', bazaarPath: [] },
+    arena: { id: 'sewers_1', fromArmed: [], fromHere: [{ dir: 'e' }] },
+  });
+  // The swing block must be followed by an RT drain before skin/signature.
+  const fightIdx = src.indexOf('FIGHT_NOW:');
+  const attackIdx = src.indexOf('put attack', fightIdx);
+  const pauseIdx = src.indexOf('pause 3', attackIdx);
+  const skinIdx = src.indexOf('put skin', pauseIdx);
+  assert.ok(attackIdx >= 0 && pauseIdx > attackIdx, 'an RT pause follows the swing');
+  assert.ok(skinIdx > pauseIdx, 'skin comes after the RT drain, not inside it');
+  const skinDrain = src.indexOf('pause 2', skinIdx);
+  assert.ok(skinDrain > skinIdx, 'skinning own roundtime drained before signature');
 });
