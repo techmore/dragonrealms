@@ -575,7 +575,24 @@ function renderWounds() {
       title.textContent = base;
     }
   }
+  // Keep chip bleed dots in sync — prompts arrive more often than hands
+  // snapshots, so the dots must refresh here too.
+  renderHericonBleeds(woundByRegion);
   renderHealthWindow(wounds);
+}
+
+// Refresh only the bleeding dots on existing chips (no innerHTML rebuild —
+// that would kill hover states mid-combat).
+function renderHericonBleeds(woundByRegion) {
+  for (const c of document.querySelectorAll('.heri')) {
+    const has = woundByRegion.has(c.dataset.slot);
+    const dot = c.querySelector('.heri-bleed');
+    if (has && !dot) {
+      c.insertAdjacentHTML('beforeend', '<i class="heri-bleed"></i>');
+    } else if (!has && dot) {
+      dot.remove();
+    }
+  }
 }
 
 // HEALTH window: DR renders open wounds as prose rows ("left arm — bleeding
