@@ -38,22 +38,23 @@ function buildHuntScript({ cap, arena, hallPath }) {
   if (cap.bazaarPath?.length) L.push(...moves(cap.bazaarPath));
   L.push('BUY:');
   L.push('  matchre WIELD You buy|You pay|hands you');
+  // No shopkeeper here means our bazaar path was empty/stale — re-arm check
+  // restarts the loop (and a fresh snapshot) instead of spinning on BUY.
   L.push('  matchre ARMED do not sell|already have|no such|do not have|out of stock|no shopkeeper');
-  // Silver exhaustion: the healer/bank loop below keeps a broke sim alive —
-  // withdraw from the bank, and if even that fails, fight bare-handed
-  // (fists train Defending and Evasion too) rather than spinning on BUY.
+  // Silver exhaustion: one bank withdrawal attempt, then re-arm (which walks
+  // to the arena and fights bare-handed — fists train Defending/Evasion too)
+  // rather than an infinite BUY spin that starves the whole run.
   L.push('  matchre BROKE cannot afford');
   L.push('  put buy club');
-  L.push('  matchwait');
-  // Silver exhaustion: one bank withdrawal attempt, then give up on buying
-  // and hunt bare-handed (fists train Defending and Evasion too) — an
-  // infinite BUY loop starves the whole run.
+  L.push('  matchwait 30');
+  L.push('  goto ARMED');
   L.push('BROKE:');
   L.push('  put withdraw 100');
   L.push('  wait');
   L.push('  matchre BUY You withdraw');
-  L.push('  matchre WIELD does not hold|no banker');
-  L.push('  matchwait');
+  L.push('  matchre ARMED does not hold|no banker|nothing');
+  L.push('  matchwait 20');
+  L.push('  goto ARMED');
   L.push('WIELD:');
   L.push('  put wield club');
   L.push('  wait');
@@ -75,12 +76,15 @@ function buildHuntScript({ cap, arena, hallPath }) {
   if (cfg.segueCycle?.length) {
     for (const s of cfg.segueCycle) L.push(`  put segue ${s}`);
   }
-  L.push('  put look');
   const species = [...new Set(ROOMS[arena.id]?.spawns || [])];
+  // Register matchers BEFORE 'put look': 'put' returns immediately, so the
+  // room message from look can land before later matchre lines register —
+  // the prose would be dropped and every scan would time out.
   for (const sp of species) {
     L.push(`  matchre FIGHT_${sp.replace(/\W/g, '_')} ${nounOf(sp)} is here`);
   }
   L.push('  matchre WANDER \\[\\[');
+  L.push('  put look');
   // Timeout matters: in a creature-less room (post-flee town stranding) no
   // prose will ever match — an untimed matchwait wedges here until the
   // external watchdog restarts the whole cycle ~90s later.
