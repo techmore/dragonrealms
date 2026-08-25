@@ -54,7 +54,13 @@ scripts/
                         engine) play each guild via generated per-account
                         script libraries (hunt/circle/mega with `putrun`),
                         exercising guild signature abilities and writing
-                        fidelity results to public/live/fidelity-*.log
+                        fidelity results to public/live/fidelity-*.log.
+                        Each sweep gets a run-id suffix (char names like
+                        SwTraderHuman-kcrk) so concurrent sweeps never
+                        collide; every run appends a row to the sweeps
+                        SQLite history (scripts/lib/sweeps-db.mjs →
+                        public/live/sweeps.db, a sim artifact — not game
+                        state), and `--report` reads that DB
   lib/wire-session.mjs  shared wire-level session for test agents (auth,
                         chargen, observed-exit BFS navigation, vitals)
 data/guild-scripts.js per-guild scripting capabilities (fight verbs, signature
