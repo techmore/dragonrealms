@@ -16,15 +16,15 @@
 // object (see SweepAgent.stallSnapshot) and get { verdict, reason } back.
 
 // Rough healthy kill baselines (kills/hour at boost x20, c1-c3 arenas).
-// Calibrated by hand against the post-fix sweep logs; the DB has no usable
-// pre-fix history (all-zero rows). Deliberately generous — "slow" should
-// flag underperformance, not normal variance between species/guilds.
+// Barbarian recalibrated 2026-08-25 from the clean post-clock-fix benchmark
+// (run sohw: 12/12 healthy, 48-60/h across variants); other guilds scaled by
+// the same ratio until their own benchmarks land — revisit per guild.
 export const GUILD_KILLS_PER_HOUR = {
-  barbarian: 90, bard: 70, cleric: 70, empath: 55, moonmage: 60,
-  necromancer: 60, paladin: 75, ranger: 85, thief: 80, trader: 45,
-  warmage: 80,
+  barbarian: 50, bard: 40, cleric: 40, empath: 30, moonmage: 33,
+  necromancer: 33, paladin: 42, ranger: 47, thief: 45, trader: 25,
+  warmage: 45,
 };
-const DEFAULT_BASELINE = 70;
+const DEFAULT_BASELINE = 40;
 
 const GRACE_MS = 120000;        // enter/arm/settle window — never judge before this
 const REFUSAL_WINDOW_MS = 120000; // refusal-rate window

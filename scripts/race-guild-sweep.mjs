@@ -907,7 +907,7 @@ function reportByVariant() {
   console.log(pad('guild', 11) + pad('variant', 10) + pad('race', 10)
     + pad('runs', 5) + pad('to-c10', 8) + pad('kills/h', 8) + pad('deaths', 7)
     + pad('verdicts', 20) + 'pacing (median min/circle)');
-  for (const [key, rs] of [...groups].sort()) {
+  for (const [key, rs] of [...groups].sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
     const [guild, variant, race] = key.split('|');
     const done = rs.filter((r) => r.timeToCircleMs != null);
     const times = done.map((r) => r.timeToCircleMs).sort((a, b) => a - b);
