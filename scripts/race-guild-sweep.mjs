@@ -757,9 +757,17 @@ class SweepAgent {
   }
 
   run(minutes) {
-    // Constructor already stamped startedAt (stall classifier runs from
-    // construction); keep them identical rather than resetting the clock.
-    this.startedAt = this.startedAt || Date.now();
+    // Benchmark mode constructs ALL agents up front, then plays them one at
+    // a time over hours. Re-stamp the stall clock HERE, at actual play time,
+    // or duration/kills-per-hour/progress stamps measure time since process
+    // boot and every variant after the first reads as fake "slow" decay.
+    const now = Date.now();
+    this.startedAt = now;
+    this.refusalTimes = [];
+    this.roomChangedAt = now;
+    this.lastProgressAt = now;
+    this.lowHpSince = null;
+    this.liveVerdict = { verdict: 'healthy', reason: 'warming up' };
     const PROGRESS = setInterval(() => { if (!this.done) this.appendLog(this.progressLine()); }, 30000);
     const HB = setInterval(() => this.heartbeat(), 1000);
     setTimeout(() => { clearInterval(PROGRESS); clearInterval(HB); this.finish(`--minutes ${minutes} elapsed`); }, minutes * 60000);
