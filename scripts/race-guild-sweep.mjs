@@ -29,7 +29,10 @@ const flag = (name, dflt) => {
 // Run length: default depends on mode (10m ad-hoc/sweep, 20m per benchmark
 // variant) — resolved after plan parsing below.
 let MINUTES = Number(flag('minutes', NaN));
-const CIRCLE_TARGET = Number(flag('circle', 2)); // benchmark targets circle 10
+// Leveling-lab target: benchmark mode defaults to the full 1->10 climb;
+// ad-hoc sweeps keep the historical 2-circle target. Resolved after mode
+// parsing below so `--circle` still overrides either.
+let CIRCLE_TARGET = Number(flag('circle', NaN));
 const BOOST = Number(flag('boost', 20)); // agent speed multiplier (0/1 = off)
 const PASS = 'SweepRun1!';
 // Per-invocation run id: 4 random lowercase letters appended to every
@@ -57,9 +60,54 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 const ALL_GUILDS = Object.keys(GUILDS).filter((g) => GUILD_SCRIPTS[g]);
-let wanted = [];
+
+// ---------------- benchmark variant matrix ----------------
+// A variant is a named param set over the generated script library + the
+// supervisor interlocks. The SweepAgent applies it at script-build time and
+// in supervise(); benchmark mode times each variant to CIRCLE_TARGET.
+//   restPct   — supervisor rest interlock floor (% of maxhp; stand at 90%)
+//   hallEvery — kills between forced guild-hall trips while hunting
+//   arenaBand — allowed creature-circle spread above the agent's circle
+//                 for nearestSpawnRoom (+2 = default weight-class filter)
+const VARIANTS = {
+  baseline: { restPct: 35, hallEvery: 4, arenaBand: 2 },
+  rest50:   { restPct: 50, hallEvery: 4, arenaBand: 2 },
+  hall8:    { restPct: 35, hallEvery: 8, arenaBand: 2 },
+  wide2:    { restPct: 35, hallEvery: 6, arenaBand: 4 },
+};
+let wanted = [];            // [{guild, race, variant?}]
+let MODE = 'sweep';         // 'sweep' | 'benchmark' | 'spawn'
+const BENCH_GUILD = flag('benchmark', null);
+const SPAWN_SPEC = flag('spawn', null);
+
 if (ARGS.includes('--all')) {
   wanted = ALL_GUILDS.flatMap((g) => RACE_MATRIX[g].map((race) => ({ guild: g, race })));
+} else if (BENCH_GUILD) {
+  // Benchmark: curated matrix for ONE guild, run strictly sequentially (one
+  // live agent at a time) to avoid spawn contention skewing the timings.
+  const g = BENCH_GUILD;
+  if (!ALL_GUILDS.includes(g)) { console.error(`unknown guild "${g}" — have: ${ALL_GUILDS.join(', ')}`); process.exit(1); }
+  if (!Number.isFinite(MINUTES)) MINUTES = 20;
+  const races = RACE_MATRIX[g]?.length ? RACE_MATRIX[g] : ['human'];
+  // --variants v1,v2 subsets the matrix; default runs every defined variant.
+  const names = (flag('variants', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const pick = names.length ? names : Object.keys(VARIANTS);
+  for (const vn of pick) {
+    if (!VARIANTS[vn]) { console.error(`unknown variant "${vn}" — have: ${Object.keys(VARIANTS).join(', ')}`); process.exit(1); }
+  }
+  wanted = races.flatMap((race) => pick.map((vn) => ({ guild: g, race, variant: { name: vn, ...VARIANTS[vn] } })));
+  MODE = 'benchmark';
+  if (!Number.isFinite(CIRCLE_TARGET)) CIRCLE_TARGET = 10; // leveling lab: full climb
+  if (!Number.isFinite(MINUTES)) MINUTES = 20;
+  log(`benchmark mode: ${g} × [${pick.join(', ')}] × ${races.join(',')} → ${wanted.length} sequential runs, ${MINUTES}m cap each, target circle ${CIRCLE_TARGET}, boost x${BOOST}`);
+} else if (SPAWN_SPEC) {
+  // Spawn-a-run: exactly one agent with current defaults — no flag archaeology.
+  const [g, race = 'human'] = SPAWN_SPEC.split(',').map((s) => s.trim());
+  if (!ALL_GUILDS.includes(g)) { console.error(`unknown guild "${g}" — have: ${ALL_GUILDS.join(', ')}`); process.exit(1); }
+  if (!Number.isFinite(MINUTES)) MINUTES = 10;
+  if (!Number.isFinite(CIRCLE_TARGET)) CIRCLE_TARGET = 2;
+  wanted = [{ guild: g, race }];
+  MODE = 'spawn';
 } else {
   const guilds = (flag('guilds', 'barbarian') || '').split(',').map((s) => s.trim()).filter(Boolean);
   const races = (flag('races', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -69,16 +117,26 @@ if (ARGS.includes('--all')) {
     else RACE_MATRIX[g]?.forEach((race) => wanted.push({ guild: g, race }));
   }
 }
+if (!Number.isFinite(MINUTES) || MINUTES <= 0) MINUTES = 10;
+if (!Number.isFinite(CIRCLE_TARGET)) CIRCLE_TARGET = 2;
 
 // ---------------- per-character agent ----------------
 
 class SweepAgent {
-  constructor({ guild, race }) {
+  constructor({ guild, race, variant = null }) {
     this.guild = guild;
     this.race = race;
+    // Benchmark variant: named param set applied to generated scripts +
+    // supervisor interlocks (see VARIANTS). Null for normal sweeps.
+    this.variant = variant;
+    this.variantName = variant?.name || null;
+    this.restPct = Math.min(Math.max(variant?.restPct ?? 55, 20), 90);
+    this.hallEvery = Math.max(variant?.hallEvery ?? 4, 1);
+    this.arenaBand = Math.max(variant?.arenaBand ?? 2, 0);
+    const vTag = this.variantName ? '-' + String(this.variantName).replace(/[^a-z0-9]/gi, '').slice(0, 4) : '';
     this.char = (('Sw' + guild[0].toUpperCase() + guild.slice(1).replace(/[^a-zA-Z]/g, '')
-      + race[0].toUpperCase() + race.slice(1).replace(/[^a-zA-Z]/g, '')).replace(/[^a-zA-Z]/g, '').slice(0, 15)
-    ) + '-' + RUN_ID;
+      + race[0].toUpperCase() + race.slice(1).replace(/[^a-zA-Z]/g, '')).replace(/[^a-zA-Z]/g, '').slice(0, 15 - vTag.length)
+    ) + vTag + '-' + RUN_ID;
     // Keep RUN_ID intact in the username (never blind-slice it off the end):
     // shorten guild/race instead so distinct runs never share an account.
     this.user = `sw_${guild}_${race}_${RUN_ID}`;
@@ -87,7 +145,9 @@ class SweepAgent {
     this.session = new WireSession({
       user: this.user, pass: PASS, char: this.char, race, guild,
     });
-    this.logPath = join(LIVE_DIR, `fidelity-${guild}-${race}.log`);
+    // Benchmark runs get their own log file so variants never interleave.
+    const vTag2 = this.variantName ? '-' + String(this.variantName).replace(/[^a-z0-9]/gi, '') : '';
+    this.logPath = join(LIVE_DIR, `fidelity-${guild}${vTag2}-${race}.log`);
     this.fidelity = {};       // check name -> count
     this.kills = 0; this.circles = 0; this.deaths = 0; this.trains = 0;
     this.done = false;
@@ -101,6 +161,14 @@ class SweepAgent {
     this.killsAtVisit = 0;
     this.lastFleeAt = 0;
     this.scriptsSaved = false;
+    this.circleTimes = [];    // [{circle, ms}] wall-clock from enter to EACH circle-up
+    // ---- stall-detection state (snapshot into classifyStall) ----
+    this.startedAt = Date.now();
+    this.refusalTimes = [];   // timestamps of move/combat refusals
+    this.roomChangedAt = Date.now();
+    this.lastProgressAt = Date.now();  // any kill/circle/train/move refreshes this
+    this.lowHpSince = null;   // first prompt seen pinned below LOW_HP_FRAC
+    this.liveVerdict = { verdict: 'healthy', reason: 'warming up' };
   }
 
   appendLog(line) { try { appendFileSync(this.logPath, line + '\n'); } catch {} }
@@ -117,9 +185,10 @@ class SweepAgent {
       if (!bestAny || p.length < bestAny.path.length) bestAny = { id, path: p };
       // Prefer hunting grounds within our weight class: a c1 character sent
       // against c5 spawns dies in RT-locked cycles (live-sim pitfall).
+      // arenaBand widens/narrows that spread (benchmark variants).
       const tooStrong = ROOMS[id].spawns.some((sid) => {
         const c = creatureById(sid);
-        return c && (c.circle || 1) > myCircle + 2;
+        return c && (c.circle || 1) > myCircle + this.arenaBand;
       });
       if (tooStrong) continue;
       if (!best || p.length < best.path.length) best = { id, path: p };
@@ -132,12 +201,18 @@ class SweepAgent {
     log(`[${this.guild}/${this.race}] authed as ${this.user} (${this.session.knownChar ? 'existing' : 'new'} char)`);
     this.session.connect({
       onEnter: () => {
-        this.appendLog(`=== sweep run ${RUN_ID} ${this.char} (${this.race} ${this.guild}) entered ${new Date().toISOString()} ===`);
+        this.enteredAt = Date.now();
+        this.appendLog(`=== sweep run ${RUN_ID} ${this.char}${this.variantName ? ` [${this.variantName}]` : ''} (${this.race} ${this.guild}) entered ${new Date().toISOString()} ===`);
         if (BOOST > 1) this.session.sendObj({ t: 'boost', mult: BOOST });
         void this.beginPlaying();
       },
       onRoom: (m, changed) => {
-        if (changed) this.lastRoomChangeAt = Date.now();
+        if (changed) {
+          this.lastRoomChangeAt = Date.now();
+          // A real room change is progress: it disproves "parked" verdicts.
+          this.roomChangedAt = this.lastRoomChangeAt;
+          this.lastProgressAt = this.lastRoomChangeAt;
+        }
         if (this.runner) this.runner.feed(stripAnsi(m.msg), 'room');
       },
       onPrompt: (_m, plain) => {
@@ -250,10 +325,12 @@ class SweepAgent {
         }
         trackMove(s, line);
         this.lastSendAt = Date.now();
-        if (/^tdptrain /.test(line)) this.trains += 1;
+        // Movement is progress — it disproves "parked" stall verdicts.
+        if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) this.lastProgressAt = Date.now();
+        if (/^tdptrain /.test(line)) { this.trains += 1; this.lastProgressAt = Date.now(); }
         void s.cmd(line);
       },
-      onRefusedMove: () => trackRefusedMove(s),
+      onRefusedMove: (dir) => trackRefusedMove(s, dir),
       say: (t) => { if (t && !/^--/.test(t)) this.appendLog(`[echo] ${t}`); },
       getScript: (n) => this.getScript(n),
     });
@@ -276,8 +353,14 @@ class SweepAgent {
     if (/Rise, /.test(text) && /now a /.test(text)) {
       this.circles += 1;
       this.killsAtVisit = this.kills;
-      log(`[${this.guild}/${this.race}] *** CIRCLE-UP -> circle ${this.session.vitals.circle + 1} ***`);
-      this.appendLog(`*** CIRCLE-UP -> circle ${this.session.vitals.circle + 1} ***`);
+      // Leveling-lab metric: record the wall-clock split for EVERY circle-up
+      // (enter -> circle N), giving a pacing curve per run, not just the
+      // final time-to-target.
+      const newCircle = this.session.vitals.circle + 1;
+      const split = Date.now() - (this.enteredAt || this.startedAt);
+      this.circleTimes.push({ circle: newCircle, ms: split });
+      log(`[${this.guild}/${this.race}] *** CIRCLE-UP -> circle ${newCircle} (${Math.round(split / 60000)}m) ***`);
+      this.appendLog(`*** CIRCLE-UP -> circle ${newCircle} at ${Math.round(split / 1000)}s ***`);
       if (this.session.vitals.circle >= CIRCLE_TARGET) return this.finish('target circle reached');
       // Mega finished its circle leg; restart the whole cycle.
       setTimeout(() => this.restartCycle(), 1500);
@@ -290,11 +373,16 @@ class SweepAgent {
       setTimeout(() => this.restartCycle(), 3000);
       return;
     }
-    if (/dies|slumps|lifeless|stops moving|collapses/.test(text)) this.kills += 1;
+    if (/dies|slumps|lifeless|stops moving|collapses/.test(text)) {
+      this.kills += 1;
+      this.lastProgressAt = Date.now();
+    }
     // Observability: movement/combat refusals are the #1 reason agents park
     // silently. Tag them so a fidelity log explains its own stalls.
     if (/^(You cannot go that way|You are overloaded|You must wait|Creatures block your path|You are in the stocks|The cell door is barred|Go where)/.test(stripAnsi(text))) {
       this.refusals = (this.refusals || 0) + 1;
+      this.refusalTimes.push(Date.now());
+      if (this.refusalTimes.length > 400) this.refusalTimes.splice(0, 200);
       if (this.refusals <= 200) {
         this.appendLog(`[refuse] ${stripAnsi(text).slice(0, 120)} [room ${this.session.vitals.room}]`);
       }
@@ -313,6 +401,7 @@ class SweepAgent {
     }
     if (/not yet ready to circle/.test(text)) {
       this.appendLog(`[circle-blocked] ${stripAnsi(text).replace(/\n+/g, ' | ').slice(0, 220)}`);
+      this.lastProgressAt = Date.now(); // a circle attempt + curriculum parse is activity
       // Retarget: parse the exact missing list so the next hall trip trains
       // the blocking skills instead of the generic curriculum.
       const missing = trainListFromMissing(stripAnsi(text), this.guild);
@@ -342,10 +431,10 @@ class SweepAgent {
         const here = s.vitals.room;
         const fresh = (here && here !== 'bazaar') ? s.bfsPath(here, 'bazaar', this.diskAdj()) : null;
         const use = fresh?.length ? fresh : steps;
-        this.appendLog(`[escape] ${use.length} steps from ${here}`);
+        this.appendLog(`[escape] here=${here} fresh=${fresh?.length ?? 'null'} using ${use.length} steps: ${use.join(',')}`);
         this.runner = createRunner(use.map((d) => 'move ' + d).join('\n') + '\nput look\nwait', [], {
           send: async (line) => { trackMove(s, line); void s.cmd(line); },
-          onRefusedMove: () => trackRefusedMove(s),
+          onRefusedMove: (dir) => trackRefusedMove(s, dir),
           say: () => {},
         });
         this.runner.start();
@@ -425,12 +514,14 @@ class SweepAgent {
     // Rest interlock (supervisor-side, like live-sim): the generated hunt
     // script gates resting on an ABSOLUTE hp literal (< 40 ≈ 28% of a c1
     // bar), so a hurt agent can hover just above it forever — fleeing every
-    // fight, never healing, never winning. Rest out-of-combat below 55%,
-    // stand above 90%.
+    // fight, never healing, never winning. Rest below the variant's restPct
+    // (default 55%), stand above 90%.
     if (!v.maxhp || v.inCombat) return;
     const frac = v.hp / v.maxhp;
     const now = Date.now();
-    if (!v.restingFlag && frac < 0.55 && now - (this.lastRestCmdAt || 0) > 4000) {
+    // Stall signal: pinned under 25% HP (see stall-detect LOW_HP_FRAC).
+    this.lowHpSince = frac < 0.25 ? (this.lowHpSince || now) : null;
+    if (!v.restingFlag && frac < this.restPct / 100 && now - (this.lastRestCmdAt || 0) > 4000) {
       this.lastRestCmdAt = now;
       if (!this.restAnnounced) {
         this.restAnnounced = true;
@@ -443,8 +534,44 @@ class SweepAgent {
     }
   }
 
+  // Live stall verdict, recomputed each heartbeat from the same pure
+  // classifier the end-of-run row uses. Logged (once) when it CHANGES so a
+  // fidelity log narrates its own decline; surfaced in progress lines.
+  updateStallVerdict() {
+    if (this.done) return;
+    const v = this.session.vitals;
+    this.liveVerdict = classifyStall({
+      startedAt: this.startedAt,
+      guild: this.guild,
+      room: v.room || null,
+      kills: this.kills,
+      refusals: this.refusalTimes.length ? this.refusalTimes : [],
+      roomChangedAt: this.roomChangedAt,
+      lastProgressAt: this.lastProgressAt,
+      lowHpSince: this.lowHpSince,
+      inCombat: !!v.inCombat,
+      circles: this.circles,
+      trains: this.trains,
+    });
+    const key = this.liveVerdict.verdict;
+    if (key !== this.lastLoggedVerdict) {
+      if (key === 'healthy') {
+        if (this.lastLoggedVerdict && this.lastLoggedVerdict !== 'healthy') {
+          this.appendLog(`[verdict] recovered to healthy`);
+          this.lastLoggedVerdict = 'healthy';
+        }
+      } else {
+        this.lastLoggedVerdict = key;
+        const line = `[verdict] ${verdictLabel(this.liveVerdict.verdict, this.liveVerdict.reason)}`;
+        this.appendLog(line);
+        log(`[${this.guild}/${this.race}] ${line}`);
+      }
+    }
+  }
+
   heartbeat() {
     if (this.done) return;
+    this.updateStallVerdict();
     try { this.runner?.feed('', false); } catch {}
     this.session.injectState(this.runner);
     if (!this.runner || !this.runner.running) {
@@ -464,7 +591,7 @@ class SweepAgent {
     }
     const huntingLeg = this.curName === this.scriptBase + 'mega';
     if (huntingLeg && !v2.inCombat && this.kills > this.killsAtVisit
-      && (this.kills - this.killsAtVisit >= 4 || Date.now() - this.lastHallAt > 240000)) {
+      && (this.kills - this.killsAtVisit >= this.hallEvery || Date.now() - this.lastHallAt > 240000)) {
       log(`[${this.guild}/${this.race}] hall trip (${this.kills - this.killsAtVisit} kills since last visit)`);
       this.appendLog(`[hall-trip] ${this.kills - this.killsAtVisit} kills since last visit`);
       this.killsAtVisit = this.kills;
@@ -511,7 +638,7 @@ class SweepAgent {
   progressLine() {
     const v = this.session.vitals;
     const mins = Math.round((Date.now() - this.startedAt) / 60000);
-    return `[progress] ${mins}m circle ${v.circle} hp ${v.hp}/${v.maxhp} kills ${this.kills} circles ${this.circles} trains ${this.trains} deaths ${this.deaths} boost x${BOOST} fidelity:${JSON.stringify(this.fidelity)} [room ${v.room}]`;
+    return `[progress] ${mins}m circle ${v.circle} hp ${v.hp}/${v.maxhp} kills ${this.kills} circles ${this.circles} trains ${this.trains} deaths ${this.deaths} boost x${BOOST} fidelity:${JSON.stringify(this.fidelity)} [room ${v.room}] ${verdictLabel(this.liveVerdict.verdict, this.liveVerdict.reason, 90)}`;
   }
 
   async finish(reason) {
@@ -519,8 +646,9 @@ class SweepAgent {
     this.done = true;
     this.runner?.stop();
     this.session.close();
+    this.updateStallVerdict(); // final classification for this run
     this.appendLog(this.progressLine());
-    this.appendLog(`=== Results (${GUILDS[this.guild]?.name}) ===`);
+    this.appendLog(`=== Results (${GUILDS[this.guild]?.name}${this.variantName ? ` [${this.variantName}]` : ''}) ===`);
     this.appendLog(`  ${reason}: circle ${this.session.vitals.circle}, ${this.circles} circle-ups, ${this.kills} kills, ${this.deaths} deaths`);
     const checksPassed = Object.keys(this.fidelity).length;
     const checksTotal = (GUILD_SCRIPTS[this.guild].fidelityChecks || []).length;
@@ -536,9 +664,12 @@ class SweepAgent {
     const summary = {
       run_id: RUN_ID,
       ts: new Date().toISOString(), guild: this.guild, race: this.race, char: this.char,
-      reason, circle: this.session.vitals.circle, circles: this.circles,
+      variant: this.variantName, reason, circle: this.session.vitals.circle, circles: this.circles,
       kills: this.kills, deaths: this.deaths, trains: this.trains,
       refusals: this.refusals || 0,
+      circleTimes: this.circleTimes,
+      timeToCircleMs: this.circleTimes.find((c) => c.circle >= CIRCLE_TARGET)?.ms ?? null,
+      stallVerdict: this.liveVerdict?.verdict || null, stallReason: this.liveVerdict?.reason || null,
       fidelity: this.fidelity, fidelityScore: `${checksPassed}/${checksTotal}`,
       grade,
     };
@@ -552,10 +683,15 @@ class SweepAgent {
         grade, circle: summary.circle, kills: this.kills, trains: this.trains,
         circles_up: this.circles, deaths: this.deaths, refusals: this.refusals || 0,
         durationMs: Date.now() - this.startedAt, notes: reason,
+        variant: this.variantName,
+        timeToCircleMs: summary.timeToCircleMs,
+        stallVerdict: this.liveVerdict?.verdict, stallReason: this.liveVerdict?.reason,
+        circleTimes: this.circleTimes,
       });
       db.close();
     } catch (e) { log(`[${this.guild}/${this.race}] sweeps-db write failed: ${e.message}`); }
     log(`[${this.guild}/${this.race}] FINISHED run ${RUN_ID} (${reason}): circle ${summary.circle}, fidelity ${summary.fidelityScore}`, JSON.stringify(summary.fidelity));
+    log(`[${this.guild}/${this.race}] VERDICT: ${verdictLabel(this.liveVerdict.verdict, this.liveVerdict.reason)}${this.variantName ? ` [variant ${this.variantName}]` : ''}`);
     await this.appendHistory(summary);
   }
 
@@ -634,37 +770,212 @@ function report() {
     } catch { console.log('no sweeps.db or summary yet:', LIVE_DIR); return; }
   }
   if (!rows.length) { console.log('no sweep rows found'); return; }
+  const hasVerdicts = rows.some((r) => r.stallVerdict);
   console.log(`\n=== Fidelity sweep results (${rows.length} rows${since ? `, since ${since}` : ''}) ===`);
   console.log(pad('run', 6) + pad('guild', 13) + pad('race', 10) + pad('grade', 6)
     + pad('circle', 7) + pad('kills', 6) + pad('deaths', 7) + pad('refus', 6)
+    + (hasVerdicts ? pad('verdict', 9) : '')
     + pad('mins', 5) + 'ts');
   for (const r of rows.slice(-Math.max(1, lastN) * 200)) {
     console.log(pad(r.run_id || '-', 6) + pad(r.guild, 13) + pad(r.race, 10)
       + pad(r.grade || '-', 6) + pad(String(r.circle ?? '-'), 7)
       + pad(String(r.kills ?? 0), 6) + pad(String(r.deaths ?? 0), 7)
       + pad(String(r.refusals ?? 0), 6)
+      + (hasVerdicts ? pad(r.stallVerdict || '-', 9) : '')
       + pad(r.durationMs ? String(Math.round(r.durationMs / 60000)) : '-', 5)
       + r.ts);
   }
-  // Latest per guild x race rollup
+  // Latest per guild x race (x variant) rollup
   const latest = new Map();
-  for (const r of rows) latest.set(r.guild + '|' + r.race, r);
+  for (const r of rows) latest.set(r.guild + '|' + r.race + '|' + (r.variant || ''), r);
   const circles = [...latest.values()].reduce((s, r) => s + (r.circles_up ?? r.circles ?? 0), 0);
   console.log(`\n${latest.size} combos (latest per combo shown above), ${circles} total circle-ups`);
+  // Stall watch: recently finished runs whose final verdict was stalled or
+  // wedged — the ones needing a fidelity-log autopsy.
+  const bad = rows.filter((r) => r.stallVerdict === 'stalled' || r.stallVerdict === 'wedged').slice(-12);
+  if (bad.length) {
+    console.log(`\n=== !! ${bad.length} stalled/wedged run(s), oldest first — autopsy via public/live/fidelity-<guild>-<race>.log ===`);
+    for (const r of bad) {
+      console.log(pad(r.ts.slice(5, 16).replace('T', ' '), 17) + pad(r.run_id, 6)
+        + pad(`${r.guild}/${r.race}`, 26) + pad(r.variant || '-', 9)
+        + verdictLabel(r.stallVerdict, r.stallReason));
+    }
+  }
 }
 function pad(s, n) { return String(s).padEnd(n); }
 
+// --by-variant: leveling-lab comparison. Groups runs by variant × race from
+// the sweeps DB and reports median time-to-target-circle, per-circle pacing
+// medians, kills/hour, deaths, and a winner line. Runs whose time-to-circle
+// is within NOISE_FRAC of the best are marked as ties (server-day variance
+// can easily swing a single run by that much).
+const NOISE_FRAC = 0.1;
+const fmtMin = (ms) => (ms == null ? '-' : (ms / 60000).toFixed(1) + 'm');
+
+function reportByVariant() {
+  const since = flag('since', null);
+  const target = Number(flag('circle', CIRCLE_TARGET));
+  let rows;
+  try {
+    const db = openSweepsDb(LIVE_DIR);
+    let sql = 'SELECT run_id, ts, guild, race, variant, circle, kills, circles_up, deaths, durationMs, timeToCircleMs, circleTimes, stallVerdict FROM sweeps WHERE variant IS NOT NULL';
+    const params = [];
+    if (since) {
+      const cutoff = since === 'today' ? new Date().toISOString().slice(0, 10) : since;
+      sql += ' AND ts >= ?'; params.push(cutoff);
+    }
+    sql += ' ORDER BY ts ASC';
+    rows = db.prepare(sql).all(...params);
+    db.close();
+  } catch (e) { console.log('no sweeps.db yet:', e.message); return; }
+  if (!rows.length) { console.log('no variant-tagged runs found'); return; }
+
+  // Group by guild|variant|race.
+  const groups = new Map();
+  for (const r of rows) {
+    const key = `${r.guild}|${r.variant}|${r.race}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+
+  console.log(`\n=== Leveling lab — variants → circle ${target} (${rows.length} runs) ===`);
+  console.log(pad('guild', 11) + pad('variant', 10) + pad('race', 10)
+    + pad('runs', 5) + pad('to-c10', 8) + pad('kills/h', 8) + pad('deaths', 7)
+    + pad('verdicts', 20) + 'pacing (median min/circle)');
+  for (const [key, rs] of [...groups].sort()) {
+    const [guild, variant, race] = key.split('|');
+    const done = rs.filter((r) => r.timeToCircleMs != null);
+    const times = done.map((r) => r.timeToCircleMs).sort((a, b) => a - b);
+    const median = times.length ? times[Math.floor(times.length / 2)] : null;
+    // Guard the spread: an empty filter yields Infinity, which would mark
+    // every (nonexistent-finisher) row as tied with nothing.
+    const bestTimes = rows.filter((x) => x.guild === guild && x.race === race && x.timeToCircleMs != null).map((x) => x.timeToCircleMs);
+    const best = bestTimes.length ? Math.min(...bestTimes) : null;
+    const tie = median != null && best != null && median <= best * (1 + NOISE_FRAC);
+    const kph = rs.map((r) => r.kills / ((r.durationMs || 0) / 3600000)).filter(Number.isFinite);
+    const deaths = rs.reduce((s, r) => s + (r.deaths || 0), 0);
+    const verdicts = rs.map((r) => r.stallVerdict || '-').join(',');
+    // Median pacing curve across runs that have circleTimes.
+    const curves = rs.map((r) => { try { return JSON.parse(r.circleTimes || '[]'); } catch { return []; } })
+      .filter((c) => c.length);
+    const maxC = Math.max(0, ...curves.map((c) => c[c.length - 1]?.circle || 0));
+    const pace = [];
+    for (let c = 2; c <= maxC; c++) {
+      const splits = curves.map((cu) => cu.find((x) => x.circle === c)?.ms).filter(Boolean);
+      if (splits.length) {
+        splits.sort((a, b) => a - b);
+        pace.push(`c${c}:${fmtMin(splits[Math.floor(splits.length / 2)])}`);
+      }
+    }
+    console.log(pad(guild, 11) + pad(variant, 10) + pad(race, 10)
+      + pad(String(rs.length), 5)
+      + pad(median != null ? fmtMin(median) + (tie ? '*' : '') : '-', 8)
+      + pad(kph.length ? String(Math.round(kph.reduce((s, x) => s + x, 0) / kph.length)) : '-', 8)
+      + pad(String(deaths), 7)
+      + pad(verdicts.slice(0, 18), 20)
+      + pace.join(' '));
+  }
+  console.log('\n* = statistically tied with the fastest variant for this guild×race (±' + Math.round(NOISE_FRAC * 100) + '%)');
+  console.log('-'.repeat(30));
+}
+
+// --leaderboard: ranked benchmark table from the sweeps DB — best/median
+// wall time to reach the target circle per guild × variant (races pooled),
+// plus kills, deaths, and stall counts. Variants that never reached the
+// target circle rank below finishers, ordered by total kills. Pairs with
+// --by-variant, which shows per-race detail and pacing curves.
+function leaderboard() {
+  const guild = flag('guild', null);
+  const target = Number(flag('circle', CIRCLE_TARGET));
+  let rows;
+  try {
+    const db = openSweepsDb(LIVE_DIR);
+    const params = [];
+    let sql = 'SELECT run_id, ts, guild, race, grade, circle, kills, deaths, trains, refusals, durationMs, variant, timeToCircleMs, stallVerdict FROM sweeps WHERE variant IS NOT NULL';
+    if (guild) { sql += ' AND guild = ?'; params.push(guild); }
+    sql += ' ORDER BY ts ASC';
+    rows = db.prepare(sql).all(...params);
+    db.close();
+  } catch { console.log('no sweeps.db yet:', LIVE_DIR); return; }
+  if (!rows.length) { console.log(`no benchmark rows yet${guild ? ` for ${guild}` : ''} — run --benchmark <guild> first`); return; }
+
+  const median = (a) => {
+    if (!a.length) return null;
+    const s = [...a].sort((x, y) => x - y);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
+  };
+  const fmtMs = (ms) => ms == null ? '-' : `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}`;
+
+  // One ranked row per guild x variant.
+  const byVariant = new Map();
+  for (const r of rows) {
+    const k = r.guild + '|' + r.variant;
+    if (!byVariant.has(k)) byVariant.set(k, []);
+    byVariant.get(k).push(r);
+  }
+  const rankRows = [...byVariant.entries()].map(([k, rs]) => {
+    const [g, v] = k.split('|');
+    const times = rs.map((r) => r.timeToCircleMs).filter((t) => t != null);
+    return {
+      guild: g, variant: v, runs: rs.length,
+      reached: times.length,
+      best: times.length ? Math.min(...times) : null,
+      med: median(times),
+      kills: rs.reduce((s, r) => s + (r.kills || 0), 0),
+      deaths: rs.reduce((s, r) => s + (r.deaths || 0), 0),
+      bad: rs.filter((r) => r.stallVerdict === 'stalled' || r.stallVerdict === 'wedged').length,
+      kph: median(rs.map((r) => (r.durationMs > 0 ? r.kills / (r.durationMs / 3600000) : NaN)).filter(Number.isFinite)),
+    };
+  }).sort((a, b) => ((a.med ?? Infinity) - (b.med ?? Infinity)) || (b.kills - a.kills));
+
+  console.log(`\n=== Benchmark leaderboard — time to circle ${target}${guild ? ` — ${guild}` : ''} (${rows.length} runs, boost x${BOOST}) ===`);
+  console.log(pad('rank', 5) + pad('variant', 10) + pad('guild', 13)
+    + pad('runs', 5) + pad('reached', 8) + pad('best', 7) + pad('median', 7)
+    + pad('kills', 6) + pad('deaths', 7) + pad('kills/h', 8) + pad('stall/wdg', 10));
+  rankRows.forEach((r, i) => {
+    console.log(pad(String(i + 1), 5) + pad(r.variant, 10) + pad(r.guild, 13)
+      + pad(String(r.runs), 5) + pad(`${r.reached}/${r.runs}`, 8)
+      + pad(fmtMs(r.best), 7) + pad(fmtMs(r.med), 7)
+      + pad(String(r.kills), 6) + pad(String(r.deaths), 7)
+      + pad(r.kph != null ? String(Math.round(r.kph)) : '-', 8)
+      + pad(String(r.bad), 10));
+  });
+}
+
 // ---------------- orchestration ----------------
 
-if (ARGS.includes('--report')) { report(); process.exit(0); }
+if (ARGS.includes('--report')) {
+  if (ARGS.includes('--by-variant')) reportByVariant();
+  else report();
+  process.exit(0);
+}
+if (ARGS.includes('--leaderboard')) { leaderboard(); process.exit(0); }
 
 const agents = wanted.map((w) => new SweepAgent(w));
 log(`sweep run ${RUN_ID}: ${agents.length} agents over ${new Set(wanted.map((w) => w.guild)).size} guilds, ${MINUTES}m each`);
 
-for (const a of agents) {
-  try { await a.start(); a.run(MINUTES); }
-  catch (e) { log(`[${a.guild}/${a.race}] failed to start: ${e.message}`); a.finish('start-failed'); }
+// Benchmark runs are STRICTLY sequential: concurrent agents contend for
+// creature spawns, which inflates every time-to-circle and makes variant
+// comparisons meaningless. Ad-hoc sweeps keep the historical parallel launch.
+async function launchAll() {
+  for (const a of agents) {
+    try {
+      await a.start();
+      a.run(MINUTES);
+      if (MODE === 'benchmark') {
+        const t0 = Date.now();
+        while (!a.done && Date.now() - t0 < (MINUTES + 2) * 60000) await sleep(2000);
+        log(`[${a.guild}/${a.race}] benchmark run complete — next agent`);
+      }
+    } catch (e) { log(`[${a.guild}/${a.race}] failed to start: ${e.message}`); a.finish('start-failed'); }
+  }
+  if (MODE === 'benchmark') {
+    log('all benchmark runs finished — compare with:');
+    console.log(`  node scripts/race-guild-sweep.mjs --report --by-variant --since ${new Date().toISOString().slice(0, 10)}`);
+  }
 }
+void launchAll();
 
 process.on('uncaughtException', (e) => {
   log(`uncaught: ${e.code || e.message} — finishing agents gracefully`);

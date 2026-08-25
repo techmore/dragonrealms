@@ -110,8 +110,23 @@ export class WireSession {
   }
 
   adjacencyFor(roomId, diskAdj) {
-    // 1. Walked transitions are ground truth.
-    if (this.observedEdges[roomId]) return this.observedEdges[roomId];
+    // 1. Walked transitions are ground truth — but only when they don't
+    //    contradict the disk map for that direction. Message interleaving
+    //    under load can attribute a transition to the wrong origin room;
+    //    such phantom edges (e.g. catrox_forge --e--> with no east exit)
+    //    poison every BFS re-path until purged. Disk wins on conflicts:
+    //    the room data is how we got here in the first place.
+    const observed = this.observedEdges[roomId];
+    if (observed) {
+      if (!diskAdj) return observed;
+      const disk = diskAdj(roomId);
+      const diskDirs = new Set(disk.map((e) => e.dir));
+      const clean = observed.filter((e) => diskDirs.has(e.dir));
+      if (clean.length !== observed.length) {
+        this.observedEdges[roomId] = clean; // purge phantoms at read time
+      }
+      return clean.length ? clean : (diskAdj?.(roomId) || []);
+    }
     const live = this.liveExits[roomId];
     if (!live) return diskAdj?.(roomId) || [];
     const out = [];
@@ -273,7 +288,17 @@ export function trackMove(session, line) {
 }
 
 // Called when the engine reports a refused move ('cannot go that way'):
-// drop the pending attribution so no future room msg records a bogus edge.
-export function trackRefusedMove(session) {
+// clear pending attribution AND drop the learned edge for that direction if
+// one exists — a refusal is live proof the edge is wrong, and keeping it
+// makes BFS re-derive the same doomed path every regeneration cycle
+// (catrox_forge wedge: poisoned 'e' edge beat the disk's true 'w' exit).
+export function trackRefusedMove(session, dir) {
   session.pendingMove = null;
+  const room = session.vitals.room;
+  const list = room && session.observedEdges[room];
+  if (list && dir) {
+    const idx = list.findIndex((e) => e.dir === dir);
+    if (idx >= 0) list.splice(idx, 1);
+    if (!list.length) delete session.observedEdges[room];
+  }
 }
