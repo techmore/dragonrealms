@@ -19,14 +19,17 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { openSweepsDb, insertSweep } from './lib/sweeps-db.mjs';
+import { classifyStall, verdictLabel, GUILD_KILLS_PER_HOUR } from './lib/stall-detect.mjs';
 
 const ARGS = process.argv.slice(2);
 const flag = (name, dflt) => {
   const i = ARGS.indexOf('--' + name);
   return i >= 0 ? ARGS[i + 1] : dflt;
 };
-const MINUTES = Number(flag('minutes', 10));
-const CIRCLE_TARGET = Number(flag('circle', 2));
+// Run length: default depends on mode (10m ad-hoc/sweep, 20m per benchmark
+// variant) — resolved after plan parsing below.
+let MINUTES = Number(flag('minutes', NaN));
+const CIRCLE_TARGET = Number(flag('circle', 2)); // benchmark targets circle 10
 const BOOST = Number(flag('boost', 20)); // agent speed multiplier (0/1 = off)
 const PASS = 'SweepRun1!';
 // Per-invocation run id: 4 random lowercase letters appended to every
@@ -175,7 +178,12 @@ class SweepAgent {
   async beginPlaying() {
     await sleep(500);
     const s = this.session;
+    // The room message can lag the enter handshake — wait for a real room
+    // before generating paths, or bazaarPath comes back empty and the
+    // generated script tries to BUY at the spawn room forever.
+    for (let i = 0; !s.vitals.room && i < 20; i++) await sleep(250);
     const room = s.vitals.room;
+    if (!room) { this.finish('never received a room after enter'); return; }
     const arena = this.nearestSpawnRoom(room);
     if (!arena) { this.finish(`no hunting grounds reachable from ${room}`); return; }
     this.arena = arena.id;
