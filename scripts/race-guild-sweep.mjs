@@ -19,7 +19,7 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { openSweepsDb, insertSweep } from './lib/sweeps-db.mjs';
-import { classifyStall, verdictLabel, GUILD_KILLS_PER_HOUR } from './lib/stall-detect.mjs';
+import { classifyStall, verdictLabel } from './lib/stall-detect.mjs';
 
 const ARGS = process.argv.slice(2);
 const flag = (name, dflt) => {
@@ -545,7 +545,7 @@ class SweepAgent {
       guild: this.guild,
       room: v.room || null,
       kills: this.kills,
-      refusals: this.refusalTimes.length ? this.refusalTimes : [],
+      refusalTimes: this.refusalTimes.length ? this.refusalTimes : [],
       roomChangedAt: this.roomChangedAt,
       lastProgressAt: this.lastProgressAt,
       lowHpSince: this.lowHpSince,
@@ -730,7 +730,9 @@ class SweepAgent {
   }
 
   run(minutes) {
-    this.startedAt = Date.now();
+    // Constructor already stamped startedAt (stall classifier runs from
+    // construction); keep them identical rather than resetting the clock.
+    this.startedAt = this.startedAt || Date.now();
     const PROGRESS = setInterval(() => { if (!this.done) this.appendLog(this.progressLine()); }, 30000);
     const HB = setInterval(() => this.heartbeat(), 1000);
     setTimeout(() => { clearInterval(PROGRESS); clearInterval(HB); this.finish(`--minutes ${minutes} elapsed`); }, minutes * 60000);
@@ -954,6 +956,12 @@ if (ARGS.includes('--leaderboard')) { leaderboard(); process.exit(0); }
 
 const agents = wanted.map((w) => new SweepAgent(w));
 log(`sweep run ${RUN_ID}: ${agents.length} agents over ${new Set(wanted.map((w) => w.guild)).size} guilds, ${MINUTES}m each`);
+// Spawn-a-run contract: print the run-id and log path up front so the
+// operator can tail the fidelity log without digging through public/live/.
+if (MODE === 'spawn') {
+  const a = agents[0];
+  console.log(`SPAWNED ${a.guild},${a.race} -> ${a.char} | run-id ${RUN_ID} | log ${a.logPath} | ${MINUTES}m | boost x${BOOST}`);
+}
 
 // Benchmark runs are STRICTLY sequential: concurrent agents contend for
 // creature spawns, which inflates every time-to-circle and makes variant
