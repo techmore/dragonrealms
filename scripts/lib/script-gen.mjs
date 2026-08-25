@@ -5,6 +5,7 @@
 import { ROOMS } from '../../data/world.js';
 import { creatureById } from '../../data/creatures.js';
 import { GUILD_SCRIPTS } from '../../data/guild-scripts.js';
+import { GUILDS, trainableSkills } from '../../data/guilds.js';
 
 const nounOf = (spawnId) => (creatureById(spawnId)?.name || spawnId).replace(/^(an?|the)\s+/i, '');
 
@@ -231,11 +232,31 @@ function buildCircleScript({ cap, fromArena }) {
     const off = cap.trainOffset % train.length;
     train = [...train.slice(off), ...train.slice(0, off)];
   }
+  // Guild-taught skills first: hard circle requirements are always taught,
+  // so scarce TDPs land where circling needs them; off-guild set-fillers
+  // soak up whatever remains. Stable sort preserves the rotation order.
+  const g = GUILDS[cap.guild];
+  if (g) {
+    const teaches = new Set(trainableSkills(g));
+    train = [...train].sort((a, b) => (teaches.has(b) ? 1 : 0) - (teaches.has(a) ? 1 : 0));
+  }
+  // Afford-gate the whole block on the live %tdp balance (mirrored into the
+  // runner by the engine from game prose / injected prompts). A broke agent
+  // used to spam every entry as a refusal and walk home — pure noise lines
+  // and zero progress. TDP_FLOOR keeps a small reserve instead of burning
+  // down to pocket change on cheap ranks.
+  const TDP_FLOOR = 8;
+  L.push('  put tdp');
+  L.push('  wait');
+  L.push('  pause 1');
+  L.push(`  iflt tdp ${TDP_FLOOR} goto BACK`);
   for (const sk of train) {
     L.push(`  put tdptrain ${sk}`);
     L.push('  wait');
     L.push('  pause 1');
+    L.push(`  iflt tdp ${TDP_FLOOR} goto BACK`);
   }
+  L.push('BACK:');
   if (fromArena.back?.length) L.push(...moves(fromArena.back));
   L.push('  exit');
   return L.join('\n');

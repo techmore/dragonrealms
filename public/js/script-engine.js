@@ -182,9 +182,29 @@ export function createRunner(src, args = [], io = {}) {
       if (mana) { vars.mana = mana[1]; vars.maxmana = mana[2]; }
       const circle = /Circle\s*(\d+)/.exec(plain);
       if (circle) vars.circle = circle[1];
+      // Synthetic sim prompts (wire-session injectState) may carry the
+      // tracked TDP balance; real DR-style prompts never do.
+      const tdp = /TDPs?:\s*(\d+)/i.exec(plain);
+      if (tdp) vars.tdp = tdp[1];
       const rt = /RT:\s*(\d+)/.exec(plain);
-      if (rt) vars.rt = rt[1];
+      if (rt) { vars.rt = rt[1]; }
       vars.combat = /\[COMBAT\]/.test(plain) ? '1' : '0';
+    }
+    // TDP balance surfaces in command OUTPUT (training refusals state the
+    // exact balance, `tdp` prints it, spends confirm the cost) rather than
+    // the prompt. Mirror it into %tdp whenever prose states it so generated
+    // hall scripts can afford-gate tdptrain instead of spamming refusals.
+    if (typeof text === 'string') {
+      const bal = /costs? \d+ TDPs?; you have (\d+)/i.exec(text);
+      if (bal) { vars.tdp = bal[1]; }
+      else {
+        const shown = /Training Points \(TDPs\): (\d+)/i.exec(text);
+        if (shown) { vars.tdp = shown[1]; }
+        else {
+          const spent = /You (?:spend|invest) (\d+) TDPs/i.exec(text);
+          if (spent && vars.tdp !== undefined) vars.tdp = String(Math.max(0, Number(vars.tdp) - Number(spent[1])));
+        }
+      }
     }
     if (s.matches.length && text && typeof text === 'string') {
       const hit = s.matches.find((m) =>

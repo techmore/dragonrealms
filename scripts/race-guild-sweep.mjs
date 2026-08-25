@@ -617,6 +617,26 @@ class SweepAgent {
       return;
     }
     const huntingLeg = this.curName === this.scriptBase + 'mega';
+    // TDP-gate the hall trip: with a known balance below the floor there is
+    // nothing to train, so skip the walk entirely and keep hunting (kills
+    // earn ranks, ranks fill the TDP pool). The generated circle script
+    // afford-gates again at the hall in case balance changed en route.
+    // Fires at most once per fresh kill (killsAtVisit reset) — not per tick.
+    const tdpKnown = Number.isFinite(v2.tdp);
+    if (huntingLeg && tdpKnown && v2.tdp < 8 && !v2.inCombat
+      && this.kills > this.killsAtVisit) {
+      this.appendLog(`[hall-skip] only ${v2.tdp} TDPs — hunting until the pool fills`);
+      log(`[${this.guild}/${this.race}] hall skipped: ${v2.tdp} TDPs below floor`);
+      this.killsAtVisit = this.kills;
+      return;
+    }
+    if (huntingLeg && !tdpKnown && this.kills - this.killsAtVisit >= 12 && !v2.inCombat) {
+      // Balance never observed yet — probe it once instead of walking blind.
+      this.appendLog('[hall-probe] checking TDP balance before hall trip');
+      void this.session.cmd('tdp');
+      this.killsAtVisit = this.kills;
+      return;
+    }
     if (huntingLeg && !v2.inCombat && this.kills > this.killsAtVisit
       && (this.kills - this.killsAtVisit >= this.hallEvery || Date.now() - this.lastHallAt > 240000)) {
       log(`[${this.guild}/${this.race}] hall trip (${this.kills - this.killsAtVisit} kills since last visit)`);

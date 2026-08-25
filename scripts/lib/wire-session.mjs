@@ -244,6 +244,18 @@ export class WireSession {
         // rest ticks carry vitals outside prompts
         const restHp = /hp (\d+)\/(\d+)/i.exec(text);
         if (restHp) { v.hp = Number(restHp[1]); v.maxhp = Number(restHp[2]); }
+        // Passive TDP accounting from game prose: refusals state the exact
+        // balance ("costs 13 TDPs; you have 2"), the tdp command prints it,
+        // spends decrement it. Feeds %tdp so generated scripts can decide at
+        // the hall whether training can afford anything (DR shows no TDPs
+        // in the prompt either).
+        const tdpBal = /(?:cost|costs) (\d+) TDPs?; you have (\d+)/i.exec(text);
+        if (tdpBal) v.tdp = Number(tdpBal[2]);
+        else if (/Training Points \(TDPs\): (\d+)/i.exec(text)) v.tdp = Number(RegExp.$1);
+        else {
+          const spent = /You (?:spend|invest) (\d+) TDPs/i.exec(text);
+          if (spent && Number.isFinite(v.tdp)) v.tdp = Math.max(0, v.tdp - Number(spent[1]));
+        }
         // Refused move: disarm move attribution NOW. A blocked 'n' leaves
         // pendingMove armed otherwise, and the next room change (flee
         // relocation, temple awaken, scripted transit) gets recorded as a
@@ -292,7 +304,7 @@ export class WireSession {
   injectState(runner) {
     if (!runner?.running || !this.vitals.maxhp) return;
     const v = this.vitals;
-    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.inCombat ? ' [COMBAT]' : ''}`, true);
+    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}`, true);
   }
 }
 
