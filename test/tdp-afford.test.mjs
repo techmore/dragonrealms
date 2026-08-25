@@ -97,7 +97,7 @@ test('barbarian fight loop relies on engine WAIT semantics (no hand pauses)', ()
   // The swing block flows straight into skin/signature — the ENGINE parks
   // RT-blocked verbs and applies them when roundtime clears.
   const fightIdx = src.indexOf('FIGHT_NOW:');
-  const skinIdx = src.indexOf('put skin', fightIdx);
+  const skinIdx = src.indexOf('put skin ', fightIdx);
   const roarIdx = src.indexOf('put roar', skinIdx);
   assert.ok(skinIdx > fightIdx, 'skin follows the swings');
   assert.ok(roarIdx > skinIdx, 'signature follows skin');
