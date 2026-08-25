@@ -4,15 +4,20 @@ Canonical handoff list. Generated from the tracker's partial rows
 (`data/roadmap.js`) plus known divergences. Edit the tracker first; this
 document is the narrative companion to `/ROADMAP.html`.
 
-**State at time of writing:** 195 tracked features — 152 done / 43 partial /
-0 todo. Stages 1, 2, 6, 7, 8, 14, 15 fully done. P1 and P2 backlogs complete.
-Verification: 278 server tests, client CDP suite, data audit, docs
+**State at time of writing:** 203 tracked features — 154 done / 45 partial /
+4 todo. Stages 1, 2, 6, 8, 14, 15 fully done; Stage 7 (Custom Interface) has
+four new todo rows for Hericon add-ons. P1 and P2 backlogs complete.
+Verification: 283 server tests, client CDP suite, data audit, docs
 verification — all green.
 
-Recent additions (2026-08-24): bleeding wounds & tending, BUFFS window,
-North Fields hunting ground through the North Gate, Thief Passages,
-Bard Segue + area enchantes, one-time crier onboarding signpost, /sims.html
-(run history/grades/launch), sharded fidelity sweep with spawn-density knob.
+Recent additions (2026-08-24, second batch): paper doll pass — symmetric
+redraw, gear silhouettes, condition prose words, wound-onset flash + idle
+breathing, grey death state, deuteranopia-safe damage dashes; Hericons
+(equipment glyph chips with weapon-class hand glyph, live bleed dots,
+magic sparkle, just-equipped pop); HEALTH window (prose wound rows +
+tend hint); char-select numeric-id fix (typed selection was broken);
+sims rerun fix + name-collision retry (browser agents and wire-session
+sweeps); arms/legs armor items at Briga's.
 
 ---
 
@@ -78,3 +83,7 @@ Plus the shared **guild spellbook expansion**: every magic guild has 5 spells
 5. Spellbook expansion as a shared system (slot budgets already live — this
    is content authoring against `data/guilds.js` spell lists).
 6. Lockpick carving (thief, circle 12+) — pairs with the justice loop.
+7. Hericon add-ons (S7, all todo): charge pips for cambrinth (needs
+   snapshot extension), damage-scaled chip glow, doll inspect modal,
+   weapon-class silhouettes on the hand. Each is small; the mapping and
+   state plumbing they build on is already live.
