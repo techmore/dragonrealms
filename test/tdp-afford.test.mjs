@@ -173,3 +173,30 @@ test('injected stale RT never arms or extends roundtime', () => {
   // If injection armed RT, this would park forever; instead script completes.
   r.feed('', false); // heartbeat advances past `wait`? No — wait needs prompt.
 });
+
+test('town errands leg: sells loot at the bazaar, bundles leftovers, walks home', () => {
+  const src = buildCircleScript({
+    cap: { guild: 'barbarian', race: 'human', char: 'T', scriptBase: 'tb' },
+    fromArena: { hall: [{ dir: 'n' }], back: [{ dir: 's' }] },
+    errands: {
+      bazaarPath: [{ dir: 'n' }, { dir: 'e' }],
+      returnPath: [{ dir: 'w' }, { dir: 's' }],
+      sellLoot: ['rat_pelt'],
+    },
+  });
+  const backIdx = src.search(/^BACK:$/m);
+  const seg = src.slice(backIdx);
+  assert.match(seg, /move n/, 'walks to the bazaar');
+  assert.match(seg, /put sell rat_pelt/, 'sells the pelt');
+  assert.match(seg, /matchre ERRAND_DONE/, 'bails out when nothing is left to sell');
+  assert.match(seg, /put bundle rat_pelt/, 'bundles leftovers so burden never blocks moves');
+  assert.match(seg, /ERRAND_DONE:\n  move w/, 'resumes homeward path after errands');
+});
+
+test('no errands config -> circle script unchanged (backward compatible)', () => {
+  const src = buildCircleScript({
+    cap: { guild: 'barbarian', race: 'human', char: 'T', scriptBase: 'tb' },
+    fromArena: { hall: [{ dir: 'n' }], back: [{ dir: 's' }] },
+  });
+  assert.ok(!/sell |bundle |ERRAND/.test(src), 'no errand lines without errands config');
+});

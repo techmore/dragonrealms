@@ -56,6 +56,21 @@ const { createRunner } = await import('../public/js/script-engine.js');
 const LIVE_DIR = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'public', 'live');
 try { mkdirSync(LIVE_DIR, { recursive: true }); } catch {}
 
+// Loot items a town errand should try to sell at the bazaar: skins-tagged
+// drops (pelts/hides the general store buys) from early-game creatures.
+// Derived from data/creatures.js so new species flow in automatically.
+import { CREATURES } from '../data/creatures.js';
+function errandLootFor(guild) {
+  const loot = new Set();
+  for (const def of Object.values(CREATURES)) {
+    if ((def.circle || 1) > 4) continue; // early-game errands only
+    for (const id of def.loot || []) {
+      if ((def.lootTags || []).includes('skins')) loot.add(id);
+    }
+  }
+  return [...loot];
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -286,6 +301,14 @@ class SweepAgent {
       fromArena: {
         hall: s.bfsPath(room === 'bazaar' ? 'bazaar' : arena.id, 'hall_' + this.guild, this.diskAdj()),
         back: s.bfsPath('hall_' + this.guild, arena.id, this.diskAdj()),
+      },
+      // Town errands: sell loot + bundle leftovers on the way home. The
+      // bazaar is the hub every town road touches; its general store buys
+      // pelts/hides. Sell list = this guild's creatures' skin loot.
+      errands: {
+        bazaarPath: s.bfsPath('hall_' + this.guild, 'bazaar', this.diskAdj()),
+        returnPath: s.bfsPath('bazaar', arena.id, this.diskAdj()),
+        sellLoot: errandLootFor(this.guild),
       },
     });
     const megaSrc = buildMegaScript(cap);
@@ -524,6 +547,11 @@ class SweepAgent {
       fromArena: {
         hall: s.bfsPath(arena.id, 'hall_' + this.guild, this.diskAdj()),
         back: s.bfsPath('hall_' + this.guild, arena.id, this.diskAdj()),
+      },
+      errands: {
+        bazaarPath: s.bfsPath('hall_' + this.guild, 'bazaar', this.diskAdj()),
+        returnPath: s.bfsPath('bazaar', arena.id, this.diskAdj()),
+        sellLoot: errandLootFor(this.guild),
       },
     });
     for (const [name, body] of Object.entries(this.library)) {

@@ -216,10 +216,10 @@ function trainListFromMissing(raw, guild) {
   return [...new Set(wanted)];
 }
 
-function buildCircleScript({ cap, fromArena }) {
+function buildCircleScript({ cap, fromArena, errands }) {
   const cfg = GUILD_SCRIPTS[cap.guild];
   const L = [];
-  L.push(`# ${cap.scriptBase}circle — guild hall trip`);
+  L.push(`# ${cap.scriptBase}circle — guild hall trip (+ town errands)`);
   L.push('HALLTRIP:');
   if (fromArena.hall?.length) L.push(...moves(fromArena.hall));
   L.push('  matchre CIRCLE_OK Rise, |now a ');
@@ -262,6 +262,28 @@ function buildCircleScript({ cap, fromArena }) {
     L.push(`  iflt tdp ${TDP_FLOOR} goto BACK`);
   }
   L.push('BACK:');
+  // Town errands: convert the hunt's loot into silver before walking home.
+  // The bazaar's general storekeeper buys pelts/hides; anything unsold (or
+  // beyond what a shop wants) gets bundled so burden never blocks movement
+  // ("You are overloaded!" refuses ALL moves — the silent wedge).
+  if (errands?.bazaarPath?.length) {
+    L.push(...moves(errands.bazaarPath));
+    L.push('ERRAND_SELL:');
+    for (const loot of errands.sellLoot || []) {
+      L.push(`  matchre ERRAND_DONE not interested|do not have|Sell what`);
+      L.push(`  put sell ${loot}`);
+      L.push('  wait');
+      L.push('  pause 0.5');
+    }
+    L.push('ERRAND_BUNDLE:');
+    for (const loot of errands.sellLoot || []) {
+      L.push(`  put bundle ${loot}`);
+      L.push('  wait');
+      L.push('  pause 0.5');
+    }
+    L.push('ERRAND_DONE:');
+    if (errands.returnPath?.length) L.push(...moves(errands.returnPath));
+  }
   if (fromArena.back?.length) L.push(...moves(fromArena.back));
   L.push('  exit');
   return L.join('\n');
