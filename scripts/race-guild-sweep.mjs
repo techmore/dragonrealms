@@ -444,6 +444,17 @@ class SweepAgent {
         this.trainList = missing;
         log(`[${this.guild}/${this.race}] retargeting curriculum: ${missing.slice(0, 6).join(', ')}${missing.length > 6 ? ` +${missing.length - 6}` : ''}`);
       }
+      // Rank-gap ledger: remember what circling demanded and how far short we
+      // fell ("expertise at least rank 4 (you have 2)"). The supervisor uses
+      // it to skip pointless hall trips until ranks actually move.
+      const v3 = this.session.vitals;
+      for (const m of stripAnsi(text).matchAll(/([a-z_' ]+?) at least rank (\d+) \(you have (\d+)\)/gi)) {
+        const skill = m[1].trim().toLowerCase().replace(/\s+/g, '_');
+        (v3.circleGaps ||= {})[skill] = { need: Number(m[2]), have: Number(m[3]) };
+      }
+      if (v3.circleGaps && Object.keys(v3.circleGaps).length) {
+        log(`[${this.guild}/${this.race}] circle gaps: ${Object.entries(v3.circleGaps).slice(0, 4).map(([s, g]) => `${s} ${g.have}/${g.need}`).join(', ')}${Object.keys(v3.circleGaps).length > 4 ? ` +${Object.keys(v3.circleGaps).length - 4}` : ''}`);
+      }
     }
     // Feed the runner (matches/waitfor react to prose)
     if (this.runner) this.runner.feed(text, type);
@@ -653,6 +664,26 @@ class SweepAgent {
       return;
     }
     const huntingLeg = this.curName === this.scriptBase + 'mega';
+    // Circle-readiness gate: if a previous circle attempt told us our rank
+    // gaps, and the mindstate feed shows NO blocking skill has gained any
+    // ranks since, walking to the hall is pure waste — skip and keep hunting
+    // until ranks move (or the long timer fires as a fallback). Closes the
+    // walk-fail-train-walk-back-per-kill loop.
+    const gaps = v2.circleGaps;
+    if (huntingLeg && gaps && Object.keys(gaps).length) {
+      const skills = v2.skills || {};
+      const moved = Object.entries(gaps).filter(([sk, g]) => (skills[sk] || 0) > g.have);
+      const close = Object.values(gaps).every((g) => g.have >= g.need);
+      if (!moved.length && !close && this.kills - this.killsAtVisit < 12) {
+        return; // silently keep hunting — no log spam, no wasted walk
+      }
+      if (moved.length) {
+        for (const [sk] of moved) gaps[sk].have = skills[sk]; // refresh ledger
+        this.appendLog(`[circle-readiness] ranks moved: ${moved.map(([s]) => s).join(', ')} — retrying the hall`);
+      } else if (close) {
+        this.appendLog('[circle-readiness] requirements met by ranks — retrying circle');
+      }
+    }
     // TDP-gate the hall trip: with a known balance below the floor there is
     // nothing to train, so skip the walk entirely and keep hunting (kills
     // earn ranks, ranks fill the TDP pool). The generated circle script

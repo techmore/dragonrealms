@@ -294,6 +294,17 @@ export class WireSession {
         }
         break;
       default:
+        // mindstate feed (top-10 skills by learning progress): mirror ranks
+        // into vitals.skills so the supervisor can judge circle-readiness
+        // without a hall trip ("am I even close?" beats walk-fail-walk-back).
+        if (m.t === 'mindstate' && Array.isArray(m.skills)) {
+          v.skills = v.skills || {};
+          for (const row of m.skills) {
+            const id = String(row.name || '').toLowerCase().replace(/\s+/g, '_');
+            if (id) v.skills[id] = row.rank;
+          }
+          this.handlers.onSkills?.(v.skills);
+        }
         this.handlers.onOther?.(m);
     }
   }
