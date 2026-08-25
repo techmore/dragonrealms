@@ -646,6 +646,26 @@ body:not(.in-combat) #hands-doll { animation: pd-breathe 5.5s ease-in-out infini
   background: color-mix(in srgb, var(--amber) 18%, transparent);
 }
 .heri:focus-visible { outline: 1px dashed var(--amber); outline-offset: 1px; }
+/* Just-equipped pop: renderHands tags chips whose slot newly filled with
+   heri-new; a quick scale+glow pop draws the eye to the change. */
+.heri.heri-new { animation: heri-pop 0.5s ease-out 1; }
+@keyframes heri-pop {
+  0% { transform: scale(0.6); background: color-mix(in srgb, var(--amber) 45%, transparent); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+/* Magical gear: soft cyan-tinted stroke + tiny star in the corner — reads
+   as "special" without breaking the amber language. */
+.heri.heri-magic { border-color: color-mix(in srgb, #7fd4ff 55%, transparent); }
+.heri.heri-magic .heri-svg { stroke: #9adfff; }
+.heri.heri-magic .heri-svg.heri-on { opacity: 1; }
+.heri .heri-spark {
+  position: absolute; top: -3px; left: -3px;
+  width: 8px; height: 8px;
+  color: #9adfff;
+  font-size: 8px; line-height: 8px;
+  text-align: center;
+}
 /* Compact/narrow: chips shrink and the strip stays one row so the window
    max-height caps don't clip the doll. */
 @media (max-width: 560px) {

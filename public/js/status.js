@@ -139,6 +139,8 @@ function weaponClass(skill) {
   }
   return 'edged'; // unknown skill: an edge is a decent guess
 }
+// Slots filled as of the last snapshot — drives the just-equipped pop.
+const lastFilled = new Set();
 
 // 24×24 line-art glyphs. Each is the inner content of an <svg viewBox="0 0 24 24">.
 const HERICON_GLYPHS = {
@@ -178,8 +180,10 @@ export function renderHericons(msg) {
   const chips = [];
   // Hand chip first: what you're wielding, by weapon class.
   const wcls = msg.hand ? weaponClass(msg.handSkill || null) : null;
+  const handNew = msg.hand && !lastFilled.has('hand');
+  if (msg.hand) lastFilled.add('hand'); else lastFilled.delete('hand');
   chips.push(`
-    <span class="heri heri-hand${msg.hand ? ' heri-filled' : ''}" data-slot="hand"
+    <span class="heri heri-hand${msg.hand ? ' heri-filled' : ''}${handNew ? ' heri-new' : ''}" data-slot="hand"
           tabindex="0" role="img"
           aria-label="hands: ${esc(msg.hand || 'empty')}"
           title="hands: ${esc(msg.hand || 'empty')}">
@@ -190,15 +194,19 @@ export function renderHericons(msg) {
   for (const slot of ['head', 'torso', 'arms', 'shield', 'legs', 'feet', 'neck']) {
     const items = slots[slot] || [];
     const cond = items.length ? Math.min(...items.map((it) => (typeof it === 'string' ? 100 : it.cond))) : null;
+    const magic = items.some((it) => typeof it === 'object' && it.magic);
+    const isNew = items.length > 0 && !lastFilled.has(slot);
+    if (items.length) lastFilled.add(slot); else lastFilled.delete(slot);
     const label = DOLL_SLOT_LABELS[slot] || slot;
     const names = items.map((it) => (typeof it === 'string' ? it : it.name)).join(', ');
     chips.push(`
-      <span class="heri${items.length ? ' heri-filled' : ''}${cond !== null && cond < 60 ? ' heri-damaged' : ''}"
+      <span class="heri${items.length ? ' heri-filled' : ''}${cond !== null && cond < 60 ? ' heri-damaged' : ''}${magic ? ' heri-magic' : ''}${isNew ? ' heri-new' : ''}"
             data-slot="${slot}" tabindex="0" role="img"
             aria-label="${label}: ${esc(names) || 'empty'}"
-            title="${label}: ${esc(names) || 'empty'}${cond !== null ? ` — ${conditionWord(cond)} (${cond}%)` : ''}">
+            title="${label}: ${esc(names) || 'empty'}${cond !== null ? ` — ${conditionWord(cond)} (${cond}%)` : ''}${magic ? ' — magical' : ''}">
         ${hericonSvg(slot, Boolean(items.length))}
         ${bleedingRegions.has(slot) ? '<i class="heri-bleed"></i>' : ''}
+        ${magic ? '<i class="heri-spark" aria-hidden="true">✦</i>' : ''}
       </span>`);
   }
   strip.innerHTML = chips.join('');

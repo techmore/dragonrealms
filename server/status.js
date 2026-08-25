@@ -54,7 +54,9 @@ export const status = {
       for (const [slot, i] of Object.entries(p.equipment)) {
         const key = SLOT_ALIAS[slot] || slot;
         if (!slots[key]) slots[key] = [];
-        slots[key].push({ name: i.name, cond: Math.round(i.condition ?? 100) });
+        // magic flag: enchanted gear (magicEdge) gets a sparkle marker on
+        // the client's Hericon chips and doll tooltips.
+        slots[key].push({ name: i.name, cond: Math.round(i.condition ?? 100), magic: Boolean(i.magicEdge) });
       }
       sayRaw(p, {
         t: 'hands',
