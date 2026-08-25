@@ -51,7 +51,6 @@ export class Game {
     this.roomCreatures = new Map(); // roomId -> [{uid, def, hp, maxHp, alive, respawnAt}]
     this.floorItems = new Map();    // roomId -> [{uid, item, qty}]
     this.pendingDuels = new Map();  // `${initiator}|${target}` -> {initiator, target, createdAt}
-    this.auctions = [];             // [{id, seller, sellerName, itemId, qty, price, at}]
     this.combat = new CombatManager(this);
     this.respawnTicker = null;
     // Weather drifts every few game-hours; seasons follow the real calendar.
@@ -616,10 +615,9 @@ export class Game {
   partyStatus(p) { return pvp.partyStatus(this, p); }
 
   // ---------- Auction house (player trading) ----------
-  auctionPrune() {
-    const now = Date.now();
-    this.auctions = this.auctions.filter((a) => now - a.at < 3600 * 1000);
-  }
+  // Listings live in the auctions table (see db.js); prune/return-on-expiry
+  // lives in pvp.js. These delegates keep the command surface unchanged.
+  auctionPrune() { pvp.auctionPrune(); }
 
   auctionList(p) { return pvp.auctionList(this, p); }
   auctionOffer(p, itemName, qty, price) { return pvp.auctionOffer(this, p, itemName, qty, price); }

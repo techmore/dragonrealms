@@ -200,9 +200,13 @@ export const wilds = {
     if (p.restTimer) return { ok: false, msg: 'You are already resting.' };
     // Taverns and inns ease the body: rest comes faster under a roof.
     // Earth-attuned warrior mages are steadied by the ground itself.
+    // REST CAP: sleep mends you to ~80% — the last fifth of your health
+    // needs real care (the healer's salves, or life magic). This is what
+    // keeps the paid healer a living sink instead of a dead command.
     const room = roomById(p.room);
     const restful = Boolean(room && room.tavern);
     const earthBonus = p.element === 'earth' ? 1.25 : 1;
+    const capHp = Math.floor(p.maxHp * (restful ? 0.85 : 0.8));
     let ticks = 0;
     p.resting = true;
     p.restTimer = setInterval(() => {
@@ -210,8 +214,12 @@ export const wilds = {
       if (p.combatId || p.room !== p.restRoom) { wilds.stopRest(p); return; }
       // Agent boost multiplies recovery for speed-run test sessions.
       const bm = Number(p.boostMult) || 1;
-      const hpGain = (restful ? Math.max(4, Math.floor(p.maxHp * 0.045)) : Math.max(2, Math.floor(p.maxHp * 0.025 * earthBonus))) * bm;
-      p.hp = Math.min(p.maxHp, p.hp + hpGain);
+      // Rest mends up to the cap (~80%); above it, rest simply doesn't heal —
+      // never clamp downward (resting must not damage a hurt-but-lucky char).
+      if (p.hp < capHp) {
+        const hpGain = (restful ? Math.max(4, Math.floor(p.maxHp * 0.045)) : Math.max(2, Math.floor(p.maxHp * 0.025 * earthBonus))) * bm;
+        p.hp = Math.min(capHp, p.hp + hpGain);
+      }
       if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * (restful ? 0.07 : 0.04 * earthBonus))) * bm);
       p.stamina = Math.min(p.maxStaminaEff, (p.stamina || 0) + (restful ? 9 : 6) * bm);
       gainSkillExp(p, 'athletics', 2);
@@ -223,7 +231,7 @@ export const wilds = {
       }
       if (ticks % 10 === 0) p.rexp = Math.min(120, (p.rexp || 0) + 1);
 say(p, `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}, stamina ${p.stamina}/${p.maxStaminaEff}${restful ? ' (warm and dry)' : ''}`);
-      if (p.hp >= p.maxHp && (!p.guild.magic || p.mana >= p.maxMana) && p.stamina >= p.maxStaminaEff) wilds.stopRest(p);
+      if (p.hp >= capHp && (!p.guild.magic || p.mana >= p.maxMana) && p.stamina >= p.maxStaminaEff) wilds.stopRest(p);
       if (ticks >= 20) wilds.stopRest(p);
     }, 2000);
     p.restTimer.unref();

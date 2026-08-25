@@ -42,6 +42,14 @@ Other income: quests `40 + circle×35` (deliveries ×0.7), strongbox picking
 
 ### P0 — real problems
 
+**F3 resolution note (2026-08-25):** tier variants shipped — great_rats drop
+`dire_rat_pelt` (22s), fire drakes drop `drake_scale` (190s), iron_ore padding
+removed from c7/c8/c10 tables (captains now carry organ_vials, revenants a
+second sigil, dread knights a silver ring), and both hide-buyers accept the
+new items. Two deliberate flats remain: `wraith_essence` (c7 wraith / c8
+revenant) and `silver_ring` (c7 captain / c8 revenant) — shared trophy drops
+where the higher-tier creature also carries strictly better additional loot.
+
 **F1. Free rest makes the paid healer obsolete.**
 Tavern rest heals 4.5% maxHP per 2 s tick (~45 s to full) at zero cost
 (`server/wilds.js:208`). The healer charges 10% of missing HP for an instant

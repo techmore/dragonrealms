@@ -141,12 +141,47 @@ export function partyStatus(game, p) {
 }
 
 // ---------- Auction house (player trading) ----------
+// Listings live in the auctions TABLE, not game memory: items are escrowed
+// at offer time and survive world restarts. Expired lots return their items
+// to the seller's vault (or bank credit for coin-equivalent value) instead
+// of silently destroying them.
+
+function loadAuctions() {
+  return db.prepare('SELECT id, seller, item_id AS itemId, item_name AS itemName, qty, price, instances, at FROM auctions ORDER BY id').all()
+    .map((a) => ({ ...a, instances: JSON.parse(a.instances || '[]') }));
+}
+
+function sellerName(charId) {
+  const row = db.prepare('SELECT name FROM characters WHERE id=?').get(charId);
+  return row ? row.name : '?';
+}
+
+// Expired lots return escrowed items to the seller's vault. Called from any
+// auction surface; safe to run repeatedly.
+export function auctionPrune() {
+  const now = Date.now();
+  const lapsed = db.prepare('SELECT id, seller, item_id, qty, instances FROM auctions WHERE at < ?').all(now - 3600 * 1000);
+  for (const lot of lapsed) {
+    // Back to the vault: it is persistent storage the seller owns.
+    const existing = db.prepare('SELECT qty, metadata FROM vault WHERE character_id=? AND item_id=?').get(lot.seller, lot.item_id);
+    if (existing) {
+      db.prepare('UPDATE vault SET qty = qty + ? WHERE character_id=? AND item_id=?')
+        .run(lot.qty, lot.seller, lot.item_id);
+    } else {
+      db.prepare('INSERT INTO vault (character_id, item_id, qty, metadata) VALUES (?,?,?,?)')
+        .run(lot.seller, lot.item_id, lot.qty, lot.instances || '[]');
+    }
+    db.prepare('DELETE FROM auctions WHERE id=?').run(lot.id);
+  }
+}
+
 export function auctionList(game, p) {
   if (p.room !== 'auction_house') return { ok: false, msg: `The auction board hangs in the Merchants' Auction Hall, north of the Grain Pit.` };
-  game.auctionPrune();
-  if (!game.auctions.length) return { ok: true, msg: `The auction board is bare. Post a lot with "auction offer <item> [qty] for <price>" (at the hall).` };
-  const lines = game.auctions.map((a) => `  #${a.id}  ${a.itemName}${a.qty > 1 ? ` x${a.qty}` : ''} — ${a.price} silvers (by ${a.sellerName})`);
-  return { ok: true, msg: `\nThe auction board reads:\n${lines.join('\n')}\n\nSay "auction buy <#>". Listings lapse after an hour.` };
+  auctionPrune();
+  const rows = loadAuctions();
+  if (!rows.length) return { ok: true, msg: `The auction board is bare. Post a lot with "auction offer <item> [qty] for <price>" (at the hall).` };
+  const lines = rows.map((a) => `  #${a.id}  ${a.itemName}${a.qty > 1 ? ` x${a.qty}` : ''} — ${a.price} silvers (by ${sellerName(a.seller)})`);
+  return { ok: true, msg: `\nThe auction board reads:\n${lines.join('\n')}\n\nSay "auction buy <#>". Listings lapse after an hour (unsold lots return to your vault).` };
 }
 
 export function auctionOffer(game, p, itemName, qty, price) {
@@ -159,33 +194,30 @@ export function auctionOffer(game, p, itemName, qty, price) {
   ));
   if (!(price > 0)) return { ok: false, msg: 'Set a price in silvers: "auction offer <item> [qty] for <price>".' };
   const instances = removeItemInstances(p, entry.item.id, qty, entry);
-  const id = game.auctions.length ? Math.max(...game.auctions.map((a) => a.id)) + 1 : 1;
-  game.auctions.push({
-    id, seller: p.charId, sellerName: p.name, itemId: entry.item.id,
-    itemName: entry.item.name, qty, price, instances, at: Date.now(),
-  });
+  const info = db.prepare('INSERT INTO auctions (seller, item_id, item_name, qty, price, instances, at) VALUES (?,?,?,?,?,?,?)')
+    .run(p.charId, entry.item.id, entry.item.name, qty, price, JSON.stringify(instances || []), Date.now());
   gainSkillExp(p, 'trading', 6);
-  return { ok: true, msg: `You chalk your lot on the board: ${entry.item.name}${qty > 1 ? ` x${qty}` : ''} at ${price} silvers. (listing #${id})` };
+  return { ok: true, msg: `You chalk your lot on the board: ${entry.item.name}${qty > 1 ? ` x${qty}` : ''} at ${price} silvers. (listing #${info.lastInsertRowid})` };
 }
 
 export function auctionBuy(game, p, listingId) {
   if (p.room !== 'auction_house') return { ok: false, msg: `The auction board hangs in the Merchants' Auction Hall.` };
-  game.auctionPrune();
-  const lot = game.auctions.find((a) => a.id === listingId);
-  if (!lot) return { ok: false, msg: 'No such lot is still on the board.' };
-  if (lot.seller === p.charId) return { ok: false, msg: 'You cannot buy your own lot.' };
-  if (p.silver < lot.price) return { ok: false, msg: `That lot costs ${lot.price} silvers; you have ${p.silver}.` };
-  p.silver -= lot.price;
-  game.auctions = game.auctions.filter((a) => a !== lot);
-  addItem(p, lot.itemId, lot.qty, lot.instances || null);
-  const seller = game.players.get(lot.seller);
+  auctionPrune();
+  const row = db.prepare('SELECT * FROM auctions WHERE id=?').get(listingId);
+  if (!row) return { ok: false, msg: 'No such lot is still on the board.' };
+  if (row.seller === p.charId) return { ok: false, msg: 'You cannot buy your own lot.' };
+  if (p.silver < row.price) return { ok: false, msg: `That lot costs ${row.price} silvers; you have ${p.silver}.` };
+  p.silver -= row.price;
+  db.prepare('DELETE FROM auctions WHERE id=?').run(listingId);
+  addItem(p, row.item_id, row.qty, JSON.parse(row.instances || '[]'));
+  const seller = game.players.get(row.seller);
   if (seller && seller.online) {
-    seller.silver += lot.price;
-    say(seller, `Your lot sold at auction: ${lot.itemName}${lot.qty > 1 ? ` x${lot.qty}` : ''} for ${lot.price} silvers.`);
+    seller.silver += row.price;
+    say(seller, `Your lot sold at auction: ${row.item_name}${row.qty > 1 ? ` x${row.qty}` : ''} for ${row.price} silvers.`);
   } else {
     // Offline sellers are paid into the bank.
-    db.prepare('UPDATE characters SET bank = bank + ? WHERE id = ?').run(lot.price, lot.seller);
+    db.prepare('UPDATE characters SET bank = bank + ? WHERE id = ?').run(row.price, row.seller);
   }
   gainSkillExp(p, 'trading', 8);
-  return { ok: true, msg: `You buy ${lot.itemName}${lot.qty > 1 ? ` x${lot.qty}` : ''} for ${lot.price} silvers.` };
+  return { ok: true, msg: `You buy ${row.item_name}${row.qty > 1 ? ` x${row.qty}` : ''} for ${row.price} silvers.` };
 }

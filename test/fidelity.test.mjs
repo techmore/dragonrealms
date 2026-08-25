@@ -993,10 +993,11 @@ test('elements: attuning tints the mage with a passive boon', async () => {
   earth.room = 'west_road';
   const res = game.startRest(earth);
   assert.equal(res.ok, true, 'earth mage rests');
+  const capHp = Math.floor(earth.maxHp * 0.8); // rest caps below full by design
+  earth.hp = Math.max(1, Math.floor(capHp * 0.5)); // hurt well under the rest cap
   const hpBefore = earth.hp;
-  earth.hp = Math.max(1, earth.hp - 20);
   await new Promise((r) => setTimeout(r, 2300));
-  assert.ok(earth.hp > hpBefore - 20, 'earth rest recovers');
+  assert.ok(earth.hp > hpBefore, 'earth rest recovers');
   game.removePlayer(p);
   game.removePlayer(earth);
 });

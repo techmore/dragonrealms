@@ -82,7 +82,7 @@ export const CREATURES = {
     stats: { str: 10, con: 10, ref: 12, agi: 13 },
     weapon: { skill: 'brawling', dmg: [5, 10], speed: 3 },
     armor: 6, defense: 13,
-    loot: ['rat_pelt', 'strongbox'], lootTags: ['skins', 'box'], gems: ['garnet'], exp: 170, aggressive: true,
+    loot: ['dire_rat_pelt', 'strongbox'], lootTags: ['skins', 'box'], gems: ['garnet'], exp: 170, aggressive: true,
   },
   sewer_viper: {
     id: 'sewer_viper', name: 'a sewer viper', plural: 'sewer vipers', circle: 4, kinds: ['beast'],
@@ -145,7 +145,7 @@ export const CREATURES = {
     stats: { str: 18, con: 16, ref: 12, agi: 10 },
     weapon: { skill: 'twohanded_edged', dmg: [16, 30], speed: 7 },
     armor: 34, defense: 22,
-    loot: ['iron_ring', 'silver_ring', 'iron_ore'], lootTags: ['gems', 'coin'], gems: ['sapphire', 'emerald'], exp: 700, aggressive: true,
+    loot: ['silver_ring', 'strongbox', 'organ_vial'], lootTags: ['coin', 'box', 'gems'], gems: ['sapphire', 'emerald'], exp: 700, aggressive: true,
   },
 
   // ---- Cinder Cavern (circle 5-7) ----
@@ -165,7 +165,7 @@ export const CREATURES = {
     stats: { str: 16, con: 14, ref: 12, agi: 10 },
     weapon: { skill: 'brawling', dmg: [14, 26], speed: 6 },
     armor: 30, defense: 22,
-    loot: ['cinder_scale'], lootTags: ['skins', 'gems'], gems: ['sapphire', 'emerald'], exp: 480, aggressive: true,
+    loot: ['drake_scale'], lootTags: ['skins', 'gems'], gems: ['sapphire', 'emerald'], exp: 480, aggressive: true,
   },
 
   // ---- Blackwood Ruins (circle 7-10) ----
@@ -185,7 +185,7 @@ export const CREATURES = {
     stats: { str: 18, con: 16, ref: 13, agi: 10 },
     weapon: { skill: 'large_edged', dmg: [18, 34], speed: 6 },
     armor: 42, defense: 28,
-    loot: ['wraith_essence', 'silver_ring', 'iron_ore'], lootTags: ['gems', 'coin'], gems: ['emerald', 'diamond'], exp: 800, aggressive: true,
+    loot: ['wraith_essence', 'silver_ring', 'dread_sigil'], lootTags: ['gems', 'coin'], gems: ['emerald', 'diamond'], exp: 800, aggressive: true,
   },
   dread_knight: {
     id: 'dread_knight', name: 'a dread knight', plural: 'dread knights', circle: 10, kinds: ['undead'],
@@ -194,7 +194,7 @@ export const CREATURES = {
     stats: { str: 24, con: 20, ref: 14, agi: 12 },
     weapon: { skill: 'twohanded_edged', dmg: [24, 44], speed: 7 },
     armor: 52, defense: 32,
-    loot: ['dread_sigil', 'iron_ore'], lootTags: ['gems', 'coin'], gems: ['diamond'], exp: 1200, aggressive: true,
+    loot: ['dread_sigil', 'silver_ring'], lootTags: ['gems', 'coin'], gems: ['diamond'], exp: 1200, aggressive: true,
   },
 };
 

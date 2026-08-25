@@ -179,6 +179,21 @@ export function migrate() {
   try {
     db.exec('ALTER TABLE inventory ADD COLUMN bundle TEXT');
   } catch { /* column already exists */ }
+  // Auction listings survive world restarts: items are escrowed here at
+  // offer time and returned on expiry or paid out on sale. Without this
+  // table, a restart silently destroyed every open lot AND its contents.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS auctions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      seller INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      qty INTEGER NOT NULL,
+      price INTEGER NOT NULL,
+      instances TEXT NOT NULL DEFAULT '[]',
+      at INTEGER NOT NULL
+    );
+  `);
 }
 
 export function closeDb() {

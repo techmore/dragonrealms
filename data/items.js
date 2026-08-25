@@ -81,9 +81,12 @@ export const ITEMS = {
   chakrel_1:     { id: 'chakrel_1', name: 'a chakrel band', type: 'misc', slot: 'neck', value: 120, desc: 'A band of pale stone that quickens the body — it sharpens your meditations.' },
   warpaint:      { id: 'warpaint', name: 'a pot of war paint', type: 'consumable', slot: null, value: 90, buff: { warpaint: 40 }, desc: 'A clay pot of ochre-and-ash paint. Daubed on, your blows strike 15% harder while it lasts.' },
   roar_helm:     { id: 'roar_helm', name: 'a roar helm', type: 'armor', slot: 'head', skill: 'light_armor', armor: 14, value: 220, burden: 1, desc: 'A horned iron helm that magnifies the voice — roars cost half the voice and bite harder.' },
-  // Creature loot (skins)
+  // Creature loot (skins). Tier variants keep the curve honest: a c3
+  // great_rat pelt outsells its c1 cousin, and a fire drake's scales are
+  // worth more than the lizard's (economy audit F3).
   lout_vest:     { id: 'lout_vest', name: 'a stained vest', type: 'armor', slot: 'chest', value: 14, defense: 2, desc: 'A beer-stained leather vest, more bravado than protection.' },
   rat_pelt:      { id: 'rat_pelt', name: 'a rat pelt', type: 'misc', slot: null, value: 8, desc: 'A scrappy grey pelt.' },
+  dire_rat_pelt: { id: 'dire_rat_pelt', name: 'a great rat pelt', type: 'misc', slot: null, value: 22, desc: 'A thick, battle-scarred pelt off a sewer giant. Tougher stock than the common rat.' },
   crab_shell:    { id: 'crab_shell', name: 'a mud crab shell', type: 'misc', slot: null, value: 10, desc: 'A broad green-brown shell, still smelling of the reeds.' },
   reed_skin:     { id: 'reed_skin', name: 'a reed stalker hide', type: 'misc', slot: null, value: 26, desc: 'Sleek dappled hide from the sloughs, prized for waterwork leathers.' },
   kobold_skin:   { id: 'kobold_skin', name: 'a kobold hide', type: 'misc', slot: null, value: 20, desc: 'A scaly kobold hide.' },
@@ -91,6 +94,7 @@ export const ITEMS = {
   goblin_skin:   { id: 'goblin_skin', name: 'a goblin hide', type: 'misc', slot: null, value: 34, desc: 'A rank green goblin hide.' },
   wolf_pelt:     { id: 'wolf_pelt', name: 'a wolf pelt', type: 'misc', slot: null, value: 60, desc: 'A thick grey wolf pelt.' },
   cinder_scale:  { id: 'cinder_scale', name: 'a cinder scale', type: 'misc', slot: null, value: 120, desc: 'A smoking, heat-sheened scale from a drake.' },
+  drake_scale:   { id: 'drake_scale', name: 'a fire drake scale', type: 'misc', slot: null, value: 190, desc: 'A broad plate scale from a true fire drake — hotter and harder than the lizard\'s.' },
   iron_ring:     { id: 'iron_ring', name: 'a heavy iron ring', type: 'misc', slot: null, value: 70, desc: 'A crudely worked ring of bandit-forged iron.' },
   silver_ring:   { id: 'silver_ring', name: 'a silver signet ring', type: 'misc', slot: null, value: 150, desc: 'A tarnished silver ring bearing a sigil — plunder of the captain.' },
   wisp_mote:     { id: 'wisp_mote', name: 'a glowing wisp mote', type: 'misc', slot: null, value: 90, desc: 'A tiny, drifting shard of cold light.' },
