@@ -13,15 +13,18 @@ export const GUILD_SCRIPTS = {
     magic: false,
     // Weapon swing + barb expertise study; roar/berserk are fidelity probes.
     fight: ['put attack %target', 'put analyze'],
-    // Roar BEFORE the swings, not after. As a post-swing step it always landed
-    // inside the roundtime charged by attack (3s) + analyze, so the server
-    // refused it every single time: measured 417 roar attempts in one run with
-    // the roar-ability fidelity check never passing and the augmentation pool
-    // still at 0 despite the ability being learned. Firing it as a pre-fight
-    // buff is both what the engine can actually deliver (RT is clear when the
-    // fight starts) and what a real barbarian does — Everild's Rage is an
-    // opener that boosts the damage of the swings that follow.
-    preFight: ['put roar everilds_rage'],
+    preFight: [],            // roar needs an active fight — see signatureAfter
+    // Where the signature ability goes in the fight loop. Two failure modes to
+    // thread between, both measured:
+    //   - AFTER all the swings: attack charges 3s RT and roar is in RT_BLOCK,
+    //     so it was refused 417/417 times in one live run.
+    //   - BEFORE any swing (preFight): barbarianAbility() requires an active
+    //     combat, so it answers "That takes battle around you" and grants
+    //     nothing.
+    // The only slot that works is straight after the FIRST attack: combat now
+    // exists, and the roar is parked by the engine until that attack's RT
+    // drains, then applied. Index 1 = after fight[0].
+    signatureAfter: 1,
     signature: { cmd: 'roar everilds_rage', ok: /roar a battle cry|blood ablaze|voice is spent/i, probe: 'ability' },
     armVerb: 'wield',        // club from the bazaar
     arena: null,             // nearest spawn room (generator picks)

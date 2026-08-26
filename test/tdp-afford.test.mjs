@@ -102,19 +102,23 @@ test('barbarian fight loop relies on engine WAIT semantics (no hand pauses)', ()
   const seg = src.slice(fightIdx, skinIdx);
   assert.ok(!/pause/.test(seg), `no hand-tuned pauses between fight verbs, saw: ${seg}`);
 
-  // The signature ability is an OPENER, not a post-swing step. This assertion
-  // was originally the reverse (`roar` after `skin`), which encoded a real
-  // bug: attack charges 3s of roundtime, so a roar queued behind the swings is
-  // refused every time — measured at 417 refused roars in a single live run,
-  // with the roar-ability fidelity check never passing and the augmentation
-  // pool (the only route to the "1st Supernatural" circle requirement for a
-  // manaless guild) stuck at 0 even after the ability was learned.
-  const roarIdx = src.indexOf('put roar');
-  assert.ok(roarIdx >= 0, 'the signature ability still appears in the script');
-  assert.ok(roarIdx < src.indexOf('put attack'),
-    'signature ability fires BEFORE the swings (RT is clear at fight start)');
-  assert.equal((src.match(/put roar/g) || []).length, 1,
-    'fired once as an opener, not duplicated as a post-swing probe');
+  // The signature ability sits in the ONE slot that actually works: straight
+  // after the FIRST attack. Both alternatives were measured and fail —
+  //   - trailing the whole swing block: attack charges 3s RT and roar is in
+  //     RT_BLOCK, so it was refused 417/417 times in a live run (fidelity
+  //     check never passed, augmentation pool stayed 0 despite the ability
+  //     being learned)
+  //   - leading as a preFight opener: barbarianAbility() requires an active
+  //     combat, so it answers "That takes battle around you" and grants
+  //     nothing — verified 0 augmentation exp
+  // After the first attack, combat exists AND the engine parks the roar until
+  // that attack's roundtime drains, so it applies. Verified: augmentation
+  // pool 0 -> 10 on the first roar.
+  const seq = src.slice(src.indexOf('FIGHT_NOW:'))
+    .split('\n').filter((l) => /^\s+put /.test(l)).map((l) => l.trim());
+  assert.match(seq[0], /put attack/, 'the first swing leads');
+  assert.match(seq[1], /put roar/, 'signature fires right after the first attack');
+  assert.equal((src.match(/put roar/g) || []).length, 1, 'signature is issued once');
 });
 
 test('engine parks a put fired during roundtime and applies it after', async () => {

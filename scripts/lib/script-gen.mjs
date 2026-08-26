@@ -180,10 +180,19 @@ function buildHuntScript({ cap, arena, hallPath }) {
     // Each verb gets its own `wait` so the engine syncs with roundtime
     // before the next fires — without this, verbs pile up mid-RT and spam
     // "You must wait N seconds" refusals.
-    for (const step of cfg.fight) {
+    // signatureAfter inserts the guild's signature ability at a specific slot
+    // in the swing sequence (see data/guild-scripts.js): the roar needs combat
+    // to already exist, so it cannot lead, but it must not trail the whole
+    // block either or it lands mid-roundtime and is refused.
+    const sigAt = cfg.signature?.probe === 'ability' ? cfg.signatureAfter : undefined;
+    cfg.fight.forEach((step, i) => {
       L.push('  ' + step.replace(/%target/g, noun));
       L.push('  wait');
-    }
+      if (sigAt === i + 1) {
+        L.push(`  put ${cfg.signature.cmd}`);
+        L.push('  wait');
+      }
+    });
     // Skinning guilds (ranger, barbarian...): skin the distinctive noun —
     // the server teaches it in the kill prose ("Type \"skin rat\""), and
     // bare `skin` is not a command ("Skin what?"). Failure prose
@@ -194,12 +203,11 @@ function buildHuntScript({ cap, arena, hallPath }) {
       L.push('  wait');
     }
     if (cfg.signature && cfg.signature.probe === 'ability') {
-      // Signature guild ability. Skipped when preFight already fires it: the
-      // post-swing slot lands inside the roundtime charged by the attack, so
-      // the server refuses it every time (417 refused roars in one measured
-      // run). Guilds that declare it in preFight get it as an opener instead.
-      const inPreFight = (cfg.preFight || []).some((s) => s.includes(cfg.signature.cmd));
-      if (!inPreFight) {
+      // Skipped when signatureAfter already placed it mid-sequence. The
+      // trailing slot only works for guilds whose signature does not need an
+      // active fight; for barbarians it lands inside the attack's roundtime
+      // and is refused every time.
+      if (cfg.signatureAfter === undefined) {
         L.push(`  put ${cfg.signature.cmd}`);
         L.push('  wait');
       }
