@@ -43,6 +43,18 @@ const SLOW_RATE_FRAC = 0.4;     // < 40% of guild baseline kills/hour
 const SLOW_MIN_MS = 180000;     // ...once the run has lasted at least 3 min
 const LOW_HP_FRAC = 0.25;
 
+// ---- dumb-agent fast lane ----
+// A script that is fundamentally broken announces itself in 2-3 minutes:
+// it swings (or tries to), nothing dies, no rank moves, and the same 2-3
+// commands repeat. The classic rules above need minutes of silence — these
+// need only a short window of ACTIVITY THAT GOES NOWHERE, which is exactly
+// what "dumb" looks like.
+const FAST_MS = 150000;          // judge from 2m30s (past warm-up)
+const FAST_WINDOW_MS = 120000;   // look at the last 2 minutes only
+const FAST_MIN_SWINGS = 6;       // actively trying: >=6 attacks in window
+const FAST_MAX_KILLS = 0;        // ...and literally nothing died
+const FAST_MAX_RANKS_MOVED = 0;  // ...and no blocking skill gained a rank
+
 const fmtDur = (ms) => {
   const s = Math.round(ms / 1000);
   return s >= 60 ? `${Math.floor(s / 60)}m${s % 60}s` : `${s}s`;
@@ -58,6 +70,27 @@ export function classifyStall(st, now = Date.now()) {
   const silentMs = st.lastProgressAt ? now - st.lastProgressAt : 0;
   const lowHpMs = st.lowHpSince ? now - st.lowHpSince : 0;
   const ratePerHour = elapsed > 0 ? (st.kills / (elapsed / 3600000)) : 0;
+
+  // ---- dumb-agent fast lane ----
+  // Swinging hard but nothing dies and no rank moves in a 2-minute window =
+  // the script cannot connect effort to progress. Fire this BEFORE the slow
+  // rate rules: it is the "X exp at 5 minutes" live review. Rank movement =
+  // st.rankBaseline (immutable, seeded at enter by the driver) vs st.skills
+  // (live mindstate). No baseline yet -> not enough data, stay quiet.
+  if (elapsed >= FAST_MS && Array.isArray(st.swingTimes) && st.rankBaseline) {
+    const inWin = st.swingTimes.filter((t) => now - t <= FAST_WINDOW_MS).length;
+    if (inWin >= FAST_MIN_SWINGS) {
+      const skills = st.skills || {};
+      const moved = Object.entries(st.rankBaseline)
+        .some(([sk, base]) => Number.isFinite(base) && (skills[sk] || 0) > base);
+      if (st.kills <= FAST_MAX_KILLS && !moved) {
+        return {
+          verdict: 'wedged',
+          reason: `dumb loop: ${inWin} attacks/${FAST_WINDOW_MS / 1000}s, 0 kills, no rank movement [room ${st.room || '?'}]`,
+        };
+      }
+    }
+  }
 
   // ---- wedged ----
   // Fast storm: many refusals inside a short window while parked & killless.

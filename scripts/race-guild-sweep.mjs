@@ -180,6 +180,7 @@ class SweepAgent {
     // ---- stall-detection state (snapshot into classifyStall) ----
     this.startedAt = Date.now();
     this.refusalTimes = [];   // timestamps of move/combat refusals
+    this.swingTimes = [];     // timestamps of attack commands (dumb-loop detector)
     this.roomChangedAt = Date.now();
     this.lastProgressAt = Date.now();  // any kill/circle/train/move refreshes this
     this.lowHpSince = null;   // first prompt seen pinned below LOW_HP_FRAC
@@ -260,6 +261,13 @@ class SweepAgent {
       },
       onFatal: (reason) => this.finish(reason),
       onReconnect: (n) => this.appendLog(`[reconnect] attempt ${n}`),
+      // First mindstate feed (~seconds after enter, ranks near zero) seeds
+      // the dumb-loop detector's immutable baseline; later feeds refresh
+      // vitals.skills which classifyStall compares against it.
+      onSkills: (skills) => {
+        if (!this.rankBaseline) this.rankBaseline = { ...skills };
+        this.updateStallVerdict();
+      },
     });
   }
 
@@ -355,6 +363,13 @@ class SweepAgent {
         }
         trackMove(s, line);
         this.lastSendAt = Date.now();
+        // Swing timestamps feed the dumb-loop detector: hard effort with zero
+        // kills and zero rank movement over a 2m window = broken script.
+        if (/^attack\b/.test(line)) {
+          this.swingTimes ||= [];
+          this.swingTimes.push(Date.now());
+          if (this.swingTimes.length > 120) this.swingTimes.splice(0, 60);
+        }
         // Movement is progress — it disproves "parked" stall verdicts.
         if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) this.lastProgressAt = Date.now();
         if (/^tdptrain /.test(line)) { this.trains += 1; this.lastProgressAt = Date.now(); }
@@ -623,6 +638,10 @@ class SweepAgent {
       inCombat: !!v.inCombat,
       circles: this.circles,
       trains: this.trains,
+      // dumb-agent fast lane inputs
+      swingTimes: this.swingTimes || [],
+      skills: v.skills || {},
+      rankLedger: v.circleGaps || {},
     });
     const key = this.liveVerdict.verdict;
     if (key !== this.lastLoggedVerdict) {

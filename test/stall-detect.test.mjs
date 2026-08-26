@@ -119,3 +119,63 @@ test('grace window never judges a fresh run', () => {
   assert.equal(v.verdict, 'healthy');
   assert.match(v.reason, /warming up/);
 });
+
+test('dumb-agent fast lane: hard swinging, zero kills, no rank movement -> wedged at 2m30s', () => {
+  const swings = Array.from({ length: 10 }, (_, i) => NOW - (110 * 1000) + i * 1000); // 10 attacks in last ~2m
+  const st = snap({
+    startedAt: NOW - 3 * MIN,
+    kills: 0,
+    swingTimes: swings,
+    roomChangedAt: NOW - 2 * MIN, // parked but under WEDGE_ROOM_MS
+    lastProgressAt: NOW - 5 * 1000, // still "moving" — classic rules stay quiet
+    skills: { expertise: 3 },
+    rankBaseline: { expertise: 3 }, // seeded at enter; nothing moved since
+  });
+  const v = classifyStall(st, NOW);
+  assert.equal(v.verdict, 'wedged');
+  assert.match(v.reason, /dumb loop/);
+});
+
+test('dumb lane stays quiet when a blocking skill gains a rank (learning agent)', () => {
+  const swings = Array.from({ length: 10 }, (_, i) => NOW - (110 * 1000) + i * 1000);
+  const st = snap({
+    startedAt: NOW - 3 * MIN,
+    kills: 0,
+    swingTimes: swings,
+    roomChangedAt: NOW - 2 * MIN,
+    lastProgressAt: NOW - 5 * 1000,
+    skills: { expertise: 4 },                    // mindstate shows the rank landed
+    rankBaseline: { expertise: 3 },              // seeded lower at enter
+  });
+  const v = classifyStall(st, NOW);
+  assert.notEqual(v.verdict, 'wedged');
+});
+
+test('dumb lane stays quiet when kills are landing', () => {
+  const swings = Array.from({ length: 10 }, (_, i) => NOW - (110 * 1000) + i * 1000);
+  const st = snap({
+    startedAt: NOW - 3 * MIN,
+    kills: 2,                                    // effort connects to progress
+    swingTimes: swings,
+    roomChangedAt: NOW - 2 * MIN,
+    lastProgressAt: NOW - 5 * 1000,
+    skills: { expertise: 3 },
+    rankLedger: { expertise: { need: 4, have: 3 } },
+  });
+  const v = classifyStall(st, NOW);
+  assert.notEqual(v.verdict, 'wedged');
+});
+
+test('dumb lane needs real effort — few swings never fires it', () => {
+  const st = snap({
+    startedAt: NOW - 3 * MIN,
+    kills: 0,
+    swingTimes: [NOW - 60 * 1000],               // only 1 attack in window
+    roomChangedAt: NOW - 2 * MIN,
+    lastProgressAt: NOW - 30 * 1000,
+    skills: { expertise: 3 },
+    rankLedger: { expertise: { need: 4, have: 3 } },
+  });
+  const v = classifyStall(st, NOW);
+  assert.notEqual(v.verdict, 'wedged');
+});
