@@ -162,6 +162,19 @@ if (!Number.isFinite(CIRCLE_TARGET)) CIRCLE_TARGET = 2;
 // ---------------- per-character agent ----------------
 
 class SweepAgent {
+  // Monotonic, letters-only agent tag: 4 chars over an 8-letter alphabet
+  // encoding a plain counter (base 8), so every agent in a process gets a
+  // distinct tag with zero collision probability. 8^4 = 4096 agents per
+  // invocation, far beyond any real sweep; wraps harmlessly past that.
+  static _seq = 0;
+  static nextTag() {
+    const A = 'ijklmnop';
+    let n = SweepAgent._seq++ % 4096;
+    let out = '';
+    for (let i = 0; i < 4; i++) { out = A[n % 8] + out; n = Math.floor(n / 8); }
+    return out;
+  }
+
   constructor({ guild, race, variant = null }) {
     this.guild = guild;
     this.race = race;
@@ -180,19 +193,37 @@ class SweepAgent {
     // Per-AGENT suffix (not per-RUN): benchmark repeats reuse RUN_ID, so two
     // repeats of the same variant must never share a character — repeat 2
     // would inherit repeat 1's ranks and poison the leveling-lab splits.
-    // Letters-only random tag: names are validated letters-only server-side
+    // Letters-only tag: names are validated letters-only server-side
     // (validName rejects digits — "Name must be 2-20 letters"), so base36
     // tags containing digits silently wedged ~60% of benchmark runs at
-    // charcreate. Map each base36 char to a letter.
-    const agentTag = '-' + Math.random().toString(36).slice(2, 6)
-      .split('').map((c) => 'ijklmnop'[parseInt(c, 36) % 8]).join('');
+    // charcreate. Encode a MONOTONIC counter in base-8 letters rather than
+    // random ones: 4 random chars over an 8-letter alphabet is only 8^4 and
+    // collided ~1-in-40 in practice (two agents sharing an account/name is
+    // exactly the slot-cap + UNIQUE-constraint failure we are fixing).
+    // A counter is collision-free by construction for any sweep size.
+    const agentTag = '-' + SweepAgent.nextTag();
+
     this.char = (('Sw' + guild[0].toUpperCase() + guild.slice(1).replace(/[^a-zA-Z]/g, '')
       + race[0].toUpperCase() + race.slice(1).replace(/[^a-zA-Z]/g, '')).replace(/[^a-zA-Z]/g, '').slice(0, 15 - vTag.length - agentTag.length)
     ) + vTag + agentTag + '-' + RUN_ID;
-    // Keep RUN_ID intact in the username (never blind-slice it off the end):
-    // shorten guild/race instead so distinct runs never share an account.
-    this.user = `sw_${guild}_${race}_${RUN_ID}`;
-    if (this.user.length > 24) this.user = `sw_${guild.slice(0, 4)}_${race.slice(0, 4)}_${RUN_ID}`;
+    // ONE ACCOUNT PER AGENT. A sweep burns one character per run, so sharing
+    // a per-RUN account capped the whole sweep at MAX_CHARS runs: the
+    // overflow agents got "This account already has N characters" at
+    // charcreate, never entered the world (hp 0/0, room null), and burned
+    // their full --minutes budget before the stall watchdog killed them.
+    // That made any sweep longer than MAX_CHARS silently unable to finish.
+    // Keying the username on agentTag (already unique per agent) gives every
+    // run its own fresh account, so repeats are unbounded and each agent
+    // still starts from a clean level-1 character.
+    // Budget: 24 chars max after normalizeName (server/auth.js), lowercase
+    // + [a-z0-9_-] only. agentTag is '-xxxx' (letters) and RUN_ID is 4
+    // letters, so reserve those and shorten guild/race to fit.
+    const aTag = agentTag.slice(1); // drop the leading hyphen
+    const mkUser = (g, r) => `sw_${g}_${r}_${aTag}${RUN_ID}`.toLowerCase();
+    this.user = mkUser(guild, race);
+    if (this.user.length > 24) this.user = mkUser(guild.slice(0, 4), race.slice(0, 4));
+    if (this.user.length > 24) this.user = `sw_${aTag}${RUN_ID}`.toLowerCase();
+
     this.scriptBase = guild.slice(0, 6); // e.g. "warmag", "barbar"
     this.session = new WireSession({
       user: this.user, pass: PASS, char: this.char, race, guild,
