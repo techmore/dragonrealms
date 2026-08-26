@@ -51,6 +51,12 @@ const EXTRA_COLUMNS = {
   // End-of-run snapshot from the GM API: character name + summed skill ranks.
   char: 'TEXT',
   totalRanks: 'INTEGER',
+  // Circle-gap telemetry at finish: shortfall = sum of (need-have) over the
+  // server's requirement list, blocked = count of unmet requirements. Lets
+  // variants be ranked by RATE of gap closure from short runs, without
+  // waiting (possibly forever) for an actual circle-up.
+  shortfall: 'INTEGER',
+  blocked: 'INTEGER',
 };
 
 function migrateSweepsColumns(db) {

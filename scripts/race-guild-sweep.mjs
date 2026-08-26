@@ -634,6 +634,13 @@ class SweepAgent {
       if (missing.length) {
         this.trainList = missing;
         log(`[${this.guild}/${this.race}] retargeting curriculum: ${missing.slice(0, 6).join(', ')}${missing.length > 6 ? ` +${missing.length - 6}` : ''}`);
+        // Rotate the train list start so the NEXT trip leads with different
+        // candidates. trainOffset was read by buildCircleScript but never
+        // incremented anywhere, so every hall trip trained the same first-N
+        // curriculum and TDPs ran out before later set-fillers got any:
+        // measured best char had blunt 10 / evasion 14 while large_blunt,
+        // staff, thrown all sat at 0 — the fixed order starved them.
+        this.trainOffset = (this.trainOffset || 0) + Math.max(1, Math.floor(missing.length / 2));
         // Regenerate the circle script NOW so the next hall trip trains
         // the blocking skills instead of the generic curriculum.
         this.regenerateScripts();
@@ -853,7 +860,25 @@ class SweepAgent {
 
   heartbeat() {
     if (this.done) return;
+    // NO-SEND BREAKER — must run before every other branch. Measured wedge
+    // (run dfix, 2026-08-26): the runner engine parks in prompt/timer mode
+    // when server prompts stop arriving, and reports running:true forever.
+    // Every rescue below it is gated off in exactly that state: the
+    // parked-watchdog needs !inCombat (the COMBAT flag can stick true), the
+    // RT-stall breaker needs refusals that have stopped arriving, and this
+    // breaker sat at the BOTTOM of the function behind early returns it could
+    // never reach. Result: 20+ minutes of total silence with a "wedged"
+    // verdict and no recovery. A runner that has sent nothing for 90s is dead
+    // regardless of combat flags or refusal streaks — restart unconditionally.
+    if (this.runner && Date.now() - (this.lastSendAt || 0) > 90000 && !this.restarting) {
+      this.appendLog('[watchdog] no script send for 90s — restarting cycle (unconditional)');
+      log(`[${this.guild}/${this.race}] no-send breaker fired`);
+      this.lastSendAt = Date.now(); // don't re-fire each tick while restarting
+      this.restartCycle();
+      return;
+    }
     this.updateStallVerdict();
+
     try { this.runner?.feed('', false); } catch {}
     this.session.injectState(this.runner);
     if (!this.runner || !this.runner.running) {
@@ -944,7 +969,13 @@ class SweepAgent {
       log(`[${this.guild}/${this.race}] hall trip (fallback timer)`);
       this.appendLog(`[hall-trip] fallback timer`);
       this.killsAtVisit = this.kills;
-      this.regenerateFromHere();
+      // Rotate the curriculum start each trip (see the retarget comment):
+      // without rotation the same first-N skills soak every TDP budget and
+      // later weapon/survival set-fillers stay at rank 0 forever.
+      if (!this.trainList?.length) {
+        this.trainOffset = (this.trainOffset || 0) + 3;
+        this.regenerateScripts();
+      }
       this.startCycle(this.library[this.scriptBase + 'circle'], this.scriptBase + 'circle');
       return;
     }
@@ -995,10 +1026,6 @@ class SweepAgent {
       }
       this.restartCycle();
       return;
-    }
-    if (Date.now() - this.lastSendAt > 90000) {
-      this.appendLog('[watchdog] stalled 90s — restarting cycle');
-      this.restartCycle();
     }
   }
 
@@ -1069,6 +1096,16 @@ class SweepAgent {
     // log answers that without re-deriving it from mindstate afterwards.
     const finalGaps = this.gapsLine();
     if (finalGaps) this.appendLog(finalGaps.replace('[gaps]', '[gaps-final]'));
+    // Persist gap telemetry so variants can be ranked by shortfall-closure
+    // RATE (short runs become comparable) instead of only by circle-ups,
+    // which no barbarian run has ever produced. Parsed back out of the same
+    // line format the log uses — one source of truth.
+    let gapTelemetry = { shortfall: null, blocked: null };
+    if (finalGaps) {
+      const sf = /shortfall:(\d+)/.exec(finalGaps);
+      const bl = /blocked:(\d+)/.exec(finalGaps);
+      gapTelemetry = { shortfall: sf ? Number(sf[1]) : null, blocked: bl ? Number(bl[1]) : null };
+    }
     this.appendLog(`=== Results (${GUILDS[this.guild]?.name}${this.variantName ? ` [${this.variantName}]` : ''}) ===`);
     this.appendLog(`  ${reason}: circle ${this.session.vitals.circle}, ${this.circles} circle-ups, ${this.kills} kills, ${this.deaths} deaths`);
     const checksPassed = Object.keys(this.fidelity).length;
@@ -1094,6 +1131,7 @@ class SweepAgent {
       firstExpMs: this.firstExpMs,
       rankSplits: this.rankSplits,
       stallVerdict: this.liveVerdict?.verdict || null, stallReason: this.liveVerdict?.reason || null,
+      shortfall: gapTelemetry.shortfall, blocked: gapTelemetry.blocked,
       fidelity: this.fidelity, fidelityScore: `${checksPassed}/${checksTotal}`,
       grade,
     };
@@ -1110,6 +1148,7 @@ class SweepAgent {
         variant: this.variantName,
         timeToCircleMs: summary.timeToCircleMs,
         stallVerdict: this.liveVerdict?.verdict, stallReason: this.liveVerdict?.reason,
+        shortfall: gapTelemetry.shortfall, blocked: gapTelemetry.blocked,
         circleTimes: this.circleTimes,
         char: this.char,
         totalRanks: this.totalRanksAtFinish ?? null,
