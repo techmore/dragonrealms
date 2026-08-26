@@ -393,7 +393,7 @@ export const ROOMS = {
   },
   auction_house: {
     id: 'auction_house', zone: 'town', name: "The Merchants' Auction Hall",
-    desc: 'A panelled hall where the Crossing does its real trading. Lots are chalked on a great board as they come in — gear, salvage, and stranger goods, each with an asking price. The hall takes no cut on the first sales.',
+    desc: 'A panelled hall where the Crossing does its real trading. Lots are chalked on a great board as they come in — gear, salvage, and stranger goods, each with an asking price. The hall\'s scribes take three percent of every sale.',
     exits: { n: 'dens_auction_house_forge_row_0', se: 'dens_auction_house_commodity_pit_0' },
   },
   commodity_pit: {
