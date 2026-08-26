@@ -480,7 +480,14 @@ class SweepAgent {
     this.runner = createRunner(src, [], {
       roomNow: () => s.vitals.room,
       send: async (line) => {
-        if (process.env.SWEEP_DEBUG || /^(attack|tdptrain|flee|rest|stand|circle|buy|wield|prepare|cast|khri|enchant|backstab|analyze|roar|drink|effects|stealth|hide|skin|withdraw)/.test(line)) {
+        // Verb allowlist for the fidelity log. Anything omitted here is still
+        // SENT — it just leaves no trace, which makes "did my change fire?"
+        // unanswerable from the log. `learn` was missing, so a working
+        // ability-learn step looked like it never ran (grep count 0) even
+        // though the script provably contained it and the walk completed.
+        // Keep this list in sync when adding scripted verbs.
+        if (process.env.SWEEP_DEBUG || /^(attack|tdptrain|flee|rest|stand|circle|buy|wear|remove|wield|prepare|cast|khri|enchant|backstab|analyze|roar|meditate|form|learn|drink|effects|stealth|hide|skin|withdraw|sell|bundle|exp)/.test(line)) {
+
           this.appendLog(`script> ${line}`);
           log(`[${this.guild}/${this.race}] > ${line}`);
         } else if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) {
