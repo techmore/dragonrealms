@@ -145,15 +145,19 @@ function buildHuntScript({ cap, arena, hallPath }) {
     L.push('TARGET_GONE:');
     L.push('  goto SCAN');
     L.push('FIGHT_NOW:');
-    for (const step of cfg.fight) L.push('  ' + step.replace(/%target/g, noun));
-    // Roundtime is handled by WAIT semantics in the engine: verbs fired
-    // during RT park and apply when it clears. No hand-tuned pauses needed.
+    // Each verb gets its own `wait` so the engine syncs with roundtime
+    // before the next fires — without this, verbs pile up mid-RT and spam
+    // "You must wait N seconds" refusals.
+    for (const step of cfg.fight) {
+      L.push('  ' + step.replace(/%target/g, noun));
+      L.push('  wait');
+    }
+    // Skinning guilds (ranger, barbarian...): skin the distinctive noun —
+    // the server teaches it in the kill prose ("Type \"skin rat\""), and
+    // bare `skin` is not a command ("Skin what?"). Failure prose
+    // ('no such corpse') is harmless; the engine holds the verb until
+    // weapon RT drains, then applies it.
     if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('skinning')) {
-      // Skinning guilds (ranger, barbarian...): skin the distinctive noun —
-      // the server teaches it in the kill prose ("Type \"skin rat\""), and
-      // bare `skin` is not a command ("Skin what?"). Failure prose
-      // ('no such corpse') is harmless; the engine holds the verb until
-      // weapon RT drains, then applies it.
       L.push(`  put skin ${noun}`);
       L.push('  wait');
     }
