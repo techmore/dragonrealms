@@ -17,7 +17,16 @@ import { handleBoostMessage } from './boost.js';
 const INPUT_MAX = 20; // commands per second
 
 export function attachWebSocket(httpServer, game, { gmToken } = {}) {
-  const wss = new WebSocketServer({ server: httpServer, maxPayload: 4096 });
+  // maxPayload must clear the largest LEGITIMATE frame a client can send.
+  // The biggest one is {t:'scripts_put'}: putScript() accepts bodies up to
+  // SCRIPT_MAX_BODY (8000 chars), so a 4096-byte frame cap rejected scripts
+  // the game layer considers valid — and `ws` surfaces an over-cap frame as
+  // an 'error' EVENT, not a close, so with no error listener Node rethrew it
+  // as an unhandled 'error' and killed the whole world process
+  // (WS_ERR_UNSUPPORTED_MESSAGE_LENGTH / RangeError: Max payload size
+  // exceeded). 64KB leaves headroom over the 8000-char body limit plus JSON
+  // escaping; oversized bodies are still rejected politely by putScript.
+  const wss = new WebSocketServer({ server: httpServer, maxPayload: 65536 });
 
   wss.on('connection', (socket, req) => {
     // Bots self-identify at connect time (?bot=1) so status surfaces can
@@ -76,6 +85,21 @@ export function attachWebSocket(httpServer, game, { gmToken } = {}) {
         game.removePlayer(session.player);
       }
     });
+
+    // Socket-level failures (over-cap frames, protocol violations, resets)
+    // arrive as an 'error' EVENT. With no listener, `ws` re-emits it as an
+    // unhandled 'error' and Node tears down the ENTIRE world process — one
+    // misbehaving client killed every other player's session. Log it and let
+    // the paired 'close' handler do the normal per-session cleanup.
+    socket.on('error', (err) => {
+      console.error('socket error', err?.code || err?.message || err);
+      try { socket.close(); } catch {}
+    });
+  });
+
+  // Same guard one level up: a WSS-level error must not be fatal either.
+  wss.on('error', (err) => {
+    console.error('wss error', err?.code || err?.message || err);
   });
 
   const pruneTimer = setInterval(pruneExpiredSessions, 60 * 60 * 1000);

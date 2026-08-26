@@ -86,12 +86,23 @@ const ALL_GUILDS = Object.keys(GUILDS).filter((g) => GUILD_SCRIPTS[g]);
 //   hallEvery — kills between forced guild-hall trips while hunting
 //   arenaBand — allowed creature-circle spread above the agent's circle
 //                 for nearestSpawnRoom (+2 = default weight-class filter)
+//   hallFallbackMs — how long to keep hunting before a hall trip fires on the
+//                 TIMER alone (the readiness gate still triggers immediately
+//                 when mindstate ranks actually satisfy the next circle).
+//                 Baseline's 4 minutes walked the full arena→hall→bazaar→arena
+//                 circuit while ranks were still nowhere near (expertise 5/8),
+//                 spending most of a 10-minute run in transit for 4 kills.
 const VARIANTS = {
-  baseline: { restPct: 35, hallEvery: 4, arenaBand: 2 },
-  rest50:   { restPct: 50, hallEvery: 4, arenaBand: 2 },
-  hall8:    { restPct: 35, hallEvery: 8, arenaBand: 2 },
-  wide2:    { restPct: 35, hallEvery: 6, arenaBand: 4 },
+  baseline: { restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000 },
+  // Kaizen v2: baseline with ONE variable changed — trust the rank-readiness
+  // gate and let the blind timer fall back to 9 minutes, so a short run hunts
+  // instead of commuting. Everything else matches baseline for a clean A/B.
+  baseline_v2: { restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 540000 },
+  rest50:   { restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000 },
+  hall8:    { restPct: 35, hallEvery: 8, arenaBand: 2, hallFallbackMs: 240000 },
+  wide2:    { restPct: 35, hallEvery: 6, arenaBand: 4, hallFallbackMs: 240000 },
 };
+
 let wanted = [];            // [{guild, race, variant?}]
 let MODE = 'sweep';         // 'sweep' | 'benchmark' | 'spawn'
 const BENCH_GUILD = flag('benchmark', null);
@@ -158,6 +169,10 @@ class SweepAgent {
     this.restPct = Math.min(Math.max(variant?.restPct ?? 55, 20), 90);
     this.hallEvery = Math.max(variant?.hallEvery ?? 4, 1);
     this.arenaBand = Math.max(variant?.arenaBand ?? 2, 0);
+    // Blind hall-trip timer. Clamped to 1-15 minutes; the rank-readiness gate
+    // above it still fires the moment mindstate ranks meet the requirement.
+    this.hallFallbackMs = Math.min(Math.max(variant?.hallFallbackMs ?? 240000, 60000), 900000);
+
     const vTag = this.variantName ? '-' + String(this.variantName).replace(/[^a-z0-9]/gi, '').slice(0, 4) : '';
     // Per-AGENT suffix (not per-RUN): benchmark repeats reuse RUN_ID, so two
     // repeats of the same variant must never share a character — repeat 2
@@ -833,7 +848,7 @@ class SweepAgent {
       }
     }
     if (huntingLeg && !v2.inCombat && this.kills > this.killsAtVisit
-      && Date.now() - this.lastHallAt > 240000) {
+      && Date.now() - this.lastHallAt > this.hallFallbackMs) {
       log(`[${this.guild}/${this.race}] hall trip (fallback timer)`);
       this.appendLog(`[hall-trip] fallback timer`);
       this.killsAtVisit = this.kills;

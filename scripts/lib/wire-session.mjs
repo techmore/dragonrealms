@@ -64,6 +64,26 @@ export class WireSession {
 
   sendObj(obj) { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj)); }
 
+  // Re-read the account's live character list and (re)bind knownChar to the
+  // row matching this.char. Called at every charselect prompt so a reconnect
+  // resumes the existing character instead of trying to create it twice.
+  // First connect (character genuinely absent) still falls through to 'new'.
+  async resolveChar() {
+    if (this.knownChar) return this.knownChar;
+    try {
+      const r = await fetch(`${BASE}/api/login`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ user: this.user, pass: this.pass }),
+      }).then((x) => x.json());
+      if (r?.ok) {
+        if (r.token) this.token = r.token;
+        this.knownChar = (r.characters || []).find((c) => c.name === this.char) || null;
+      }
+    } catch { /* offline/mid-restart — fall through to 'new' */ }
+    return this.knownChar;
+  }
+
+
   // Server allows 20 cmds/sec; stay well under it.
   async cmd(line) {
     const wait = 150 - (Date.now() - this.lastCmdAt);
@@ -194,7 +214,18 @@ export class WireSession {
     switch (m.t) {
       case 'login_prompt': this.sendObj({ t: 'token', token: this.token }); break;
       case 'charselect':
-        this.sendObj({ t: 'charselect', id: this.knownChar ? this.knownChar.charId : 'new' });
+        // On a RECONNECT the character usually already exists, but knownChar
+        // was only populated by the pre-connect httpLogin() — a character
+        // created during THIS session isn't in that snapshot, so 'new' was
+        // sent again and chargen re-ran under the same name → "UNIQUE
+        // constraint failed: characters.name", then a suffix-renamed FRESH
+        // level-1 character that lost every rank, its saved scripts, and its
+        // arena position (the run then idled in town square until the stall
+        // watchdog killed it). resolveChar() re-reads the account's live
+        // character list so reconnects resume the SAME character.
+        void this.resolveChar().then(() => {
+          this.sendObj({ t: 'charselect', id: this.knownChar ? this.knownChar.charId : 'new' });
+        });
         break;
       case 'charcreate':
         this.sendObj({ t: 'charcreate', name: this.char, race: this.race, guild: this.guild, city: 'crossing' });
