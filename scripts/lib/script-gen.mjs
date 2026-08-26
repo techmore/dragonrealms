@@ -72,7 +72,7 @@ function buildHuntScript({ cap, arena, hallPath }) {
   L.push('BUY_CLUB:');
   L.push('  put buy club');
   L.push('  matchwait 30');
-  L.push('  goto ARMED');
+  L.push('  goto BUY_ARMOR');
   L.push('BUY_SABRE:');
   L.push('  put buy sabre');
   L.push('  wait');
@@ -88,6 +88,27 @@ function buildHuntScript({ cap, arena, hallPath }) {
   L.push('WIELD_NEW:');
   L.push('  put remove club');
   L.push('  put wield sword');
+  L.push('  wait');
+  L.push('  goto BUY_ARMOR');
+  // Armor, bought in the SAME bazaar visit as the weapon (the armorer shares
+  // the room), so this adds no navigation. It must live here rather than as a
+  // separate walk: an earlier attempt gave armor its own bazaarPath leg, but
+  // by then the agent was already AT the bazaar, so replaying the path walked
+  // it past into catrox_forge and wedged the run (0 kills, watchdog escapes).
+  //
+  // Why it matters: "1st armor at least rank 6" is a circle-2 requirement,
+  // and armor exp is granted only per landed blow by the equipment loop in
+  // the damage path (server/combat.js -> gainSkillExp(piece.skill, ...)).
+  // With nothing worn that loop has no body, so 1st armor sat at 0/6 for an
+  // entire 10-minute run while other skills climbed to 72 total ranks.
+  // Worn armor also soaks damage, so the agent flees less.
+  L.push('BUY_ARMOR:');
+  L.push('  matchre ARMED Worn:[\\s\\S]*(padded|leather|studded|chain|brigandine|plate)');
+  L.push('  put inventory');
+  L.push('  matchwait 4');
+  L.push('  put buy padded cloth armor');
+  L.push('  wait');
+  L.push('  put wear padded cloth armor');
   L.push('  wait');
   L.push('  goto ARMED');
   L.push('BROKE:');
