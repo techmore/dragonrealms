@@ -160,6 +160,7 @@
       <a href="#live"><span class="live-dot" id="navLiveDot" hidden></span>Live</a>
       <a href="#launch">Launch</a>
       <a href="#runs">Runs</a>
+      <a href="#leaderboard">Leaderboard</a>
       <a href="#tracker">Tracker</a>
       <a href="#lab">Lab</a>
       <a href="#champions">Champions</a>
@@ -271,9 +272,10 @@
           <th data-k="run">Run</th><th data-k="char">Char</th><th data-k="guild">Guild</th><th data-k="race">Race</th>
           <th data-k="ts">Ended</th><th data-k="circle">Circle</th><th data-k="circles">&#8593;</th>
           <th data-k="kills">Kills</th><th data-k="deaths">Deaths</th><th data-k="trains">Trains</th>
+          <th data-k="rating" title="S/A/B/C/D — click a row for the transparent breakdown">Rating</th>
           <th data-k="grade">Grade</th><th></th>
         </tr></thead>
-        <tbody id="runs"><tr><td colspan="12" class="note">loading…</td></tr></tbody>
+        <tbody id="runsBody"><tr><td colspan="13" class="note">loading…</td></tr></tbody>
       </table>
 
       <!-- detail -->
@@ -302,6 +304,53 @@
         </div>
         <div id="logwrap">(no log selected)</div>
       </div>
+    </section>
+
+    <section id="leaderboard">
+      <h2>Script leaderboard
+        <span class="right sub" id="lb-state">computed live from run summaries — progress · velocity · survival · discipline · fidelity</span>
+      </h2>
+      <div class="controls">
+        <select id="lb-guild"><option value="">all guilds…</option></select>
+        <span class="sub">rating = 40% velocity + 25% survival + 20% discipline + 15% fidelity; tiers S ≥85, A ≥70, B ≥55, C ≥35</span>
+      </div>
+      <div id="lb-body" class="note">loading…</div>
+      <style>
+        #leaderboard .lb-row { cursor: pointer; }
+        #leaderboard .lb-main td { padding-top: 8px; padding-bottom: 8px; }
+        #leaderboard .rank {
+          width: 28px; height: 28px; border-radius: 50%; display: inline-flex;
+          align-items: center; justify-content: center; font-size: 12px; font-weight: bold;
+          background: var(--panel-inset); color: var(--dim); flex: none;
+        }
+        #leaderboard .rank.r1 { background: var(--amber); color: #000; }
+        #leaderboard .rank.r2 { background: #c0c0c0; color: #000; }
+        #leaderboard .rank.r3 { background: #cd7f32; color: #000; }
+        #leaderboard .tier {
+          display: inline-flex; align-items: baseline; gap: 6px;
+        }
+        #leaderboard .tier b { font-size: 17px; }
+        #leaderboard .tier.t-S b { color: var(--green); }
+        #leaderboard .tier.t-A b { color: var(--amber); }
+        #leaderboard .tier.t-B b { color: var(--cyan); }
+        #leaderboard .tier.t-C b { color: var(--muted); }
+        #leaderboard .tier.t-D b { color: var(--red); }
+        #leaderboard .dsub { color: var(--dim); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; }
+        #leaderboard .runs-cell { color: var(--muted); font-size: 11px; white-space: nowrap; }
+        #leaderboard tr.lb-detail > td { background: var(--panel-inset); }
+        #leaderboard .bd-grid { display: flex; flex-wrap: wrap; gap: 10px 22px; padding: 4px 2px 10px; font-size: 11.5px; }
+        #leaderboard .bd-item { min-width: 150px; }
+        #leaderboard .bd-item .bar { height: 5px; margin-top: 3px; max-width: 130px; border-radius: 99px;
+          background: rgba(255,255,255,.07); overflow: hidden; }
+        #leaderboard .bd-item .bar i { display: block; height: 100%; background: var(--amber); }
+        #leaderboard .verdict-wedged { color: var(--red); }
+        #leaderboard .verdict-stalled { color: var(--red); }
+        #leaderboard .verdict-slow { color: var(--amber); }
+        #leaderboard .verdict-healthy { color: var(--green); }
+        /* live provisional rating chip on Live cards */
+        .live-card .lrate { margin-left: auto; font-size: 11px; color: var(--dim); }
+        .live-card .lrate b { color: var(--amber); font-size: 13px; }
+      </style>
     </section>
 
     <!-- ===================== CHARACTER TRACKER ===================== -->
@@ -440,9 +489,10 @@
 
     /* ================= runs table ================= */
     // Merge public/live/index.json (logs that exist) with
-    // fidelity-summary.jsonl (structured results per guild×race sweep run).
-    // A summary row matches a log when run = `fidelity-<guild>-<race>`.
-    let RUNS = [];           // { run, char?, ts?, reason?, circle, circles, kills, deaths, trains, grade?, fidelity? }
+    // fidelity-summary.jsonl (structured results per sweep run).
+    // EVERY summary row is kept — a run's history is the point, not just
+    // its latest result (the old latest-per-combo merge hid all history).
+    let RUNS = [];           // { run, char?, ts?, reason?, circle, circles, kills, deaths, trains, grade?, fidelity?, variant? }
     let SORT = { k: 'ts', dir: -1 };
     let SELECTED = null;
 
@@ -452,18 +502,33 @@
       let summaries = [];
       try {
         const txt = await fetch('/live/fidelity-summary.jsonl', { cache: 'no-store' }).then((r) => r.text());
-        summaries = txt.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+        summaries = txt.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
       } catch {}
 
-      // Latest summary per guild×race key.
+      // Latest summary row per guild×race key — used ONLY to decorate log files.
       const latest = new Map();
       for (const s of summaries) latest.set(`${s.guild}:${s.race}`, s);
 
-      const seen = new Set();
+      const seenLogKeys = new Set();
       RUNS = [];
+      // 1. Every summary row IS a run (the structured record of record).
+      for (const s of summaries) {
+        seenLogKeys.add(`${s.guild}:${s.race}`);
+        RUNS.push({
+          run: `fidelity-${s.guild}-${s.race}`, guild: s.guild, race: s.race,
+          char: s.char || null, ts: s.ts ? Date.parse(s.ts) : null,
+          reason: s.reason || null, circle: s.circle ?? null,
+          circles: s.circles ?? null, kills: s.kills ?? null,
+          deaths: s.deaths ?? null, trains: s.trains ?? null,
+          grade: s.grade || null, score: s.fidelityScore || null, fidelity: s.fidelity || null,
+          variant: s.variant || null, stallVerdict: s.stallVerdict || null,
+          durationMs: s.durationMs ?? null, totalRanks: s.totalRanks ?? null,
+        });
+      }
+      // 2. Log files with no summary rows at all still appear (raw scripts).
       for (const run of logs) {
-        seen.add(run);
-        const m = /^fidelity-(.+)-([a-z]+)$/.exec(run); // guild may contain dashes? ids are single words; race last segment
+        const m = /^fidelity-(.+)-([a-z]+)$/.exec(run);
+        if (m && seenLogKeys.has(`${m[1]}:${m[2]}`)) continue;
         const s = m ? latest.get(`${m[1]}:${m[2]}`) : null;
         RUNS.push({
           run, char: s?.char || null, ts: s?.ts ? Date.parse(s.ts) : null,
@@ -473,14 +538,6 @@
           guild: s?.guild || (m ? m[1] : null), race: s?.race || (m ? m[2] : null),
           grade: s?.grade || null, score: s?.fidelityScore || null, fidelity: s?.fidelity || null,
         });
-      }
-      for (const [, s] of latest) { // summaries without a surviving log file
-        if (!logs.includes(`fidelity-${s.guild}-${s.race}`)) {
-          RUNS.push({ run: `fidelity-${s.guild}-${s.race} (no log)`, char: s.char,
-            ts: Date.parse(s.ts), reason: s.reason, circle: s.circle, circles: s.circles,
-            kills: s.kills, deaths: s.deaths, trains: s.trains, guild: s.guild, race: s.race,
-            grade: s.grade, score: s.fidelityScore, fidelity: s.fidelity });
-        }
       }
       renderRuns();
     }
@@ -503,10 +560,12 @@
         th.textContent = th.textContent.replace(/ [▲▼]$/, '') + (SORT.k === th.dataset.k ? (SORT.dir > 0 ? ' ▲' : ' ▼') : '');
       });
       if (!rows.length) {
-        $('runs').innerHTML = '<tr><td colspan="12" class="note">no sim logs in public/live yet — launch one from the dash</td></tr>';
+        $('runsBody').innerHTML = '<tr><td colspan="13" class="note">no sim logs in public/live yet — launch one from the dash</td></tr>';
         return;
       }
-      $('runs').innerHTML = rows.map((r) => `
+      $('runsBody').innerHTML = rows.map((r) => {
+        const rating = rateRun(r);
+        return `
         <tr class="run ${SELECTED === r.run ? 'sel' : ''}" data-run="${esc(r.run)}">
           <td>${esc(r.run.replace(/^fidelity-/, ''))}</td>
           <td>${esc(r.char || '—')}</td>
@@ -518,15 +577,17 @@
           <td>${r.kills ?? '—'}</td>
           <td>${r.deaths ? `<span class="badge death">${r.deaths}</span>` : '0'}</td>
           <td>${r.trains ?? '—'}</td>
+          <td>${rateBadgeHtml(rating, r.variant ? `· ${esc(r.variant)}` : '')}</td>
           <td>${r.grade ? `<span class="badge grade-${esc(String(r.grade)[0])}" title="fidelity ${esc(r.score || '')}">${esc(r.grade)}</span>` : (r.score ? esc(r.score) : '—')}</td>
           <td><button class="btn" data-open="${esc(r.run)}">open &#8594;</button>
               ${r.guild && r.race && r.char ? `<button class="btn" data-rerun="${esc(r.run)}" title="prefill the dash launch form with this run's params">&#9654; rerun</button>` : ''}</td>
-        </tr>`).join('');
-      $('runs').querySelectorAll('tr.run').forEach((tr) =>
+        </tr>`;
+      }).join('');
+      $('runsBody').querySelectorAll('tr.run').forEach((tr) =>
         tr.addEventListener('click', () => openRun(tr.dataset.run)));
-      $('runs').querySelectorAll('[data-open]').forEach((b) =>
+      $('runsBody').querySelectorAll('[data-open]').forEach((b) =>
         b.addEventListener('click', (e) => { e.stopPropagation(); openRun(b.dataset.open); }));
-      $('runs').querySelectorAll('[data-rerun]').forEach((b) =>
+      $('runsBody').querySelectorAll('[data-rerun]').forEach((b) =>
         b.addEventListener('click', (e) => {
           e.stopPropagation();
           const r = RUNS.find((x) => x.run === b.dataset.rerun);
@@ -677,6 +738,173 @@
       ctx.fillText(`circle max ${maxC}`, pad, pad - 8);
       ctx.fillText(`${maxX}m`, W - pad - 30, H - 8);
       ctx.fillText('0', pad - 6, H - 8);
+    }
+
+    /* ================= rating engine ================= */
+    // One number, everywhere. Weights are explicit and shown in the UI so
+    // the score is never a mystery box.
+    //   velocity   40% — ranks/hour vs a healthy baseline (60 ranks/h at
+    //              boost x20), plus circle-ups as a bonus multiplier
+    //   survival   25% — deaths per hour of run time (0 = perfect)
+    //   discipline 20% — verdict (healthy=1) and train activity
+    //   fidelity   15% — signature checks passed ÷ total
+    const RATING = {
+      BASELINE_RANKS_PER_H: 60,
+      W: { velocity: 0.40, survival: 0.25, discipline: 0.20, fidelity: 0.15 },
+      tier(v) { return v >= 85 ? 'S' : v >= 70 ? 'A' : v >= 55 ? 'B' : v >= 35 ? 'C' : 'D'; },
+    };
+    function rateRun(r) {
+      const hours = r.durationMs ? r.durationMs / 3600000 : null;
+      // ---- velocity: totalRanks/hour (fidelity-summary carries no rank count;
+      // trains+kills proxy it when absent: each kill ≈ 2.2 ranks at boost x20).
+      const rankProxy = r.totalRanks ?? Math.round((r.kills || 0) * 2.2);
+      let velocity = 0;
+      if (hours && hours > 0.05) {
+        const perH = rankProxy / hours;
+        velocity = Math.min(100, Math.round(100 * perH / RATING.BASELINE_RANKS_PER_H));
+        if (r.circles > 0) velocity = Math.min(100, velocity * (1 + 0.25 * r.circles));
+      }
+      // ---- survival: deaths/h; 1 death in a 10m run is bad (6/h → 0)
+      const deathsPerH = hours ? (r.deaths || 0) / hours : (r.deaths ? 1 : 0);
+      const survival = Math.max(0, Math.round(100 - deathsPerH * 100));
+      // ---- discipline: healthy runs that also spend TDPs score full
+      const verdictOk = !r.stallVerdict || r.stallVerdict === 'healthy';
+      const trainedOk = (r.trains || 0) > 0;
+      const discipline = Math.round((verdictOk ? 70 : 15) + (trainedOk ? 30 : 0));
+      // ---- fidelity: checks passed / total declared for the guild
+      let fidelity = null;
+      if (r.score && /^\d+\/\d+$/.test(r.score)) {
+        const [p, t] = r.score.split('/').map(Number);
+        if (t > 0) fidelity = Math.round(100 * p / t);
+      } else if (r.fidelity && Object.keys(r.fidelity).length) {
+        fidelity = 100; // counters present but no denominator — full credit
+      }
+      const parts = { velocity, survival, discipline, fidelity };
+      const val = Math.round(
+        parts.velocity * RATING.W.velocity
+        + parts.survival * RATING.W.survival
+        + parts.discipline * RATING.W.discipline
+        + (parts.fidelity ?? 50) * RATING.W.fidelity); // unknown fidelity scores neutral 50
+      return { val, tier: RATING.tier(val), parts };
+    }
+    function rateBadgeHtml(rating, titleExtra = '') {
+      return `<span class="tier t-${rating.tier}" title="rating ${rating.val}/100 ${titleExtra}"
+        style="cursor:help"><b>${rating.tier}</b><span class="sub">${rating.val}</span></span>`;
+    }
+
+    /* ================= script leaderboard ================= */
+    let LB_OPEN = null; // expanded variant key
+    async function loadLeaderboard() {
+      await loadRunsPromise;   // RUNS is fresh by now
+      renderLeaderboard();
+    }
+    function renderLeaderboard() {
+      const el = $('lb-body');
+      const guildFilter = $('lb-guild').value;
+      // Group completed runs by guild×variant (skip variant-less ad-hoc runs).
+      const groups = new Map();
+      for (const r of RUNS) {
+        if (!r.variant && !r.run.includes('base')) continue;  // benchmarks only
+        const g = r.guild || '?';
+        const v = r.variant || 'baseline';
+        if (guildFilter && g !== guildFilter) continue;
+        const key = `${g}|${v}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push({ ...r, rating: rateRun(r) });
+      }
+      // Rank variants by MEDIAN rating (robust to one blowout run).
+      const med = (a) => { if (!a.length) return null; const s = [...a].sort((x,y)=>x-y);
+        return s.length % 2 ? s[Math.floor(s.length/2)] : Math.round((s[s.length-2===-1?0:s.length/2-1] + s[Math.floor(s.length/2)])/2); };
+      const ranked = [...groups.entries()].map(([key, runs]) => {
+        const [guild, variant] = key.split('|');
+        const vals = runs.map((r) => r.rating.val).sort((a, b) => a - b);
+        const medianVal = vals.length % 2 ? vals[Math.floor(vals.length / 2)]
+          : Math.round((vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2);
+        const avgParts = {};
+        for (const p of Object.keys(RATING.W)) {
+          const vs = runs.map((r) => r.rating.parts[p]).filter((x) => x != null);
+          avgParts[p] = vs.length ? Math.round(vs.reduce((s, x) => s + x, 0) / vs.length) : null;
+        }
+        const deaths = runs.reduce((s, r) => s + (r.deaths || 0), 0);
+        const wedges = runs.filter((r) => r.stallVerdict === 'wedged' || r.stallVerdict === 'stalled').length;
+        return { guild, variant, runs, medianVal, avgParts, deaths, wedges, tier: RATING.tier(medianVal) };
+      }).sort((a, b) => b.medianVal - a.medianVal);
+
+      // guild filter options once
+      const gs = [...new Set(RUNS.map((r) => r.guild).filter(Boolean))].sort();
+      const cur = $('lb-guild').value;
+      $('lb-guild').innerHTML = '<option value="">all guilds…</option>'
+        + gs.map((g) => `<option${g === cur ? ' selected' : ''}>${esc(g)}</option>`).join('');
+
+      $('lb-state').textContent = `${ranked.length} variants · computed from ${[...groups.values()].reduce((s, rs) => s + rs.length, 0)} runs`;
+      if (!ranked.length) {
+        el.innerHTML = '<div class="note">no benchmark runs yet — launch one above or via <code>race-guild-sweep.mjs --benchmark</code></div>';
+        return;
+      }
+      el.innerHTML = `<table class="tbl"><thead><tr>
+          <th></th><th>Variant</th><th>Guild</th><th>Rating</th><th>Runs</th>
+          <th title="total across the variant's runs">↑</th><th>Kills</th><th>Deaths</th><th>Wedges</th><th>Trend</th>
+        </tr></thead><tbody>${
+        ranked.map((rv, i) => {
+          const key = `${rv.guild}|${rv.variant}`;
+          const open = LB_OPEN === key;
+          const main = `
+          <tr class="run lb-row" data-lb="${esc(key)}">
+            <td><span class="rank ${i < 3 ? 'r' + (i + 1) : ''}">${i + 1}</span></td>
+            <td><b style="color:var(--amber)">${esc(rv.variant)}</b></td>
+            <td>${esc(rv.guild)}</td>
+            <td>${rateBadgeHtml({ val: rv.medianVal, tier: rv.tier }, `median of ${rv.runs.length} runs`)}</td>
+            <td class="runs-cell">${rv.runs.length}</td>
+            <td>${rv.runs.reduce((s, r) => s + (r.circles || 0), 0)}</td>
+            <td>${rv.runs.reduce((s, r) => s + (r.kills || 0), 0)}</td>
+            <td>${rv.deaths || '<span class="sub">0</span>'}</td>
+            <td class="${rv.wedges ? 'verdict-wedged' : ''}">${rv.wedges || '<span class="sub">0</span>'}</td>
+            <td>${trendArrow(rv.runs.map((r) => r.rating.val))}</td>
+          </tr>`;
+          const detail = open ? `
+          <tr class="lb-detail"><td colspan="10">
+            <div class="bd-grid">
+              ${['velocity', 'survival', 'discipline', 'fidelity'].map((p) => {
+                const v = rv.avgParts[p];
+                const w = Math.round(RATING.W[p] * 100);
+                return `<div class="bd-item"><span class="dsub">${p} · ${w}%</span>
+                  <div style="color:var(--text)">${v == null ? '—' : v}</div>
+                  ${v != null ? `<div class="bar"><i style="width:${v}%"></i></div>` : ''}</div>`;
+              }).join('')}
+            </div>
+            <table class="tbl">
+              <thead><tr><th>char</th><th>ended</th><th>duration</th><th>kills</th><th>deaths</th><th>trains</th><th>fidelity</th><th>verdict</th><th>rating</th></tr></thead>
+              <tbody>${rv.runs.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).map((r) => `
+                <tr>
+                  <td>${esc(r.char || '—')}</td>
+                  <td>${fmtAge(r.ts)}</td>
+                  <td>${r.durationMs ? Math.round(r.durationMs / 60000) + 'm' : '—'}</td>
+                  <td>${r.kills ?? '—'}</td><td>${r.deaths ?? '—'}</td><td>${r.trains ?? '—'}</td>
+                  <td>${esc(r.score || '—')}</td>
+                  <td class="verdict-${esc(r.stallVerdict || '')}">${esc(r.stallVerdict || '—')}</td>
+                  <td>${rateBadgeHtml(r.rating)}</td>
+                </tr>`).join('')}</tbody>
+            </table>
+          </td></tr>` : '';
+          return main + detail;
+        }).join('')
+      }</tbody></table>`;
+      el.querySelectorAll('tr.lb-row').forEach((tr) =>
+        tr.addEventListener('click', () => {
+          LB_OPEN = LB_OPEN === tr.dataset.lb ? null : tr.dataset.lb;
+          renderLeaderboard();
+        }));
+    }
+    function trendArrow(vals) {
+      // chronological → compare second half median vs first half
+      if (vals.length < 4) return '<span class="sub">·</span>';
+      const h = Math.floor(vals.length / 2);
+      const older = vals.slice(0, h).reduce((s, x) => s + x, 0) / h;
+      const newer = vals.slice(h).reduce((s, x) => s + x, 0) / (vals.length - h);
+      const d = newer - older;
+      if (d > 5) return '<span style="color:var(--green)">▲ improving</span>';
+      if (d < -5) return '<span style="color:var(--red)">▼ declining</span>';
+      return '<span class="sub">≈ flat</span>';
     }
 
     /* ================= character tracker ================= */
@@ -851,8 +1079,16 @@
     });
     $('track-trained').addEventListener('change', () => TRACK_DATA && renderTracker());
 
-    loadRuns();
-    setInterval(loadRuns, 15000);
+    let loadRunsPromise = null; // lets the leaderboard wait for fresh RUNS
+    async function bootRuns() {
+      loadRunsPromise = loadRuns();
+      await loadRunsPromise;
+      renderLeaderboard();
+    }
+    $('lb-guild').addEventListener('change', renderLeaderboard);
+    loadRuns();          // runs table immediately (existing behavior)
+    bootRuns();          // leaderboard after RUNS land
+    setInterval(() => { loadRuns().then(renderLeaderboard); }, 15000);
     // deep link: /sims.html?char=Name
     const want = new URLSearchParams(location.search).get('char');
     if (want) { $('track-name').value = want; track(want); }
@@ -1227,13 +1463,17 @@
 
       navDot.hidden = false;
       liveState.textContent = running.length + ' running';
+      // A stale "no sims running" empty-note must not linger beside real
+      // cards (it used to survive from the previous idle poll).
+      liveList.querySelectorAll('.live-empty').forEach((n) => n.remove());
 
       // Ensure a card exists for each running sim
       for (const name of running) {
         if (!liveCards[name]) {
           const el = document.createElement('div');
           el.className = 'live-card';
-          el.innerHTML = `<div class="lh"><span class="ln">${esc(name)}</span><span class="ls" data-role="state">…</span></div>
+          el.innerHTML = `<div class="lh"><span class="ln">${esc(name)}</span><span class="ls" data-role="state">…</span>
+            <span class="lrate" data-role="rate" title="provisional rating from this run's live progress">—</span></div>
             <div class="lp"><i data-role="prog" style="width:0%"></i></div>
             <div class="lg" data-role="log"></div>`;
           liveList.appendChild(el);
@@ -1262,14 +1502,28 @@
           const log = card.el.querySelector('[data-role="log"]');
           const prog = card.el.querySelector('[data-role="prog"]');
 
-          // Parse progress line for the bar
+          // Rate the run from its most recent [progress] line, not just the
+          // file tail — scripts interleave commands between progress ticks.
+          const rateEl = card.el.querySelector('[data-role="rate"]');
+          const lastProg = [...text.matchAll(/\[progress\]\s+(\d+)m\s+circle\s+(\d+)\s+hp\s+(\d+)\/(\d+)\s+kills\s+(\d+)/g)].pop();
           const progMatch = /\[progress\]\s+(\d+)m\s+circle\s+(\d+)\s+hp\s+(\d+)\/(\d+)\s+kills\s+(\d+)/.exec(last);
-          if (progMatch) {
-            const min = +progMatch[1];
-            const kills = +progMatch[5];
-            state.textContent = `${min}m · circle ${progMatch[2]} · ${kills} kills · hp ${progMatch[3]}/${progMatch[4]}`;
-            // Estimate progress: assume 10m benchmark, show fraction
+          if (progMatch || lastProg) {
+            const pm = progMatch || lastProg;
+            const min = +pm[1];
+            const kills = +pm[5];
+            state.textContent = `${min}m · circle ${pm[2]} · ${kills} kills · hp ${pm[3]}/${pm[4]}`;
             prog.style.width = Math.min(100, Math.round(min / 10 * 100)) + '%';
+            if (min >= 3) {
+              const vel = Math.min(100, Math.round((kills * 2.2) / (min / 60) / RATING.BASELINE_RANKS_PER_H * 100));
+              const rv = Math.round(
+                vel * RATING.W.velocity
+                + (kills > 0 ? 100 : 40) * RATING.W.survival
+                + 100 * RATING.W.discipline
+                + 50 * RATING.W.fidelity);
+              rateEl.innerHTML = `live <b>${RATING.tier(rv)}</b> ${rv}`;
+            } else {
+              rateEl.textContent = 'warming up';
+            }
           } else if (/FINISHED|VERDICT/.test(last)) {
             state.textContent = last.includes('wedged') ? '⚠ wedged' : '✓ done';
             prog.style.width = '100%';
@@ -1294,7 +1548,7 @@
 
     // Sticky nav active section tracking
     const navLinks = document.querySelectorAll('#simsNav a');
-    const sections = ['live', 'launch', 'runs', 'tracker', 'lab', 'champions'].map((id) => $(id));
+    const sections = ['live', 'launch', 'runs', 'leaderboard', 'tracker', 'lab', 'champions'].map((id) => $(id));
     function updateActiveNav() {
       let active = 0;
       for (let i = 0; i < sections.length; i++) {
