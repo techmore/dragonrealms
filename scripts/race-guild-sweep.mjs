@@ -21,6 +21,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { openSweepsDb, insertSweep } from './lib/sweeps-db.mjs';
 import { classifyStall, verdictLabel } from './lib/stall-detect.mjs';
+import { pad, median, fmtMin, fmtMs } from './lib/report-utils.mjs';
 import { circleRequirements } from '../data/guilds.js';
 // Display-name -> skill-id map for parsing `exp` output. showExp() prints the
 // human label ("Parry Ability", "Melee Mastery"), not the id.
@@ -334,6 +335,12 @@ class SweepAgent {
         // character, so retry entry on a longer, repeating backoff until a
         // real room message confirms we're in.
         if (/already active in another session/i.test(String(msg))) {
+          // Fire once per error burst: a reconnect's own charselect traffic can
+          // emit this error too, and stacked retry ladders (one per error) each
+          // sending token/charselect/enter would collide mid-handshake.
+          const now = Date.now();
+          if (this.ghostRetryArmedAt && now - this.ghostRetryArmedAt < 90_000) return;
+          this.ghostRetryArmedAt = now;
           const retries = [5, 15, 35, 60];
           for (const delay of retries) {
             setTimeout(() => {
@@ -341,8 +348,12 @@ class SweepAgent {
               this.appendLog(`[ghost-retry] re-select + enter after ${delay}s`);
               this.session.sendObj({ t: 'token', token: this.session.token });
               setTimeout(() => {
+                if (this.done || this.session.vitals.room) return;
                 this.session.sendObj({ t: 'charselect', id: this.session.knownChar?.charId ?? 'new' });
-                setTimeout(() => this.session.sendObj({ t: 'enter' }), 1200);
+                setTimeout(() => {
+                  if (this.done || this.session.vitals.room) return;
+                  this.session.sendObj({ t: 'enter' });
+                }, 1200);
               }, 800);
             }, delay * 1000);
           }
@@ -592,6 +603,28 @@ class SweepAgent {
         }
       }
     }
+    // Rank ledger from `exp` output — evaluated on EVERY message, not just
+    // circle-failure prose. This block was originally nested inside the
+    // `not yet ready to circle` branch, so it only ran on a failed hall circle
+    // attempt (once or twice a run) and never on the routine per-kill `exp`
+    // output it was written for. That is why [gaps] kept reporting
+    // src:mindstate with understated ranks (89 reported vs ~104 real) even
+    // after `put exp` was firing 22 times per run.
+    //
+    // showExp() prints EVERY skill the character has
+    // ("  Parry Ability   rank 5  0%   clear"), unlike the mindstate feed which
+    // omits any skill with an empty pool.
+    // DISPLAY NAME != SKILL ID: "Parry Ability" -> parry, "Melee Mastery" ->
+    // melee_mastery. Naively snake-casing the label yields parry_ability, which
+    // circleRequirements() does not know, so the rank silently reads as 0.
+    // Resolve through the SKILLS table's real names instead.
+    const plainAll = stripAnsi(text);
+    if (/\brank \d+/.test(plainAll)) {
+      for (const m of plainAll.matchAll(/^\s{2}(\S.*?)\s{2,}rank (\d+)/gm)) {
+        const id = SKILL_ID_BY_NAME[m[1].trim().toLowerCase()];
+        if (id) (this.expRanks ||= {})[id] = Number(m[2]);
+      }
+    }
     if (/not yet ready to circle/.test(text)) {
       this.appendLog(`[circle-blocked] ${stripAnsi(text).replace(/\n+/g, ' | ').slice(0, 220)}`);
       this.lastProgressAt = Date.now(); // a circle attempt + curriculum parse is activity
@@ -604,21 +637,6 @@ class SweepAgent {
         // Regenerate the circle script NOW so the next hall trip trains
         // the blocking skills instead of the generic curriculum.
         this.regenerateScripts();
-      }
-      // Rank ledger from `exp` output. The generated hunt script already runs
-      // `put exp` each scan cycle, and showExp() prints EVERY skill the
-      // character has ("  Parry Ability   rank 5  0%   clear"), unlike the
-      // mindstate feed which omits any skill with an empty pool.
-      // DISPLAY NAME != SKILL ID: "Parry Ability" -> parry, "Melee Mastery" ->
-      // melee_mastery. Naively snake-casing the label yields parry_ability,
-      // which circleRequirements() does not know, so the rank silently reads
-      // as 0. Resolve through the SKILLS table's real names instead.
-      const plainExp = stripAnsi(text);
-      if (/\brank \d+/.test(plainExp)) {
-        for (const m of plainExp.matchAll(/^\s{2}(\S.*?)\s{2,}rank (\d+)/gm)) {
-          const id = SKILL_ID_BY_NAME[m[1].trim().toLowerCase()];
-          if (id) (this.expRanks ||= {})[id] = Number(m[2]);
-        }
       }
       // Rank-gap ledger: remember what circling demanded and how far short we
       // fell ("expertise at least rank 4 (you have 2)"). The supervisor uses
@@ -810,9 +828,9 @@ class SweepAgent {
       lastProgressAt: this.lastProgressAt,
       lowHpSince: this.lowHpSince,
       inCombat: !!v.inCombat,
-      circles: this.circles,
-      trains: this.trains,
-      // effort-without-progress detector inputs
+      // NOTE: kills/trains/circle activity all reach the classifier through
+      // lastProgressAt (refreshed in onText/startCycle's send hook); the
+      // counters themselves are report fields, not classifier inputs.
       swingTimes: this.swingTimes || [],
       skills: v.skills || {},
       rankLedger: v.circleGaps || {},
@@ -934,14 +952,16 @@ class SweepAgent {
     // fight loop is spinning without progress (undamageable target, corpse
     // combat, RT deadlock). Hard-reset the cycle — re-scan finds a live
     // target or wanders, either of which beats spinning until the run ends.
+    // Route through restartCycle() alone: it already stops the runner and
+    // guards against stacked restarts via `restarting`. Nulling the runner
+    // HERE as well raced the heartbeat's restart guard (a runner==null tick
+    // between this and restartCycle would startCycle a second mega on top).
     if (this.rtRefusalStreak >= 12
       && Date.now() - (this.lastKillAt || this.enteredAt || Date.now()) > 90000) {
       this.appendLog(`[rt-stall] ${this.rtRefusalStreak} consecutive RT refusals without a kill — resetting combat cycle`);
       log(`[${this.guild}/${this.race}] rt-stall breaker fired (${this.rtRefusalStreak} refusals)`);
       this.rtRefusalStreak = 0;
       this.lastKillAt = Date.now(); // don't re-fire every tick while resetting
-      this.runner?.stop();
-      this.runner = null;
       void this.session.cmd('look');
       this.restartCycle();
       return;
@@ -1246,15 +1266,16 @@ function report() {
     }
   }
 }
-function pad(s, n) { return String(s).padEnd(n); }
+// pad/median/fmtMin/fmtMs live in scripts/lib/report-utils.mjs — shared by
+// every report renderer below.
+
+const NOISE_FRAC = 0.1;
 
 // --by-variant: leveling-lab comparison. Groups runs by variant × race from
 // the sweeps DB and reports median time-to-target-circle, per-circle pacing
 // medians, kills/hour, deaths, and a winner line. Runs whose time-to-circle
 // is within NOISE_FRAC of the best are marked as ties (server-day variance
 // can easily swing a single run by that much).
-const NOISE_FRAC = 0.1;
-const fmtMin = (ms) => (ms == null ? '-' : (ms / 60000).toFixed(1) + 'm');
 
 function reportByVariant() {
   const since = flag('since', null);
@@ -1394,14 +1415,6 @@ function leaderboard() {
   } catch { console.log('no sweeps.db yet:', LIVE_DIR); return; }
   if (!rows.length) { console.log(`no benchmark rows yet${guild ? ` for ${guild}` : ''} — run --benchmark <guild> first`); return; }
 
-  const median = (a) => {
-    if (!a.length) return null;
-    const s = [...a].sort((x, y) => x - y);
-    const m = Math.floor(s.length / 2);
-    return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
-  };
-  const fmtMs = (ms) => ms == null ? '-' : `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}`;
-
   // One ranked row per guild x variant.
   const byVariant = new Map();
   for (const r of rows) {
@@ -1443,81 +1456,75 @@ function leaderboard() {
 // public/live/leaderboard.json alongside lab.json (refreshed at each run
 // finish and by --report).
 export function buildLeaderboard() {
-let rows = [];
-try {
-const db = new DatabaseSync(join(LIVE_DIR, 'sweeps.db'), { readOnly: true });
-rows = db.prepare(`SELECT run_id, ts, guild, race, grade, circle, kills, deaths,
+  let rows = [];
+  try {
+    const db = new DatabaseSync(join(LIVE_DIR, 'sweeps.db'), { readOnly: true });
+    rows = db.prepare(`SELECT run_id, ts, guild, race, grade, circle, kills, deaths,
 trains, durationMs, variant, timeToCircleMs, stallVerdict, firstExpMs, rankSplits
 FROM sweeps WHERE variant IS NOT NULL ORDER BY ts ASC`).all();
-db.close();
-} catch { return { guilds: [] }; }
-const median = (a) => {
-if (!a.length) return null;
-const s = [...a].sort((x, y) => x - y);
-const m = Math.floor(s.length / 2);
-return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
-};
-const byGV = new Map();
-for (const r of rows) {
-const k = r.guild + '|' + r.variant;
-if (!byGV.has(k)) byGV.set(k, []);
-byGV.get(k).push(r);
-}
-const variants = [...byGV.entries()].map(([k, rs]) => {
-const [guild, variant] = k.split('|');
-const times = rs.map((r) => r.timeToCircleMs).filter((t) => t != null);
-const firstExp = rs.map((r) => r.firstExpMs).filter((t) => t != null);
-const splits = {};
-for (const r of rs) {
-let arr; try { arr = JSON.parse(r.rankSplits || '[]'); } catch { continue; }
-for (const sp of arr) {
-(splits[sp.ranks] ||= []).push(sp.ms);
-}
-}
-const splitMed = Object.fromEntries(Object.entries(splits).map(([rk, ms]) =>
-[rk, median(ms)]));
-// Trend: compare the last half of runs' median time-to-circle vs the
-// first half — negative = improving.
-const chrono = rs.map((r) => r.timeToCircleMs).filter((t) => t != null);
-let trend = null;
-if (chrono.length >= 4) {
-const h = Math.floor(chrono.length / 2);
-const older = median(chrono.slice(0, h));
-const newer = median(chrono.slice(h));
-trend = newer != null && older != null ? newer - older : null;
-}
-return {
-guild, variant, runs: rs.length,
-reached: times.length,
-bestMs: times.length ? Math.min(...times) : null,
-medMs: median(times),
-firstExpMedMs: median(firstExp),
-splitMedianMs: splitMed,
-kills: rs.reduce((s, r) => s + (r.kills || 0), 0),
-deaths: rs.reduce((s, r) => s + (r.deaths || 0), 0),
-stalls: rs.filter((r) => ['stalled', 'wedged'].includes(r.stallVerdict)).length,
-kph: (() => { const v = median(rs.map((r) => r.durationMs > 0 ? r.kills / (r.durationMs / 3600000) : NaN).filter(Number.isFinite)); return v == null ? null : Math.round(v); })(),
-trendMs: trend,
-lastRunTs: rs[rs.length - 1].ts,
-};
-});
-// Best per guild: finishers ranked by median time-to-circle; non-finishers
-// by kills as a tiebreak proxy.
-const guilds = {};
-for (const v of variants) {
-(guilds[v.guild] ||= []).push(v);
-}
-const out = Object.entries(guilds).map(([g, vs]) => {
-vs.sort((a, b) => ((a.medMs ?? Infinity) - (b.medMs ?? Infinity)) || (b.kills - a.kills));
-return {
-guild: g,
-champion: vs[0].variant,
-championMedMs: vs[0].medMs,
-variants: vs,
-};
-});
-return { generatedAt: new Date().toISOString(), guilds: out };
+    db.close();
+  } catch { return { guilds: [] }; }
+  const byGV = new Map();
+  for (const r of rows) {
+    const k = r.guild + '|' + r.variant;
+    if (!byGV.has(k)) byGV.set(k, []);
+    byGV.get(k).push(r);
+  }
+  const variants = [...byGV.entries()].map(([k, rs]) => {
+    const [guild, variant] = k.split('|');
+    const times = rs.map((r) => r.timeToCircleMs).filter((t) => t != null);
+    const firstExp = rs.map((r) => r.firstExpMs).filter((t) => t != null);
+    const splits = {};
+    for (const r of rs) {
+      let arr; try { arr = JSON.parse(r.rankSplits || '[]'); } catch { continue; }
+      for (const sp of arr) {
+        (splits[sp.ranks] ||= []).push(sp.ms);
+      }
     }
+    const splitMed = Object.fromEntries(Object.entries(splits).map(([rk, ms]) =>
+      [rk, median(ms)]));
+    // Trend: compare the last half of runs' median time-to-circle vs the
+    // first half — negative = improving.
+    const chrono = rs.map((r) => r.timeToCircleMs).filter((t) => t != null);
+    let trend = null;
+    if (chrono.length >= 4) {
+      const h = Math.floor(chrono.length / 2);
+      const older = median(chrono.slice(0, h));
+      const newer = median(chrono.slice(h));
+      trend = newer != null && older != null ? newer - older : null;
+    }
+    return {
+      guild, variant, runs: rs.length,
+      reached: times.length,
+      bestMs: times.length ? Math.min(...times) : null,
+      medMs: median(times),
+      firstExpMedMs: median(firstExp),
+      splitMedianMs: splitMed,
+      kills: rs.reduce((s, r) => s + (r.kills || 0), 0),
+      deaths: rs.reduce((s, r) => s + (r.deaths || 0), 0),
+      stalls: rs.filter((r) => ['stalled', 'wedged'].includes(r.stallVerdict)).length,
+      kph: (() => { const v = median(rs.map((r) => r.durationMs > 0 ? r.kills / (r.durationMs / 3600000) : NaN).filter(Number.isFinite)); return v == null ? null : Math.round(v); })(),
+      trendMs: trend,
+      lastRunTs: rs[rs.length - 1].ts,
+    };
+  });
+  // Best per guild: finishers ranked by median time-to-circle; non-finishers
+  // by kills as a tiebreak proxy.
+  const guilds = {};
+  for (const v of variants) {
+    (guilds[v.guild] ||= []).push(v);
+  }
+  const out = Object.entries(guilds).map(([g, vs]) => {
+    vs.sort((a, b) => ((a.medMs ?? Infinity) - (b.medMs ?? Infinity)) || (b.kills - a.kills));
+    return {
+      guild: g,
+      champion: vs[0].variant,
+      championMedMs: vs[0].medMs,
+      variants: vs,
+    };
+  });
+  return { generatedAt: new Date().toISOString(), guilds: out };
+}
 
 // ---------------- orchestration ----------------
 
