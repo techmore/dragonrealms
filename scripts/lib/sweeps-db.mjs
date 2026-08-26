@@ -44,6 +44,10 @@ const EXTRA_COLUMNS = {
   // Leveling lab: JSON array of {circle, ms} splits — the per-circle pacing
   // curve for the run. NULL for ordinary fidelity sweeps.
   circleTimes: 'TEXT',
+  // Leveling lab: ms from enter to the first rank gain; JSON [{ranks, ms}]
+  // crossings at +5/+10/+15 total ranks.
+  firstExpMs: 'INTEGER',
+  rankSplits: 'TEXT',
 };
 
 function migrateSweepsColumns(db) {

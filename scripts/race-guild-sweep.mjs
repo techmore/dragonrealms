@@ -177,6 +177,13 @@ class SweepAgent {
     this.lastFleeAt = 0;
     this.scriptsSaved = false;
     this.circleTimes = [];    // [{circle, ms}] wall-clock from enter to EACH circle-up
+    // Leveling lab: time-to-first-EXP and total-rank crossings (5/10/15...).
+    // firstExpMs = enter -> first mindstate feed where any skill gained a
+    // rank vs the enter baseline; rankSplits = [{ranks, ms}] at each RANK_
+    // SPLIT crossing of TOTAL summed ranks (the DR "levels" proxy).
+    this.firstExpMs = null;
+    this.rankSplits = [];
+    this.RANK_SPLITS = [5, 10, 15];
     // ---- stall-detection state (snapshot into classifyStall) ----
     this.startedAt = Date.now();
     this.refusalTimes = [];   // timestamps of move/combat refusals
@@ -263,9 +270,32 @@ class SweepAgent {
       onReconnect: (n) => this.appendLog(`[reconnect] attempt ${n}`),
       // First mindstate feed (~seconds after enter, ranks near zero) seeds
       // the dumb-loop detector's immutable baseline; later feeds refresh
-      // vitals.skills which classifyStall compares against it.
+      // vitals.skills which classifyStall compares against it. Also the
+      // leveling-lab tap: first rank gain = time-to-first-EXP; summed-rank
+      // crossings record the 5/10/15 splits.
       onSkills: (skills) => {
         if (!this.rankBaseline) this.rankBaseline = { ...skills };
+        else if (this.firstExpMs === null) {
+          const gained = Object.entries(skills)
+            .some(([sk, r]) => Number.isFinite(r) && r > (this.rankBaseline[sk] ?? r));
+          if (gained) {
+            this.firstExpMs = Date.now() - (this.enteredAt || this.startedAt);
+            log(`[${this.guild}/${this.race}] FIRST-EXP at ${Math.round(this.firstExpMs / 1000)}s`);
+          }
+        }
+        if (this.RANK_SPLITS.length && this.rankBaseline) {
+          const total = Object.entries(skills).reduce(
+            (n, [sk, r]) => n + Math.max(0, Number(r) || 0), 0);
+          const baseTotal = Object.values(this.rankBaseline).reduce(
+            (n, r) => n + (Number(r) || 0), 0);
+          const earned = total - baseTotal;
+          while (this.RANK_SPLITS.length && earned >= this.RANK_SPLITS[0]) {
+            const target = this.RANK_SPLITS.shift();
+            const ms = Date.now() - (this.enteredAt || this.startedAt);
+            this.rankSplits.push({ ranks: target, ms });
+            log(`[${this.guild}/${this.race}] RANK-SPLIT +${target} ranks at ${Math.round(ms / 1000)}s`);
+          }
+        }
         this.updateStallVerdict();
       },
     });
@@ -802,6 +832,9 @@ class SweepAgent {
       refusals: this.refusals || 0,
       circleTimes: this.circleTimes,
       timeToCircleMs: this.circleTimes.find((c) => c.circle >= CIRCLE_TARGET)?.ms ?? null,
+      // Leveling lab: first-EXP latency + rank-crossing splits.
+      firstExpMs: this.firstExpMs,
+      rankSplits: this.rankSplits,
       stallVerdict: this.liveVerdict?.verdict || null, stallReason: this.liveVerdict?.reason || null,
       fidelity: this.fidelity, fidelityScore: `${checksPassed}/${checksTotal}`,
       grade,
@@ -821,6 +854,11 @@ class SweepAgent {
         stallVerdict: this.liveVerdict?.verdict, stallReason: this.liveVerdict?.reason,
         circleTimes: this.circleTimes,
       });
+      // Leveling-lab columns (guarded migration keeps older DBs working).
+      try {
+        db.prepare('UPDATE sweeps SET firstExpMs = ?, rankSplits = ? WHERE id = last_insert_rowid()')
+          .run(this.firstExpMs ?? null, JSON.stringify(this.rankSplits || []));
+      } catch {}
       db.close();
     } catch (e) { log(`[${this.guild}/${this.race}] sweeps-db write failed: ${e.message}`); }
     log(`[${this.guild}/${this.race}] FINISHED run ${RUN_ID} (${reason}): circle ${summary.circle}, fidelity ${summary.fidelityScore}`, JSON.stringify(summary.fidelity));
@@ -1022,6 +1060,57 @@ function reportByVariant() {
   console.log('-'.repeat(30));
 }
 
+// --lab: barbarian leveling-efficiency report. Per variant × race medians of:
+//   firstExp — enter -> first rank gain (the "is the script alive" metric)
+//   +5/+10/+15 — total-rank crossing splits (early leveling velocity)
+//   circle1 — time to circle up (when reached)
+//   spread — max-min of the above across runs (repeatability)
+// Judged on timing AND repeatability: a config that's fast when it works but
+// wildly variable loses to a slightly slower, tighter one.
+function reportLab() {
+  const guild = flag('guild', 'barbarian');
+  let rows;
+  try {
+    const db = openSweepsDb(LIVE_DIR);
+    rows = db.prepare(`SELECT run_id, ts, race, variant, kills, durationMs, timeToCircleMs, firstExpMs, rankSplits FROM sweeps WHERE guild = ? AND variant IS NOT NULL`).all(guild);
+    db.close();
+  } catch (e) { console.log('no sweeps.db yet:', e.message); return; }
+  if (!rows.length) { console.log(`no ${guild} variant runs found`); return; }
+
+  const groups = new Map();
+  for (const r of rows) {
+    const key = `${r.variant}|${r.race}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  console.log(`\n=== ${guild} leveling lab (${rows.length} runs) ===`);
+  console.log(pad('variant', 10) + pad('race', 10) + pad('runs', 5)
+    + pad('firstEXP', 9) + pad('+5ranks', 9) + pad('+10ranks', 9) + pad('+15ranks', 9)
+    + pad('circle1', 8) + 'spread(firstExp..c1)');
+  for (const [key, rs] of [...groups].sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
+    const [variant, race] = key.split('|');
+    const med = (arr) => {
+      const v = arr.filter(Number.isFinite).sort((a, b) => a - b);
+      return v.length ? v[Math.floor(v.length / 2)] : null;
+    };
+    const splits = rs.map((r) => { try { return JSON.parse(r.rankSplits || '[]'); } catch { return []; } });
+    const at = (n) => med(splits.map((s) => s.find((x) => x.ranks === n)?.ms));
+    const fexp = med(rs.map((r) => r.firstExpMs));
+    const c1 = med(rs.map((r) => r.timeToCircleMs));
+    // Repeatability: relative spread of the metrics we have. Uses firstExp
+    // (always present on healthy runs); '-' when under 2 samples.
+    const feVals = rs.map((r) => r.firstExpMs).filter(Number.isFinite).sort((a, b) => a - b);
+    const spread = feVals.length >= 2
+      ? `±${Math.round(((feVals[feVals.length - 1] - feVals[0]) / 2 / 1000))}s`
+      : '-';
+    console.log(pad(variant, 10) + pad(race, 10) + pad(String(rs.length), 5)
+      + pad(fmtMin(fexp), 9) + pad(fmtMin(at(5)), 9) + pad(fmtMin(at(10)), 9) + pad(fmtMin(at(15)), 9)
+      + pad(fmtMin(c1), 8) + spread);
+  }
+  console.log('\nJudged on timing (median) and repeatability (spread). Shorter is better everywhere.');
+  console.log('-'.repeat(30));
+}
+
 // --leaderboard: ranked benchmark table from the sweeps DB — best/median
 // wall time to reach the target circle per guild × variant (races pooled),
 // plus kills, deaths, and stall counts. Variants that never reached the
@@ -1089,7 +1178,8 @@ function leaderboard() {
 // ---------------- orchestration ----------------
 
 if (ARGS.includes('--report')) {
-  if (ARGS.includes('--by-variant')) reportByVariant();
+  if (ARGS.includes('--lab')) reportLab();
+  else if (ARGS.includes('--by-variant')) reportByVariant();
   else report();
   process.exit(0);
 }
