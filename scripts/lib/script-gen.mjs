@@ -51,28 +51,25 @@ function buildHuntScript({ cap, arena, hallPath }) {
   // rather than an infinite BUY spin that starves the whole run.
   L.push('  matchre BROKE cannot afford');
   // Weapon upgrade ladder (player-style progression): spend the purse on the
-  // best blade it reaches before settling for a club. Ladder by price:
-  // forged_short_sword 150 > short_sword 80 > hand_axe 65 > club 15. Each
-  // branch falls through to the next when unaffordable; the club is the floor.
-  L.push('  ifge silver 150 goto BUY_FORGED');
-  L.push('  ifge silver 80 goto BUY_SHORTSWORD');
-  L.push('  ifge silver 65 goto BUY_HANDAXE');
+  // best blade it reaches before settling for a club. Ladder keyed to
+  // Milgrym's real Kronar prices (docs/reference-milgryms-weapons.md):
+  // cavalry_sabre 562 > short_sword 337 > club 112. Fresh characters start
+  // with 150 silver — enough only for the club floor; skin/loot sales fund
+  // the climb. Each branch falls through when unaffordable.
+  L.push('  ifge silver 562 goto BUY_SABRE');
+  L.push('  ifge silver 337 goto BUY_SHORTSWORD');
   L.push('BUY_CLUB:');
   L.push('  put buy club');
   L.push('  matchwait 30');
   L.push('  goto ARMED');
-  L.push('BUY_FORGED:');
-  L.push('  put buy forged_short_sword');
+  L.push('BUY_SABRE:');
+  L.push('  put buy sabre');
   L.push('  wait');
   L.push('  matchre WIELD_NEW You buy|You pay|hands you');
   L.push('  matchwait 10');
+  L.push('  goto BUY_CLUB');
   L.push('BUY_SHORTSWORD:');
-  L.push('  put buy short_sword');
-  L.push('  wait');
-  L.push('  matchre WIELD_NEW You buy|You pay|hands you');
-  L.push('  matchwait 10');
-  L.push('BUY_HANDAXE:');
-  L.push('  put buy hand axe');
+  L.push('  put buy short sword');
   L.push('  wait');
   L.push('  matchre WIELD_NEW You buy|You pay|hands you');
   L.push('  matchwait 10');

@@ -48,6 +48,9 @@ const EXTRA_COLUMNS = {
   // crossings at +5/+10/+15 total ranks.
   firstExpMs: 'INTEGER',
   rankSplits: 'TEXT',
+  // End-of-run snapshot from the GM API: character name + summed skill ranks.
+  char: 'TEXT',
+  totalRanks: 'INTEGER',
 };
 
 function migrateSweepsColumns(db) {

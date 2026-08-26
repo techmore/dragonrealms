@@ -18,8 +18,10 @@ import { mkdirSync, appendFileSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { openSweepsDb, insertSweep } from './lib/sweeps-db.mjs';
 import { classifyStall, verdictLabel } from './lib/stall-detect.mjs';
+import { circleRequirements } from '../data/guilds.js';
 
 const ARGS = process.argv.slice(2);
 const flag = (name, dflt) => {
@@ -163,7 +165,12 @@ class SweepAgent {
     // Per-AGENT suffix (not per-RUN): benchmark repeats reuse RUN_ID, so two
     // repeats of the same variant must never share a character — repeat 2
     // would inherit repeat 1's ranks and poison the leveling-lab splits.
-    const agentTag = '-' + Math.random().toString(36).slice(2, 6);
+    // Letters-only random tag: names are validated letters-only server-side
+    // (validName rejects digits — "Name must be 2-20 letters"), so base36
+    // tags containing digits silently wedged ~60% of benchmark runs at
+    // charcreate. Map each base36 char to a letter.
+    const agentTag = '-' + Math.random().toString(36).slice(2, 6)
+      .split('').map((c) => 'ijklmnop'[parseInt(c, 36) % 8]).join('');
     this.char = (('Sw' + guild[0].toUpperCase() + guild.slice(1).replace(/[^a-zA-Z]/g, '')
       + race[0].toUpperCase() + race.slice(1).replace(/[^a-zA-Z]/g, '')).replace(/[^a-zA-Z]/g, '').slice(0, 15 - vTag.length - agentTag.length)
     ) + vTag + agentTag + '-' + RUN_ID;
@@ -202,7 +209,7 @@ class SweepAgent {
     // ---- stall-detection state (snapshot into classifyStall) ----
     this.startedAt = Date.now();
     this.refusalTimes = [];   // timestamps of move/combat refusals
-    this.swingTimes = [];     // timestamps of attack commands (dumb-loop detector)
+    this.swingTimes = [];     // timestamps of attack commands (effort detector)
     this.roomChangedAt = Date.now();
     this.lastProgressAt = Date.now();  // any kill/circle/train/move refreshes this
     this.lowHpSince = null;   // first prompt seen pinned below LOW_HP_FRAC
@@ -284,15 +291,19 @@ class SweepAgent {
       onFatal: (reason) => this.finish(reason),
       onReconnect: (n) => this.appendLog(`[reconnect] attempt ${n}`),
       // First mindstate feed (~seconds after enter, ranks near zero) seeds
-      // the dumb-loop detector's immutable baseline; later feeds refresh
+      // the effort-without-progress detector's immutable baseline; later feeds refresh
       // vitals.skills which classifyStall compares against it. Also the
       // leveling-lab tap: first rank gain = time-to-first-EXP; summed-rank
       // crossings record the 5/10/15 splits.
       onSkills: (skills) => {
         if (!this.rankBaseline) this.rankBaseline = { ...skills };
         else if (this.firstExpMs === null) {
+          // Absent-baseline skills count as rank 0: the mindstate pane only
+          // lists skills with ACTIVE pools, so a skill that starts training
+          // later never appears in the baseline snapshot — the old `?? r`
+          // fallback made every such gain invisible and firstEXP never fired.
           const gained = Object.entries(skills)
-            .some(([sk, r]) => Number.isFinite(r) && r > (this.rankBaseline[sk] ?? r));
+            .some(([sk, r]) => Number.isFinite(r) && r > (this.rankBaseline[sk] ?? 0));
           if (gained) {
             this.firstExpMs = Date.now() - (this.enteredAt || this.startedAt);
             log(`[${this.guild}/${this.race}] FIRST-EXP at ${Math.round(this.firstExpMs / 1000)}s`);
@@ -310,6 +321,15 @@ class SweepAgent {
             this.rankSplits.push({ ranks: target, ms });
             log(`[${this.guild}/${this.race}] RANK-SPLIT +${target} ranks at ${Math.round(ms / 1000)}s`);
           }
+        }
+        // Running total-rank snapshot for the end-of-run DB row (the lab's
+        // Total Ranks column). The mindstate feed lists the top-10 active
+        // skills, so this is a floor on true total — but it grows with the
+        // run and beats only recording the 5/10/15 split milestones.
+        const feedTotal = Object.values(skills).reduce(
+          (n, r) => n + (Number(r) || 0), 0);
+        if (feedTotal > (this.totalRanksAtFinish || 0)) {
+          this.totalRanksAtFinish = feedTotal;
         }
         this.updateStallVerdict();
       },
@@ -408,7 +428,7 @@ class SweepAgent {
         }
         trackMove(s, line);
         this.lastSendAt = Date.now();
-        // Swing timestamps feed the dumb-loop detector: hard effort with zero
+        // Swing timestamps feed the effort-without-progress detector: hard effort with zero
         // kills and zero rank movement over a 2m window = broken script.
         if (/^attack\b/.test(line)) {
           this.swingTimes ||= [];
@@ -471,12 +491,23 @@ class SweepAgent {
     if (/dies|slumps|lifeless|stops moving|collapses/.test(text)) {
       this.kills += 1;
       this.lastProgressAt = Date.now();
+      this.lastKillAt = Date.now();
+      this.rtRefusalStreak = 0;
     }
     // Observability: movement/combat refusals are the #1 reason agents park
     // silently. Tag them so a fidelity log explains its own stalls.
     if (/^(You cannot go that way|You are overloaded|You must wait|Creatures block your path|You are in the stocks|The cell door is barred|Go where)/.test(stripAnsi(text))) {
       this.refusals = (this.refusals || 0) + 1;
       this.refusalTimes.push(Date.now());
+      // RT-refusal storm tracking: a live combat stalemate (e.g. swinging at
+      // something we can't damage, or a corpse still flagged in-combat)
+      // produces an endless "You must wait N seconds" cadence with no kill.
+      // The parked-watchdog can't fire here because inCombat stays true.
+      if (/^You must wait/.test(stripAnsi(text))) {
+        this.rtRefusalStreak = (this.rtRefusalStreak || 0) + 1;
+      } else {
+        this.rtRefusalStreak = 0;
+      }
       if (this.refusalTimes.length > 400) this.refusalTimes.splice(0, 200);
       if (this.refusals <= 200) {
         this.appendLog(`[refuse] ${stripAnsi(text).slice(0, 120)} [room ${this.session.vitals.room}]`);
@@ -686,7 +717,7 @@ class SweepAgent {
       inCombat: !!v.inCombat,
       circles: this.circles,
       trains: this.trains,
-      // dumb-agent fast lane inputs
+      // effort-without-progress detector inputs
       swingTimes: this.swingTimes || [],
       skills: v.skills || {},
       rankLedger: v.circleGaps || {},
@@ -771,13 +802,53 @@ class SweepAgent {
       this.killsAtVisit = this.kills;
       return;
     }
+    // Readiness-gated hall trips: instead of walking to the hall on a kill
+    // count to "check" circle status, evaluate the circle requirement table
+    // against the mindstate ranks we already receive (t:'mindstate', pushed
+    // ~every 10s). Walk ONLY when requirements are actually met — the trip
+    // then does real work (circle + TDP spend) instead of checking. The
+    // 4-minute timer stays as a fallback for feeds that never arrive.
+    const huntingLeg2 = this.curName === this.scriptBase + 'mega';
+    if (huntingLeg2 && !v2.inCombat && this.kills > this.killsAtVisit) {
+      const skills = v2.skills || {};
+      const shaped = Object.fromEntries(
+        Object.entries(skills).map(([id, rank]) => [id, { rank }]));
+      let ready = null;
+      try {
+        ready = circleRequirements({ id: this.guild }, shaped, (v2.circle || 1) + 1);
+      } catch { /* unknown guild — fall through to timer trigger */ }
+      if (ready?.ok) {
+        log(`[${this.guild}/${this.race}] hall trip: circle-${(v2.circle || 1) + 1} requirements MET by mindstate ranks`);
+        this.appendLog(`[hall-trip] requirements met (${(v2.circle || 1) + 1}) — circling`);
+        this.killsAtVisit = this.kills;
+        this.regenerateFromHere();
+        this.startCycle(this.library[this.scriptBase + 'circle'], this.scriptBase + 'circle');
+        return;
+      }
+    }
     if (huntingLeg && !v2.inCombat && this.kills > this.killsAtVisit
-      && (this.kills - this.killsAtVisit >= this.hallEvery || Date.now() - this.lastHallAt > 240000)) {
-      log(`[${this.guild}/${this.race}] hall trip (${this.kills - this.killsAtVisit} kills since last visit)`);
-      this.appendLog(`[hall-trip] ${this.kills - this.killsAtVisit} kills since last visit`);
+      && Date.now() - this.lastHallAt > 240000) {
+      log(`[${this.guild}/${this.race}] hall trip (fallback timer)`);
+      this.appendLog(`[hall-trip] fallback timer`);
       this.killsAtVisit = this.kills;
       this.regenerateFromHere();
       this.startCycle(this.library[this.scriptBase + 'circle'], this.scriptBase + 'circle');
+      return;
+    }
+    // RT-stalemate breaker: a long refusal streak with no kill means the
+    // fight loop is spinning without progress (undamageable target, corpse
+    // combat, RT deadlock). Hard-reset the cycle — re-scan finds a live
+    // target or wanders, either of which beats spinning until the run ends.
+    if (this.rtRefusalStreak >= 12
+      && Date.now() - (this.lastKillAt || this.enteredAt || Date.now()) > 90000) {
+      this.appendLog(`[rt-stall] ${this.rtRefusalStreak} consecutive RT refusals without a kill — resetting combat cycle`);
+      log(`[${this.guild}/${this.race}] rt-stall breaker fired (${this.rtRefusalStreak} refusals)`);
+      this.rtRefusalStreak = 0;
+      this.lastKillAt = Date.now(); // don't re-fire every tick while resetting
+      this.runner?.stop();
+      this.runner = null;
+      void this.session.cmd('look');
+      this.restartCycle();
       return;
     }
     // Parked too long: regenerate paths from the current room. If we keep
@@ -871,6 +942,8 @@ class SweepAgent {
         timeToCircleMs: summary.timeToCircleMs,
         stallVerdict: this.liveVerdict?.verdict, stallReason: this.liveVerdict?.reason,
         circleTimes: this.circleTimes,
+        char: this.char,
+        totalRanks: this.totalRanksAtFinish ?? null,
       });
       // Leveling-lab columns (guarded migration keeps older DBs working).
       try {
@@ -882,6 +955,19 @@ class SweepAgent {
     log(`[${this.guild}/${this.race}] FINISHED run ${RUN_ID} (${reason}): circle ${summary.circle}, fidelity ${summary.fidelityScore}`, JSON.stringify(summary.fidelity));
     log(`[${this.guild}/${this.race}] VERDICT: ${verdictLabel(this.liveVerdict.verdict, this.liveVerdict.reason)}${this.variantName ? ` [variant ${this.variantName}]` : ''}`);
     await this.appendHistory(summary);
+    // Refresh the Leveling Lab export (public/live/lab.json) and the
+    // Guild Champions leaderboard (public/live/leaderboard.json) so the
+    // /sims.html tabs reflect this run without a manual step.
+    try {
+      const { writeLabData } = await import('./lib/lab-export.mjs');
+      writeLabData();
+    } catch {}
+    try {
+      const lb = buildLeaderboard();
+      const { writeFileSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      writeFileSync(join(LIVE_DIR, 'leaderboard.json'), JSON.stringify(lb));
+    } catch {}
   }
 
   // Run-end history snapshot for the Sims page trending charts: appends
@@ -1190,8 +1276,89 @@ function leaderboard() {
       + pad(String(r.kills), 6) + pad(String(r.deaths), 7)
       + pad(r.kph != null ? String(Math.round(r.kph)) : '-', 8)
       + pad(String(r.bad), 10));
-  });
+    });
+    }
+
+// Machine-readable leaderboard for the /sims.html "Guild Champions" panel:
+// best variant per guild over time, with milestone pacing. Written to
+// public/live/leaderboard.json alongside lab.json (refreshed at each run
+// finish and by --report).
+export function buildLeaderboard() {
+let rows = [];
+try {
+const db = new DatabaseSync(join(LIVE_DIR, 'sweeps.db'), { readOnly: true });
+rows = db.prepare(`SELECT run_id, ts, guild, race, grade, circle, kills, deaths,
+trains, durationMs, variant, timeToCircleMs, stallVerdict, firstExpMs, rankSplits
+FROM sweeps WHERE variant IS NOT NULL ORDER BY ts ASC`).all();
+db.close();
+} catch { return { guilds: [] }; }
+const median = (a) => {
+if (!a.length) return null;
+const s = [...a].sort((x, y) => x - y);
+const m = Math.floor(s.length / 2);
+return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
+};
+const byGV = new Map();
+for (const r of rows) {
+const k = r.guild + '|' + r.variant;
+if (!byGV.has(k)) byGV.set(k, []);
+byGV.get(k).push(r);
 }
+const variants = [...byGV.entries()].map(([k, rs]) => {
+const [guild, variant] = k.split('|');
+const times = rs.map((r) => r.timeToCircleMs).filter((t) => t != null);
+const firstExp = rs.map((r) => r.firstExpMs).filter((t) => t != null);
+const splits = {};
+for (const r of rs) {
+let arr; try { arr = JSON.parse(r.rankSplits || '[]'); } catch { continue; }
+for (const sp of arr) {
+(splits[sp.ranks] ||= []).push(sp.ms);
+}
+}
+const splitMed = Object.fromEntries(Object.entries(splits).map(([rk, ms]) =>
+[rk, median(ms)]));
+// Trend: compare the last half of runs' median time-to-circle vs the
+// first half — negative = improving.
+const chrono = rs.map((r) => r.timeToCircleMs).filter((t) => t != null);
+let trend = null;
+if (chrono.length >= 4) {
+const h = Math.floor(chrono.length / 2);
+const older = median(chrono.slice(0, h));
+const newer = median(chrono.slice(h));
+trend = newer != null && older != null ? newer - older : null;
+}
+return {
+guild, variant, runs: rs.length,
+reached: times.length,
+bestMs: times.length ? Math.min(...times) : null,
+medMs: median(times),
+firstExpMedMs: median(firstExp),
+splitMedianMs: splitMed,
+kills: rs.reduce((s, r) => s + (r.kills || 0), 0),
+deaths: rs.reduce((s, r) => s + (r.deaths || 0), 0),
+stalls: rs.filter((r) => ['stalled', 'wedged'].includes(r.stallVerdict)).length,
+kph: (() => { const v = median(rs.map((r) => r.durationMs > 0 ? r.kills / (r.durationMs / 3600000) : NaN).filter(Number.isFinite)); return v == null ? null : Math.round(v); })(),
+trendMs: trend,
+lastRunTs: rs[rs.length - 1].ts,
+};
+});
+// Best per guild: finishers ranked by median time-to-circle; non-finishers
+// by kills as a tiebreak proxy.
+const guilds = {};
+for (const v of variants) {
+(guilds[v.guild] ||= []).push(v);
+}
+const out = Object.entries(guilds).map(([g, vs]) => {
+vs.sort((a, b) => ((a.medMs ?? Infinity) - (b.medMs ?? Infinity)) || (b.kills - a.kills));
+return {
+guild: g,
+champion: vs[0].variant,
+championMedMs: vs[0].medMs,
+variants: vs,
+};
+});
+return { generatedAt: new Date().toISOString(), guilds: out };
+    }
 
 // ---------------- orchestration ----------------
 
@@ -1199,6 +1366,13 @@ if (ARGS.includes('--report')) {
   if (ARGS.includes('--lab')) reportLab();
   else if (ARGS.includes('--by-variant')) reportByVariant();
   else report();
+  // Regenerate leaderboard.json alongside the report so the Champions
+  // panel always reflects the latest data.
+  try {
+    const { writeFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    writeFileSync(join(LIVE_DIR, 'leaderboard.json'), JSON.stringify(buildLeaderboard()));
+  } catch {}
   process.exit(0);
 }
 if (ARGS.includes('--leaderboard')) { leaderboard(); process.exit(0); }

@@ -120,7 +120,7 @@ test('grace window never judges a fresh run', () => {
   assert.match(v.reason, /warming up/);
 });
 
-test('dumb-agent fast lane: hard swinging, zero kills, no rank movement -> wedged at 2m30s', () => {
+test('effort-without-progress rule: hard swinging, zero kills, no rank movement -> wedged at 2m30s', () => {
   const swings = Array.from({ length: 10 }, (_, i) => NOW - (110 * 1000) + i * 1000); // 10 attacks in last ~2m
   const st = snap({
     startedAt: NOW - 3 * MIN,
@@ -133,10 +133,10 @@ test('dumb-agent fast lane: hard swinging, zero kills, no rank movement -> wedge
   });
   const v = classifyStall(st, NOW);
   assert.equal(v.verdict, 'wedged');
-  assert.match(v.reason, /dumb loop/);
+  assert.match(v.reason, /effort with no progress/);
 });
 
-test('dumb lane stays quiet when a blocking skill gains a rank (learning agent)', () => {
+test('effort rule stays quiet when a blocking skill gains a rank (learning agent)', () => {
   const swings = Array.from({ length: 10 }, (_, i) => NOW - (110 * 1000) + i * 1000);
   const st = snap({
     startedAt: NOW - 3 * MIN,
@@ -151,7 +151,7 @@ test('dumb lane stays quiet when a blocking skill gains a rank (learning agent)'
   assert.notEqual(v.verdict, 'wedged');
 });
 
-test('dumb lane stays quiet when kills are landing', () => {
+test('effort rule stays quiet when kills are landing', () => {
   const swings = Array.from({ length: 10 }, (_, i) => NOW - (110 * 1000) + i * 1000);
   const st = snap({
     startedAt: NOW - 3 * MIN,
@@ -166,7 +166,7 @@ test('dumb lane stays quiet when kills are landing', () => {
   assert.notEqual(v.verdict, 'wedged');
 });
 
-test('dumb lane needs real effort — few swings never fires it', () => {
+test('effort rule needs real effort — few swings never fires it', () => {
   const st = snap({
     startedAt: NOW - 3 * MIN,
     kills: 0,

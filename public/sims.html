@@ -248,6 +248,70 @@
       </div>
       <div id="tracker" class="note">Pick a character from a run above or type a name. Requires the GM token.</div>
     </section>
+
+    <section>
+      <h2>Leveling Lab
+        <span class="right sub">script progress over time — circles · total ranks · pacing (sweeps.db + history)</span>
+      </h2>
+      <div class="controls">
+        <select id="lab-char"><option value="">all characters…</option></select>
+        <span id="lab-state" class="sub"></span>
+        <span style="flex:1"></span>
+        <button class="btn" id="lab-refresh">&#x21bb; Refresh</button>
+      </div>
+      <div id="lab-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><h3>Circles over time</h3><canvas id="lab-circle-chart" class="spark" width="600" height="220"></canvas></div>
+        <div><h3>Total ranks over time</h3><canvas id="lab-ranks-chart" class="spark" width="600" height="220"></canvas></div>
+      </div>
+      <div style="margin-top:12px"><h3>Runs</h3>
+        <table class="tbl" id="lab-runs"><thead><tr>
+          <th>when</th><th>variant</th><th>char</th><th>grade</th><th>kills</th>
+          <th>circles</th><th>total ranks</th><th>firstEXP</th><th>+5</th><th>+10</th><th>+15</th><th>c1</th><th>min</th><th>verdict</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <!-- ===================== GUILD CHAMPIONS ===================== -->
+    <section>
+      <h2>Guild Champions
+        <span class="right sub">best variant per guild by median time-to-circle · milestone pacing · trend</span>
+      </h2>
+      <div id="champions" class="note">loading…</div>
+      <style>
+        #champions .guild-card {
+          background: var(--panel-inset); border: 1px solid var(--line); border-radius: 10px;
+          padding: 12px 14px; margin-bottom: 12px;
+        }
+        #champions .guild-head {
+          display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;
+        }
+        #champions .guild-name {
+          font-size: 16px; font-weight: 700; color: var(--amber); text-transform: capitalize;
+          min-width: 110px;
+        }
+        #champions .champion-badge {
+          background: var(--amber-soft); border: 1px solid var(--amber);
+          border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600;
+        }
+        #champions .champion-badge .lbl { color: var(--dim); font-weight: normal; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+        #champions .metric { font-size: 12px; color: var(--text); }
+        #champions .metric b { color: var(--amber); }
+        #champions .trend-up { color: var(--green); }
+        #champions .trend-down { color: var(--red); }
+        #champions .trend-flat { color: var(--dim); }
+        #champions .var-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; }
+        #champions .var-table th { color: var(--dim); font-weight: normal; text-transform: uppercase; letter-spacing: .06em; font-size: 10px; padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+        #champions .var-table th:first-child { text-align: left; }
+        #champions .var-table td { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+        #champions .var-table td:first-child { text-align: left; color: var(--text); }
+        #champions .var-table tr.champ td { background: rgba(255,170,0,.06); }
+        #champions .pace-bars { display: flex; gap: 4px; align-items: end; height: 28px; margin-top: 2px; }
+        #champions .pace-bar { width: 18px; background: var(--cyan); border-radius: 2px 2px 0 0; opacity: .8; }
+        #champions .pace-bar.lbl { background: transparent; color: var(--dim); font-size: 9px; width: auto; align-self: center; }
+        #champions .empty { color: var(--dim); font-style: italic; }
+      </style>
+    </section>
   </main>
 
   <div id="toast"></div>
@@ -883,6 +947,168 @@
       toast(`Relaunching "${rerun.name}" from a saved run.`);
       setTimeout(() => $('ag-launch').click(), 300);
     }
+
+    /* ================= leveling lab ================= */
+    let LAB = null;
+    function labLine(cv, series, opts = {}) {
+      // series: [{points:[{x,y,label}], color}] — simple multi-series line chart
+      const ctx = cv.getContext('2d');
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      const all = series.flatMap((s) => s.points);
+      if (!all.length) {
+        ctx.fillStyle = '#888'; ctx.font = '13px monospace';
+        ctx.fillText('no history yet — runs will appear as they finish', 14, 30);
+        return;
+      }
+      const W = cv.width, H = cv.height, pad = 30;
+      const maxX = Math.max(...all.map((p) => p.x), 1);
+      const maxY = Math.max(...all.map((p) => p.y), opts.yMin || 1);
+      const X = (x) => pad + (x / maxX) * (W - pad * 2);
+      const Y = (y) => H - pad - ((y - (opts.yBase || 0)) / Math.max(1, maxY - (opts.yBase || 0))) * (H - pad * 2);
+      const css = (n, f) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || f;
+      // axes
+      ctx.strokeStyle = css('--line', '#333'); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, H - pad); ctx.lineTo(W - pad, H - pad); ctx.stroke();
+      ctx.fillStyle = css('--dim', '#999'); ctx.font = '11px monospace';
+      ctx.fillText(String(maxY), 4, pad + 4);
+      ctx.fillText(String(opts.yBase || 0), 4, H - pad + 4);
+      for (const s of series) {
+        if (s.points.length === 1) {
+          ctx.fillStyle = s.color || css('--amber', '#fa0');
+          ctx.beginPath(); ctx.arc(X(s.points[0].x), Y(s.points[0].y), 3.5, 0, 7); ctx.fill();
+          continue;
+        }
+        ctx.strokeStyle = s.color || css('--amber', '#fa0'); ctx.lineWidth = 2;
+        ctx.beginPath();
+        s.points.forEach((p, i) => i ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y)));
+        ctx.stroke();
+      }
+    }
+    function tsHours(ts) { return Math.floor(Date.parse(ts) / 3600000); } // hour buckets
+    async function loadLab() {
+      $('lab-state').textContent = 'loading…';
+      let data;
+      try {
+        data = await fetch('/live/lab.json', { cache: 'no-store' }).then((r) => r.json());
+      } catch { $('lab-state').textContent = 'lab.json not found — it regenerates at each run finish'; return; }
+      LAB = data;
+      $('lab-state').textContent = `${data.runs.length} runs · updated ${new Date(data.generatedAt).toLocaleTimeString()}`;
+      // char filter options
+      const names = [...new Set(data.chars.map((c) => c.char))].sort();
+      const cur = $('lab-char').value;
+      $('lab-char').innerHTML = '<option value="">all characters…</option>'
+        + names.map((n) => `<option${n === cur ? ' selected' : ''}>${esc(n)}</option>`).join('');
+      renderLab();
+    }
+    function renderLab() {
+      if (!LAB) return;
+      const who = $('lab-char').value;
+      const chars = LAB.chars.filter((c) => !who || c.char === who);
+      // summary cards
+      const done = LAB.runs.filter((r) => r.stallVerdict !== 'wedged');
+      const cards = [
+        ['runs', LAB.runs.length],
+        ['healthy', done.length],
+        ['wedges', LAB.runs.length - done.length],
+        ['total circles', LAB.runs.reduce((n, r) => n + (r.circlesUp || 0), 0)],
+        ['best firstEXP', (() => { const v = Math.min(...LAB.runs.map((r) => r.firstExpSec).filter(Boolean)); return Number.isFinite(v) ? v + 's' : '—'; })()],
+      ];
+      $('lab-summary').innerHTML = cards.map(([k, v]) =>
+        `<div class="stat"><div class="sub">${k}</div><b style="font-size:18px">${v}</b></div>`).join('');
+      // charts: x = hour bucket (time), y per char
+      const palette = ['#fa0', '#6cc', '#c6f', '#6f6', '#f66'];
+      const circleSeries = chars.map((c, i) => ({
+        color: palette[i % palette.length],
+        points: c.points.map((p) => ({ x: tsHours(p.ts) - tsHours(c.points[0].ts), y: p.circle })),
+      }));
+      const rankSeries = chars.map((c, i) => ({
+        color: palette[i % palette.length],
+        points: c.points.map((p) => ({ x: tsHours(p.ts) - tsHours(c.points[0].ts), y: p.totalRanks })),
+      }));
+      labLine($('lab-circle-chart'), circleSeries, { yMin: 1 });
+      labLine($('lab-ranks-chart'), rankSeries);
+      // runs table
+      const fmtS = (s) => s == null ? '—' : s + 's';
+      $('lab-runs').tBodies[0].innerHTML = [...LAB.runs].reverse().slice(0, 40).map((r) => `
+        <tr><td>${new Date(r.ts).toLocaleString()}</td><td>${esc(r.variant || '—')}</td>
+        <td>${esc(r.char || '—')}</td><td>${esc(r.grade || '—')}</td><td>${r.kills}</td>
+        <td>${r.circlesUp}</td><td><b>${r.totalRanks ?? '—'}</b></td><td>${fmtS(r.firstExpSec)}</td>
+        <td>${fmtS(r.rankSplits?.find((s) => s.ranks === 5)?.ms != null ? Math.round(r.rankSplits.find((s) => s.ranks === 5).ms / 1000) : null)}</td>
+        <td>${fmtS(r.rankSplits?.find((s) => s.ranks === 10)?.ms != null ? Math.round(r.rankSplits.find((s) => s.ranks === 10).ms / 1000) : null)}</td>
+        <td>${fmtS(r.rankSplits?.find((s) => s.ranks === 15)?.ms != null ? Math.round(r.rankSplits.find((s) => s.ranks === 15).ms / 1000) : null)}</td>
+        <td>${r.timeToCircleMin ?? '—'}m</td><td>${r.durationMin ?? '—'}</td>
+        <td class="sub">${esc(r.stallVerdict || '')}</td></tr>`).join('')
+        || '<tr><td colspan="14" class="note">no runs recorded yet</td></tr>';
+    }
+    $('lab-refresh').addEventListener('click', loadLab);
+    $('lab-char').addEventListener('change', renderLab);
+    loadLab();
+    setInterval(loadLab, 30000);
+
+    /* ================= guild champions ================= */
+    async function loadChampions() {
+      let data;
+      try {
+        data = await fetch('/live/leaderboard.json', { cache: 'no-store' }).then((r) => r.json());
+      } catch {
+        $('champions').innerHTML = '<span class="empty">leaderboard.json not found — it regenerates at each benchmark run finish</span>';
+        return;
+      }
+      if (!data.guilds || !data.guilds.length) {
+        $('champions').innerHTML = '<span class="empty">no benchmark variants recorded yet — run --benchmark &lt;guild&gt; first</span>';
+        return;
+      }
+      const fmtMs = (ms) => ms == null ? '—' : `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}`;
+      const fmtTrend = (ms) => {
+        if (ms == null) return '<span class="trend-flat">—</span>';
+        if (ms < -30000) return `<span class="trend-up">▼ ${fmtMs(Math.abs(ms))}</span>`;
+        if (ms > 30000) return `<span class="trend-down">▲ ${fmtMs(ms)}</span>`;
+        return '<span class="trend-flat">≈ flat</span>';
+      };
+      const splitMs = (v, rk) => {
+        const m = v.splitMedianMs;
+        if (!m || m[rk] == null) return null;
+        return m[rk];
+      };
+      $('champions').innerHTML = data.guilds.map((g) => {
+        const champ = g.champion;
+        const cv = g.variants.find((v) => v.variant === champ) || g.variants[0];
+        const maxPace = Math.max(5000, ...g.variants.map((v) => Math.max(v.splitMedianMs?.[5] || 0, v.splitMedianMs?.[10] || 0, v.splitMedianMs?.[15] || 0)));
+        return `<div class="guild-card">
+          <div class="guild-head">
+            <span class="guild-name">${esc(g.guild)}</span>
+            <span class="champion-badge"><span class="lbl">champion </span>${esc(champ)}</span>
+            <span class="metric">median <b>${fmtMs(cv.medMs)}</b></span>
+            <span class="metric">best <b>${fmtMs(cv.bestMs)}</b></span>
+            <span class="metric">runs <b>${cv.reached}/${cv.runs}</b></span>
+            <span class="metric">kills/h <b>${cv.kph ?? '—'}</b></span>
+            <span class="metric">trend ${fmtTrend(cv.trendMs)}</span>
+          </div>
+          <table class="var-table">
+            <thead><tr>
+              <th>variant</th><th>reached</th><th>median</th><th>best</th>
+              <th>firstEXP</th><th>+5</th><th>+10</th><th>+15</th>
+              <th>kills</th><th>stalls</th><th>trend</th>
+            </tr></thead>
+            <tbody>${g.variants.map((v) => `
+              <tr class="${v.variant === champ ? 'champ' : ''}">
+                <td><b>${esc(v.variant)}</b></td>
+                <td>${v.reached}/${v.runs}</td>
+                <td>${fmtMs(v.medMs)}</td>
+                <td>${fmtMs(v.bestMs)}</td>
+                <td>${fmtMs(v.firstExpMedMs)}</td>
+                <td>${fmtMs(splitMs(v, '5'))}</td>
+                <td>${fmtMs(splitMs(v, '10'))}</td>
+                <td>${fmtMs(splitMs(v, '15'))}</td>
+                <td>${v.kills}</td>
+                <td>${v.stalls}</td>
+                <td>${fmtTrend(v.trendMs)}</td>
+              </tr>`).join('')}</tbody>
+          </table>
+        </div>`).join('');
+    }
+    loadChampions();
+    setInterval(loadChampions, 30000);
   </script>
 </body>
 </html>
