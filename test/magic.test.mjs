@@ -369,24 +369,42 @@ test('ranger: wolf companion bonds and fights; beseech buffs', async () => {
   p.ws = ws;
   game.addPlayer(p);
 
-  // Bond a wolf by killing one (deterministic: force the bond roll; gear up).
+  // Bond a wolf by killing one. This test is about the BOND mechanic, not
+  // about whether a ranger survives a wolf, so the fight itself is made
+  // deterministic. Previously it relied on winning a genuine coin-flip fight
+  // and failed ~60% of runs: the wolf killed the ranger (endResult dead:true),
+  // and because death RESPAWNS the player at full health the old
+  // `p.hp <= 0` style checks never revealed it — the symptom just looked like
+  // "wolf bonded" being false with the player mysteriously at full HP.
   p.room = 'sewers_1';
   const { CREATURES } = await import('../data/creatures.js');
   const { addItem } = await import('../server/player.js');
   p.circle = 4;
   p.skills.medium_edged = { rank: 15, exp: 0 };
   p.skills.evasion = { rank: 12, exp: 0 };
-  p.stats.con = Math.max(p.stats.con, 30); // soak variance: bleeding makes fights deadlier
+  p.stats.con = Math.max(p.stats.con, 30);
   addItem(p, 'short_sword', 1);
   addItem(p, 'padded_cloth', 1);
   handleCommand(game, p, 'wield short_sword');
   handleCommand(game, p, 'wear padded_cloth');
-  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.wolf));
-  p.skills.perception.rank = 100; // guaranteed bond chance
+  const wolf = game.makeCreature(CREATURES.wolf);
+  wolf.hp = 1; // one connecting blow finishes it — no damage-roll dependency
+  game.roomCreatures.get(p.room).push(wolf);
+  p.skills.perception.rank = 100; // bond roll: 0.25 + rank*0.01 >= 1 → certain
   handleCommand(game, p, 'attack wolf');
-  let combat = game.combat.getFor(p);
+  const combat = game.combat.getFor(p);
+  assert.ok(combat, 'attacking the wolf starts a fight');
   let guard = 0;
-  while (game.combat.getFor(p) && guard++ < 400) combat.tick();
+  // The engine has no player auto-attack: tick() runs creature and ally
+  // actions, so the player must keep swinging like a real client would.
+  // Topping HP up each beat removes the death coin-flip while leaving the
+  // real kill path (killCreature -> bond roll) fully exercised.
+  while (game.combat.getFor(p) && guard++ < 400) {
+    p.hp = p.maxHp;
+    handleCommand(game, p, 'attack wolf');
+    combat.tick();
+  }
+  assert.ok(p.corpses?.some((c) => c.def.id === 'wolf'), 'the wolf was killed');
   assert.ok(p.companion && p.companion.alive, 'wolf bonded');
 
   // Beseech wind grants a buff.
