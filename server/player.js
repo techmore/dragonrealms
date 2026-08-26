@@ -545,7 +545,16 @@ export function pulseFraction(p, skillId) {
   if (tier === 'secondary' && rank < 50) frac = PULSE_FRACTION.primary;
   else if (tier === 'tertiary' && rank < 25) frac = PULSE_FRACTION.secondary;
   const wis = mentalStatBonus(p.stats?.wis ?? 10, 'int');
-  return Math.min(1, frac * ((1000 + wis) / 1000));
+  frac = Math.min(1, frac * ((1000 + wis) / 1000));
+  // Agent boost scales the DRAIN as well as the gain (2026-08 audit): at high
+  // multipliers agents bank exp far faster than a wall-clock 200s cycle can
+  // clear it, so they sat permanently mind-locked and every point past the
+  // cap was silently lost. Scaling the converted fraction keeps the DR group
+  // cadence and pool semantics intact while letting rank velocity stay
+  // linear in N. Unboosted play is unchanged.
+  const bm = Number(p?.boostMult) || 1;
+  if (bm > 1) frac = Math.min(1, frac * bm);
+  return frac;
 }
 
 // Gain field experience in a skill (DR model): everything banks up to the
