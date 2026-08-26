@@ -100,8 +100,44 @@ function buildHuntScript({ cap, arena, hallPath }) {
   L.push('WIELD:');
   L.push('  put wield club');
   L.push('  wait');
-  L.push('  goto ARMED_HERE');
+  L.push('  goto ARMORCHECK');
+  // Armor gate: buy + wear light armor before walking to the arena. Two
+  // reasons this matters, both measured:
+  //   1. "1st armor at least rank 6" is a circle-2 requirement, and armor
+  //      skill exp is ONLY granted per landed blow while a piece is worn
+  //      (server/combat.js: the equipment loop in the damage path). A naked
+  //      agent can farm forever and 1st armor stays 0/6 — it was one of two
+  //      circle requirements that never moved at all in a 10-minute run.
+  //   2. Armor soaks damage, so the agent flees less and fights longer.
+  // The armorer shares the bazaar room the weapon ladder already walks to,
+  // so this costs no extra navigation. Cheap kit (padded cloth 40, boots 30,
+  // sleeves 45) fits the 150-silver starting purse alongside a 112 club.
   L.push('ARMED:');
+  L.push('ARMORCHECK:');
+  // Already wearing something? Skip straight to the arena walk.
+  L.push('  matchre ARMORED Worn:[\\s\\S]*(padded|leather|studded|chain|brigandine|plate)');
+  // Nothing worn: the inventory reply falls through matchwait to GETARMOR.
+  L.push('  put inventory');
+  L.push('  matchwait 6');
+  L.push('GETARMOR:');
+  if (cap.bazaarPath?.length) L.push(...moves(cap.bazaarPath));
+  L.push('  put buy padded cloth armor');
+  L.push('  wait');
+  L.push('  put wear padded');
+  L.push('  wait');
+  // Boots and sleeves are cheap and each adds another armor-exp source.
+  L.push('  ifge silver 80 goto ARMOR_EXTRA');
+  L.push('  goto ARMORED');
+  L.push('ARMOR_EXTRA:');
+  L.push('  put buy leather boots');
+  L.push('  wait');
+  L.push('  put wear boots');
+  L.push('  wait');
+  L.push('  put buy leather sleeves');
+  L.push('  wait');
+  L.push('  put wear sleeves');
+  L.push('  wait');
+  L.push('ARMORED:');
   // Walk to the arena from where we stand NOW (arm check may pass in any
   // room); after an actual buy, BUY falls through to ARMED_HERE instead.
   if (arena.fromHere?.length) L.push(...moves(arena.fromHere));
