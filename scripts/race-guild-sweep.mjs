@@ -89,6 +89,9 @@ const VARIANTS = {
   rest50:   { restPct: 50, hallEvery: 4, arenaBand: 2 },
   hall8:    { restPct: 35, hallEvery: 8, arenaBand: 2 },
   wide2:    { restPct: 35, hallEvery: 6, arenaBand: 4 },
+  // Town-errands arm: baseline pacing plus sell/bundle legs on hall trips —
+  // validates that pelt income doesn't cost hunt time.
+  errand:   { restPct: 35, hallEvery: 4, arenaBand: 2 },
 };
 let wanted = [];            // [{guild, race, variant?}]
 let MODE = 'sweep';         // 'sweep' | 'benchmark' | 'spawn'
@@ -103,14 +106,22 @@ if (ARGS.includes('--all')) {
   const g = BENCH_GUILD;
   if (!ALL_GUILDS.includes(g)) { console.error(`unknown guild "${g}" — have: ${ALL_GUILDS.join(', ')}`); process.exit(1); }
   if (!Number.isFinite(MINUTES)) MINUTES = 20;
-  const races = RACE_MATRIX[g]?.length ? RACE_MATRIX[g] : ['human'];
   // --variants v1,v2 subsets the matrix; default runs every defined variant.
   const names = (flag('variants', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
   const pick = names.length ? names : Object.keys(VARIANTS);
   for (const vn of pick) {
     if (!VARIANTS[vn]) { console.error(`unknown variant "${vn}" — have: ${Object.keys(VARIANTS).join(', ')}`); process.exit(1); }
   }
-  wanted = races.flatMap((race) => pick.map((vn) => ({ guild: g, race, variant: { name: vn, ...VARIANTS[vn] } })));
+  // --races g1,h2 subsets species; --repeats N runs each cell N times
+  // (leveling lab: medians + spread need repetition to judge repeatability).
+  const raceNames = (flag('races', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const races = raceNames.length ? raceNames : (RACE_MATRIX[g]?.length ? RACE_MATRIX[g] : ['human']);
+  for (const rc of races) {
+    if (!RACE_MATRIX[g]?.includes(rc)) { console.error(`unknown race "${rc}" for ${g} — have: ${RACE_MATRIX[g].join(', ')}`); process.exit(1); }
+  }
+  const repeats = Math.max(1, Math.min(10, Number(flag('repeats', 1)) || 1));
+  wanted = races.flatMap((race) => pick.flatMap((vn) =>
+    Array.from({ length: repeats }, () => ({ guild: g, race, variant: { name: vn, ...VARIANTS[vn] } }))));
   MODE = 'benchmark';
   if (!Number.isFinite(CIRCLE_TARGET)) CIRCLE_TARGET = 10; // leveling lab: full climb
   if (!Number.isFinite(MINUTES)) MINUTES = 20;
@@ -340,14 +351,13 @@ class SweepAgent {
         hall: s.bfsPath(room === 'bazaar' ? 'bazaar' : arena.id, 'hall_' + this.guild, this.diskAdj()),
         back: s.bfsPath('hall_' + this.guild, arena.id, this.diskAdj()),
       },
-      // Town errands: sell loot + bundle leftovers on the way home. The
-      // bazaar is the hub every town road touches; its general store buys
-      // pelts/hides. Sell list = this guild's creatures' skin loot.
-      errands: {
+      // Town errands: sell loot + bundle leftovers on the way home — gated
+      // on the variant (see the regen path below for the rationale).
+      errands: this.variantName === 'errand' ? {
         bazaarPath: s.bfsPath('hall_' + this.guild, 'bazaar', this.diskAdj()),
         returnPath: s.bfsPath('bazaar', arena.id, this.diskAdj()),
         sellLoot: errandLootFor(this.guild),
-      },
+      } : null,
     });
     const megaSrc = buildMegaScript(cap);
     // NOTE: this.library must stay null until startCycle below — the 1s
@@ -604,11 +614,13 @@ class SweepAgent {
         hall: s.bfsPath(arena.id, 'hall_' + this.guild, this.diskAdj()),
         back: s.bfsPath('hall_' + this.guild, arena.id, this.diskAdj()),
       },
-      errands: {
+      // Errands only when the variant arms them — baseline/hall8 cells stay
+      // pure hunt so the lab measures the errand tax honestly.
+      errands: this.variantName === 'errand' ? {
         bazaarPath: s.bfsPath('hall_' + this.guild, 'bazaar', this.diskAdj()),
         returnPath: s.bfsPath('bazaar', arena.id, this.diskAdj()),
         sellLoot: errandLootFor(this.guild),
-      },
+      } : null,
     });
     for (const [name, body] of Object.entries(this.library)) {
       s.sendObj({ t: 'scripts_put', name, body });
