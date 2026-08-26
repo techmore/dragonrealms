@@ -22,7 +22,17 @@ export const NPCS = {
     id: 'weaponsmith', name: 'Old Thorne, the weaponsmith', role: 'shop',
     desc: 'A grizzled smith with soot in his beard, arms like tree roots.',
     greeting: 'Steel wants to be swung, friend. Browse my rack and pick your poison.',
-    stock: { short_sword: 6, long_sword: 4, broadsword: 3, greatsword: 2, mace: 6, warhammer: 2, staff: 5, hunting_bow: 4, light_crossbow: 3, throwing_knives: 8, club: 10, hand_axe: 6, offhand_blade: 5 },
+    // Stock mirrors Milgrym's Weapons, the Crossing smith (Kronars):
+    // docs/reference-milgryms-weapons.md (Elanthipedia "Milgrym's Weapons").
+    stock: {
+      wide_bladed_dagger: 6, kris: 4, short_sword: 6,
+      cavalry_sabre: 3, scimitar: 3, cutlass: 3,
+      broadsword: 3, cinquedea: 2, greatsword: 2, greataxe: 2,
+      club: 8, elkhorn_bludgeon: 2, mace: 6, warhammer: 4,
+      flail: 2, sledgehammer: 2, greathammer: 2,
+      staff: 5, hunting_bow: 4, long_bow: 3, light_crossbow: 3,
+      arrows: 20, bolts: 15, spear: 4, bola: 4, pike: 2, halberd: 2,
+    },
     buys: [],
   },
   armorer: {

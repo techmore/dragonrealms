@@ -77,10 +77,12 @@ test('full gameplay: alloc, shop, combat, skin, sell', async () => {
   assert.equal(p.stats.str, 45);
   assert.equal(p.unspentStat, 20);
 
-  // buy a sword and wield it
+  // buy a sword and wield it (Milgrym's real short sword price: 337 Kronars,
+  // docs/reference-milgryms-weapons.md)
+  p.silver = 1000;
   walk(game, p, 'bazaar'); // shops
   handleCommand(game, p, 'buy short_sword');
-  assert.ok(p.silver < 150);
+  assert.ok(p.silver < 1000);
   handleCommand(game, p, 'wield short_sword');
   assert.equal(p.equipment.hand.id, 'short_sword');
   handleCommand(game, p, 'buy salve');
@@ -110,7 +112,7 @@ test('full gameplay: alloc, shop, combat, skin, sell', async () => {
   assert.ok(killed.length >= 1, 'should have killed a creature');
 
   // exp gained
-  assert.ok(learned(p, 'medium_edged') > 0);
+  assert.ok(learned(p, 'small_edged') > 0); // short sword is light edged at Milgrym's
 
   // skin the corpse and sell the loot (skill check can fumble; retry)
   let tries = 0;
