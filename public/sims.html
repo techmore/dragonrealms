@@ -109,10 +109,61 @@
       transform: translateY(8px); transition: all .25s; pointer-events: none; max-width: 380px;
     }
     #toast.show { opacity: 1; transform: none; }
+
+    /* ---- sticky nav ---- */
+    .sims-nav {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; gap: 4px; flex-wrap: wrap;
+      background: var(--bg); border-bottom: 1px solid var(--line);
+      padding: 8px 0; margin: -24px -20px 16px; padding-inline: 20px;
+    }
+    .sims-nav a {
+      color: var(--dim); text-decoration: none; font-size: 11px;
+      padding: 4px 10px; border-radius: 5px; letter-spacing: .04em;
+    }
+    .sims-nav a:hover { color: var(--text); background: var(--panel-inset); }
+    .sims-nav a.active { color: var(--amber); border: 1px solid var(--amber); }
+    .sims-nav .live-dot {
+      display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green); margin-right: 5px; animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+    /* ---- live sims ---- */
+    .live-card {
+      background: var(--panel-inset); border: 1px solid var(--line); border-radius: 10px;
+      padding: 12px 14px; margin-bottom: 10px;
+    }
+    .live-card .lh {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;
+    }
+    .live-card .ln { color: var(--amber); font-weight: 600; font-size: 13px; }
+    .live-card .ls { font-size: 11px; }
+    .live-card .lp {
+      height: 4px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; margin-bottom: 8px;
+    }
+    .live-card .lp i { display: block; height: 100%; background: var(--cyan); transition: width .5s; }
+    .live-card .lg {
+      font-size: 11px; line-height: 1.5; max-height: 160px; overflow-y: auto;
+      white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono), monospace;
+    }
+    .live-card .lg .l-ref { color: var(--red); }
+    .live-card .lg .l-cmd { color: var(--cyan); }
+    .live-card .lg .l-ok { color: var(--green); }
+    .live-card .lg .l-dim { color: var(--dim); }
+    .live-empty { color: var(--dim); font-style: italic; font-size: 12px; padding: 16px; text-align: center; }
   </style>
 </head>
 <body data-page="sims">
   <main class="admin">
+    <nav class="sims-nav" id="simsNav">
+      <a href="#live"><span class="live-dot" id="navLiveDot" hidden></span>Live</a>
+      <a href="#launch">Launch</a>
+      <a href="#runs">Runs</a>
+      <a href="#tracker">Tracker</a>
+      <a href="#lab">Lab</a>
+      <a href="#champions">Champions</a>
+    </nav>
     <header class="pagehead">
       <h1>&#129489;&#8205;&#128187; Sim Players</h1>
       <span id="sum" class="sub"></span>
@@ -124,8 +175,28 @@
       game API; the character tracker needs the GM token (paste it in on the dash or open this page as
       <code>/sims#gm=&lt;token&gt;</code>).</p>
 
+    <!-- ===================== LIVE SIMS ===================== -->
+    <section id="live">
+      <h2>Live Sims <span class="right sub" id="liveState">polling…</span></h2>
+      <div id="liveList"><div class="live-empty">no sims running — launch one above, or a benchmark from the CLI</div></div>
+      <div id="milestones" style="margin-top:14px"></div>
+      <style>
+        .ms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+        .ms-card {
+          background: var(--panel-inset); border: 1px solid var(--line); border-radius: 8px;
+          padding: 8px 10px; text-align: center;
+        }
+        .ms-card.done { border-color: var(--green); }
+        .ms-card .ms-ico { font-size: 18px; margin-bottom: 2px; }
+        .ms-card .ms-nm { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
+        .ms-card .ms-tm { font-size: 12px; color: var(--amber); margin-top: 2px; }
+        .ms-card .ms-pending { color: var(--dim); }
+        .ms-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
+      </style>
+    </section>
+
     <!-- ===================== LAUNCH ===================== -->
-    <section>
+    <section id="launch">
       <h2>Launch a sim
         <span class="right sub" id="agstate">&#9675; none running</span>
       </h2>
@@ -187,7 +258,7 @@
     </section>
 
     <!-- ===================== RUNS ===================== -->
-    <section>
+    <section id="runs">
       <h2>Runs
         <span class="right">
           <label class="sub"><input type="checkbox" id="only-live"> live only</label>
@@ -233,7 +304,7 @@
     </section>
 
     <!-- ===================== CHARACTER TRACKER ===================== -->
-    <section>
+    <section id="tracker">
       <h2>Character tracker
         <span class="right sub">circle · TDP · silver · all skill ranks (offline too)</span>
       </h2>
@@ -249,7 +320,7 @@
       <div id="tracker" class="note">Pick a character from a run above or type a name. Requires the GM token.</div>
     </section>
 
-    <section>
+    <section id="lab">
       <h2>Leveling Lab
         <span class="right sub">script progress over time — circles · total ranks · pacing (sweeps.db + history)</span>
       </h2>
@@ -273,11 +344,11 @@
     </section>
 
     <!-- ===================== GUILD CHAMPIONS ===================== -->
-    <section>
+    <section id="champions">
       <h2>Guild Champions
         <span class="right sub">best variant per guild by median time-to-circle · milestone pacing · trend</span>
       </h2>
-      <div id="champions" class="note">loading…</div>
+      <div id="championsList" class="note">loading…</div>
       <style>
         #champions .guild-card {
           background: var(--panel-inset); border: 1px solid var(--line); border-radius: 10px;
@@ -1051,11 +1122,11 @@
       try {
         data = await fetch('/live/leaderboard.json', { cache: 'no-store' }).then((r) => r.json());
       } catch {
-        $('champions').innerHTML = '<span class="empty">leaderboard.json not found — it regenerates at each benchmark run finish</span>';
+        $('championsList').innerHTML = '<span class="empty">leaderboard.json not found — it regenerates at each benchmark run finish</span>';
         return;
       }
       if (!data.guilds || !data.guilds.length) {
-        $('champions').innerHTML = '<span class="empty">no benchmark variants recorded yet — run --benchmark &lt;guild&gt; first</span>';
+        $('championsList').innerHTML = '<span class="empty">no benchmark variants recorded yet — run --benchmark &lt;guild&gt; first</span>';
         return;
       }
       const fmtMs = (ms) => ms == null ? '—' : `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}`;
@@ -1070,11 +1141,25 @@
         if (!m || m[rk] == null) return null;
         return m[rk];
       };
-      $('champions').innerHTML = data.guilds.map((g) => {
+      const rows = [];
+      for (const g of data.guilds) {
         const champ = g.champion;
         const cv = g.variants.find((v) => v.variant === champ) || g.variants[0];
-        const maxPace = Math.max(5000, ...g.variants.map((v) => Math.max(v.splitMedianMs?.[5] || 0, v.splitMedianMs?.[10] || 0, v.splitMedianMs?.[15] || 0)));
-        return `<div class="guild-card">
+        const cells = g.variants.map((v) => `
+              <tr class="${v.variant === champ ? 'champ' : ''}">
+                <td><b>${esc(v.variant)}</b></td>
+                <td>${v.reached}/${v.runs}</td>
+                <td>${fmtMs(v.medMs)}</td>
+                <td>${fmtMs(v.bestMs)}</td>
+                <td>${fmtMs(v.firstExpMedMs)}</td>
+                <td>${fmtMs(splitMs(v, '5'))}</td>
+                <td>${fmtMs(splitMs(v, '10'))}</td>
+                <td>${fmtMs(splitMs(v, '15'))}</td>
+                <td>${v.kills}</td>
+                <td>${v.stalls}</td>
+                <td>${fmtTrend(v.trendMs)}</td>
+              </tr>`).join('');
+        rows.push(`<div class="guild-card">
           <div class="guild-head">
             <span class="guild-name">${esc(g.guild)}</span>
             <span class="champion-badge"><span class="lbl">champion </span>${esc(champ)}</span>
@@ -1090,25 +1175,198 @@
               <th>firstEXP</th><th>+5</th><th>+10</th><th>+15</th>
               <th>kills</th><th>stalls</th><th>trend</th>
             </tr></thead>
-            <tbody>${g.variants.map((v) => `
-              <tr class="${v.variant === champ ? 'champ' : ''}">
-                <td><b>${esc(v.variant)}</b></td>
-                <td>${v.reached}/${v.runs}</td>
-                <td>${fmtMs(v.medMs)}</td>
-                <td>${fmtMs(v.bestMs)}</td>
-                <td>${fmtMs(v.firstExpMedMs)}</td>
-                <td>${fmtMs(splitMs(v, '5'))}</td>
-                <td>${fmtMs(splitMs(v, '10'))}</td>
-                <td>${fmtMs(splitMs(v, '15'))}</td>
-                <td>${v.kills}</td>
-                <td>${v.stalls}</td>
-                <td>${fmtTrend(v.trendMs)}</td>
-              </tr>`).join('')}</tbody>
+            <tbody>${cells}</tbody>
           </table>
-        </div>`).join('');
+        </div>`);
+      }
+      $('championsList').innerHTML = rows.join('');
+        }
+        loadChampions();
+        setInterval(loadChampions, 30000);
+
+    /* ================= live sims ================= */
+    // Detect running sims by polling public/live/ for logs with recent mtime,
+    // then tail each log for the live card (progress bar + recent lines).
+    const LIVE = '/live/';
+    let liveTimer = null;
+    let liveCards = {}; // name -> { el, lastSize }
+
+    async function loadLive() {
+      let logs = [];
+      try {
+        const txt = await fetch(LIVE + 'index.json', { cache: 'no-store' }).then((r) => r.text());
+        logs = JSON.parse(txt);
+      } catch {}
+      const liveList = $('liveList');
+      const liveState = $('liveState');
+      const navDot = $('navLiveDot');
+
+      // Detect running sims by file growth + completion markers
+      const running = [];
+      for (const name of logs) {
+        try {
+          const r = await fetch(LIVE + name + '.log', { cache: 'no-store' });
+          const text = await r.text();
+          const lines = text.split('\n').filter(Boolean);
+          const last = lines[lines.length - 1] || '';
+          // Running if: no FINISHED/VERDICT terminal line AND file has content
+          if (!/FINISHED|VERDICT|wedged — no progress/.test(last) && lines.length > 2) {
+            running.push(name);
+          }
+        } catch {}
+      }
+
+      if (!running.length) {
+        liveList.innerHTML = '<div class="live-empty">no sims running — launch one above, or a benchmark from the CLI</div>';
+        liveState.textContent = 'idle';
+        navDot.hidden = true;
+        liveCards = {};
+        return;
+      }
+
+      navDot.hidden = false;
+      liveState.textContent = running.length + ' running';
+
+      // Ensure a card exists for each running sim
+      for (const name of running) {
+        if (!liveCards[name]) {
+          const el = document.createElement('div');
+          el.className = 'live-card';
+          el.innerHTML = `<div class="lh"><span class="ln">${esc(name)}</span><span class="ls" data-role="state">…</span></div>
+            <div class="lp"><i data-role="prog" style="width:0%"></i></div>
+            <div class="lg" data-role="log"></div>`;
+          liveList.appendChild(el);
+          liveCards[name] = { el, lastSize: 0 };
+        }
+      }
+      // Remove cards no longer running
+      for (const name of Object.keys(liveCards)) {
+        if (!running.includes(name)) {
+          liveCards[name].el.remove();
+          delete liveCards[name];
+        }
+      }
+
+      // Tail each log
+      for (const name of running) {
+        const card = liveCards[name];
+        try {
+          const r = await fetch(LIVE + name + '.log', { cache: 'no-store' });
+          const text = await r.text();
+          parseMilestones(name, text);
+          renderMilestones();
+          const lines = text.split('\n').filter(Boolean);
+          const last = lines[lines.length - 1] || '';
+          const state = card.el.querySelector('[data-role="state"]');
+          const log = card.el.querySelector('[data-role="log"]');
+          const prog = card.el.querySelector('[data-role="prog"]');
+
+          // Parse progress line for the bar
+          const progMatch = /\[progress\]\s+(\d+)m\s+circle\s+(\d+)\s+hp\s+(\d+)\/(\d+)\s+kills\s+(\d+)/.exec(last);
+          if (progMatch) {
+            const min = +progMatch[1];
+            const kills = +progMatch[5];
+            state.textContent = `${min}m · circle ${progMatch[2]} · ${kills} kills · hp ${progMatch[3]}/${progMatch[4]}`;
+            // Estimate progress: assume 10m benchmark, show fraction
+            prog.style.width = Math.min(100, Math.round(min / 10 * 100)) + '%';
+          } else if (/FINISHED|VERDICT/.test(last)) {
+            state.textContent = last.includes('wedged') ? '⚠ wedged' : '✓ done';
+            prog.style.width = '100%';
+            prog.style.background = last.includes('wedged') ? 'var(--red)' : 'var(--green)';
+          } else {
+            state.textContent = last.slice(0, 60);
+          }
+
+          // Render last 40 lines with coloring
+          const recent = lines.slice(-40);
+          log.innerHTML = recent.map((l) => {
+            const cls = /refuse|error|FAILED|wedged/i.test(l) ? 'l-ref'
+              : /^script>/.test(l) ? 'l-cmd'
+              : /FIRST-EXP|RANK-SPLIT|CIRCLE-UP|healthy|OK:/i.test(l) ? 'l-ok'
+              : 'l-dim';
+            return `<span class="${cls}">${esc(l)}</span>`;
+          }).join('\n');
+          log.scrollTop = log.scrollHeight;
+        } catch {}
+      }
     }
-    loadChampions();
-    setInterval(loadChampions, 30000);
+
+    // Sticky nav active section tracking
+    const navLinks = document.querySelectorAll('#simsNav a');
+    const sections = ['live', 'launch', 'runs', 'tracker', 'lab', 'champions'].map((id) => $(id));
+    function updateActiveNav() {
+      let active = 0;
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].getBoundingClientRect().top < 120) active = i;
+      }
+      navLinks.forEach((a, i) => a.classList.toggle('active', i === active));
+    }
+    window.addEventListener('scroll', updateActiveNav);
+    setTimeout(updateActiveNav, 100);
+
+    loadLive();
+    liveTimer = setInterval(loadLive, 2000);
+
+    /* ================= milestone tracker ================= */
+    // Milestones parse a run's fidelity log to show which progression
+    // gates were hit and when. Polls alongside the live panel.
+    const MILESTONES = [
+      { id: 'first_kill',  ico: '⚔️', nm: 'First Kill',      re: /kills\s+1\b/ },
+      { id: 'ten_kills',   ico: '🗡️', nm: '10 Kills',         re: /kills\s+(\d+)/, fn: m => +m[1] >= 10 },
+      { id: 'first_exp',   ico: '✨', nm: 'First EXP',        re: /FIRST-EXP at (\d+)s/, stat: 's' },
+      { id: 'split_5',     ico: '📈', nm: '+5 Ranks',         re: /RANK-SPLIT \+5 ranks at (\d+)s/, stat: 's' },
+      { id: 'split_10',    ico: '📊', nm: '+10 Ranks',        re: /RANK-SPLIT \+10 ranks at (\d+)s/, stat: 's' },
+      { id: 'split_15',    ico: '🎯', nm: '+15 Ranks',        re: /RANK-SPLIT \+15 ranks at (\d+)s/, stat: 's' },
+      { id: 'weapon',      ico: '🔧', nm: 'Weapon Upgrade',   re: /buy (short sword|sabre)/i },
+      { id: 'sell',        ico: '💰', nm: 'Sell Pelts',       re: /sell (\w+)/ },
+      { id: 'bundle',      ico: '📦', nm: 'Bundle Pelts',     re: /bundle (\w+)/ },
+      { id: 'tdp_train',   ico: '🧠', nm: 'TDP Training',     re: /tdptrain (\w+)/ },
+      { id: 'circle_att',  ico: '🔄', nm: 'Circle Attempt',   re: /put circle/ },
+      { id: 'circle_up',   ico: '🌟', nm: 'Circle Up!',       re: /CIRCLE-UP|now a / },
+      { id: 'errand',      ico: '🏪', nm: 'Errand Run',       re: /ERRAND_SELL|ERRAND_BUNDLE/ },
+      { id: 'rest',        ico: '💤', nm: 'Rest Cycle',       re: /licking wounds/ },
+    ];
+    let msSeen = {}; // runId -> { milestoneId -> match }
+
+    function parseMilestones(name, text) {
+      if (!msSeen[name]) msSeen[name] = {};
+      const seen = msSeen[name];
+      for (const ms of MILESTONES) {
+        const m = ms.re.exec(text);
+        if (m && !seen[ms.id]) {
+          seen[ms.id] = m[1] || true;
+        }
+      }
+    }
+
+    function renderMilestones() {
+      const el = $('milestones');
+      const names = Object.keys(msSeen);
+      if (!names.length) {
+        el.innerHTML = '<div class="ms-title">Milestones</div><div class="live-empty">waiting for a run…</div>';
+        return;
+      }
+      // Show the most recent run
+      const name = names[names.length - 1];
+      const seen = msSeen[name];
+      const cards = MILESTONES.map(ms => {
+        const hit = seen[ms.id];
+        let time = '';
+        if (hit && typeof hit === 'string') {
+          if (ms.stat === 's') time = hit + 's';
+          else time = '✓';
+        } else if (hit) {
+          time = '✓';
+        }
+        return `<div class="ms-card ${hit ? 'done' : ''}">
+          <div class="ms-ico">${ms.ico}</div>
+          <div class="ms-nm">${ms.nm}</div>
+          <div class="ms-tm">${time || '<span class="ms-pending">—</span>'}</div>
+        </div>`;
+      }).join('');
+      el.innerHTML = `<div class="ms-title">Milestones — ${esc(name)}</div><div class="ms-grid">${cards}</div>`;
+    }
+    renderMilestones();
   </script>
 </body>
 </html>

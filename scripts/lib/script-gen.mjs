@@ -56,6 +56,10 @@ function buildHuntScript({ cap, arena, hallPath }) {
   // cavalry_sabre 562 > short_sword 337 > club 112. Fresh characters start
   // with 150 silver — enough only for the club floor; skin/loot sales fund
   // the climb. Each branch falls through when unaffordable.
+  // Silver tracking: branch on LIVE purse size (mirrored into %silver by the
+  // prompt parser). The weapon ladder only fires when the agent has actually
+  // banked enough from selling pelts — without this, fresh chars spin on
+  // BUY_CLUB forever because 150 silver never reaches 337.
   L.push('  ifge silver 562 goto BUY_SABRE');
   L.push('  ifge silver 337 goto BUY_SHORTSWORD');
   L.push('BUY_CLUB:');

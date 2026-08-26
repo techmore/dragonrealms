@@ -14,7 +14,7 @@
 //   4. Fidelity events (spell casts, khri, enchantes, circle-ups...) are
 //      parsed from player-facing prose and appended to
 //      public/live/fidelity-<guild>.log plus a JSON summary line.
-import { mkdirSync, appendFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, appendFileSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
@@ -216,7 +216,15 @@ class SweepAgent {
     this.liveVerdict = { verdict: 'healthy', reason: 'warming up' };
   }
 
-  appendLog(line) { try { appendFileSync(this.logPath, line + '\n'); } catch {} }
+  appendLog(line) {
+    try { appendFileSync(this.logPath, line + '\n'); } catch {}
+    // Update index.json so the /sims.html live panel discovers this log
+    try {
+      const names = readdirSync(LIVE_DIR).filter((f) => f.endsWith('.log'))
+        .map((f) => f.replace(/\.log$/, '')).sort();
+      writeFileSync(join(LIVE_DIR, 'index.json'), JSON.stringify(names));
+    } catch {}
+  }
 
   diskAdj() { return (id) => Object.entries(ROOMS[id]?.exits || {}).map(([dir, to]) => ({ dir, to })); }
 
