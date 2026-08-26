@@ -722,6 +722,19 @@ class SweepAgent {
   supervise() {
     if (this.done) return;
     const v = this.session.vitals;
+    // Low-HP stall signal, tracked FIRST and unconditionally. Every later
+    // branch here can return early (flee interlock, in-combat guard), and
+    // while this lived below them it was only ever cleared out of combat —
+    // so it latched: an agent that dipped below 25% and then recovered
+    // (rest, sun buff, regen) kept its original lowHpSince forever and
+    // classifyStall reported "pinned under 25% HP for Nm" on a run that
+    // ended at 136/171 HP with 10 kills. The verdict was wedged, not the
+    // agent. Tracking it before any return keeps the signal truthful,
+    // including across the flee path where HP is lowest by definition.
+    if (v.maxhp) {
+      const hpFrac = v.hp / v.maxhp;
+      this.lowHpSince = hpFrac < 0.25 ? (this.lowHpSince || Date.now()) : null;
+    }
     // Fresh characters (circle 1) flee earlier: a single death early in a run
     // costs gear + TDP pool and spirals into the D grades seen in grading.
     const fleeAt = (v.circle || 1) <= 1 ? 0.45 : 0.28;
@@ -739,8 +752,7 @@ class SweepAgent {
     if (!v.maxhp || v.inCombat) return;
     const frac = v.hp / v.maxhp;
     const now = Date.now();
-    // Stall signal: pinned under 25% HP (see stall-detect LOW_HP_FRAC).
-    this.lowHpSince = frac < 0.25 ? (this.lowHpSince || now) : null;
+
     if (!v.restingFlag && frac < this.restPct / 100 && now - (this.lastRestCmdAt || 0) > 4000) {
       this.lastRestCmdAt = now;
       if (!this.restAnnounced) {

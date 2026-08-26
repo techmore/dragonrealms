@@ -179,3 +179,49 @@ test('effort rule needs real effort — few swings never fires it', () => {
   const v = classifyStall(st, NOW);
   assert.notEqual(v.verdict, 'wedged');
 });
+
+// ---- low-HP signal: latch regression ----
+//
+// The classifier is only as good as the lowHpSince it is handed. In
+// SweepAgent.supervise() the tracker originally sat BELOW two early returns
+// (the flee interlock, and `if (!v.maxhp || v.inCombat) return;`), so it was
+// only ever CLEARED out of combat. An agent that dipped under 25% and then
+// recovered — rest, sun buff, bard regen — kept its original lowHpSince
+// forever and the run ended "wedged — pinned under 25% HP for 3m9s" despite
+// finishing at 136/171 HP with 10 kills and 43 trains. These tests pin the
+// intended semantics of that signal so a refactor that re-latches it fails.
+
+// Mirror of the fixed tracker: evaluated first, unconditionally, every prompt.
+function trackLowHp(prev, hp, maxhp, now) {
+  if (!maxhp) return prev;
+  return hp / maxhp < 0.25 ? (prev || now) : null;
+}
+
+test('low-HP signal clears on recovery even while in combat', () => {
+  const t0 = NOW - 6 * MIN;
+  let lowHpSince = null;
+  lowHpSince = trackLowHp(lowHpSince, 21, 171, t0);
+  assert.equal(lowHpSince, t0, 'signal arms when HP falls under 25%');
+  // Recovered mid-fight (combat still flagged) — must clear, not latch.
+  lowHpSince = trackLowHp(lowHpSince, 136, 171, NOW - 3 * MIN);
+  assert.equal(lowHpSince, null, 'signal clears once HP recovers, in combat or not');
+
+  const st = snap({
+    kills: 10, trains: 43, inCombat: true, lowHpSince,
+    lastProgressAt: NOW - 20 * 1000,
+  });
+  assert.notEqual(classifyStall(st, NOW).verdict, 'wedged',
+    'a recovered agent with 10 kills must not be wedged');
+});
+
+test('low-HP signal still fires when HP genuinely stays pinned', () => {
+  let lowHpSince = null;
+  for (let i = 6; i >= 0; i--) lowHpSince = trackLowHp(lowHpSince, 20, 171, NOW - i * MIN);
+  const st = snap({
+    kills: 0, inCombat: true, lowHpSince,
+    lastProgressAt: NOW - 20 * 1000,
+  });
+  const v = classifyStall(st, NOW);
+  assert.equal(v.verdict, 'wedged', 'genuinely pinned agents must still be caught');
+  assert.match(v.reason, /pinned under 25% HP/);
+});
