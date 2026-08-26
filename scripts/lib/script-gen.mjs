@@ -226,6 +226,20 @@ function buildHuntScript({ cap, arena, hallPath }) {
     L.push('SCAN_DONE:');
     L.push('  wait');
     L.push('  pause 3');
+    // Check the experience sheet after a kill, the way a real player does.
+    // `exp` is a pure information command — no setRoundtime(), not in
+    // RT_BLOCK — so this costs nothing and needs no special harness support.
+    //
+    // Two things depend on it, and BOTH were running nearly blind because the
+    // only other `put exp` sits in SCAN:, which a fighting agent almost never
+    // returns to (measured: exp fired ONCE in 13 minutes):
+    //   1. the circleGaps ledger, parsed from the "you have N" lines, which
+    //      the supervisor uses to decide whether a hall trip is worth walking
+    //   2. rank tracking for the [gaps] report — the mindstate feed omits any
+    //      skill with an empty pool, so fully-converted skills read as 0
+    //      (this is what made [gaps] show parry 0/8 at real rank 5)
+    L.push('  put exp');
+    L.push('  wait');
     L.push('  iflt hp 40 goto REST');
     if (cfg.magic) L.push('  iflt mana 8 goto WEAKSWING');
     L.push(`  goto ${label}`);
