@@ -3,7 +3,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   auth, db, createCharacter, loadPlayer, Game, handleCommand, fakeWs, game,
-  setupGame, teardownGame,
+  setupGame, teardownGame, MAX_CHARS,
 } from './helpers.mjs';
 // Walk a player along the derived grid path between rooms (layout-agnostic).
 import { findPath } from '../data/grid.js';
@@ -194,16 +194,22 @@ test('train command spends silvers to advance guild skills at hall', async () =>
   game.removePlayer(p);
 });
 
-test('character slot limit of 5 enforced', async () => {
+test('character slot limit enforced at MAX_CHARS', async () => {
   const acc = await auth.registerAccount('Slotstest', 's3cretword');
-  for (const name of ['Ada', 'Bram', 'Cora', 'Dane', 'Elow']) {
+  // Derive the count from the constant: the cap is a tuning value (raised to
+  // 10 so benchmark sweeps can run more than MAX_CHARS agents per account
+  // without run N+1 being unable to enter the world at all).
+  const names = ['Ada', 'Bram', 'Cora', 'Dane', 'Elow', 'Fain', 'Gera', 'Holt',
+    'Isen', 'Joss', 'Kael', 'Lyra'].slice(0, MAX_CHARS);
+  assert.equal(names.length, MAX_CHARS, 'test needs one name per slot');
+  for (const name of names) {
     const id = createCharacter(acc.accountId, { name, race: 'human', guild: 'thief' });
     assert.ok(id, `slot for ${name} should succeed`);
   }
   assert.throws(
-    () => createCharacter(acc.accountId, { name: 'Falk', race: 'human', guild: 'thief' }),
-    /5 characters/,
-    'sixth character should be rejected'
+    () => createCharacter(acc.accountId, { name: 'Zorn', race: 'human', guild: 'thief' }),
+    new RegExp(`${MAX_CHARS} characters`),
+    'character past the cap should be rejected'
   );
 });
 

@@ -8,7 +8,7 @@ process.env.DR_DB_PATH = join(tmp, 'test.db');
 
 export const { migrate, db, closeDb } = await import('../server/db.js');
 export const auth = await import('../server/auth.js');
-export const { createCharacter, loadPlayer } = await import('../server/player.js');
+export const { createCharacter, loadPlayer, MAX_CHARS } = await import('../server/player.js');
 export const { Game } = await import('../server/game.js');
 export const { handleCommand } = await import('../server/commands/index.js');
 

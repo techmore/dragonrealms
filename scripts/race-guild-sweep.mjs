@@ -43,8 +43,11 @@ const PASS = 'SweepRun1!';
 //   - char names: server/player.js validName = 2-20 chars, letters/'/- only,
 //     so the suffix is letters and base is sliced to 15 (+1 hyphen +4 = 20).
 //   - usernames: server/auth.js = 3-24 chars after normalizeName.
-// A unique account per run also avoids the MAX_CHARS=5 slot cap filling up
-// across repeated runs (server/player.js).
+// A unique account per run also avoids the MAX_CHARS slot cap filling up
+// across repeated runs (server/player.js — 10 slots). A benchmark burns one
+// character per run, so a sweep of more repeats than MAX_CHARS on a single
+// account leaves the overflow runs unable to enter the world at all (hp 0/0,
+// room null) until the stall watchdog kills them.
 const RUN_ID = Array.from(randomBytes(4), (b) => String.fromCharCode(97 + (b % 26))).join('');
 
 const { GUILDS } = await import('../data/guilds.js');

@@ -81,7 +81,7 @@ a required debug or GM privilege receive HTTP 403.
 | POST | `/api/login`        | —  | `{user, pass}` → `{token, username, characters}` |
 | POST | `/api/logout`       | ✓ | Invalidates the token |
 | GET  | `/api/characters`   | ✓ | List this account's characters |
-| POST | `/api/characters`   | ✓ | `{name, race, guild}` → creates character (max 5) |
+| POST | `/api/characters`   | ✓ | `{name, race, guild}` → creates character (max 10) |
 | POST | `/api/enter`        | ✓ | `{charId}` → load character, join world; returns initial messages + state |
 | POST | `/api/command`      | ✓ | `{command}` → run any game command; returns messages + state |
 | GET  | `/api/state`        | ✓ | Full snapshot of the active character's world |

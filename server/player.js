@@ -8,7 +8,7 @@ import { itemById, itemWeight } from '../data/items.js';
 export const BASE_STAT = 35;
 export const STAT_POOL = 30;
 export const MAX_STAT = 100;
-export const MAX_CHARS = 5;
+export const MAX_CHARS = 10;
 export const STAT_NAMES = ['str', 'con', 'ref', 'agi', 'cha', 'dis', 'wis', 'int'];
 
 export function validName(name) {
