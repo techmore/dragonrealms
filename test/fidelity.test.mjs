@@ -1356,7 +1356,8 @@ test('auction: post a lot, buy it, pay the seller', async () => {
   const bought = game.auctionBuy(buyer, 1);
   assert.equal(bought.ok, true, 'bought');
   assert.ok(buyer.inventory.some((i) => i.item.id === 'wolf_pelt'), 'buyer holds the pelt');
-  assert.equal(seller.silver, sellerBefore + 40, 'seller paid');
+  // Broker fee (economy audit F5): the seller nets price minus 3%.
+  assert.equal(seller.silver, sellerBefore + 40 - Math.max(1, Math.floor(40 * 0.03)), 'seller paid minus the broker fee');
   assert.equal(seller.inventory.some((i) => i.item.id === 'wolf_pelt'), false, 'seller no longer holds it');
 
   // Own lot refused; wrong room refused.

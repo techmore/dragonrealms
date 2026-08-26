@@ -205,15 +205,18 @@ export const economy = {
     const holdings = commodityHoldings(p);
 
     if (side === 'buy') {
-      const cost = price * qty;
+      // Pit spread (economy audit F6): the floor broker buys high and pays
+      // low — 8% each way. Impatient traders bleed silver; skilled ones who
+      // ride the sine still profit, but nothing here is free.
+      const cost = Math.ceil(price * 1.08) * qty;
       if (p.silver < cost) return { ok: false, msg: `That costs ${cost} silvers; you have ${p.silver}.` };
       p.silver -= cost;
       const cur = holdings[def.id] || { qty: 0, avgCost: 0 };
-      cur.avgCost = cur.qty ? (cur.avgCost * cur.qty + cost) / (cur.qty + qty) : price;
+      cur.avgCost = cur.qty ? (cur.avgCost * cur.qty + cost) / (cur.qty + qty) : Math.ceil(price * 1.08);
       cur.qty += qty;
       holdings[def.id] = cur;
       gainSkillExp(p, 'trading', 6);
-      return { ok: true, msg: `You buy ${qty} unit(s) of ${def.name} at ${price} silvers each.` };
+      return { ok: true, msg: `You buy ${qty} unit(s) of ${def.name} at ${Math.ceil(price * 1.08)} silvers each.` };
     }
 
     const cur = holdings[def.id];
@@ -221,7 +224,7 @@ export const economy = {
     let trader = p.guild.id === 'trader' ? 1.1 : 1;
     // A caravan scribe keeps better books at the board.
     if (p.caravan && p.caravan.rented && p.caravan.scribe > 0) trader += 0.1;
-    const proceeds = Math.floor(price * qty * trader);
+    const proceeds = Math.floor(Math.floor(price * 0.92) * qty * trader);
     const profit = proceeds - Math.floor(cur.avgCost * qty);
     cur.qty -= qty;
     if (cur.qty <= 0) delete holdings[def.id];

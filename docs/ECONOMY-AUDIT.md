@@ -85,6 +85,23 @@ multiplier applied at drop time by creature circle.
 
 ### P1 — worth doing
 
+**F4 resolution (2026-08-25):** failed picks at Lockpicking below rank 5 leave
+the box intact (only practiced hands jam the mechanism), which keeps pick-EV
+above the 20s sell floor for fresh thieves. Payout still scales with picker
+circle — boxes stack, so per-box provenance isn't tracked.
+
+**F5 resolution (2026-08-25):** auction sales now pay a 3% broker fee
+(min 1s) to the hall. Seller notifications and offline bank payouts use the
+net proceeds; buyers see no change.
+
+**F6 resolution (2026-08-25):** commodity pits gained a house edge — buys
+clear at +8%, sells at −8%. Riding the 48-minute sine remains profitable;
+instant round-trips now lose ~16% instead of being free.
+
+**F8 resolution (2026-08-25):** scavenge cooldown raised 15s → 60s, diamond
+tail thinned 2% → 0.5%, garnet 8% → 4%. Expected value per minute at low
+circles is now clearly below hunting, with gems kept as a lottery.
+
 **F4. Strongbox economics are inverted.**
 A strongbox sells for 20s unpicked but yields `20 + circle×5 + rand(20)`
 (≈25–45s at c1–c5) when picked. Correct incentive direction (pick > sell) but
@@ -135,8 +152,10 @@ role beyond "safe number."
 
 ## 5. Recommended order
 
-1. **F2 (auction loss bug)** — it's destroying player property; ship today.
-2. **F1 (rest vs healer)** — one-line tuning decision, restores a whole sink.
-3. **F3 (flat loot values)** — data-only change, biggest curve improvement.
-4. F4/F5/F6 as one "trading fees" pass when convenient.
+1. ~~**F2 (auction loss bug)**~~ ✅ shipped — SQLite escrow + vault returns.
+2. ~~**F1 (rest vs healer)**~~ ✅ shipped — rest caps at ~80%/85%, healer
+   needed for the last fifth.
+3. ~~**F3 (flat loot values)**~~ ✅ shipped — dire_rat_pelt, drake_scale,
+   iron_ore padding removed.
+4. ~~F4/F5/F6 as one "trading fees" pass~~ ✅ shipped (plus F8 scavenge).
 5. F7–F9 revisit after a real playtest produces spending data.

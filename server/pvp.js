@@ -210,13 +210,18 @@ export function auctionBuy(game, p, listingId) {
   p.silver -= row.price;
   db.prepare('DELETE FROM auctions WHERE id=?').run(listingId);
   addItem(p, row.item_id, row.qty, JSON.parse(row.instances || '[]'));
+  // Broker fee (economy audit F5): the hall's scribes take 3% of every sale.
+  // Endgame trade was a completely sink-free economy; this makes player
+  // trading quietly drain silver at exactly the tier that needs drains.
+  const fee = Math.max(1, Math.floor(row.price * 0.03));
+  const proceeds = row.price - fee;
   const seller = game.players.get(row.seller);
   if (seller && seller.online) {
-    seller.silver += row.price;
-    say(seller, `Your lot sold at auction: ${row.item_name}${row.qty > 1 ? ` x${row.qty}` : ''} for ${row.price} silvers.`);
+    seller.silver += proceeds;
+    say(seller, `Your lot sold at auction: ${row.item_name}${row.qty > 1 ? ` x${row.qty}` : ''} for ${row.price} silvers — the broker takes ${fee}.`);
   } else {
     // Offline sellers are paid into the bank.
-    db.prepare('UPDATE characters SET bank = bank + ? WHERE id = ?').run(row.price, row.seller);
+    db.prepare('UPDATE characters SET bank = bank + ? WHERE id = ?').run(proceeds, row.seller);
   }
   gainSkillExp(p, 'trading', 8);
   return { ok: true, msg: `You buy ${row.item_name}${row.qty > 1 ? ` x${row.qty}` : ''} for ${row.price} silvers.` };

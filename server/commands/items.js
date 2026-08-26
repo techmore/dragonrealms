@@ -515,18 +515,26 @@ function unlock(ctx) {
   const { p, arg1, emit } = ctx;
   const entry = findInventoryItem(p, arg1 || '');
   if (!entry || entry.item.id !== 'strongbox') return emit('Pick what? You need a locked strongbox — check the loot of kobolds and bandits.');
-  removeItem(p, 'strongbox', 1);
+  // Boxes stack, so per-box provenance isn't tracked — the payout scales
+  // with the picker's circle (a c5 picker opens boxes from c5 hunting).
   const skill = skillRank(p, 'lockpicking');
   const chance = Math.max(0.1, Math.min(0.9, 0.4 + skill * 0.03 + p.stats.agi * 0.005));
   setRoundtime(p, 5);
   if (Math.random() < chance) {
+    removeItem(p, 'strongbox', 1);
     const coins = 20 + p.circle * 5 + Math.floor(Math.random() * 20);
     p.silver += coins;
     const leveled = gainSkillExp(p, 'lockpicking', 10);
     emit(`You work the lock and the box springs open, revealing ${coins} silvers!${leveled ? ' Your Locksmithing improved!' : ''}`);
-  } else {
+  } else if (skill < 5) {
+    // Green fingers: at low Locksmithing a failed pick leaves the box intact
+    // so the EV of trying stays above just selling it (20s).
     const leveled = gainSkillExp(p, 'lockpicking', 4);
-    emit(`The lock defies your picks.${leveled ? ' Still, your Locksmithing improved!' : ''}`);
+    emit(`The lock defies your picks — the box survives to try again.${leveled ? ' Still, your Locksmithing improved!' : ''}`);
+  } else {
+    removeItem(p, 'strongbox', 1); // practiced hands break the mechanism
+    const leveled = gainSkillExp(p, 'lockpicking', 4);
+    emit(`The lock defies your picks, and the mechanism jams for good.${leveled ? ' Still, your Locksmithing improved!' : ''}`);
   }
 }
 

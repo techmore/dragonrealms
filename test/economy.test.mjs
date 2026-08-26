@@ -144,14 +144,17 @@ test('crime loop: steal, strongboxes, and magical consumables train skills', asy
   assert.match(msgs, /lift|catches|guard/, 'steal narrates an outcome');
   assert.ok(p.silver !== silverBefore, 'steal changes your silver');
 
-  // Pick a locked strongbox: coins + lockpicking exp either way.
+  // Pick a locked strongbox: coins + lockpicking exp either way. A failed
+  // pick at low skill leaves the box intact (economy audit F4), so accept
+  // either outcome but require the skill to have trained.
   const lockBefore = exp(p, 'lockpicking');
   const silver2 = p.silver;
   addItem(p, 'strongbox', 1);
   handleCommand(game, p, 'pick strongbox');
   assert.ok(exp(p, 'lockpicking') > lockBefore, 'pick trains lockpicking');
   assert.ok(p.silver >= silver2, 'strongbox either pays or keeps your coin');
-  assert.ok(p.inventory.filter((i) => i.item.id === 'strongbox').length === 0, 'strongbox consumed');
+  const boxesLeft = p.inventory.filter((i) => i.item.id === 'strongbox').reduce((s, i) => s + i.qty, 0);
+  assert.ok(boxesLeft <= 1, 'failed low-skill picks keep the box; success consumes it');
 
   // Drinking a draught trains arcana.
   const arcanaBefore = exp(p, 'arcana');

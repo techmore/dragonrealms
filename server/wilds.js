@@ -243,8 +243,8 @@ say(p, `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p
   // into stray coin and odd treasures.
   scavenge(game, p) {
     if (p.room !== 'middens') return { ok: false, msg: 'There is nowhere to scavenge here. The Middens lie south of the East Road.' };
-    if (p.scavengeAt && Date.now() - p.scavengeAt < 15 * 1000) {
-      const secs = Math.ceil((15 * 1000 - (Date.now() - p.scavengeAt)) / 1000);
+    if (p.scavengeAt && Date.now() - p.scavengeAt < 60 * 1000) {
+      const secs = Math.ceil((60 * 1000 - (Date.now() - p.scavengeAt)) / 1000);
       return { ok: false, msg: `You have already picked this heap over (${secs}s).` };
     }
     p.scavengeAt = Date.now();
@@ -254,12 +254,15 @@ say(p, `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p
     if (Math.random() >= chance) {
       return { ok: true, msg: `You poke through the refuse and find nothing worth keeping.${leveled ? ' Your Appraisal improved!' : ''}` };
     }
+    // Rebalanced table (economy audit F8): a 15s cooldown with a 2% diamond
+    // beat hunting for zero risk at low circles. The cooldown is now 60s and
+    // the rich tail is thinner; gems remain possible but rare.
     const roll = Math.random();
     let found;
-    if (roll < 0.02) found = { item: 'diamond', qty: 1, text: 'buried under a rusted kettle, a diamond catches the light!' };
-    else if (roll < 0.1) found = { item: 'garnet', qty: 1, text: 'among the shards you find a blood garnet.' };
-    else if (roll < 0.3) found = { item: 'iron_ore', qty: 1, text: 'a lump of iron ore, half-buried in ash.' };
-    else if (roll < 0.5) found = { item: 'herb_root', qty: 1, text: 'a bitter root growing through the refuse.' };
+    if (roll < 0.005) found = { item: 'diamond', qty: 1, text: 'buried under a rusted kettle, a diamond catches the light!' };
+    else if (roll < 0.04) found = { item: 'garnet', qty: 1, text: 'among the shards you find a blood garnet.' };
+    else if (roll < 0.24) found = { item: 'iron_ore', qty: 1, text: 'a lump of iron ore, half-buried in ash.' };
+    else if (roll < 0.54) found = { item: 'herb_root', qty: 1, text: 'a bitter root growing through the refuse.' };
     else found = { item: 'iron_ring', qty: 1, text: 'a bent iron ring, still worth a coin or two.' };
     addItem(p, found.item, found.qty);
     unlockAchievement(p, 'scavenger');
