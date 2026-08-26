@@ -319,10 +319,8 @@ function buildCircleScript({ cap, fromArena, errands }) {
     L.push(`  iflt tdp ${TDP_FLOOR} goto BACK`);
   }
   L.push('BACK:');
-  // Town errands: convert the hunt's loot into silver before walking home.
-  // The bazaar's general storekeeper buys pelts/hides; anything unsold (or
-  // beyond what a shop wants) gets bundled so burden never blocks movement
-  // ("You are overloaded!" refuses ALL moves — the silent wedge).
+  // Town errands: sell loot + bundle leftovers on the way home —
+  // skins fund the weapon ladder (club → short sword → cavalry_sabre).
   if (errands?.bazaarPath?.length) {
     L.push(...moves(errands.bazaarPath));
     L.push('ERRAND_SELL:');

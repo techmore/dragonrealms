@@ -91,9 +91,6 @@ const VARIANTS = {
   rest50:   { restPct: 50, hallEvery: 4, arenaBand: 2 },
   hall8:    { restPct: 35, hallEvery: 8, arenaBand: 2 },
   wide2:    { restPct: 35, hallEvery: 6, arenaBand: 4 },
-  // Town-errands arm: baseline pacing plus sell/bundle legs on hall trips —
-  // validates that pelt income doesn't cost hunt time.
-  errand:   { restPct: 35, hallEvery: 4, arenaBand: 2 },
 };
 let wanted = [];            // [{guild, race, variant?}]
 let MODE = 'sweep';         // 'sweep' | 'benchmark' | 'spawn'
@@ -384,11 +381,8 @@ class SweepAgent {
         hall: s.bfsPath(room === 'bazaar' ? 'bazaar' : arena.id, 'hall_' + this.guild, this.diskAdj()),
         back: s.bfsPath('hall_' + this.guild, arena.id, this.diskAdj()),
       },
-      // Town errands: sell loot + bundle leftovers on the way home.
-      // Previously gated on the errand variant only — but baseline agents
-      // need the income too: skins fund the weapon ladder (club → short
-      // sword → cavalry_sabre). Without this, silver stays flat at 150
-      // and the agent fights with a club forever.
+      // Town errands: sell loot + bundle leftovers on the way home —
+      // skins fund the weapon ladder (club → short sword → cavalry_sabre).
       errands: {
         bazaarPath: s.bfsPath('hall_' + this.guild, 'bazaar', this.diskAdj()),
         returnPath: s.bfsPath('bazaar', arena.id, this.diskAdj()),
