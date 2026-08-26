@@ -22,6 +22,13 @@ function buildHuntScript({ cap, arena, hallPath }) {
   L.push('  put look');
   L.push('  wait');
   L.push('ARMCHECK:');
+  // Weapon upgrade ladder: if we've banked enough from selling pelts,
+  // force a re-buy even when currently armed. The BUY section below
+  // only fires for unarmed agents — without this, a club-wielding agent
+  // would never upgrade because ARMCHECK matches "Worn:...club" and
+  // skips straight to ARMED.
+  L.push('  ifge silver 562 goto GETWEAPON');
+  L.push('  ifge silver 337 goto GETWEAPON');
   // Order matters: equipped wins, then a carried weapon is wielded, and only
   // a genuinely unarmed character walks to the bazaar to buy.
   // The inventory reply is MULTI-LINE ("You are carrying:\n  a club\nWorn:

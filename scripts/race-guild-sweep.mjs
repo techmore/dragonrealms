@@ -384,13 +384,16 @@ class SweepAgent {
         hall: s.bfsPath(room === 'bazaar' ? 'bazaar' : arena.id, 'hall_' + this.guild, this.diskAdj()),
         back: s.bfsPath('hall_' + this.guild, arena.id, this.diskAdj()),
       },
-      // Town errands: sell loot + bundle leftovers on the way home — gated
-      // on the variant (see the regen path below for the rationale).
-      errands: this.variantName === 'errand' ? {
+      // Town errands: sell loot + bundle leftovers on the way home.
+      // Previously gated on the errand variant only — but baseline agents
+      // need the income too: skins fund the weapon ladder (club → short
+      // sword → cavalry_sabre). Without this, silver stays flat at 150
+      // and the agent fights with a club forever.
+      errands: {
         bazaarPath: s.bfsPath('hall_' + this.guild, 'bazaar', this.diskAdj()),
         returnPath: s.bfsPath('bazaar', arena.id, this.diskAdj()),
         sellLoot: errandLootFor(this.guild),
-      } : null,
+      },
     });
     const megaSrc = buildMegaScript(cap);
     // NOTE: this.library must stay null until startCycle below — the 1s
@@ -542,6 +545,9 @@ class SweepAgent {
       if (missing.length) {
         this.trainList = missing;
         log(`[${this.guild}/${this.race}] retargeting curriculum: ${missing.slice(0, 6).join(', ')}${missing.length > 6 ? ` +${missing.length - 6}` : ''}`);
+        // Regenerate the circle script NOW so the next hall trip trains
+        // the blocking skills instead of the generic curriculum.
+        this.regenerateScripts();
       }
       // Rank-gap ledger: remember what circling demanded and how far short we
       // fell ("expertise at least rank 4 (you have 2)"). The supervisor uses
@@ -616,56 +622,54 @@ class SweepAgent {
     const room = s.vitals.room;
     if (!room || !ROOMS[room]) return;
     let arena = this.nearestSpawnRoom(room);
-    // Town-strand guard: shops, halls, and other interior rooms have no
-    // spawns and thin exits — pathing "regenerates" fine but the hunt just
-    // walks back into the same dead end (the cleric-dies-in-a-shop bug).
-    // If we're parked in an interior room, escape to the bazaar hub first
-    // and re-derive everything from there next tick.
     const r = ROOMS[room];
     const exitCount = Object.keys(r.exits || {}).length;
-    // Interior OR transit room (dens: spawnless 2-exit corridors off the
-    // bazaar): parking here means a baked path died mid-transit. Escape to
-    // the hub and distrust this room's learned edges. The bazaar itself is
-    // the hub — never "stranded" there, or we escape-loop forever.
     const interior = room !== 'bazaar' && !r.spawns?.length && exitCount <= 2;
     if (!arena || interior) {
       if (!arena) this.appendLog(`[regen] no arena reachable from ${room}`);
       else if (interior) {
         this.appendLog(`[regen] stranded in transit room ${room} — bazaar escape`);
-        delete this.session.observedEdges[room]; // edges here just failed us
+        delete this.session.observedEdges[room];
       }
       const toBazaar = s.bfsPath(room, 'bazaar', this.diskAdj());
       if (toBazaar?.length) {
         this.escapePath = toBazaar.map((e) => e.dir);
-        return; // walk out now; regenerateFromHere runs again on arrival
+        return;
       }
       if (!arena) return;
-      // Couldn't reach bazaar either — at least try the distant arena.
     }
     this.arena = arena.id;
+    this.regenerateScripts();
+  }
+
+  // Rebuild the hunt + circle scripts from the current arena and push
+  // them to the account. Used after TDP retargeting (so the next hall
+  // trip trains blocking skills) and after regenerating paths.
+  regenerateScripts() {
+    const s = this.session;
+    const arena = this.arena;
+    if (!arena) return;
     const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0 };
     this.library[this.scriptBase + 'hunt'] = buildHuntScript({
       cap,
-      hallPath: s.bfsPath(arena.id, 'hall_' + this.guild, this.diskAdj()),
+      hallPath: s.bfsPath(arena, 'hall_' + this.guild, this.diskAdj()),
       arena: {
-        id: arena.id,
+        id: arena,
         fromArmed: [],
-        fromHere: s.bfsPath(room, arena.id, this.diskAdj()),
+        fromHere: s.bfsPath(s.vitals.room, arena, this.diskAdj()),
       },
     });
     this.library[this.scriptBase + 'circle'] = buildCircleScript({
       cap,
       fromArena: {
-        hall: s.bfsPath(arena.id, 'hall_' + this.guild, this.diskAdj()),
-        back: s.bfsPath('hall_' + this.guild, arena.id, this.diskAdj()),
+        hall: s.bfsPath(arena, 'hall_' + this.guild, this.diskAdj()),
+        back: s.bfsPath('hall_' + this.guild, arena, this.diskAdj()),
       },
-      // Errands only when the variant arms them — baseline/hall8 cells stay
-      // pure hunt so the lab measures the errand tax honestly.
-      errands: this.variantName === 'errand' ? {
+      errands: {
         bazaarPath: s.bfsPath('hall_' + this.guild, 'bazaar', this.diskAdj()),
-        returnPath: s.bfsPath('bazaar', arena.id, this.diskAdj()),
+        returnPath: s.bfsPath('bazaar', arena, this.diskAdj()),
         sellLoot: errandLootFor(this.guild),
-      } : null,
+      },
     });
     for (const [name, body] of Object.entries(this.library)) {
       s.sendObj({ t: 'scripts_put', name, body });
