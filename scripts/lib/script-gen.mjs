@@ -300,6 +300,19 @@ function buildCircleScript({ cap, fromArena, errands }) {
   L.push(`# ${cap.scriptBase}circle — guild hall trip (+ town errands)`);
   L.push('HALLTRIP:');
   if (fromArena.hall?.length) L.push(...moves(fromArena.hall));
+  // Learn guild abilities while standing in the hall (they are taught ONLY
+  // here — server/commands/combat.js learn()). Agents previously reached the
+  // hall with abilities:[] for an entire run, so every scripted signature
+  // ability was rejected with "You have not learned <X>" and the guild's
+  // whole identity kit was dead: the roar-ability fidelity check had NEVER
+  // passed in any run, and the supernatural exp those abilities grant (the
+  // only path to the "1st Supernatural" circle requirement for a manaless
+  // guild) never accrued. Failure prose is harmless — already-known and
+  // no-free-slot both just print and fall through.
+  for (const abil of (cfg.learnAbilities || [])) {
+    L.push(`  put learn ${abil}`);
+    L.push('  wait');
+  }
   L.push('  matchre CIRCLE_OK Rise, |now a ');
   L.push('  matchre TRAIN not yet ready|must stand in your own');
   L.push('  put circle');

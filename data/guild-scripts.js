@@ -26,6 +26,15 @@ export const GUILD_SCRIPTS = {
     defaultTrain: ['expertise', 'parry', 'evasion', 'light_armor', 'large_edged',
       'twohanded_blunt', 'fitness', 'perception', 'foraging', 'athletics',
       'scouting', 'hunting', 'appraisal', 'tactics', 'inner_fire'],
+    // Abilities to learn on each guild-hall trip, in priority order. Taught
+    // only at the hall (server/commands/combat.js learn()), and slots are
+    // scarce early: barbarianSlots() gives 1 + floor(circle/2), so a circle-1
+    // agent can hold exactly ONE. everilds_rage leads because it is req:0
+    // (learnable immediately) AND is the ability the generated fight loop
+    // already fires as the guild's signature verb. Later entries pick up as
+    // circling frees slots; extras fail harmlessly with "no free ability
+    // slots" / path-requirement prose and fall through.
+    learnAbilities: ['everilds_rage', 'dragon', 'tenacity', 'wildfire', 'screech'],
     fidelityChecks: [
       { name: 'analyze-expertise', re: /You analyze|combo|expertise/i },
       { name: 'roar-ability', re: /roar a battle cry|blood ablaze|voice is spent/i },
