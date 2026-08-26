@@ -341,6 +341,7 @@ class SweepAgent {
     };
     const huntSrc = buildHuntScript({
       cap,
+      hallPath: s.bfsPath(arena.id, 'hall_' + this.guild, this.diskAdj()),
       arena: {
         id: arena.id,
         // Return trip = exact reverse of how we get TO the bazaar (walked-in
@@ -606,6 +607,7 @@ class SweepAgent {
     const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0 };
     this.library[this.scriptBase + 'hunt'] = buildHuntScript({
       cap,
+      hallPath: s.bfsPath(arena.id, 'hall_' + this.guild, this.diskAdj()),
       arena: {
         id: arena.id,
         fromArmed: [],

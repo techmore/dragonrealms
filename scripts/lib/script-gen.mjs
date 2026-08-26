@@ -50,8 +50,37 @@ function buildHuntScript({ cap, arena, hallPath }) {
   // to the arena and fights bare-handed — fists train Defending/Evasion too)
   // rather than an infinite BUY spin that starves the whole run.
   L.push('  matchre BROKE cannot afford');
+  // Weapon upgrade ladder (player-style progression): spend the purse on the
+  // best blade it reaches before settling for a club. Ladder by price:
+  // forged_short_sword 150 > short_sword 80 > hand_axe 65 > club 15. Each
+  // branch falls through to the next when unaffordable; the club is the floor.
+  L.push('  ifge silver 150 goto BUY_FORGED');
+  L.push('  ifge silver 80 goto BUY_SHORTSWORD');
+  L.push('  ifge silver 65 goto BUY_HANDAXE');
+  L.push('BUY_CLUB:');
   L.push('  put buy club');
   L.push('  matchwait 30');
+  L.push('  goto ARMED');
+  L.push('BUY_FORGED:');
+  L.push('  put buy forged_short_sword');
+  L.push('  wait');
+  L.push('  matchre WIELD_NEW You buy|You pay|hands you');
+  L.push('  matchwait 10');
+  L.push('BUY_SHORTSWORD:');
+  L.push('  put buy short_sword');
+  L.push('  wait');
+  L.push('  matchre WIELD_NEW You buy|You pay|hands you');
+  L.push('  matchwait 10');
+  L.push('BUY_HANDAXE:');
+  L.push('  put buy hand axe');
+  L.push('  wait');
+  L.push('  matchre WIELD_NEW You buy|You pay|hands you');
+  L.push('  matchwait 10');
+  L.push('  goto BUY_CLUB');
+  L.push('WIELD_NEW:');
+  L.push('  put remove club');
+  L.push('  put wield sword');
+  L.push('  wait');
   L.push('  goto ARMED');
   L.push('BROKE:');
   L.push('  put withdraw 100');
@@ -74,6 +103,12 @@ function buildHuntScript({ cap, arena, hallPath }) {
   L.push('SCAN:');
   L.push('  pause 2');
   L.push('  iflt hp 40 goto REST');
+  // Field readiness check (player-style `exp`): the view ends with either
+  // "ready to circle!" or the missing-requirements list. Branch on it so a
+  // ready agent heads for the hall instead of over-farming one arena.
+  L.push('  matchre CIRCLE_READY ready to circle');
+  L.push('  put exp');
+  L.push('  matchwait 5');
   if (cfg.magic) L.push('  iflt mana 8 goto WEAKSWING');
   for (const pre of cfg.preFight || []) L.push(`  put ${pre.replace(/^put /, '').replace('%target', '')}`);
   // Bard area enchantes: segue mid-hunt so the song stays fresh and the
@@ -169,6 +204,16 @@ function buildHuntScript({ cap, arena, hallPath }) {
   }
   L.push('  wait');
   L.push('  pause 3');
+  L.push('  goto SCAN');
+  // Ready to circle: walk to the hall NOW (the mega's circle leg runs next
+  // cycle anyway, but a ready agent shouldn't keep farming a thin arena).
+  L.push('CIRCLE_READY:');
+  L.push('  echo -- ready to circle: heading to the hall --');
+  if (cap.hallPath?.length) {
+    L.push(...moves(cap.hallPath));
+    L.push('  put circle');
+    L.push('  wait');
+  }
   L.push('  goto SCAN');
   L.push('WANDER:');
   L.push('  pause 4');

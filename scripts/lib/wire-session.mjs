@@ -232,6 +232,9 @@ export class WireSession {
         v.rt = rt ? Number(rt[1]) : 0;
         v.inCombat = /\[COMBAT\]/.test(plain);
         v.restingFlag = /\[Resting\]/.test(plain);
+        // Purse tracking: scripts branch purchases on %silver.
+        const sil = /(\d+)\s+silvers/.exec(plain);
+        if (sil) v.silver = Number(sil[1]);
         // Bleeding wounds: scripts can check vitals.bleeding (array of
         // "part (severity)") and react with `tend` between swings.
         const bleed = /\[bleeding: ([^\]]+)\]/.exec(plain);
@@ -318,7 +321,8 @@ export class WireSession {
     // isPrompt 'inject': state refresh, not a real prompt — the engine uses
     // it for %var mirroring but must NOT re-arm roundtime from the stale
     // RT count (a fresh roundtime arrives with the next REAL prompt).
-    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}`, 'inject');
+    // Silvers ride along so scripts can branch purchases on purse size.
+    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}`, 'inject');
   }
 }
 

@@ -205,6 +205,10 @@ export function createRunner(src, args = [], io = {}) {
       // tracked TDP balance; real DR-style prompts never do.
       const tdp = /TDPs?:\s*(\d+)/i.exec(plain);
       if (tdp) vars.tdp = tdp[1];
+      // Purse size from the prompt's "N silvers": scripts branch purchases on
+      // it (weapon upgrade ladder — buy the axe when silver allows).
+      const silvers = /(\d+)\s+silvers/.exec(plain);
+      if (silvers) vars.silver = silvers[1];
       const rt = /RT:\s*(\d+)/.exec(plain);
       if (rt) {
         vars.rt = rt[1];

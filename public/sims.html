@@ -278,6 +278,11 @@
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
     }
+    // Embedded agent panels (js/admin/agents.js) ask via postMessage instead
+    // of opening a dead-end tab when no GM credential is stored.
+    window.addEventListener('message', (e) => {
+      if (e.data && e.data.t === 'gm-toast' && e.data.text) toast(String(e.data.text));
+    });
 
     async function gm(path) {
       try {
