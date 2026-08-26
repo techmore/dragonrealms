@@ -10,13 +10,13 @@
        This page is a document — undo that so it scrolls normally. */
     html, body { height: auto !important; overflow: auto !important; }
     body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-mono), ui-monospace, Menlo, monospace; }
-    .admin { max-width: 1080px; margin: 0 auto; padding: 24px 20px 60px; }
-    h1 { color: var(--amber); font-size: 20px; margin: 0; }
+    .admin { max-width: 1080px; margin: 0 auto; padding: 16px 20px 60px; }
+    h1 { color: var(--amber); font-size: 18px; margin: 0; white-space: nowrap; }
     .sub { color: var(--dim); font-size: 12px; }
     a { color: var(--cyan); }
 
-    /* ---- header ---- */
-    header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+    /* ---- header: answers "is the world ok?" at a glance ---- */
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-bottom: 10px; }
     header .spacer { flex: 1; }
     .pill {
       display: inline-flex; align-items: center; gap: 6px;
@@ -28,25 +28,57 @@
     .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
     .pill.up .dot { animation: pulse 2s infinite; }
     @keyframes pulse { 50% { opacity: .35; } }
-    #uptime { color: var(--amber); font-size: 13px; font-weight: bold; min-width: 150px; }
+    #uptime { color: var(--amber); font-size: 13px; font-weight: bold; min-width: 130px; }
     #updated { color: var(--dim); font-size: 11px; }
 
-    .controls {
-      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-      margin: 14px 0 4px; font-size: 12px;
-    }
-    .controls select, .btn {
+    /* headline numbers, right in the header — no scanning required */
+    .headstat { display: inline-flex; align-items: baseline; gap: 5px; font-size: 13px; }
+    .headstat b { color: var(--text); font-size: 16px; }
+    .headstat span { color: var(--dim); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+
+    /* refresh cluster: one small group, out of the way */
+    .rcluster { display: inline-flex; align-items: center; gap: 4px; }
+    .btn, .iconbtn {
       background: var(--panel); color: var(--text); border: 1px solid var(--line);
       border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 12px; cursor: pointer;
     }
-    .btn:hover, .controls select:hover { border-color: var(--amber); }
+    .iconbtn { padding: 5px 8px; }
+    .btn:hover, .iconbtn:hover, select:hover { border-color: var(--amber); }
     .btn.warn:hover { border-color: var(--red); color: var(--red); }
     .btn[disabled] { opacity: .45; cursor: default; }
+    select { background: var(--panel); color: var(--text); border: 1px solid var(--line);
+      border-radius: 6px; padding: 5px 6px; font: inherit; font-size: 12px; cursor: pointer; }
     #gm-token {
       background: var(--panel-inset); color: var(--text); border: 1px solid var(--line);
-      border-radius: 6px; padding: 5px 10px; width: 220px; font: inherit; font-size: 12px;
+      border-radius: 6px; padding: 5px 10px; width: 260px; font: inherit; font-size: 12px;
     }
     #gm-token:focus { outline: none; border-color: var(--amber); }
+
+    /* ---- THE banner: zero or one thing needs you. Never a hunt. ---- */
+    #banner { margin-top: 12px; display: none; align-items: center; gap: 12px;
+      border-radius: 10px; padding: 11px 14px; font-size: 12.5px;
+      border: 1px solid var(--red); background: rgba(224,90,90,.09); color: var(--red); }
+    #banner.warn { border-color: var(--amber); background: rgba(224,179,76,.08); color: var(--amber); }
+    #banner.show { display: flex; }
+    #banner .what { flex: 1; line-height: 1.45; }
+    #banner code { color: inherit; }
+    #banner .fix {
+      background: none; border: 1px solid currentColor; color: inherit; border-radius: 6px;
+      padding: 5px 12px; cursor: pointer; font: inherit; font-size: 12px; white-space: nowrap;
+    }
+    #banner .fix:hover { background: rgba(255,255,255,.06); }
+
+    /* ---- tabs: content split by intent ---- */
+    .tabs { display: flex; gap: 2px; margin-top: 16px; border-bottom: 1px solid var(--line-strong); overflow-x: auto; }
+    .tabs button {
+      background: none; border: none; border-bottom: 2px solid transparent;
+      color: var(--muted); font: inherit; font-size: 13px; padding: 8px 14px; cursor: pointer;
+      white-space: nowrap; margin-bottom: -1px;
+    }
+    .tabs button:hover { color: var(--text); }
+    .tabs button[aria-selected="true"] { color: var(--amber); border-bottom-color: var(--amber); font-weight: bold; }
+    .tabs button .cnt { color: var(--dim); font-weight: normal; font-size: 11px; margin-left: 5px; }
+    .tabpanel[hidden] { display: none; }
 
     /* ---- generic panels ---- */
     section {
@@ -101,11 +133,6 @@
     .badge.bot { color: var(--amber); border-color: var(--amber); }
     .badge.gm { color: var(--green); border-color: var(--green); }
     .badge.fight { color: var(--red); border-color: var(--red); }
-    .hs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .hs-table th, .hs-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
-    .hs-table th { color: var(--dim); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: .05em; }
-    .hs-table tr:hover td { background: var(--panel-inset); }
-    .hs-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .hpbar { width: 90px; height: 7px; background: var(--panel-inset); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; flex: none; }
     .hpbar i { display: block; height: 100%; }
     .watch {
@@ -163,21 +190,6 @@
     .rline .who { color: var(--green); }
     .empty { color: var(--dim); }
 
-    /* ---- jobs ---- */
-    .jobs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-    .jobs button {
-      background: var(--panel-inset); border: 1px solid var(--line); border-radius: 6px;
-      color: var(--text); padding: 5px 12px; cursor: pointer; font: inherit; font-size: 12px;
-    }
-    .jobs button.active { border-color: var(--amber); color: var(--amber); }
-    #joblog {
-      background: var(--panel-inset); border: 1px solid var(--line); border-radius: 8px;
-      padding: 12px; font-size: 12px; line-height: 1.5; white-space: pre-wrap;
-      min-height: 240px; max-height: 46vh; overflow-y: auto;
-    }
-    #jobstate.idle { color: var(--dim); }
-    #jobstate.live { color: var(--green); }
-
     /* ---- launch agent ---- */
     .agform {
       display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
@@ -189,8 +201,6 @@
       border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12px;
     }
     .agform input:focus, .agform select:focus { outline: none; border-color: var(--amber); }
-    .agform input#ag-name { width: 170px; }
-    .agform input.numsel { width: 64px; }
     #aglog {
       background: var(--panel-inset); border: 1px solid var(--line); border-radius: 8px;
       padding: 10px 12px; font-size: 11px; line-height: 1.5; white-space: pre-wrap;
@@ -199,16 +209,36 @@
     #aglog .ok { color: var(--green); }
     #aglog .bad { color: var(--red); }
 
-    /* ---- footer cards / ops ---- */
-    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 16px; }
-    a.card {
-      display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-      padding: 13px 14px; text-decoration: none; color: var(--text);
-    }
-    a.card:hover { border-color: var(--amber); }
-    a.card .t { color: var(--amber); font-weight: bold; display: block; margin-bottom: 4px; }
-    a.card .d { color: var(--dim); font-size: 11px; }
+    /* ---- ops ---- */
     .ops { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .links { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+    .links a { text-decoration: none; }
+    .links a:hover { text-decoration: underline; }
+
+    /* ---- script rows (JS-rendered; styles kept here so render matches) ---- */
+    .script-row {
+      display: flex; align-items: center; gap: 10px; padding: 8px 4px;
+      border-top: 1px solid var(--line); font-size: 12px;
+    }
+    .script-row:first-of-type { border-top: none; }
+    .script-row .nm { min-width: 100px; font-weight: bold; color: var(--amber); }
+    .script-row .metric { color: var(--dim); font-size: 11px; }
+    .script-row .metric b { color: var(--text); }
+    .script-row .spacer { flex: 1; }
+    .script-row .open-btn {
+      background: var(--panel-inset); border: 1px solid var(--line); border-radius: 5px;
+      color: var(--text); padding: 3px 8px; cursor: pointer; font: inherit; font-size: 11px;
+      text-decoration: none;
+    }
+    .script-row .open-btn:hover { border-color: var(--amber); color: var(--amber); }
+    .script-rank {
+      width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 11px; font-weight: bold; flex: none;
+    }
+    .script-rank.r1 { background: var(--amber); color: #000; }
+    .script-rank.r2 { background: #c0c0c0; color: #000; }
+    .script-rank.r3 { background: #cd7f32; color: #000; }
+    .script-rank.rn { background: var(--panel-inset); color: var(--dim); }
 
     #toast {
       position: fixed; right: 18px; bottom: 18px; z-index: 9;
@@ -222,154 +252,156 @@
 <body data-page="admin">
   <main class="admin">
     <header>
-      <h1>&#128009; Dragon Realms — Admin</h1>
+      <h1>&#128009; Admin</h1>
       <span id="pill" class="pill down"><span class="dot"></span><span id="pilltxt">OFFLINE</span></span>
       <span id="uptime" title="world process uptime">&#9203; —</span>
+
+      <!-- headline numbers live here so the top row IS the answer -->
+      <span class="headstat"><b id="hs-online">—</b><span>online</span></span>
+      <span class="headstat"><b id="hs-fighting">—</b><span>in combat</span></span>
+
       <span class="spacer"></span>
+      <span class="rcluster" title="dashboard refresh">
+        <select id="every" aria-label="refresh interval">
+          <option value="2000">2 s</option>
+          <option value="5000" selected>5 s</option>
+          <option value="15000">15 s</option>
+          <option value="30000">30 s</option>
+        </select>
+        <button class="iconbtn" id="pause" title="pause refreshing">&#9208;</button>
+        <button class="iconbtn" id="refresh" title="refresh now">&#8635;</button>
+      </span>
+      <button class="btn" id="gm-status" title="GM token status">&#128273; GM</button>
       <span id="updated"></span>
     </header>
 
-    <p class="sub">Monitoring and inspection. The world runs via the
-      <code>com.dragonrealms.world</code> LaunchAgent (menu-bar app can start/stop it). GM surfaces are read-only
-      except where marked.</p>
+    <!-- ONE place for "something needs you": world down, bad token, … -->
+    <div id="banner"></div>
 
-    <div class="controls">
-      <label class="sub" for="every">refresh</label>
-      <select id="every">
-        <option value="2000">2 s</option>
-        <option value="5000" selected>5 s</option>
-        <option value="15000">15 s</option>
-        <option value="30000">30 s</option>
-      </select>
-      <button class="btn" id="pause">&#9208; pause</button>
-      <button class="btn" id="refresh">&#8635; refresh now</button>
-      <span style="flex:1"></span>
-      <span id="gmflag" class="sub"></span>
-      <label class="sub" for="gm-token">GM token</label>
-      <input id="gm-token" type="password" placeholder="DR_GM_TOKEN" autocomplete="off" spellcheck="false">
+    <p class="sub" style="margin:10px 0 0">Monitoring &amp; inspection. Read-only except
+      <b>Ops &#8594; reload</b>. The world runs via the <code>com.dragonrealms.world</code> LaunchAgent.</p>
+
+    <div class="tabs" role="tablist" aria-label="Dashboard sections">
+      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="players" aria-selected="false">Players<span class="cnt" id="cnt-players"></span></button>
+      <button role="tab" data-tab="world" aria-selected="false">World</button>
+      <button role="tab" data-tab="scripts" aria-selected="false">Scripts<span class="cnt" id="cnt-scripts"></span></button>
+      <button role="tab" data-tab="ops" aria-selected="false">Ops</button>
     </div>
 
-    <!-- ===================== VITALS ===================== -->
-    <section>
-      <h2>Vitals <span class="right sub" id="vitalsrc"></span></h2>
-      <div class="vitals" id="vitals"></div>
-      <div id="census"></div>
-    </section>
+    <!-- ===================== OVERVIEW ===================== -->
+    <div class="tabpanel" data-pane="overview">
+      <section>
+        <h2>Vitals <span class="right sub" id="vitalsrc"></span></h2>
+        <div class="vitals" id="vitals"></div>
+        <div id="census"></div>
+      </section>
 
-    <!-- ===================== LOAD ===================== -->
-    <section>
-      <h2>Load</h2>
-      <div id="loadnote" class="note">waiting for GM data…</div>
-      <div class="loadgrid" id="loadgrid" hidden>
-        <div class="metric">
-          <div class="mh"><span>CPU (process)</span><b id="cpuval">—</b></div>
-          <div class="bar"><i id="cpubar" style="width:0%"></i></div>
-          <div class="sparkwrap"><label>API latency (ms)</label><canvas class="spark" id="latcv"></canvas></div>
+      <section>
+        <h2>Load</h2>
+        <div id="loadnote" class="note">checking…</div>
+        <div class="loadgrid" id="loadgrid" hidden>
+          <div class="metric">
+            <div class="mh"><span>CPU (process)</span><b id="cpuval">—</b></div>
+            <div class="bar"><i id="cpubar" style="width:0%"></i></div>
+            <div class="sparkwrap"><label>API latency (ms)</label><canvas class="spark" id="latcv"></canvas></div>
+          </div>
+          <div class="metric">
+            <div class="mh"><span>Memory</span><b id="memval">—</b></div>
+            <div class="mh sub"><span id="heaplbl">heap</span></div>
+            <div class="bar"><i id="rssbar" class="cool" style="width:0%"></i></div>
+            <div class="bar" style="margin-top:4px"><i id="heapbar" style="width:0%"></i></div>
+            <div class="sparkwrap"><label>Connected players</label><canvas class="spark" id="popcv"></canvas></div>
+          </div>
+          <div id="procinfo"></div>
         </div>
-        <div class="metric">
-          <div class="mh"><span>Memory</span><b id="memval">—</b></div>
-          <div class="mh sub"><span id="heaplbl">heap</span></div>
-          <div class="bar"><i id="rssbar" class="cool" style="width:0%"></i></div>
-          <div class="bar" style="margin-top:4px"><i id="heapbar" style="width:0%"></i></div>
-          <div class="sparkwrap"><label>Connected players</label><canvas class="spark" id="popcv"></canvas></div>
-        </div>
-        <div id="procinfo"></div>
-      </div>
-    </section>
+      </section>
+    </div>
 
     <!-- ===================== PLAYERS ===================== -->
-    <section>
-      <h2>Sim players <span class="right sub" id="simssum"></span></h2>
-      <div id="simsroster" hidden></div>
-      <div class="note">Launch, rerun, and grade runs on the <a href="/sims.html">Sim Players page</a>.</div>
-    </section>
+    <div class="tabpanel" data-pane="players" hidden>
+      <section>
+        <h2>Sims <span class="right sub" id="simssum"></span></h2>
+        <div id="simsroster" hidden></div>
+        <div class="note" id="simsempty" hidden>No sims running. Launch them on the <a href="/sims.html">Sims page</a>.</div>
+        <div class="note" style="margin-top:8px">Launch, rerun, and grade runs on the <a href="/sims.html">Sims page</a>.</div>
+      </section>
 
-    <section>
-      <h2>Online players <span class="right sub" id="rostersum"></span></h2>
-      <div id="roster"></div>
-    </section>
+      <section>
+        <h2>Adventurers <span class="right sub" id="rostersum"></span></h2>
+        <div id="roster"></div>
+      </section>
 
-    <!-- ===================== WORLD OCCUPANCY ===================== -->
-    <section>
-      <h2>Zones — NPC placement &amp; live spawns
-        <span class="right"><button class="btn" id="worldref" disabled>&#8635;</button></span>
-      </h2>
-      <div id="worldnote" class="note">needs GM token — shows static NPC/spawn placement per zone; expanding queries live rooms</div>
-      <div id="zones"></div>
-    </section>
+      <section>
+        <h2>Your character <span class="right sub">one click — boosted toon, no signup</span></h2>
+        <div class="agform">
+          <label for="qp-race">race</label>
+          <select id="qp-race"></select>
+          <label for="qp-boost">exp boost</label>
+          <select id="qp-boost">
+            <option value="0">off</option>
+            <option value="10">x10</option>
+            <option value="20" selected>x20</option>
+            <option value="50">x50</option>
+          </select>
+          <span class="sub">pick a guild:</span>
+          <span id="qp-guilds" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+        </div>
+      </section>
+    </div>
 
-    <!-- ===================== QUICK PLAY ===================== -->
-    <section>
-      <h2>Your character
-        <span class="right sub">jump in yourself &mdash; auto-provisioned boosted toon, no signup, no chargen</span>
-      </h2>
-      <div class="agform">
-        <label for="qp-race">race</label>
-        <select id="qp-race"></select>
-        <label for="qp-boost">exp boost</label>
-        <select id="qp-boost">
-          <option value="0">off</option>
-          <option value="10">x10</option>
-          <option value="20" selected>x20</option>
-          <option value="50">x50</option>
-        </select>
-        <span class="sub">click a guild:</span>
-        <span id="qp-guilds" style="display:flex;gap:6px;flex-wrap:wrap"></span>
-      </div>
-    </section>
+    <!-- ===================== WORLD ===================== -->
+    <div class="tabpanel" data-pane="world" hidden>
+      <section>
+        <h2>Zones — NPC placement &amp; live spawns
+          <span class="right"><button class="btn" id="worldref" disabled>&#8635; reload world data</button></span>
+        </h2>
+        <div id="worldnote" class="note">click a zone to query its rooms live (<code>/api/gm/room/&lt;id&gt;</code>)</div>
+        <div id="zones"></div>
+      </section>
+    </div>
 
     <!-- ===================== SCRIPTS ===================== -->
-    <section id="scriptsSection">
-      <h2>Script Variants <span class="right sub" id="scriptsSum">loading…</span></h2>
-      <div id="scriptsList" class="note">loading…</div>
-      <div style="margin-top:12px">
-        <button class="btn" id="openScriptsFolder">&#128193; Open scripts folder</button>
-        <span class="sub" style="margin-left:8px">scripts/ + scripts/lib/</span>
-      </div>
-      <style>
-        .script-row {
-          display: flex; align-items: center; gap: 10px; padding: 8px 4px;
-          border-top: 1px solid var(--line); font-size: 12px;
-        }
-        .script-row:first-of-type { border-top: none; }
-        .script-row .nm { min-width: 100px; font-weight: bold; color: var(--amber); }
-        .script-row .gd { min-width: 40px; text-align: center; }
-        .script-row .metric { color: var(--dim); font-size: 11px; }
-        .script-row .metric b { color: var(--text); }
-        .script-row .spacer { flex: 1; }
-        .script-row .open-btn {
-          background: var(--panel-inset); border: 1px solid var(--line); border-radius: 5px;
-          color: var(--text); padding: 3px 8px; cursor: pointer; font: inherit; font-size: 11px;
-        }
-        .script-row .open-btn:hover { border-color: var(--amber); color: var(--amber); }
-        .script-rank {
-          width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center;
-          justify-content: center; font-size: 11px; font-weight: bold;
-        }
-        .script-rank.r1 { background: var(--amber); color: #000; }
-        .script-rank.r2 { background: #c0c0c0; color: #000; }
-        .script-rank.r3 { background: #cd7f32; color: #000; }
-        .script-rank.rn { background: var(--panel-inset); color: var(--dim); }
-      </style>
-    </section>
+    <div class="tabpanel" data-pane="scripts" hidden>
+      <section id="scriptsSection">
+        <h2>Variant ranking <span class="right sub" id="scriptsSum">loading…</span></h2>
+        <div id="scriptsList" class="note">loading…</div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" id="openScriptsFolder">&#128193; Open scripts folder</button>
+          <a class="sub" href="/sims.html">full run history &amp; pacing charts &#8599;</a>
+        </div>
+      </section>
+    </div>
 
     <!-- ===================== OPS ===================== -->
-    <section>
-      <h2>Operations</h2>
-      <div class="ops">
-        <button class="btn warn" id="reload" disabled>&#9851; Reload world (respawn spawners)</button>
-        <span class="note">persists every online player, then resets room creature spawns. GM-token required.</span>
-      </div>
-    </section>
+    <div class="tabpanel" data-pane="ops" hidden>
+      <section>
+        <h2>Danger zone</h2>
+        <div class="ops">
+          <button class="btn warn" id="reload" disabled>&#9851; Reload world (respawn spawners)</button>
+          <span class="note">persists every online player, then resets room creature spawns.</span>
+        </div>
+      </section>
 
-    <div class="cards">
-      <a class="card" href="/gm.html"><span class="t">&#128269; GM Console</span><span class="d">Read-only inspector: world, DB, live streams, world feed</span></a>
-      <a class="card" href="/characters.html"><span class="t">&#128101; Characters</span><span class="d">Sim &amp; test toon cleanup: browse, delete, jump into any character</span></a>
-      <a class="card" href="/sims.html"><span class="t">&#129489;&#8205;&#128187; Sim Players</span><span class="d">Run history &amp; grades, pacing charts, character leveling/skills tracker</span></a>
-      <a class="card" href="/jobs.html"><span class="t">&#128200; Sim logs</span><span class="d">Standalone tail viewer for sim runs and verify output</span></a>
-      <a class="card" href="/"><span class="t">&#127918; Play</span><span class="d">Launch the game client / spectator</span></a>
-      <a class="card" href="/ROADMAP.html"><span class="t">&#128202; Roadmap</span><span class="d">Feature tracker and status</span></a>
-      <a class="card" href="/SKILLS.html"><span class="t">&#128220; Skills reference</span><span class="d">All skills, categories, training</span></a>
+      <section>
+        <h2>GM access</h2>
+        <div class="agform" style="margin-bottom:0">
+          <label for="gm-token">DR_GM_TOKEN</label>
+          <input id="gm-token" type="password" placeholder="paste token" autocomplete="off" spellcheck="false">
+          <span id="gmflag" class="sub"></span>
+        </div>
+      </section>
+
+      <section>
+        <h2>Elsewhere</h2>
+        <div class="links">
+          <a href="/characters.html">&#128101; Characters — browse, delete, jump into any character</a>
+          <a href="/jobs.html">&#128200; Sim logs — tail viewer for sim runs</a>
+          <a href="/SKILLS.html">&#128220; Skills reference</a>
+          <a href="/gm.html">&#128269; GM Console — DB browser, live streams, world feed</a>
+          <a href="/">&#127918; Play — game client / spectator</a>
+        </div>
+      </section>
     </div>
   </main>
 

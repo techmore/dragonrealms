@@ -65,6 +65,18 @@ function toast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
 }
+
+// Tab switching for the dashboard's intent tabs. Pure presentation: panes
+// stay mounted so polling renders into hidden tabs without extra work.
+// Persisted, and deep-linkable via #tab=<name> (the banner's "Enter token"
+// fix button deep-links to the Ops tab).
+function gotoTab(name) {
+  document.querySelectorAll('.tabs [data-tab]').forEach((b) =>
+    b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  document.querySelectorAll('.tabpanel').forEach((p) =>
+    p.hidden = p.dataset.pane !== name);
+  try { localStorage.setItem('dr_admin_tab', name); } catch {}
+}
 // Sims-page agent panels (js/admin/agents.js) may ask this page to surface
 // a message (e.g. "live watch needs DR_GM_TOKEN") instead of opening a tab.
 window.addEventListener('message', (e) => {
@@ -81,5 +93,5 @@ async function gm(path) {
   } catch { return { code: 0, ok: false, d: null }; }
 }
 
-export { $, esc, trim, S, cssVar, fmtDur, fmtBytes, toast, gm };
+export { $, esc, trim, S, cssVar, fmtDur, fmtBytes, toast, gm, gotoTab };
 

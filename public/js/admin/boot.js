@@ -1,7 +1,7 @@
 // Dashboard wiring: GM quick-play buttons, the embedded player view, and
 // boot. Sim launch lives on /sims.html now; the dashboard only shows a
 // read-only "Sim players" roster block fed by render.js.
-import { $, esc, S, cssVar, fmtDur, toast, gm } from './core.js';
+import { $, esc, S, cssVar, fmtDur, toast, gm, gotoTab } from './core.js';
 import { tick, renderAll, renderHeader } from './render.js';
 import { AG_RACES, AG_GUILDS, cap } from './agents.js';
 // Player view (Watch overlay) lives in playerview.js, self-refreshing;
@@ -23,6 +23,28 @@ $('qp-guilds').querySelectorAll('[data-guild]').forEach((b) => b.addEventListene
 }));
 
 /* ================= wiring ================= */
+
+// Tabs: one click switches intent; last tab persists; #tab= deep-links.
+document.querySelectorAll('.tabs [data-tab]').forEach((b) =>
+  b.addEventListener('click', () => gotoTab(b.dataset.tab)));
+{
+  const applyHash = () => {
+    const m = location.hash.match(/^#tab=(\w+)/);
+    if (m) gotoTab(m[1]);
+  };
+  if (!applyHash()) {
+    const saved = localStorage.getItem('dr_admin_tab');
+    if (saved) gotoTab(saved);
+  }
+  // Same-document navigation (#tab=x on a loaded page) fires no reload —
+  // follow hash changes live so back-forward and manual edits work.
+  window.addEventListener('hashchange', applyHash);
+}
+// The key button jumps to the GM access panel when something's wrong.
+$('gm-status').addEventListener('click', () => {
+  if (S.gm !== 'ok') gotoTab('ops');
+  else toast('GM connected — token panel lives in Ops.');
+});
 
 function startMaster() {
   clearInterval(S.timers.master);
@@ -87,22 +109,18 @@ async function loadScripts() {
       <div class="metric">avg ranks <b>${v.avgRanks ?? '—'}</b></div>
       <div class="metric">healthy <b>${v.healthyPct}%</b></div>
       <div class="spacer"></div>
-      <button class="open-btn" data-variant="${esc(v.name)}" title="open scripts/lib/script-gen.mjs">view script</button>
+      <a class="open-btn" href="/sims.html" title="run history & grades on the Sims page">history</a>
     </div>`;
   }).join('');
 
-  $('scriptsList').querySelectorAll('.open-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      // Open the script-gen file in a new tab — the variant logic lives there
-      window.open('/admin.html#scriptsSection', '_blank');
+  if (!$('openScriptsFolder').dataset.bound) {
+    $('openScriptsFolder').dataset.bound = '1';
+    $('openScriptsFolder').addEventListener('click', () => {
+      // Tell the server to open the scripts folder in Finder
+      fetch('/api/gm/scripts?open=1').catch(() => {});
+      toast('Opening scripts/ in Finder…');
     });
-  });
-
-  $('openScriptsFolder').addEventListener('click', () => {
-    // Tell the server to open the scripts folder in Finder
-    fetch('/api/gm/scripts?open=1').catch(() => {});
-    toast('Opening scripts/ in Finder…');
-  });
+  }
 }
 
 /* ---- player view lives in playerview.js ---- */

@@ -1,6 +1,6 @@
 // Polling loop and all dashboard rendering: health/status/summary
 // fetches, vitals + sparklines, roster, zones drill-down, high scores.
-import { $, esc, trim, S, cssVar, fmtDur, fmtBytes, toast, gm } from './core.js';
+import { $, esc, trim, S, cssVar, fmtDur, fmtBytes, toast, gm, gotoTab } from './core.js';
 import { openPlayerView } from './playerview.js';
 
 /* ================= high scores ================= */
@@ -99,19 +99,57 @@ export async function loadWorld() {
 
 export function renderAll() {
   renderHeader();
+  renderBanner();
   renderVitals();
   renderLoad();
   renderRoster();
   renderZones();
   const flag = $('gmflag');
-  flag.textContent = S.gm === 'ok' ? 'GM: connected'
-    : S.gm === 'off' ? 'GM: no token'
-    : S.gm === 'locked' ? 'GM: TOKEN REJECTED — paste fresh'
-    : S.gm === 'notconf' ? 'GM: not configured on server'
-    : 'GM: unreachable';
+  flag.textContent = S.gm === 'ok' ? 'connected'
+    : S.gm === 'off' ? 'no token'
+    : S.gm === 'locked' ? 'TOKEN REJECTED'
+    : S.gm === 'notconf' ? 'not configured on server'
+    : 'unreachable';
   flag.style.color = S.gm === 'ok' ? 'var(--green)' : 'var(--red)';
+  // The key button mirrors GM health so it reads without visiting the Ops tab.
+  const gmBtn = $('gm-status');
+  const gmState = { ok: ['ok', 'var(--green)'], off: ['', 'var(--dim)'],
+    pending: ['…', 'var(--dim)'], locked: ['!', 'var(--red)'],
+    notconf: ['!', 'var(--red)'], err: ['?', 'var(--red)'] }[S.gm] || ['', 'var(--dim)'];
+  gmBtn.innerHTML = '&#128273; GM' + (gmState[0] ? ' ' + gmState[0] : '');
+  gmBtn.style.borderColor = gmState[1];
+  gmBtn.style.color = gmState[1];
   $('worldref').disabled = !(S.gm === 'ok');
   $('reload').disabled = !(S.gm === 'ok');
+}
+
+// ONE banner answers "does anything need me?" — world down, bad token,
+// unconfigured server. Hidden when everything is fine: silence = healthy.
+function renderBanner() {
+  const b = $('banner');
+  if (!b) return;
+  b.className = '';
+  if (!S.up) {
+    b.innerHTML = `<span class="what"><b>World is offline.</b>
+      Start it from the menu-bar app, or <code>launchctl kickstart -k gui/$(id -u)/com.dragonrealms.world</code>.</span>`;
+    b.classList.add('show');
+    return;
+  }
+  if (S.gm === 'pending') return; // still checking — stay quiet
+  if (S.gm === 'locked') {
+    b.className = 'show';
+    b.innerHTML = `<span class="what"><b>GM token rejected.</b> Paste the exact
+      <code>DR_GM_TOKEN</code> (menu-bar app &#8594; copy, or <code>/tmp/dr-world-token-*.json</code>).</span>
+      <button class="fix" id="bn-fix-token">Enter token</button>`;
+    document.getElementById('bn-fix-token').onclick = () => gotoTab('ops');
+    return;
+  }
+  if (S.gm === 'notconf') {
+    b.className = 'warn show';
+    b.innerHTML = `<span class="what"><b>GM API not configured on this server.</b>
+      Set <code>DR_ENABLE_API=1</code> and <code>DR_GM_TOKEN</code>, then restart the world.</span>`;
+    return;
+  }
 }
 
 export function renderHeader() {
@@ -123,7 +161,14 @@ export function renderHeader() {
     : null;
   $('uptime').textContent = '\u23F3 ' + (up != null ? fmtDur(up) : (S.up ? 'uptime n/a' : '—'));
   $('updated').textContent = S.updatedAgo == null ? '' : ('updated ' + S.updatedAgo + 's ago');
+
+  // Headline numbers: online + fighting, straight in the header.
   const n = Object.keys(S.base).length;
+  const sum = S.summary;
+  const fighting = sum ? sum.online.filter((p) => p.inCombat).length : null;
+  const ho = $('hs-online'), hf = $('hs-fighting');
+  if (ho) ho.textContent = String(n);
+  if (hf) hf.textContent = fighting != null ? String(fighting) : (S.up ? '0' : '—');
   document.title = (n ? `(${n}) ` : '') + 'Dragon Realms — Admin';
 }
 
@@ -270,6 +315,9 @@ function renderRoster() {
   $('rostersum').textContent = list.length
     ? `${adventurers.length} adventurer${adventurers.length === 1 ? '' : 's'} · ${sims.length} sim${sims.length === 1 ? '' : 's'}`
     : '';
+  // Tab badge: total online.
+  const cntEl = $('cnt-players');
+  if (cntEl) cntEl.textContent = list.length || '';
 
   // Sims render in their own block at the top of the section.
   const rowHtml = (p, isSim) => `
@@ -283,14 +331,18 @@ function renderRoster() {
       <button class="watch tab" data-name="${esc(p.name)}" data-charid="${esc(p.charId || '')}" title="open the full client in a new tab">\u2197</button>
     </div>`;
   const simsEl = $('simsroster');
+  const simsEmpty = $('simsempty');
   if (sims.length) {
     simsEl.hidden = false;
+    if (simsEmpty) simsEmpty.hidden = true;
     $('simssum').textContent = `${sims.length} running`;
     simsEl.innerHTML = sims.map((p) => rowHtml(p, true)).join('');
     bindRosterButtons(simsEl);
   } else {
     simsEl.hidden = true;
     simsEl.innerHTML = '';
+    if (simsEmpty) simsEmpty.hidden = false;
+    $('simssum').textContent = 'none';
   }
 
   if (!adventurers.length) {
