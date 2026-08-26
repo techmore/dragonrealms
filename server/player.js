@@ -101,6 +101,8 @@ function persistentStateFor(p) {
     debt: Number.isFinite(p.debt) ? p.debt : 0,
     workOrder: p.workOrder && typeof p.workOrder === 'object' ? p.workOrder : null,
     craftTechs: p.craftTechs && typeof p.craftTechs === 'object' ? p.craftTechs : {},
+    sleep: SLEEP_STATES.includes(p.sleep) ? p.sleep : 'awake',
+    deepSleepSince: Number.isFinite(p.deepSleepSince) ? p.deepSleepSince : null,
     cooldowns,
   };
 }
@@ -240,6 +242,10 @@ export function loadPlayer(charId) {
     workOrder: persisted.workOrder && typeof persisted.workOrder === 'object' ? persisted.workOrder : null,
     craftTechs: persisted.craftTechs && typeof persisted.craftTechs === 'object' ? persisted.craftTechs : {},
     buffs: {},
+    // Sleep state persists across logins: a character who logged off in deep
+    // sleep wakes in deep sleep, and their banked deep-sleep time survives.
+    sleep: SLEEP_STATES.includes(persisted.sleep) ? persisted.sleep : 'awake',
+    deepSleepSince: Number.isFinite(persisted.deepSleepSince) ? persisted.deepSleepSince : null,
     // runtime
     online: false,
     ws: null,
@@ -547,6 +553,9 @@ export function pulseFraction(p, skillId) {
 // pulses. Trainers and TDP spending use applyExpToSkill directly instead.
 export function gainSkillExp(p, skillId, amount) {
   if (!SKILLS[skillId]) return 0;
+  // Sleep gates learning: light sleep holds the mind still (pools neither
+  // grow nor gain new exp), deep sleep even more so. DR Experience.md.
+  if (p.sleep === 'light' || p.sleep === 'deep') return 0;
   let amt = Math.max(0, Math.floor(amount));
   if (amt <= 0) return 0;
   // Keen (swiftness draught): alchemical learning aid — +50% skill experience
@@ -601,12 +610,34 @@ export function expGroupFor(skillId) {
   return pulseGroupFor(skillId);
 }
 
+// ---------------- Sleep (DR Experience.md, REXP section) ----------------
+// `sleep` once = LIGHT: stop gaining new field exp, keep draining pools,
+// REXP still consumed by pulses. `sleep` again = DEEP: no gaining AND no
+// draining; REXP banks at the standard 2:1 while deep. `wake` exits.
+export const SLEEP_STATES = ['awake', 'light', 'deep'];
+
+export function setSleep(p, state) {
+  p.sleep = SLEEP_STATES.includes(state) ? state : 'awake';
+  return p.sleep;
+}
+
+// REXP accrual for time spent in deep sleep (2 minutes awake-equivalent per
+// 1 minute banked — same 2:1 ratio as offline banking).
+export function bankDeepSleepRexp(p, ms) {
+  if (ms <= 0) return 0;
+  const gained = Math.floor(ms / 120000);
+  if (gained > 0) p.rexp = Math.min(REXP_CAP, (p.rexp || 0) + gained);
+  return gained;
+}
+
 // The server pulse: on each phase, only the matching group converts a
 // fraction of its pools into ranks. `tick` derives from wall clock
 // (stateless across restarts). Omitting tick flushes every group immediately
 // (logout/save paths). REXP makes drained bits worth 3x ranks while active.
 export function pulseExp(p, tick) {
   if (!p.expPools) return 0;
+  // Deep sleep suspends draining entirely (DR: no gain, no drain, REXP banks).
+  if (p.sleep === 'deep') return 0;
   let pulsed = 0;
   const phase = tick === undefined ? null : ((tick % 10) + 10) % 10;
   for (const [skillId, pool] of Object.entries(p.expPools)) {

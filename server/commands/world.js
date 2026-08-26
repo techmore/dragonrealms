@@ -8,7 +8,7 @@ import { npcById } from '../../data/npcs.js';
 import { barbarianAbilityById, FORGET_COOLDOWN_MS } from '../../data/abilities.js';
 import { gainSkillExp, addItem, skillRank } from '../player.js';
 import { itemById } from '../../data/items.js';
-import { setAlias, removeAlias, setRoundtime } from '../player.js';
+import { setAlias, removeAlias, setRoundtime, setSleep, bankDeepSleepRexp } from '../player.js';
 import { pad, matchSkill, findNpcByName, findInventoryItem, broadcastRoom, gameTime } from './util.js';
 
 // Thief Passages: chalk-sign ways out of the Dark Knot (name -> destination).
@@ -270,8 +270,48 @@ export const commands = {
     emit(res.msg);
   },
 
+  // sleep / sleep again / wake — DR's light/deep sleep (Experience.md):
+  // LIGHT: stop gaining field exp, pools keep draining, REXP still used.
+  // DEEP: no gaining AND no draining; REXP banks at the standard 2:1.
+  sleep(ctx) {
+    const { game, p, emit } = ctx;
+    if (p.combatId) return emit('You cannot sleep in the middle of a fight!');
+    const from = p.sleep || 'awake';
+    if (from === 'awake') {
+      setSleep(p, 'light');
+      emit('You settle down and let your mind drift. Light sleep: you will absorb nothing new, but what you have learned will settle.');
+    } else if (from === 'light') {
+      p.deepSleepSince = Date.now();
+      setSleep(p, 'deep');
+      emit('You sink into deep sleep. Your experiences will wait, and your rest will bank toward later learning.');
+    } else {
+      const banked = bankDeepSleepRexp(p, Date.now() - (p.deepSleepSince || Date.now()));
+      p.deepSleepSince = null;
+      setSleep(p, 'light');
+      emit(`You surface into light sleep.${banked > 0 ? ` Your rest banks ${banked} minute(s) of rested experience.` : ''}`);
+    }
+  },
+
+  wake(ctx) {
+    const { game, p, emit } = ctx;
+    if (p.restTimer) game.stopRest(p);
+    const from = p.sleep || 'awake';
+    if (from === 'deep') {
+      const banked = bankDeepSleepRexp(p, Date.now() - (p.deepSleepSince || Date.now()));
+      p.deepSleepSince = null;
+      setSleep(p, 'awake');
+      emit(`You wake, refreshed.${banked > 0 ? ` Your deep sleep banked ${banked} minute(s) of rested experience.` : ''}`);
+    } else if (from === 'light') {
+      setSleep(p, 'awake');
+      emit('You wake fully, ready to take on the world.');
+    } else {
+      emit('You are already awake.');
+    }
+  },
+
   stand: standUp,
-  wake: standUp,
+  // `wake` is the real sleep-aware handler above — it exits light/deep sleep
+  // and banks deep-sleep REXP; it also stands you up if you were resting.
 
   study(ctx) {
     const { p, emit } = ctx;
