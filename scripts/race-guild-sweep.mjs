@@ -160,9 +160,13 @@ class SweepAgent {
     this.hallEvery = Math.max(variant?.hallEvery ?? 4, 1);
     this.arenaBand = Math.max(variant?.arenaBand ?? 2, 0);
     const vTag = this.variantName ? '-' + String(this.variantName).replace(/[^a-z0-9]/gi, '').slice(0, 4) : '';
+    // Per-AGENT suffix (not per-RUN): benchmark repeats reuse RUN_ID, so two
+    // repeats of the same variant must never share a character — repeat 2
+    // would inherit repeat 1's ranks and poison the leveling-lab splits.
+    const agentTag = '-' + Math.random().toString(36).slice(2, 6);
     this.char = (('Sw' + guild[0].toUpperCase() + guild.slice(1).replace(/[^a-zA-Z]/g, '')
-      + race[0].toUpperCase() + race.slice(1).replace(/[^a-zA-Z]/g, '')).replace(/[^a-zA-Z]/g, '').slice(0, 15 - vTag.length)
-    ) + vTag + '-' + RUN_ID;
+      + race[0].toUpperCase() + race.slice(1).replace(/[^a-zA-Z]/g, '')).replace(/[^a-zA-Z]/g, '').slice(0, 15 - vTag.length - agentTag.length)
+    ) + vTag + agentTag + '-' + RUN_ID;
     // Keep RUN_ID intact in the username (never blind-slice it off the end):
     // shorten guild/race instead so distinct runs never share an account.
     this.user = `sw_${guild}_${race}_${RUN_ID}`;
