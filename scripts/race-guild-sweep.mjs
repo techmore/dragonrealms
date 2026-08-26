@@ -960,6 +960,44 @@ class SweepAgent {
     return `[progress] ${mins}m circle ${v.circle} hp ${v.hp}/${v.maxhp} kills ${this.kills} circles ${this.circles} trains ${this.trains} deaths ${this.deaths} boost x${BOOST} fidelity:${JSON.stringify(this.fidelity)} [room ${v.room}] ${verdictLabel(this.liveVerdict.verdict, this.liveVerdict.reason, 90)}`;
   }
 
+  // Per-minute circle-readiness snapshot. The single most useful number in a
+  // progression run is "what is still blocking the next circle, and is that
+  // shortfall shrinking?" — kills/hour can look great while a run is
+  // permanently blocked on one unreachable slot. Computed from the mindstate
+  // ranks we already receive (no extra game commands, so no RT cost) against
+  // the same circleRequirements() table the server gates on.
+  //
+  // Emits, every minute:
+  //   [gaps] 4m circle 1->2 blocked:5 shortfall:10 | 1st supernatural 0/2,
+  //          2nd weapon 5/8, 1st armor 5/6, ...
+  // A flat `shortfall` across the whole run is the signature of a structural
+  // blocker (e.g. barbarians with no way to train any supernatural skill)
+  // rather than a slow grind.
+  gapsLine() {
+    const v = this.session.vitals;
+    const mins = Math.round((Date.now() - this.startedAt) / 60000);
+    const shaped = Object.fromEntries(
+      Object.entries(v.skills || {}).map(([id, rank]) => [id, { rank }]));
+    const target = (v.circle || 1) + 1;
+    let res;
+    try {
+      res = circleRequirements({ id: this.guild }, shaped, target);
+    } catch {
+      return null; // unknown guild — nothing useful to report
+    }
+    const parsed = res.missing.map((m) => {
+      const need = Number(m.match(/rank (\d+)/)?.[1] || 0);
+      const have = Number(m.match(/(?:you have|is) (\d+)/)?.[1] || 0);
+      const what = m.replace(/ at least rank.*$/, '');
+      return { what, need, have, short: Math.max(0, need - have) };
+    });
+    const shortfall = parsed.reduce((s, g) => s + g.short, 0);
+    const worst = parsed.slice().sort((a, b) => b.short - a.short).slice(0, 6)
+      .map((g) => `${g.what} ${g.have}/${g.need}`).join(', ');
+    const totalRanks = Object.values(v.skills || {}).reduce((s, r) => s + (r || 0), 0);
+    return `[gaps] ${mins}m circle ${v.circle}->${target} blocked:${parsed.length} shortfall:${shortfall} ranks:${totalRanks} | ${worst}`;
+  }
+
   async finish(reason) {
     if (this.done) return;
     this.done = true;
@@ -967,6 +1005,10 @@ class SweepAgent {
     this.session.close();
     this.updateStallVerdict(); // final classification for this run
     this.appendLog(this.progressLine());
+    // Why didn't this run circle? Record the final blocking set so a run's own
+    // log answers that without re-deriving it from mindstate afterwards.
+    const finalGaps = this.gapsLine();
+    if (finalGaps) this.appendLog(finalGaps.replace('[gaps]', '[gaps-final]'));
     this.appendLog(`=== Results (${GUILDS[this.guild]?.name}${this.variantName ? ` [${this.variantName}]` : ''}) ===`);
     this.appendLog(`  ${reason}: circle ${this.session.vitals.circle}, ${this.circles} circle-ups, ${this.kills} kills, ${this.deaths} deaths`);
     const checksPassed = Object.keys(this.fidelity).length;
@@ -1084,8 +1126,18 @@ class SweepAgent {
     this.lowHpSince = null;
     this.liveVerdict = { verdict: 'healthy', reason: 'warming up' };
     const PROGRESS = setInterval(() => { if (!this.done) this.appendLog(this.progressLine()); }, 30000);
+    // Circle-gap tracking, once a minute: shows exactly which requirements
+    // still block the next circle and whether the shortfall is closing.
+    const GAPS = setInterval(() => {
+      if (this.done) return;
+      const line = this.gapsLine();
+      if (line) this.appendLog(line);
+    }, 60000);
     const HB = setInterval(() => this.heartbeat(), 1000);
-    setTimeout(() => { clearInterval(PROGRESS); clearInterval(HB); this.finish(`--minutes ${minutes} elapsed`); }, minutes * 60000);
+    setTimeout(() => {
+      clearInterval(PROGRESS); clearInterval(GAPS); clearInterval(HB);
+      this.finish(`--minutes ${minutes} elapsed`);
+    }, minutes * 60000);
   }
 }
 

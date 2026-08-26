@@ -928,6 +928,28 @@ say(t, text, 'combat');
   }
 
   useAbility(def, targetUid) {
+    // DR fidelity: barbarian Inner Fire abilities train a SUPERNATURAL skill
+    // alongside Inner Fire itself — Barbarian.md: berserks and forms "Will
+    // train Inner Fire, and then either Augmentation or Warding". Without
+    // this, barbarians could never gain a single supernatural rank (they have
+    // no mana and never cast, so the spellcasting afterCast() trickle that
+    // feeds augmentation/warding/etc. is unreachable for them) — while the
+    // circle table demands "1st Supernatural" from circle 2 onward. That made
+    // circling MATHEMATICALLY IMPOSSIBLE for the guild: sweep characters
+    // reached 524 total ranks and still failed, blocked only on that slot.
+    // Wrapping the dispatch (rather than editing each case) guarantees every
+    // ability path trains it, including ones added later.
+    // Defensive / anti-magic arts lean Warding; the rest lean Augmentation,
+    // mirroring the wiki's per-path split.
+    const res = this._useAbilityInner(def, targetUid);
+    if (res?.ok && this.player.guild.id === 'barbarian') {
+      const WARDING = new Set(['tenacity', 'serenity', 'dispel', 'mages_lash']);
+      gainSkillExp(this.player, WARDING.has(def.id) ? 'warding_magic' : 'augmentation', 10);
+    }
+    return res;
+  }
+
+  _useAbilityInner(def, targetUid) {
     const p = this.player;
     const msg = (s) => ({ ok: true, msg: s });
     switch (def.id) {
