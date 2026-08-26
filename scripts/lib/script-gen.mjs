@@ -194,10 +194,15 @@ function buildHuntScript({ cap, arena, hallPath }) {
       L.push('  wait');
     }
     if (cfg.signature && cfg.signature.probe === 'ability') {
-      // Signature guild ability: fire it every few swings; failure prose
-      // (not learned / no voice) still counts as a fidelity observation.
-      L.push(`  put ${cfg.signature.cmd}`);
-      L.push('  wait');
+      // Signature guild ability. Skipped when preFight already fires it: the
+      // post-swing slot lands inside the roundtime charged by the attack, so
+      // the server refuses it every time (417 refused roars in one measured
+      // run). Guilds that declare it in preFight get it as an opener instead.
+      const inPreFight = (cfg.preFight || []).some((s) => s.includes(cfg.signature.cmd));
+      if (!inPreFight) {
+        L.push(`  put ${cfg.signature.cmd}`);
+        L.push('  wait');
+      }
     }
     if (cfg.signature && cfg.signature.probe === 'appraise') {
       // Trader identity: appraise the foe's remains between swings.

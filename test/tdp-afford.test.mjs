@@ -94,15 +94,27 @@ test('barbarian fight loop relies on engine WAIT semantics (no hand pauses)', ()
     cap: { guild: 'barbarian', race: 'human', char: 'T', scriptBase: 'tb', bazaarPath: [] },
     arena: { id: 'sewers_1', fromArmed: [], fromHere: [{ dir: 'e' }] },
   });
-  // The swing block flows straight into skin/signature — the ENGINE parks
-  // RT-blocked verbs and applies them when roundtime clears.
+  // The swing block flows straight into skin — the ENGINE parks RT-blocked
+  // verbs and applies them when roundtime clears, so no hand-tuned pauses.
   const fightIdx = src.indexOf('FIGHT_NOW:');
   const skinIdx = src.indexOf('put skin ', fightIdx);
-  const roarIdx = src.indexOf('put roar', skinIdx);
   assert.ok(skinIdx > fightIdx, 'skin follows the swings');
-  assert.ok(roarIdx > skinIdx, 'signature follows skin');
-  const seg = src.slice(fightIdx, roarIdx);
+  const seg = src.slice(fightIdx, skinIdx);
   assert.ok(!/pause/.test(seg), `no hand-tuned pauses between fight verbs, saw: ${seg}`);
+
+  // The signature ability is an OPENER, not a post-swing step. This assertion
+  // was originally the reverse (`roar` after `skin`), which encoded a real
+  // bug: attack charges 3s of roundtime, so a roar queued behind the swings is
+  // refused every time — measured at 417 refused roars in a single live run,
+  // with the roar-ability fidelity check never passing and the augmentation
+  // pool (the only route to the "1st Supernatural" circle requirement for a
+  // manaless guild) stuck at 0 even after the ability was learned.
+  const roarIdx = src.indexOf('put roar');
+  assert.ok(roarIdx >= 0, 'the signature ability still appears in the script');
+  assert.ok(roarIdx < src.indexOf('put attack'),
+    'signature ability fires BEFORE the swings (RT is clear at fight start)');
+  assert.equal((src.match(/put roar/g) || []).length, 1,
+    'fired once as an opener, not duplicated as a post-swing probe');
 });
 
 test('engine parks a put fired during roundtime and applies it after', async () => {
