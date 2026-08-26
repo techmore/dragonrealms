@@ -318,6 +318,41 @@
       </div>
     </section>
 
+    <!-- ===================== SCRIPTS ===================== -->
+    <section id="scriptsSection">
+      <h2>Script Variants <span class="right sub" id="scriptsSum">loading…</span></h2>
+      <div id="scriptsList" class="note">loading…</div>
+      <div style="margin-top:12px">
+        <button class="btn" id="openScriptsFolder">&#128193; Open scripts folder</button>
+        <span class="sub" style="margin-left:8px">scripts/ + scripts/lib/</span>
+      </div>
+      <style>
+        .script-row {
+          display: flex; align-items: center; gap: 10px; padding: 8px 4px;
+          border-top: 1px solid var(--line); font-size: 12px;
+        }
+        .script-row:first-of-type { border-top: none; }
+        .script-row .nm { min-width: 100px; font-weight: bold; color: var(--amber); }
+        .script-row .gd { min-width: 40px; text-align: center; }
+        .script-row .metric { color: var(--dim); font-size: 11px; }
+        .script-row .metric b { color: var(--text); }
+        .script-row .spacer { flex: 1; }
+        .script-row .open-btn {
+          background: var(--panel-inset); border: 1px solid var(--line); border-radius: 5px;
+          color: var(--text); padding: 3px 8px; cursor: pointer; font: inherit; font-size: 11px;
+        }
+        .script-row .open-btn:hover { border-color: var(--amber); color: var(--amber); }
+        .script-rank {
+          width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center;
+          justify-content: center; font-size: 11px; font-weight: bold;
+        }
+        .script-rank.r1 { background: var(--amber); color: #000; }
+        .script-rank.r2 { background: #c0c0c0; color: #000; }
+        .script-rank.r3 { background: #cd7f32; color: #000; }
+        .script-rank.rn { background: var(--panel-inset); color: var(--dim); }
+      </style>
+    </section>
+
     <!-- ===================== OPS ===================== -->
     <section>
       <h2>Operations</h2>

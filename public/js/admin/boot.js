@@ -63,6 +63,48 @@ $('reload').addEventListener('click', async () => {
   tick(true);
 });
 
+/* ---- scripts tab ---- */
+async function loadScripts() {
+  const r = await gm('scripts');
+  if (!r.ok || !r.d?.variants) {
+    $('scriptsList').innerHTML = '<span class="note">no script data yet — run a benchmark first</span>';
+    $('scriptsSum').textContent = '';
+    return;
+  }
+  const { variants, scriptsDir, libDir } = r.d;
+  $('scriptsSum').textContent = `${variants.length} variants`;
+  if (!variants.length) {
+    $('scriptsList').innerHTML = '<span class="note">no benchmark data — run --benchmark &lt;guild&gt; first</span>';
+    return;
+  }
+  $('scriptsList').innerHTML = variants.map((v, i) => {
+    const rank = i === 0 ? 'r1' : i === 1 ? 'r2' : i === 2 ? 'r3' : 'rn';
+    return `<div class="script-row">
+      <div class="script-rank ${rank}">${i + 1}</div>
+      <div class="nm">${esc(v.name)}</div>
+      <div class="metric">runs <b>${v.runs}</b></div>
+      <div class="metric">avg kills <b>${v.avgKills}</b></div>
+      <div class="metric">avg ranks <b>${v.avgRanks ?? '—'}</b></div>
+      <div class="metric">healthy <b>${v.healthyPct}%</b></div>
+      <div class="spacer"></div>
+      <button class="open-btn" data-variant="${esc(v.name)}" title="open scripts/lib/script-gen.mjs">view script</button>
+    </div>`;
+  }).join('');
+
+  $('scriptsList').querySelectorAll('.open-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      // Open the script-gen file in a new tab — the variant logic lives there
+      window.open('/admin.html#scriptsSection', '_blank');
+    });
+  });
+
+  $('openScriptsFolder').addEventListener('click', () => {
+    // Tell the server to open the scripts folder in Finder
+    fetch('/api/gm/scripts?open=1').catch(() => {});
+    toast('Opening scripts/ in Finder…');
+  });
+}
+
 /* ---- player view lives in playerview.js ---- */
 
 setInterval(() => {
@@ -79,3 +121,4 @@ document.addEventListener('visibilitychange', () => {
 
 startMaster();
 tick(true);
+loadScripts();

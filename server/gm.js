@@ -13,6 +13,10 @@ import { RACES } from '../data/races.js';
 import { SKILLS } from '../data/skills.js';
 import { KHRI } from '../data/khri.js';
 import { db } from './db.js';
+import { DatabaseSync } from 'node:sqlite';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { exec } from 'child_process';
 import { loadPlayer } from './player.js';
 import { bearerToken, secretMatches, isGmToken } from './http-auth.js';
 
@@ -57,9 +61,46 @@ export function gmRequest(req, res, game, { gmToken = process.env.DR_GM_TOKEN } 
     case 'players-online': return json(res, 200, { ok: true, players: onlineView(game) });
     case 'admin': return gmAdmin(res, game, parts[1]);
     case 'db': return gmDb(res, game, parts[1], url.searchParams.get('q'));
+    case 'scripts': return gmScripts(res, url.searchParams.get('open'));
     default:
       return json(res, 404, { ok: false, error: 'Unknown GM endpoint. Try /api/gm/summary' });
   }
+}
+
+// Script variant metadata + performance rankings for the admin Scripts tab.
+// Reads sweeps.db for per-variant stats and merges with the static VARIANTS map.
+function gmScripts(res, openFolder) {
+  const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+  const LIVE = join(ROOT, 'public', 'live');
+
+  // Open the scripts folder in Finder (macOS)
+  if (openFolder) {
+    exec(`open "${join(ROOT, 'scripts')}"`, () => {});
+    return json(res, 200, { ok: true, opened: true });
+  }
+
+  const variants = [];
+  try {
+    const db = new DatabaseSync(join(LIVE, 'sweeps.db'), { readOnly: true });
+    const rows = db.prepare(`SELECT variant, COUNT(*) as runs, AVG(kills) as avgKills, AVG(totalRanks) as avgRanks, SUM(CASE WHEN stallVerdict = 'healthy' THEN 1 ELSE 0 END) as healthy FROM sweeps WHERE variant IS NOT NULL GROUP BY variant ORDER BY avgKills DESC`).all();
+    for (const r of rows) {
+      variants.push({
+        name: r.variant,
+        runs: r.runs,
+        avgKills: Math.round(r.avgKills * 10) / 10,
+        avgRanks: r.avgRanks ? Math.round(r.avgRanks * 10) / 10 : null,
+        healthyPct: Math.round(r.healthy / r.runs * 100),
+      });
+    }
+    db.close();
+  } catch {}
+
+  return json(res, 200, {
+    ok: true,
+    variants,
+    scriptsDir: join(ROOT, 'scripts'),
+    libDir: join(ROOT, 'scripts', 'lib'),
+  });
 }
 
 function grade(g) { return g && g.badge; }
