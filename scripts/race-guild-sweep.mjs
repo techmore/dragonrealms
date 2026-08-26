@@ -22,6 +22,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { openSweepsDb, insertSweep } from './lib/sweeps-db.mjs';
 import { classifyStall, verdictLabel } from './lib/stall-detect.mjs';
 import { circleRequirements } from '../data/guilds.js';
+// Display-name -> skill-id map for parsing `exp` output. showExp() prints the
+// human label ("Parry Ability", "Melee Mastery"), not the id.
+const { SKILLS } = await import('../data/skills.js');
+const SKILL_ID_BY_NAME = Object.fromEntries(
+  Object.values(SKILLS).map((s) => [String(s.name).toLowerCase(), s.id]));
+
 
 const ARGS = process.argv.slice(2);
 const flag = (name, dflt) => {
@@ -592,6 +598,21 @@ class SweepAgent {
         // the blocking skills instead of the generic curriculum.
         this.regenerateScripts();
       }
+      // Rank ledger from `exp` output. The generated hunt script already runs
+      // `put exp` each scan cycle, and showExp() prints EVERY skill the
+      // character has ("  Parry Ability   rank 5  0%   clear"), unlike the
+      // mindstate feed which omits any skill with an empty pool.
+      // DISPLAY NAME != SKILL ID: "Parry Ability" -> parry, "Melee Mastery" ->
+      // melee_mastery. Naively snake-casing the label yields parry_ability,
+      // which circleRequirements() does not know, so the rank silently reads
+      // as 0. Resolve through the SKILLS table's real names instead.
+      const plainExp = stripAnsi(text);
+      if (/\brank \d+/.test(plainExp)) {
+        for (const m of plainExp.matchAll(/^\s{2}(\S.*?)\s{2,}rank (\d+)/gm)) {
+          const id = SKILL_ID_BY_NAME[m[1].trim().toLowerCase()];
+          if (id) (this.expRanks ||= {})[id] = Number(m[2]);
+        }
+      }
       // Rank-gap ledger: remember what circling demanded and how far short we
       // fell ("expertise at least rank 4 (you have 2)"). The supervisor uses
       // it to skip pointless hall trips until ranks actually move.
@@ -976,8 +997,19 @@ class SweepAgent {
   gapsLine() {
     const v = this.session.vitals;
     const mins = Math.round((Date.now() - this.startedAt) / 60000);
+    // Rank source, in order of trustworthiness:
+    //  1. expRanks — parsed from `exp` output ("Expertise  rank 5  40% ...").
+    //     AUTHORITATIVE: showExp() lists every skill the character has.
+    //  2. vitals.skills — the mindstate feed. INCOMPLETE BY DESIGN: status.js
+    //     skips any skill whose pool is empty (`if (!def || pool <= 0)
+    //     continue`), because mindstate is a "currently learning" pane. A
+    //     skill that has fully converted its exp into ranks DISAPPEARS from
+    //     it. Treating absent-as-zero made this line report "parry 0/8" for a
+    //     character the DB showed at parry rank 5 — a tracking bug, not a
+    //     training one, and it sent me chasing a non-existent blocker.
+    const skills = { ...(v.skills || {}), ...(this.expRanks || {}) };
     const shaped = Object.fromEntries(
-      Object.entries(v.skills || {}).map(([id, rank]) => [id, { rank }]));
+      Object.entries(skills).map(([id, rank]) => [id, { rank }]));
     const target = (v.circle || 1) + 1;
     let res;
     try {
@@ -994,8 +1026,9 @@ class SweepAgent {
     const shortfall = parsed.reduce((s, g) => s + g.short, 0);
     const worst = parsed.slice().sort((a, b) => b.short - a.short).slice(0, 6)
       .map((g) => `${g.what} ${g.have}/${g.need}`).join(', ');
-    const totalRanks = Object.values(v.skills || {}).reduce((s, r) => s + (r || 0), 0);
-    return `[gaps] ${mins}m circle ${v.circle}->${target} blocked:${parsed.length} shortfall:${shortfall} ranks:${totalRanks} | ${worst}`;
+    const totalRanks = Object.values(skills).reduce((s, r) => s + (r || 0), 0);
+    const src = this.expRanks ? 'exp' : 'mindstate';
+    return `[gaps] ${mins}m circle ${v.circle}->${target} blocked:${parsed.length} shortfall:${shortfall} ranks:${totalRanks} src:${src} | ${worst}`;
   }
 
   async finish(reason) {
