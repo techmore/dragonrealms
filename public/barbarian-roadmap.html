@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dragon Realms — Barbarian Scripting Roadmap</title>
+<style>
+  :root {
+    --bg: #14100e; --panel: #1d1815; --edge: #332a24; --text: #e8ddd0;
+    --dim: #9c8c7a; --accent: #b5651d; --green: #4a7a3a; --amber: #b08a2e; --red: #8a3a3a;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Segoe UI", sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  a { color: #d99a55; text-decoration: none; } a:hover { text-decoration: underline; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.15rem; margin: 2.2rem 0 .6rem; padding-bottom: .3rem; border-bottom: 1px solid var(--edge); }
+  h3 { font-size: 1rem; margin: 1.2rem 0 .4rem; color: var(--accent); }
+  code { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 0 4px; font-size: .87em; }
+  pre { background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; padding: .75rem 1rem;
+        overflow-x: auto; font-size: .85em; line-height: 1.5; }
+  pre code { border: none; padding: 0; background: none; }
+  table { border-collapse: collapse; width: 100%; margin: .75rem 0; font-size: .9em; }
+  th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--edge); }
+  th { color: var(--dim); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .sub { color: var(--dim); margin: 0 0 1.5rem; }
+  .pill { display: inline-block; border-radius: 10px; padding: 0 8px; font-size: .72rem; font-weight: 700;
+          letter-spacing: .04em; text-transform: uppercase; vertical-align: middle; }
+  .done  { background: var(--green); color: #eaf2e6; }
+  .now   { background: var(--amber); color: #fff8e6; }
+  .next  { background: var(--red);   color: #fbeaea; }
+  .metric-good { color: #8fbf7f; } .metric-warn { color: #d9b95c; }
+  ul { margin: .4rem 0; padding-left: 1.3rem; } li { margin: .25rem 0; }
+</style>
+</head>
+<body>
+<h1>&#128009; Barbarian Scripting Roadmap</h1>
+<p class="sub">Kaizen status of the barbarian progression sim — where we are, what's measured, what's next.
+Companion page: <a href="/sim-architecture.html">Sim architecture</a> · Sims dashboard at <a href="/sims.html">/sims.html</a>.
+Last updated 2026-08-27.</p>
+
+<h2>Current status</h2>
+<p>
+The full barbarian identity chain now works end-to-end: hall learning, signature
+roar landing in its one valid slot, augmentation ranks accruing for the first
+time, honest rank tracking from <code>exp</code> output, and zero wedges in
+recent runs. Circle 2 itself has not yet been reached — that remains the goal
+metric — but the shortfall curve is finally bending instead of flatlining.
+</p>
+<table>
+  <tr><th>Metric (best measured)</th><th class="num">Prior best</th><th class="num">Current</th><th></th></tr>
+  <tr><td>Shortfall @ end of run</td><td class="num">44 @ 7m</td><td class="num">33 @ 15m</td><td><span class="pill done">improving</span></td></tr>
+  <tr><td>Total ranks at finish</td><td class="num">67</td><td class="num">182</td><td><span class="pill done">~2.7x</span></td></tr>
+  <tr><td>Kills/hour</td><td class="num">15–20</td><td class="num">36</td><td><span class="metric-good">recovering</span></td></tr>
+  <tr><td>Wedges</td><td class="num">most runs</td><td class="num">0</td><td><span class="pill done">fixed</span></td></tr>
+  <tr><td>Circle-ups</td><td class="num">0</td><td class="num">0</td><td><span class="pill next">the wall</span></td></tr>
+</table>
+<p>
+Best characters to date: <code>SwBar-base-iiii-owkm</code> (147 ranks) and the
+rotation-era runs (~118+ ranks at 10–15 minutes). Both sit at
+<strong>9 blocked requirements, ~13–14 shortfall ranks</strong> from circle 2 —
+the gap is no longer structural, just grind-rate.
+</p>
+
+<h2>The four remaining blocker buckets</h2>
+<table>
+  <tr><th>Bucket</th><th>Gap to circle 2</th><th>Root cause</th></tr>
+  <tr><td>Weapon slot diversity</td><td>2nd weapon 3→8; slots 3/4 behind</td><td>Curriculum rotation only recently fixed; kill rate still low so weapon exp accrues slowly.</td></tr>
+  <tr><td>Armor</td><td>1st armor 3→6, 2nd 0→2</td><td>Only trains at hall; needs more silver for armor pieces + wear-time.</td></tr>
+  <tr><td>Supernatural</td><td>augmentation 0→2</td><td>Roar fires once per fight but rage lasts 12 ticks vs ~2-tick fights — see roarSmart variant.</td></tr>
+  <tr><td>Lore</td><td>2nd lore 0→2</td><td>Scholarship never trained yet; appraisal barely. Rotation should reach it.</td></tr>
+</table>
+
+<h2>Long-term goals</h2>
+<h3>Near term — first circle-up <span class="pill now">active focus</span></h3>
+<ul>
+  <li><strong>Reach circle 2.</strong> The one true goal metric. Every run that ends short is graded by shortfall-closure rate so variants stay comparable without it.</li>
+  <li>Get the readiness gate to fire from <code>expRanks</code> instead of mindstate (mindstate hides fully-converted skills — it has never once triggered a circle attempt).</li>
+  <li>Validate the <code>roarSmart</code> variant A/B (fewer refused roars, cleaner logs, zero exp cost).</li>
+</ul>
+
+<h3>Mid term — efficient circling machine</h3>
+<ul>
+  <li><strong>Kill rate to 50/h:</strong> shorten bazaar errand legs, cut per-trip learn/scan overhead, tighten RT idle in the fight loop.</li>
+  <li><strong>Variance collapse:</strong> median run within ~20% of best — kill regressions and wedges for good via sweeps.db trend tracking.</li>
+  <li><strong>Circle 3–5 without redesign:</strong> script regeneration already retargets curricula; verify slot counts, ability unlocks, and wider creature bands keep up unattended.</li>
+  <li><strong>Variant graduation rule:</strong> a variant replaces baseline when it wins on shortfall-closure rate across ≥6 runs; losing variants are dropped per the "no strength" rule.</li>
+</ul>
+
+<h3>Long term — generalizes to every guild</h3>
+<ul>
+  <li><strong>Circle 10 barbarian</strong> — full weapon ladder (club → short sword → cavalry sabre), armor progression, all four ability classes.</li>
+  <li><strong>Per-guild kaizen kits</strong>: each guild gets its own signature-slot rules, train sets, and fidelity checks like barbarian's. plumbing (<code>signatureAfter</code>, <code>abilitySlots</code>, <code>trainSets</code>) is guild-agnostic already.</li>
+  <li><strong>Fidelity ledger as acceptance criteria</strong> for all ten remaining guilds: no guild ships without its identity verbs provably firing in live runs.</li>
+  <li><strong>Continuous benchmarking</strong>: scheduled baseline runs flag pacing regressions before they compound into measurement drift.</li>
+</ul>
+
+<h2>Iteration log — what each kaizen change bought</h2>
+<table>
+  <tr><th>Change</th><th>Fix / hypothesis</th><th>Measured result</th></tr>
+  <tr><td><code>82bb47b</code> supernatural via abilities</td><td>Circling was mathematically impossible: manaless guild, augmentation unreachable.</td><td class="metric-good">augmentation now trains (rank 1+)</td></tr>
+  <tr><td><code>49764d2</code> learn at hall</td><td>Agents reached the hall with <code>abilities: []</code>; every roar died on "not learned".</td><td class="metric-good">abilities populated on trip 1</td></tr>
+  <tr><td><code>e4059ea</code> roar after first attack</td><td>Trailing slot = RT refusals; opener slot = "takes battle around you". Only after-attack lands.</td><td class="metric-good">roar applies</td></tr>
+  <tr><td><code>4db577c</code> exp parser hoist</td><td>Parser nested in circle-blocked branch — never ran on per-kill exp output.</td><td class="metric-good">src:exp; honest gaps</td></tr>
+  <tr><td><code>024b4c4</code> no-send breaker</td><td>Runner parks silently when prompts stop; all rescues gated off.</td><td class="metric-good">0 wedges since</td></tr>
+  <tr><td><code>024b4c4</code> TDP curriculum rotation</td><td>Same first-N skills every trip; set-fillers starved at rank 0.</td><td class="metric-good">curricula cycle per trip</td></tr>
+  <tr><td><code>f7af3ab</code> hall paths from real room</td><td>Stale arena paths → 16 refusals/run ("move up" from rooms with no up).</td><td class="metric-good">navigation refusal near zero</td></tr>
+  <tr><td><code>f7af3ab</code> learn to slot count</td><td>25 learn attempts for 1 slot across 5 trips.</td><td class="metric-good">1 attempt per trip</td></tr>
+  <tr><td><code>roarSmart</code> variant <span class="pill next">testing</span></td><td>Skip roar while raging: 12-tick rage vs ~2-tick fights → refusals + noise.</td><td>A/B pending</td></tr>
+</table>
+
+<h2>Open risks &amp; honest caveats</h2>
+<ul>
+  <li><strong>No circle-up has ever happened</strong> — the grade ladder and all pacing projections remain unvalidated against the actual event.</li>
+  <li><strong>The readiness gate is still blind</strong>: it reads mindstate which hides fully-converted skills. Until it reads expRanks, every hall trip is timer-driven, not intelligence-driven.</li>
+  <li><strong>Run variance is wide</strong> (kills/hour spread ~2x) with few repeats; medians are thin. Kaizen A/Bs use one-variable changes for exactly this reason.</li>
+  <li><strong>Measurement has repeatedly lied to us</strong> — truncated fidelity logs, mindstate omissions, latched wedge detectors. The DB + harness probes are ground truth; grep counts alone are not. Eight such traps are catalogued in <a href="/sim-architecture.html">sim architecture §7</a>.</li>
+</ul>
+
+<footer style="margin-top:3rem;color:var(--dim);font-size:.85em">
+Barbarian scripting roadmap · commits referenced are in <code>scripts/race-guild-sweep.mjs</code>, <code>scripts/lib/script-gen.mjs</code>, <code>data/guild-scripts.js</code>, <code>server/combat.js</code> · companion pages: <a href="/sim-architecture.html">sim architecture</a>, <a href="/sims.html">sims dashboard</a>, <a href="/ROADMAP.html">full roadmap</a>
+</footer>
+
+
+</body>
+</html>
