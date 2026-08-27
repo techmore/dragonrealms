@@ -43,3 +43,35 @@ test('helmRetry labels do not collide with existing circle-script labels', () =>
   assert.deepEqual(labels.filter((l, i) => labels.indexOf(l) !== i), []);
   assert.ok(!src.includes('${'), 'no un-interpolated template text');
 });
+
+// armorStack knob (diversity2stack): stack WORN light_armor pieces — the
+// server-verdict answer to "naked-tank" (exp needs the piece WORN and does
+// not depend on damage soaked, so the only lever is MORE pieces).
+import { buildHuntScript } from '../scripts/lib/script-gen.mjs';
+
+const e2 = (...d) => d.map((x) => ({ dir: x, to: 'y' }));
+const mkHunt = (extra = {}) => buildHuntScript({
+  cap: { guild: 'barbarian', scriptBase: 'tb', trainList: [], bazaarPath: e2('n'), closeNth: true, ...extra },
+  arena: { id: 'sewers_1', hall: e2('n'), loop: e2('n'), fromHere: e2('w'), fromArmed: e2('s') },
+  hallPath: e2('n'),
+});
+
+test('armorStack emits purse-gated buy+wear for sleeves/boots/leggings', () => {
+  const src = mkHunt({ armorStack: true });
+  for (const [tag, noun] of [['SLEEVES', 'leather sleeves'], ['BOOTS', 'leather boots'], ['LEGGINGS', 'leather leggings']]) {
+    const seg = src.slice(src.indexOf(`STACK_${tag}:`), src.indexOf(`STACK_NEXT_${tag}:`));
+    assert.match(seg, new RegExp(`put buy ${noun}`), tag);
+    assert.match(seg, new RegExp(`put wear ${noun}`), tag);
+    assert.match(seg, /iflt silver \d+ STACK_NEXT_/, `${tag} purse-gated`);
+  }
+  const plain = mkHunt({});
+  assert.ok(!plain.includes('STACK_SLEEVES'), 'no stack block without the knob');
+});
+
+test('armorStack retry rides the errand stop on circle trips', () => {
+  const src = mkCircle({ closeNth: true, helmRetry: true, tdpFloor: 4, armorStack: true });
+  assert.match(src, /put buy leather sleeves/, 'retries stack buys at hall trips');
+  const labels = src.match(/^[A-Za-z_0-9]+:/gm)?.map((l) => l.slice(0, -1)) || [];
+  assert.deepEqual(labels.filter((l, i) => labels.indexOf(l) !== i), [], 'no label dupes');
+  assert.ok(!src.includes('${'), 'no un-interpolated template text');
+});

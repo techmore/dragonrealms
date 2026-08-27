@@ -373,4 +373,13 @@ export const VARIANTS = {
     diff: ['tdpFloor', 'helmRetry'],
     hypothesis: 'Two evidence-backed closures on top of diversity: (1) tdpFloor 8 -> 4 — tdptrain costs 4+3*rank, so the cheapest useful spend is 4 TDPs; the floor of 8 blocked a hall trip at 4 TDPs while shortfall sat at 10 (kjvh log: "[hall-skip] only 4 TDPs"). At 4 the trip can still buy 1-2 rank-0 members (3rd-weapon / 2nd-survival slots sit at rank 0-2). (2) helmRetry — the diversity kit\'s iron helm never fires: the first-visit gate needs 120s silver but club(112s)+knives+armor drain the 150s purse, so 2nd armor was stuck 1/2 by economics. Every hall trip already passes the bazaar with banked loot silver; retry the buy there. Payoff beyond the 2nd armor slot itself: armor exp is granted PER WORN PIECE per landed blow (server/combat.js), so chain_armor worn roughly doubles 1st-armor income too (2/6 blocker).',
   },
+  diversity2stack: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true,
+    tdpFloor: 4,
+    helmRetry: true,
+    armorStack: true,
+    diff: ['armorStack'],
+    hypothesis: 'Close the LAST circle-2 blocker (1st armor 5/6, apaa run) by stacking WORN light_armor pieces. Server-side verdict first (2026-08-27): the armor-exp loop in server/combat.js grants `circle*3 + piece.armor/8` per LANDED BLOW per WORN piece — independent of damage soaked (armor only scales dmg, never deflects a blow), so a "naked-tank" pull trains NOTHING (the loop body is Object.entries(player.equipment)) and a cheaper piece trains nothing extra. The only lever is pieces WORN: the kit had exactly ONE light_armor piece (padded cloth torso) + the chain helm. armorStack buys+wears leather sleeves (45s), leather boots (30s) and leather leggings (55s) at the bazaar (purse-gated; retried at every hall-trip errand stop like helmRetry) — ~4x light_armor exp per landed blow. One variable vs diversity2.',
+  },
 };

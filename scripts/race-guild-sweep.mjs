@@ -427,6 +427,7 @@ class SweepAgent {
       closeNth: this.variant?.closeNth,
       tdpFloor: this.variant?.tdpFloor,
       helmRetry: this.variant?.helmRetry,
+      armorStack: this.variant?.armorStack,
     };
     const huntSrc = buildHuntScript({
       cap,
@@ -750,7 +751,7 @@ class SweepAgent {
     const s = this.session;
     const arena = this.arena;
     if (!arena) return;
-    const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth, tdpFloor: this.variant?.tdpFloor, helmRetry: this.variant?.helmRetry };
+    const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth, tdpFloor: this.variant?.tdpFloor, helmRetry: this.variant?.helmRetry, armorStack: this.variant?.armorStack };
     this.library[this.scriptBase + 'hunt'] = buildHuntScript({
       cap,
       hallPath: s.bfsPath(arena, 'hall_' + this.guild, this.diskAdj()),
@@ -1146,8 +1147,16 @@ class SweepAgent {
     const top10 = rankList.slice(0, 10);
     const top10Sum = top10.reduce((s, [, r]) => s + r, 0);
     const src = this.expRanks ? 'exp' : 'mindstate';
+    // Full have/need requirement table for the Sims page's expanded live
+    // card (Olwydd-style at-a-glance row). Same merged rank source as the
+    // missing-set above; rides a second line so sampleGaps parsing is
+    // untouched. Colors/thresholds live client-side (public/js/req-table.js).
+    const reqs = (res.rows || [])
+      .map((r) => `${r.label} ${r.have}/${r.need}`)
+      .join(', ');
     return `[gaps] ${mins}m circle ${v.circle}->${target} blocked:${parsed.length} shortfall:${shortfall} ranks:${totalRanks} src:${src}`
-      + ` | expall:${top10Sum}/${totalRanks} | ` + top10.map(([id, r]) => `${id} ${r}`).join(', ');
+      + ` | expall:${top10Sum}/${totalRanks} | ` + top10.map(([id, r]) => `${id} ${r}`).join(', ')
+      + `\n[reqs] ${mins}m c${target} | ${reqs}`;
   }
 
   // Parse one [gaps] line into closure-rate telemetry: shortfall at run start

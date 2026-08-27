@@ -164,6 +164,34 @@ function buildHuntScript({ cap, arena, hallPath }) {
     L.push('  put wear iron helm');
     L.push('  wait');
   }
+  // ARMOR STACK (cap.armorStack): wear MORE light_armor pieces. Verified
+  // server-side (2026-08-27): the armor-exp loop grants exp PER WORN PIECE
+  // per landed blow — `circle*3 + piece.armor/8`, independent of how much
+  // damage the piece soaks, and blows always land (armor only scales dmg).
+  // So "naked-tank" pulls would train NOTHING (no worn piece, no exp) and a
+  // cheaper piece trains nothing extra; the only exp lever is pieces WORN.
+  // sleeves(45s)+boots(30s)+pants(55s) with torso+helm → ~4x light_armor
+  // exp per landed blow (1st armor was the last circle-2 blocker at 5/6).
+  // Purse-gated per piece; retries live in the circle script's errand stop.
+  if (cap.armorStack) {
+    const pieces = [
+      ['sleeves', 'leather sleeves', 60],
+      ['boots', 'leather boots', 45],
+      ['leggings', 'leather leggings', 60],
+    ];
+    for (const [tag, noun, cost] of pieces) {
+      L.push(`STACK_${tag.toUpperCase()}:`);
+      L.push('  put inventory');
+      L.push(`  matchre STACK_NEXT_${tag.toUpperCase()} Worn:[\\s\\S]*${tag}`);
+      L.push('  matchwait 4');
+      L.push(`  iflt silver ${cost} STACK_NEXT_${tag.toUpperCase()}`);
+      L.push(`  put buy ${noun}`);
+      L.push('  wait');
+      L.push(`  put wear ${noun}`);
+      L.push('  wait');
+      L.push(`STACK_NEXT_${tag.toUpperCase()}:`);
+    }
+  }
   L.push('  goto ARMED');
   L.push('BROKE:');
   L.push('  put withdraw 100');
@@ -651,6 +679,28 @@ function buildCircleScript({ cap, fromArena, errands }) {
       L.push('  wait');
       L.push('  put wear iron helm');
       L.push('  wait');
+    }
+    // ARMOR STACK retry (cap.armorStack): same economics as helmRetry — the
+    // fresh-purse first visit can't afford the stack; hall trips pass here
+    // with loot silver. Helm is prioritized (2nd armor CATEGORY) first.
+    if (cap.armorStack) {
+      const pieces = [
+        ['SLEEVES', 'sleeves', 'leather sleeves', 60],
+        ['BOOTS', 'boots', 'leather boots', 45],
+        ['LEGGINGS', 'leggings', 'leather leggings', 60],
+      ];
+      for (const [TAG, tag, noun, cost] of pieces) {
+        L.push(`STACKR_${TAG}:`);
+        L.push('  put inventory');
+        L.push(`  matchre STACKR_NEXT_${TAG} Worn:[\\s\\S]*${tag}`);
+        L.push('  matchwait 4');
+        L.push(`  iflt silver ${cost} STACKR_NEXT_${TAG}`);
+        L.push(`  put buy ${noun}`);
+        L.push('  wait');
+        L.push(`  put wear ${noun}`);
+        L.push('  wait');
+        L.push(`STACKR_NEXT_${TAG}:`);
+      }
     }
     L.push('ERRAND_DONE:');
     if (errands.returnPath?.length) L.push(...moves(errands.returnPath));
