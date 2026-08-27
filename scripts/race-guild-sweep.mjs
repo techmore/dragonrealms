@@ -242,6 +242,9 @@ class SweepAgent {
     this.firstExpMs = null;
     this.rankSplits = [];
     this.RANK_SPLITS = [5, 10, 15];
+    // Circle-gap closure telemetry ([gaps] samples; shortfallFirst/Last).
+    this.gapsSamples = [];
+    this.shortfallFirst = null;
     // ---- stall-detection state (snapshot into classifyStall) ----
     this.startedAt = Date.now();
     this.refusalTimes = [];   // timestamps of move/combat refusals
@@ -1084,6 +1087,19 @@ class SweepAgent {
     return `[gaps] ${mins}m circle ${v.circle}->${target} blocked:${parsed.length} shortfall:${shortfall} ranks:${totalRanks} src:${src} | ${worst}`;
   }
 
+  // Parse one [gaps] line into closure-rate telemetry: shortfall at run start
+  // vs end (shortfallFirst/shortfallLast) plus every per-minute sample.
+  sampleGaps(line) {
+    const m = /(\d+)m circle .*?blocked:(\d+) shortfall:(\d+)(?: ranks:(\d+))? src:(\w+)/.exec(line);
+    if (!m) return;
+    const sample = {
+      m: Number(m[1]), blocked: Number(m[2]), shortfall: Number(m[3]),
+      ranks: m[4] != null ? Number(m[4]) : null, src: m[5],
+    };
+    this.gapsSamples.push(sample);
+    if (this.shortfallFirst == null) this.shortfallFirst = sample.shortfall;
+  }
+
   async finish(reason) {
     if (this.done) return;
     this.done = true;
@@ -1104,6 +1120,18 @@ class SweepAgent {
       const sf = /shortfall:(\d+)/.exec(finalGaps);
       const bl = /blocked:(\d+)/.exec(finalGaps);
       gapTelemetry = { shortfall: sf ? Number(sf[1]) : null, blocked: bl ? Number(bl[1]) : null };
+      // Feed the final reading through the same sampler as the per-minute
+      // ticks so [gaps] lines and the summary row agree exactly.
+      this.sampleGaps(finalGaps);
+    }
+    // Closure-rate telemetry: first/last shortfall + every per-minute sample,
+    // so variants compare on ranks-needed-eliminated-per-minute without
+    // re-parsing logs. ranks here is exp-sourced when the last [gaps] had
+    // src:exp, else the mindstate floor.
+    const gapRanks = this.gapsSamples.length
+      ? this.gapsSamples[this.gapsSamples.length - 1].ranks : null;
+    if ((gapRanks ?? 0) > (this.totalRanksAtFinish || 0)) {
+      this.totalRanksAtFinish = gapRanks;
     }
     this.appendLog(`=== Results (${GUILDS[this.guild]?.name}${this.variantName ? ` [${this.variantName}]` : ''}) ===`);
     this.appendLog(`  ${reason}: circle ${this.session.vitals.circle}, ${this.circles} circle-ups, ${this.kills} kills, ${this.deaths} deaths`);
@@ -1131,6 +1159,14 @@ class SweepAgent {
       rankSplits: this.rankSplits,
       stallVerdict: this.liveVerdict?.verdict || null, stallReason: this.liveVerdict?.reason || null,
       shortfall: gapTelemetry.shortfall, blocked: gapTelemetry.blocked,
+      // Closure-rate telemetry: ranks-needed eliminated per minute is
+      // (shortfallFirst - shortfallLast) / minutes, computed downstream from
+      // these fields — no log re-parsing needed.
+      durationMs: Date.now() - this.startedAt,
+      totalRanks: this.totalRanksAtFinish ?? null,
+      shortfallFirst: this.shortfallFirst ?? null,
+      shortfallLast: gapTelemetry.shortfall,
+      gapsSamples: this.gapsSamples,
       fidelity: this.fidelity, fidelityScore: `${checksPassed}/${checksTotal}`,
       grade,
     };
@@ -1269,7 +1305,9 @@ class SweepAgent {
     const GAPS = setInterval(() => {
       if (this.done) return;
       const line = this.gapsLine();
-      if (line) this.appendLog(line);
+      if (!line) return;
+      this.appendLog(line);
+      this.sampleGaps(line);
     }, 60000);
     const HB = setInterval(() => this.heartbeat(), 1000);
     setTimeout(() => {
