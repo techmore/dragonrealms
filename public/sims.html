@@ -139,10 +139,10 @@
     }
     .live-card .ln { color: var(--amber); font-weight: 600; font-size: 13px; }
     .live-card .ls { font-size: 11px; }
-    .live-card .lp {
-      height: 4px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; margin-bottom: 8px;
-    }
+    .live-card .lpwrap { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+    .live-card .lp { flex:1; height:4px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; }
     .live-card .lp i { display: block; height: 100%; background: var(--cyan); transition: width .5s; }
+    .lp-label { font-size:10px; white-space:nowrap; color:var(--dim); }
     .live-card .lg {
       font-size: 11px; line-height: 1.5; max-height: 160px; overflow-y: auto;
       white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono), monospace;
@@ -599,10 +599,14 @@
       const seenLogKeys = new Set();
       RUNS = [];
       // 1. Every summary row IS a run (the structured record of record).
+      //    Display name is uniform: <variant|adhoc>·<guild>·<race> — run_id
+      //    (the per-invocation tag) lives in its own column/tooltip, never
+      //    baked into the name where it competes with guild/race segments.
       for (const s of summaries) {
         seenLogKeys.add(`${s.guild}:${s.race}`);
         RUNS.push({
-          run: s.run_id ? `${s.run_id}-${s.guild}-${s.race}` : `fidelity-${s.guild}-${s.race}`,
+          run: `${s.variant || 'adhoc'} · ${s.guild} · ${s.race} [${s.run_id || '—'}]`,
+          logName: `fidelity-${s.guild}${s.variant ? '-' + String(s.variant).replace(/[^a-z0-9]/gi, '') : ''}-${s.race}`,
           runId: s.run_id || null, guild: s.guild, race: s.race,
           char: s.char || null, ts: s.ts ? Date.parse(s.ts) : null,
           reason: s.reason || null, circle: s.circle ?? null,
@@ -672,7 +676,7 @@
         const rating = rateRun(r);
         return `
         <tr class="run ${SELECTED === r.run ? 'sel' : ''}" data-run="${esc(r.run)}">
-          <td>${esc(r.run.replace(/^fidelity-/, ''))}</td>
+          <td>${esc(r.run)}</td>
           <td>${esc(r.char || '—')}</td>
           <td>${esc(r.guild || '—')}</td>
           <td>${esc(r.race || '—')}</td>
@@ -743,12 +747,14 @@
         ? fid.map(([k, n]) => `<span class="chip">${esc(k)} <b>×${n}</b></span>`).join('')
         : '<span class="note">no fidelity counters recorded</span>';
 
-      // log
+      // log — resolved via the row's logName (the actual file on disk),
+      // not the display name.
       LOG_TEXT = '';
       $('logwrap').textContent = 'loading…';
-      if (!/\(no log\)$/.test(run)) {
+      const logFile = r.logName || r.run;
+      if (!/\(no log\)$/.test(logFile)) {
         try {
-          LOG_TEXT = stripAnsi(await fetch('/live/' + encodeURIComponent(run.replace(/ \(no log\)$/, '')) + '.log', { cache: 'no-store' }).then((x) => x.text()));
+          LOG_TEXT = stripAnsi(await fetch('/live/' + encodeURIComponent(logFile) + '.log', { cache: 'no-store' }).then((x) => x.text()));
         } catch { LOG_TEXT = ''; }
       }
       renderLog();
@@ -1850,7 +1856,7 @@
           el.className = 'live-card collapsed';
           el.innerHTML = `<div class="lh" data-role="toggle" title="click to expand/collapse the run's log tail"><span class="lchev">▸</span><span class="ln">${esc(name)}</span><span class="ls" data-role="state">…</span>
             <span class="lrate" data-role="rate" title="provisional rating from this run's live progress">—</span></div>
-            <div class="lp"><i data-role="prog" style="width:0%"></i></div>
+            <div class="lpwrap"><div class="lp"><i data-role="prog" style="width:0%"></i></div><span class="lp-label sub" data-role="proglab">elapsed 0m / cap 30m</span></div>
             <div class="lg" data-role="log"></div>`;
           // Toggle: clicking the header flips collapse state.
           el.querySelector('[data-role="toggle"]').addEventListener('click', () => {
@@ -1912,9 +1918,14 @@
             // into meta.json ([gaps] circle d->T tells us the active goal);
             // default max-runtime assumption is 6h until told otherwise.
             const prog = card.el.querySelector('[data-role="prog"]');
-            // progress bar: elapsed vs 6h ceiling when no explicit duration
-            prog.style.width = Math.min(100, Math.round(min / 360 * 100)) + '%';
-            prog.title = `elapsed ${min}m of a 6h ceiling (target: reach next circles sooner)`;
+            // Progress bar = elapsed vs the LEG CAP (30m), with the numbers
+            // printed next to it so it's self-explanatory:
+            // "elapsed 12m / cap 30m — stops early at target circle".
+            const progPct = Math.min(100, Math.round(min / LEG_CAP_MIN * 100));
+            prog.style.width = progPct + '%';
+            const progLab = card.el.querySelector('[data-role="proglab"]');
+            if (progLab) progLab.textContent = `elapsed ${min}m / cap ${LEG_CAP_MIN}m — stops early at target circle`;
+            prog.title = `leg progress: ${min}m elapsed of ${LEG_CAP_MIN}m cap · stops early at target circle`;
             // Gap telemetry: [gaps] lines land every ~60s from the driver's
             // minute timer — parse ALL of them (a card may sit through many)
             // and show shortfall trend, not a stale single value.
