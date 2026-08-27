@@ -368,26 +368,54 @@ function buildHuntScript({ cap, arena, hallPath }) {
         ? ['club', 'throwing_knives', 'staff']
         : plan.weapons;
       if (cap.closeNth && kit.length > 1) {
-        // Holding kit[i] -> drop it, raise kit[(i+1) % 3]. An EMPTY hand or
-        // anything unlisted matches no ife and falls into ROT_K0, which is
-        // safe either way (removing a not-held weapon prints harmless prose).
+        // DIVERSITY rotation, requirement-aware ("4 levels over needed ->
+        // switch off"). Each kit weapon maps to a skill with a circle-2
+        // rank need. Branch order per kill (holding W_i):
+        //   iflt wsr_<skill> <need+MARGIN> -> keep training it: fall through
+        //     to the normal next-kit-swap below.
+        //   otherwise (>= need+MARGIN) the weapon is SATISFIED — skip to the
+        //     next UNsatisfied kit slot via a skip-chain of ifges.
+        // [WSRANK:<skill>:<rank>] tokens are injected each heartbeat by the
+        // harness from vitals.skills (mindstate-fed), so this works across
+        // runner restarts with zero stored state. If every slot satisfies,
+        // all skips chain to ROT_END and the currently-held weapon stays.
+        // Overwhelmed handling remains the supervisor's flee interlock +
+        // WEAKSWING primary-weapon fallback — unchanged here.
+        const needs = { blunt: 8, thrown: 8, staff: 8 };
+        const MARGIN = 4;
+        // satisfied-check helper: 'iflt' var threshold jumps to label when
+        // rank is BELOW margin-adjusted need (i.e. still needs training).
+        const stillNeeds = (skl, lbl) => `iflt wsr_${skl} ${needs[skl] + MARGIN} goto ${lbl}`;
         for (let i = 0; i < kit.length; i++) {
-          L.push(`  ife wsp ${skillsOf[kit[i]]} goto ROT_K${i}_${key}`);
+          const skl = skillsOf[kit[i]];
+          L.push(`  ife wsp ${skl} goto ROT_K${i}_${key}`);
         }
+        const rotate = (from, to) => [
+          `  put remove ${nm(kit[from])}`,
+          `  put wield ${nm(kit[to])}`,
+          '  wait',
+        ];
+        // K0 holds blunt. Satisfied? Skip knives (K1->K2 arm) unless knives
+        // still need ranks; then staff; else stay.
+        // K0 holds blunt. Knives unsatisfied? -> knives. Else -> staff.
         L.push(`ROT_K0_${key}:`);
-        L.push(`  put remove ${nm(kit[0])}`);
-        L.push(`  put wield ${nm(kit[1])}`);
-        L.push('  wait');
+        L.push(`  ${stillNeeds(skillsOf[kit[1]], `ROT_SWAP_1_${key}`)}`);
+        L.push(...rotate(0, 2));
         L.push(`  goto ROT_END_${key}`);
+        L.push(`ROT_SWAP_1_${key}:`);
+        L.push(...rotate(0, 1));
+        L.push(`  goto ROT_END_${key}`);
+        // K1 holds knives -> next kit weapon is staff (straight rotation).
         L.push(`ROT_K1_${key}:`);
-        L.push(`  put remove ${nm(kit[1])}`);
-        L.push(`  put wield ${nm(kit[2])}`);
-        L.push('  wait');
-        L.push(`  goto ROT_END_${key}`);
+        L.push(...rotate(1, 2));
+        // K2 holds staff. Blunt BELOW need+margin? -> club (it trains).
+        // Otherwise knives get the exp (blunt is already satisfied).
         L.push(`ROT_K2_${key}:`);
-        L.push(`  put remove ${nm(kit[2])}`);
-        L.push(`  put wield ${nm(kit[0])}`);
-        L.push('  wait');
+        L.push(`  ${stillNeeds(skillsOf[kit[0]], `ROT_K2_CLUB_${key}`)}`);
+        L.push(...rotate(2, 1));
+        L.push(`  goto ROT_END_${key}`);
+        L.push(`ROT_K2_CLUB_${key}:`);
+        L.push(...rotate(2, 0));
         L.push(`ROT_END_${key}:`);
       } else {
       const [wa, wb] = plan.weapons;

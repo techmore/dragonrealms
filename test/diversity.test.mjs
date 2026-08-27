@@ -30,16 +30,23 @@ function rotationSeg(src) {
   return src.slice(a, a + endLbl.index + endLbl[0].length);
 }
 
-async function swapFor(seg, weapon) {
+async function swapFor(seg, weapon, ranks = {}) {
   const sent = [];
   const r = createRunner(seg, [], { send: async (l) => sent.push(l) });
-  r.feed(`HP: 100/100 Mana: 0/0 RT: 0 Circle 1${weapon ? ` [WEAPON:${weapon}]` : ''}`, 'inject');
+  // WSRANK tokens mirror current weapon-skill ranks (mindstate-fed); without
+  // them the requirement-aware skips see rank 0 and keep training everything.
+  const toks = Object.entries(ranks).map(([id, n]) => ` [WSRANK:${id}:${n}]`).join('');
+  r.feed(`HP: 100/100 Mana: 0/0 RT: 0 Circle 1${weapon ? ` [WEAPON:${weapon}]` : ''}${toks}`, 'inject');
   r.start();
+  // In the full script the rotation segment flows back into SCAN (one swap
+  // per kill). Here the extracted seg has no SCAN, so the runner re-enters
+  // the chain — collect only the first contiguous swap (the semantic action).
   for (let i = 0; i < 20 && r.running; i++) {
-    r.feed('You re-arm. HP: 100/100 RT: 0', 'prompt');
+    if (!sent.length) r.feed(`You re-arm. HP: 100/100 RT: 0${toks}`, 'prompt');
+    if (sent.length >= 2) break;
     await new Promise((res) => setTimeout(res, 1));
   }
-  return sent;
+  return sent.slice(0, 2);
 }
 
 test('ife/ifne engine commands branch on string equality', () => {
@@ -61,24 +68,37 @@ test('ife/ifne engine commands branch on string equality', () => {
 
 test('closeNth rotation wields the NEXT kit weapon from ground truth', async () => {
   const seg = rotationSeg(mkHunt(true));
-  assert.deepEqual(await swapFor(seg, 'blunt'), ['remove club', 'wield throwing knives']);
-  assert.deepEqual(await swapFor(seg, 'thrown'), ['remove throwing knives', 'wield staff']);
-  assert.deepEqual(await swapFor(seg, 'staff'), ['remove staff', 'wield club']);
+  // All weapons below need+margin (8+4=12): straight rotation blunt->knives->staff->blunt.
+  const ranks = { blunt: 0, thrown: 0, staff: 0 };
+  assert.deepEqual(await swapFor(seg, 'blunt', ranks), ['remove club', 'wield throwing knives']);
+  assert.deepEqual(await swapFor(seg, 'thrown', ranks), ['remove throwing knives', 'wield staff']);
+  assert.deepEqual(await swapFor(seg, 'staff', ranks), ['remove staff', 'wield club']);
+});
+
+test('a weapon at need+4 margin rotates away even though the others are fresh', async () => {
+  const seg = rotationSeg(mkHunt(true));
+  const satBlunt = { blunt: 12, thrown: 2, staff: 1 };
+  const res = await swapFor(seg, 'blunt', satBlunt);
+  assert.deepEqual(res.filter((x) => x.startsWith('wield')), ['wield throwing knives'],
+    'satisfied holder still rotates onward — exp flows into unsatisfied slots');
 });
 
 test('rotation survives cycle restarts — alternation does not need runner state', async () => {
   // Emulate the supervisor: a fresh createRunner each watchdog restart,
-  // with whatever the hands snapshot last reported actually in hand.
+  // with whatever the hands snapshot last reported actually in hand. The
+  // mindstate rank feed (WSRANK) rides along too, exactly as the harness
+  // does it; blunt crosses its need+4 margin at kill 5 which routes exp
+  // into the OTHER two categories instead of over-training blunt.
   const seg = rotationSeg(mkHunt(true));
   const order = [];
   let hand = '';                       // fresh cycle: state lost, ground truth kept
-  for (let kill = 0; kill < 7; kill++) {
-    const sent = await swapFor(seg, hand);
+  for (let kill = 0; kill < 9; kill++) {
+    const ranks = { blunt: kill >= 5 ? 12 : Math.min(kill * 2, 8), thrown: 2, staff: 2 };
+    const sent = await swapFor(seg, hand, ranks);
     const wielded = sent.find((l) => l.startsWith('wield '));
     order.push(wielded.replace('wield ', ''));
     hand = { 'throwing knives': 'thrown', staff: 'staff', club: '' }[order[kill]] ?? '';
   }
-  // Every kit weapon gets wielded despite the resets, cycling blunt->thrown->staff.
   assert.ok(order.includes('throwing knives') && order.includes('staff') && order.includes('club'),
     `all three categories exercised across restarts (${order.join(' -> ')})`);
 });

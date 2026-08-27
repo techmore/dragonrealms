@@ -281,6 +281,17 @@ export function createRunner(src, args = [], io = {}) {
       const wsp = /\[WEAPON:([a-z_]+)\]/.exec(plain);
       if (wsp) vars.wsp = wsp[1];
     }
+    // [WSRANK:<skillId>:<rank>] — synthetic token(s) injected alongside
+    // [WEAPON:...] by the sim harness for every WEAPON-pool skill the
+    // character holds (from vitals.skills / mindstate). The diversity
+    // rotation branches on these: a weapon whose circle requirement is
+    // already satisfied (+margin) is skipped in favor of the next one, so
+    // field exp flows into UNTRAINED slots instead of over-training one.
+    if (typeof text === 'string') {
+      const wsrankRe = /\[WSRANK:([a-z_]+):(\d+)\]/g;
+      let wm;
+      while ((wm = wsrankRe.exec(text.replace(/\x1b\[\d+m/g, '')))) vars[`wsr_${wm[1]}`] = wm[2];
+    }
     // TDP balance surfaces in command OUTPUT (training refusals state the
     // exact balance, `tdp` prints it, spends confirm the cost) rather than
     // the prompt. Mirror it into %tdp whenever prose states it so generated
