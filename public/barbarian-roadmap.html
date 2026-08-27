@@ -107,7 +107,9 @@ the gap is no longer structural, just grind-rate.
   <tr><td><code>024b4c4</code> TDP curriculum rotation</td><td>Same first-N skills every trip; set-fillers starved at rank 0.</td><td class="metric-good">curricula cycle per trip</td></tr>
   <tr><td><code>f7af3ab</code> hall paths from real room</td><td>Stale arena paths → 16 refusals/run ("move up" from rooms with no up).</td><td class="metric-good">navigation refusal near zero</td></tr>
   <tr><td><code>f7af3ab</code> learn to slot count</td><td>25 learn attempts for 1 slot across 5 trips.</td><td class="metric-good">1 attempt per trip</td></tr>
-  <tr><td><code>roarSmart</code> variant <span class="pill next">testing</span></td><td>Skip roar while raging: 12-tick rage vs ~2-tick fights → refusals + noise.</td><td>A/B pending</td></tr>
+  <tr><td><code>roarSmart</code> variant</td><td>Skip roar while raging: 12-tick rage vs ~2-tick fights → refusals + noise.</td><td class="metric-good">KEPT — closure rate won 2/2 in clean rerun</td></tr>
+  <tr><td><code>diversity</code> variant <code>(461b4b0)</code></td><td>Ground-truth weapon rotation (%wsp) + exact Nth-slot TDP targeting.</td><td class="metric-good">blocked 6→3 in first run; kjvh: 315 ranks/40m</td></tr>
+  <tr><td><code>diversity2</code> <code>(5d83423)</code></td><td>TDP floor 8→4 (cheapest tdptrain is 4+3·rank, so 8 blocked useful trips at 4 TDPs) + errand-stop helm retry (first-visit gate needs 120s but club+knives+armor drain the 150s purse — helm literally never bought).</td><td class="metric-good">A/B won big: blocked 8→1, shortfall 19→2, ranks 209→372, deaths 1→0 (DB-verified vs <code>iiij</code>). 1st armor 2→4/6, 2nd survival closed. Remaining: 3rd weapon 2/4. Helm still unbought — loot income never reached 130s at an errand stop.</td></tr>
 </table>
 
 <h2>Open risks &amp; honest caveats</h2>
