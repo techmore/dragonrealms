@@ -313,20 +313,20 @@ function buildHuntScript({ cap, arena, hallPath }) {
     // its requirement against ~2 TDPs of income per run. Rotating per kill
     // turns kills into field exp for a second guild-taught category instead.
     //
-    // How: a two-state flip on a script variable. The engine has no numeric
-    // compare on set variables (iflt/ifge branch on game-state numbers) but
-    // it DOES have if_N ("jump when var N is non-empty") — so:
-    //   wphase empty -> wield weapon B, set wphase=1
-    //   wphase set   -> wield weapon A, clear wphase, fall through to EXP
-    // Per-species labels (ROT_A_${key}) keep the two-phase state shared but
-    // the dispatch inline. Removing a not-wielded weapon prints harmless
-    // "You aren't wearing that." prose. After swapping, control falls into
-    // the exp/REST check below, then SCAN for the next target.
+    // How: a two-state flip on a script variable, driven by if_N (DR's
+    // branch-if-variable-set). wphase empty -> wield weapon B and set
+    // wphase=1; wphase set -> jump ROT_A_<key>, wield weapon A and clear it,
+    // then fall through to the exp/REST check below. Labels are per-species
+    // because each species' fight block is emitted separately (labels are
+    // LAST-wins in the parser), but the shared %wphase var keeps the global
+    // alternation coherent. Removing a not-wielded weapon prints harmless
+    // "You aren't wearing that." prose; `wield` of the already-wielded
+    // weapon re-equips cleanly server-side.
     if (plan?.weapons?.length > 1) {
       const nm = (w) => String(w).replace(/_/g, ' ');
       const [wa, wb] = plan.weapons;
       L.push('  setvariable 1 %wphase');   // copy phase into var "1" for if_1
-      L.push(`  if_1 ROT_A_${key}`);       // per-species: labels are LAST-wins
+      L.push(`  if_1 goto ROT_A_${key}`);
       L.push(`  put remove ${nm(wa)}`);
       L.push(`  put wield ${nm(wb)}`);
       L.push('  wait');

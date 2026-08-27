@@ -27,6 +27,23 @@ export const GUILD_SCRIPTS = {
     signatureAfter: 1,
     signature: { cmd: 'roar everilds_rage', ok: /roar a battle cry|blood ablaze|voice is spent/i, probe: 'ability' },
     armVerb: 'wield',        // club from the bazaar
+    // Synergistic weapon plan — a deliberate 2-then-3 weapon kit, not a
+    // random ladder. Circle 2 demands FOUR weapon skills (1st@8, 2nd@8,
+    // 3rd@4, 4th@2); hunting with one weapon only ever trains its own
+    // skill, leaving slots 2-4 to TDP-only grind (~130+ TDPs we cannot
+    // afford). The plan pairs trainer-taught categories so every category
+    // doubles as hall training: barbarian primary = twohanded_blunt /
+    // large_edged, secondary = blunt / thrown.
+    //   1. club (blunt)        112s  — day-one floor, funds itself
+    //   2. throwing_knives (thrown) 30s — SECOND weapon immediately; 1H, no burden
+    //   3. mace (blunt)        206s  — primary upgrade once pelts fund it
+    // rotateEvery = kills per weapon swap: each kill then feeds whichever
+    // weapon is wielded, so 2nd/3rd weapon ranks accrue from field exp
+    // instead of TDPs alone.
+    weaponPlan: {
+      weapons: ['club', 'throwing_knives', 'mace'],
+      rotateEvery: 4,
+    },
     arena: null,             // nearest spawn room (generator picks)
     trainSets: {
       weapon: ['large_edged', 'twohanded_edged', 'twohanded_blunt', 'blunt', 'thrown', 'staff'],

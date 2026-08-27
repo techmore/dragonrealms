@@ -159,8 +159,23 @@ export function createRunner(src, args = [], io = {}) {
       }
       default:
         if (/^if_\d+$/i.test(cmd)) {
-          const n = cmd.slice(3);
-          if (vars[n]) return execOne(rest);
+          // if_N [goto] <label> — DR's branch-if-variable-set: when var N is
+          // non-empty, jump to the label (or run an inline verb with no
+          // label). Previously this executed `rest` as a VERB ONLY, so the
+          // generated scripts' `if_1 ROT_RAT` never jumped — it errored
+          // "unknown command: rot_rat" and fell through to the other branch,
+          // silently defeating any label-based state machine.
+          const sp = rest.split(/\s+/);
+          const target = sp[0] === 'goto' ? sp[1] : sp[0];
+          if (vars[cmd.slice(3)]) {
+            const f = cur();
+            const at = f.labels[String(target).toLowerCase()];
+            if (at !== undefined) {
+              f.pc = at;
+              return true;
+            }
+            return execOne(rest); // no such label: treat as inline verb
+          }
           return true;
         }
         say(`[script] unknown command: ${cmd}`);
