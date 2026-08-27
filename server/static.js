@@ -1,7 +1,7 @@
 // Static file serving for the web client. Pure handler factory — unit-testable
 // without booting the game.
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 
 const MIME = {
@@ -34,6 +34,9 @@ export function createStaticHandler(publicDir) {
       // Pages iterate fast during development; never let browsers pin them.
       const headers = { 'Content-Type': type };
       if (type.startsWith('text/')) headers['Cache-Control'] = 'no-cache';
+      // Live logs' clients (sims.html) key liveness on Last-Modified — a log
+      // that stopped appending is a dead run, not an active one.
+      headers['Last-Modified'] = statSync(filePath).mtime.toUTCString();
       // Async: a synchronous read here stalls the entire event loop —
       // game ticks included — on every page load. Headers go out only after
       // the read succeeds: a failed read (EISDIR, EACCES, deleted mid-flight)

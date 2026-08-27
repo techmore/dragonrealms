@@ -219,6 +219,36 @@
       game API; the character tracker needs the GM token (paste it in on the dash or open this page as
       <code>/sims#gm=&lt;token&gt;</code>).</p>
 
+    <!-- ===================== EXPERIMENT BOARD ===================== -->
+    <!-- Answers: what experiment is in flight, which leg is running now,
+         how far along, and what landed. Legs parse from recent summary rows
+         (variant + run_id grouping); zero server work. -->
+    <section id="experiment">
+      <h2>Experiment board
+        <span class="right sub" id="exp-state">reading recent runs…</span>
+      </h2>
+      <div id="exp-legs" class="note">no experiment detected — launch a benchmark or check back after the next run lands</div>
+      <div class="explan" id="explan">
+        <b>How to read a benchmark:</b> an A/B is <em>N sequential runs</em> — one agent at a time,
+        fresh level-1 character per leg, each capped at 30 minutes and stopping early only if it
+        reaches the target circle (10). Sequential = no spawn contention, so pacing is honest.
+        Median-of-repeats beats any single run; legs with &lt;2 completions are noise-prone.
+      </div>
+      <style>
+        #experiment .leg { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+          padding:6px 4px; border-top:1px dashed var(--line); font-size:12px; }
+        #experiment .leg:first-child { border-top:none; }
+        #experiment .lg-var { font-weight:bold; color:var(--amber); min-width:90px; }
+        #experiment .pill-run { color:var(--green); border-color:var(--green); animation:pulse 1.5s infinite; }
+        #experiment .lp2 { flex:1; height:5px; background:rgba(255,255,255,.06);
+          border-radius:99px; overflow:hidden; min-width:120px; max-width:260px; }
+        #experiment .lp2 i { display:block; height:100%; background:var(--cyan); transition:width .5s; }
+        #experiment .explan { font-size:11px; color:var(--dim); margin-top:8px;
+          padding:7px 10px; background:var(--panel-inset); border-radius:6px; line-height:1.5; }
+        #experiment .res-row td { padding:3px 8px; }
+      </style>
+    </section>
+
     <section id="live">
       <h2>Live Sims <span class="right sub" id="liveState">polling…</span></h2>
       <div id="liveList"><div class="live-empty">no sims running — launch one above, or a benchmark from the CLI</div></div>
@@ -1318,6 +1348,91 @@
       await loadRunsPromise;
       renderLeaderboard();
     }
+    // ---- experiment board: leg-by-leg status of the in-flight A/B ----
+    // A "leg" = one summary row (finished run) carrying a run_id. Benchmark
+    // launches plan legs as variant×repeats; we infer the plan from the most
+    // recent 6h of summary rows sharing one run_id, and mark elapsed-vs-cap.
+    const LEG_CAP_MIN = 30;
+    function renderExperimentBoard() {
+      const el = $('exp-legs'), stateEl = $('exp-state');
+      if (!el) return;
+      const cutoff = Date.now() - 6 * 3600000; // last 6h window
+      const recent = RUNS.filter((r) => r.ts && r.ts >= cutoff && r.runId);
+      if (!recent.length) {
+        stateEl.textContent = 'no recent runs';
+        return; // keep the placeholder text
+      }
+      // Group by run_id (one benchmark invocation); newest invocation wins.
+      const groups = new Map();
+      for (const r of recent) {
+        if (!groups.has(r.runId)) groups.set(r.runId, []);
+        groups.get(r.runId).push(r);
+      }
+      const invocations = [...groups.entries()]
+        .map(([rid, rows]) => ({ rid, rows,
+          startedAt: Math.min(...rows.map((r) => r.ts)),
+          lastAt: Math.max(...rows.map((r) => r.ts)) }))
+        .sort((a, b) => b.lastAt - a.lastAt);
+      const cur = invocations[0];
+      if (!cur || !cur.rows.some((r) => r.variant)) {
+        stateEl.textContent = 'recent runs are ad-hoc — no variant experiment in flight';
+        return;
+      }
+      // Sort legs chronologically (summary rows arrive in finish order).
+      cur.rows.sort((a, b) => a.ts - b.ts);
+      // Live-agent liveness from loadLive's active-append detection (LIVE_ACTIVE),
+      // not liveCards (which lingers for finished runs' cards).
+      const runningNames = LIVE_ACTIVE || [];
+      const variantsInOrder = [];
+      const seenVar = new Set();
+      for (const r of cur.rows) { // preserve summary order (chronological)
+        if (!seenVar.has(r.variant + r.char)) { seenVar.add(r.variant + r.char); variantsInOrder.push(r); }
+      }
+      const plannedVariants = [...new Set(cur.rows.map((r) => r.variant).filter(Boolean))];
+      // Repeats-per-variant inferred: total rows / distinct variants (min 1).
+      const perVariant = Math.max(1, Math.round(cur.rows.length / Math.max(1, plannedVariants.length)));
+      const plannedTotal = plannedVariants.length * perVariant;
+      let doneN = cur.rows.length;
+      // Which leg is live? Only the MOST RECENT row whose log matches an
+      // actively-appending live card — batch-finished rows from a killed
+      // experiment must not all render as "running".
+      let html = '';
+      const lastRowIdx = cur.rows.length - 1;
+      cur.rows.forEach((r, i) => {
+        const isLast = i === lastRowIdx;
+        const live = isLast && cur.lastAt >= Date.now() - 2 * 60000
+          && runningNames.some((nm) => nm.includes(r.guild));
+        const ageMin = (Date.now() - r.ts) / 60000;
+        const pct = Math.min(100, Math.round(Math.min(ageMin, LEG_CAP_MIN) / LEG_CAP_MIN * 100));
+        html += `<div class="leg">
+          <span class="pill ${live ? 'pill-run' : ''}">${live ? '● running' : '✓ done'}</span>
+          <span class="lg-var">${esc(r.variant || 'ad-hoc')}</span>
+          <span class="sub">rep ${Math.floor(i / Math.max(1, plannedVariants.length)) + 1} · ${esc(String(r.char || '').slice(0, 18))}</span>
+          <div class="lp2"><i style="width:${live ? pct : 100}%"></i></div>
+          <span class="sub" title="circle reached / kills / deaths / grade">c${r.circle ?? '?'} · ${r.kills ?? 0}k · ${r.deaths ?? 0}d · ${esc(r.grade || '—')} · shortfall ${r.shortfall ?? '—'}</span>
+          <span class="sub">${fmtAge(r.ts)}</span>
+        </div>`;
+      });
+      for (let i = cur.rows.length; i < plannedTotal; i++) {
+        html += `<div class="leg"><span class="sub" style="color:var(--muted)">◌ queued — leg ${i + 1} of ${plannedTotal} starts when this one ends</span></div>`;
+      }
+      // In-flight legs have no summary row yet (a row appears only when a run
+      // FINISHES). Show live agents as the active leg so the board reflects
+      // reality during the potentially-long first leg.
+      if (runningNames.length && cur.lastAt < Date.now() - 2 * 60000) {
+        html += `<div class="leg">
+          <span class="pill pill-run">● running</span>
+          <span class="lg-var">in flight</span>
+          <span class="sub">${runningNames.length} agent${runningNames.length === 1 ? '' : 's'} — first leg unrecorded (row lands at finish)</span>
+          <div class="lp2"><i style="width:50%"></i></div>
+        </div>`;
+        stateEl.textContent = `in-flight leg (no results yet) · ${doneN}/${plannedTotal || '?'} legs recorded`;
+        el.innerHTML = `<div class="sub" style="margin-bottom:4px">run-id <b>${esc(cur.rid)}</b> · ${doneN}/${plannedTotal || '?'} legs done · cap ${LEG_CAP_MIN}m/leg · stop early at target circle</div>${html}`;
+        return;
+      }
+      el.innerHTML = `<div class="sub" style="margin-bottom:4px">run-id <b>${esc(cur.rid)}</b> · ${doneN}/${plannedTotal || '?'} legs done · cap ${LEG_CAP_MIN}m/leg · stop early at target circle</div>${html}`;
+      stateEl.textContent = `leg ${Math.min(doneN + 1, plannedTotal)} of ${plannedTotal} · ~${Math.max(0, (plannedTotal - doneN) * LEG_CAP_MIN - ((Date.now() - cur.rows[cur.rows.length - 1].ts) / 60000)).toFixed(0)}m remaining`;
+    }
     $('lb-guild').addEventListener('change', renderLeaderboard);
     // head-to-head wiring
     $('cmp-guild').addEventListener('change', renderCompareVariants);
@@ -1328,6 +1443,8 @@
     bootRuns();          // leaderboard after RUNS land
     loadLeaderboard().then(renderCompareOptions); // compare selects once RUNS land
     setInterval(() => { loadRuns().then(renderLeaderboard); }, 15000);
+    setInterval(renderExperimentBoard, 30000);  // experiment board refresh
+    renderExperimentBoard();
     // deep link: /sims.html?char=Name
     const want = new URLSearchParams(location.search).get('char');
     if (want) { $('track-name').value = want; track(want); }
@@ -1675,6 +1792,7 @@
     const LIVE = '/live/';
     let liveTimer = null;
     let liveCards = {}; // name -> { el, lastSize }
+    let LIVE_ACTIVE = [];  // names confirmed actively appending (loadLive sets it)
 
     async function loadLive() {
       let logs = [];
@@ -1696,7 +1814,12 @@
           const lines = text.split('\n').filter(Boolean);
           const last = lines[lines.length - 1] || '';
           // Running if: no FINISHED/VERDICT terminal line AND file has content
-          if (!/FINISHED|VERDICT|wedged — no progress/.test(last) && lines.length > 2) {
+          // A log counts as "running" only when it is BOTH unfinished AND
+          // actively appending (modified in the last 2 min) — killed runs'
+          // logs freeze mid-run and would otherwise live forever.
+          const lastMod = Date.parse(r.headers.get('last-modified') || 0);
+          const fresh = Number.isFinite(lastMod) && (Date.now() - lastMod) < 120000;
+          if (fresh && !/FINISHED|VERDICT|wedged — no progress/.test(last) && lines.length > 2) {
             running.push(name);
           }
         } catch {}
@@ -1712,6 +1835,7 @@
 
       navDot.hidden = false;
       liveState.textContent = running.length + ' running';
+      LIVE_ACTIVE = running.slice(); // for the experiment board's liveness read
       // A stale "no sims running" empty-note must not linger beside real
       // cards (it used to survive from the previous idle poll).
       liveList.querySelectorAll('.live-empty').forEach((n) => n.remove());
