@@ -245,6 +245,10 @@ class SweepAgent {
     // Circle-gap closure telemetry ([gaps] samples; shortfallFirst/Last).
     this.gapsSamples = [];
     this.shortfallFirst = null;
+    // Flat-progress tracking (drives the flat-progress breaker below):
+    // kills+exp-ranks+room sampled each minute against this key/timer.
+    this.lastProgressKey = null;
+    this.flatSince = Date.now();
     // ---- stall-detection state (snapshot into classifyStall) ----
     this.startedAt = Date.now();
     this.refusalTimes = [];   // timestamps of move/combat refusals
@@ -885,6 +889,21 @@ class SweepAgent {
     }
     this.updateStallVerdict();
 
+    // FLAT-PROGRESS BREAKER — must sit with the no-send breaker above the
+    // early-return interlocks. Sends are liveness, not progress: a script
+    // polling `exp`/`look` in a starving loop refreshes lastSendAt every
+    // tick, so the no-send breaker never fires there. If kills AND exp-sourced
+    // ranks AND room have not changed for 6 minutes, the run is producing
+    // nothing — force a cycle restart, which routes through regenerateFromHere.
+    if (this.runner && !this.restarting &&
+        Date.now() - (this.flatSince || Date.now()) > 360000) {
+      this.appendLog('[watchdog] flat kills+ranks+room for 6m — forcing restart/escape');
+      log(`[${this.guild}/${this.race}] flat-progress breaker fired`);
+      this.flatSince = Date.now(); // don't re-fire each tick while restarting
+      this.restartCycle();
+      return;
+    }
+
     try { this.runner?.feed('', false); } catch {}
     this.session.injectState(this.runner);
     if (!this.runner || !this.runner.running) {
@@ -1104,13 +1123,14 @@ class SweepAgent {
   // vs end (shortfallFirst/shortfallLast) plus every per-minute sample.
   sampleGaps(line) {
     const m = /(\d+)m circle .*?blocked:(\d+) shortfall:(\d+)(?: ranks:(\d+))? src:(\w+)/.exec(line);
-    if (!m) return;
+    if (!m) return null;
     const sample = {
       m: Number(m[1]), blocked: Number(m[2]), shortfall: Number(m[3]),
       ranks: m[4] != null ? Number(m[4]) : null, src: m[5],
     };
     this.gapsSamples.push(sample);
     if (this.shortfallFirst == null) this.shortfallFirst = sample.shortfall;
+    return sample;
   }
 
   async finish(reason) {
@@ -1320,7 +1340,20 @@ class SweepAgent {
       const line = this.gapsLine();
       if (!line) return;
       this.appendLog(line);
-      this.sampleGaps(line);
+      const s = this.sampleGaps(line);
+      if (s) {
+        // Liveness vs progress: `exp`/`look` SENDS refresh lastSendAt, so the
+        // no-send breaker cannot catch a starving agent that keeps talking.
+        // Measured wedge (runs 2/3 of A/B ab30b): post-death respawn in a
+        // safe zone left the hunt's WANDER loop polling look/exp for 15m
+        // with zero kills or rank movement. Key on outcomes (kills, exp
+        // ranks, room); identical key for FLAT_PROGRESS_MS forces recovery.
+        const key = `${this.kills}:${s.ranks ?? '?'}:${this.session.vitals?.room}`;
+        if (key !== this.lastProgressKey) {
+          this.lastProgressKey = key;
+          this.flatSince = Date.now();
+        }
+      }
     }, 60000);
     const HB = setInterval(() => this.heartbeat(), 1000);
     setTimeout(() => {
