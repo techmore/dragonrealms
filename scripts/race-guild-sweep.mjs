@@ -662,6 +662,36 @@ class SweepAgent {
     if (this.runner) this.runner.feed(text, type);
   }
 
+  // Pending bazaar-escape walk (set by regenerateFromHere when stranded).
+  // Runs a move-only runner that resiliently re-derives the path on refusals.
+  walkBazaarEscape(steps) {
+    const s = this.session;
+    const here = s.vitals.room;
+    const fresh = (here && here !== 'bazaar') ? s.bfsPath(here, 'bazaar', this.diskAdj()) : null;
+    // bfsPath returns EDGE OBJECTS ({dir,to}) — extract .dir before
+    // building move lines. Raw objects used to render "move [object
+    // Object]"-style garbage (or a stale first-step dir), refusing every
+    // step and wedging the escape loop.
+    const dirs = (fresh?.length ? fresh : steps).map((e) => (typeof e === 'string' ? e : e?.dir)).filter(Boolean);
+    if (!dirs.length) { this.regenerateFromHere(); return; }
+    this.appendLog(`[escape] ${dirs.length} steps from ${here}: ${dirs.join(',')}`);
+    this.runner = createRunner(dirs.map((d) => 'move ' + d).join('\n') + '\nput look\nwait', [], {
+      roomNow: () => s.vitals.room,
+      send: async (line) => {
+        trackMove(s, line);
+        this.lastSendAt = Date.now();
+        // Escape moves ARE progress: without refreshing lastProgressAt
+        // the classifier reads the escape itself as silence and the
+        // watchdog re-fires mid-walk (the catrox_forge loop).
+        if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) this.lastProgressAt = Date.now();
+        void s.cmd(line);
+      },
+      onRefusedMove: (dir) => trackRefusedMove(s, dir),
+      say: () => {},
+    });
+    this.runner.start();
+  }
+
   restartCycle() {
     if (this.done || !this.library || this.restarting) return;
     this.restarting = true;
@@ -673,38 +703,7 @@ class SweepAgent {
     if (this.escapePath?.length && this.session.vitals.room !== 'bazaar') {
       const steps = this.escapePath;
       this.escapePath = null;
-      const s = this.session;
-      // Walk the escape chain resiliently: on a refused move, recompute the
-      // remaining path from wherever we actually are instead of aborting the
-      // whole walk (a single refusal used to strand the char mid-escape for
-      // another 90s watchdog cycle).
-      const walkEscape = () => {
-        const here = s.vitals.room;
-        const fresh = (here && here !== 'bazaar') ? s.bfsPath(here, 'bazaar', this.diskAdj()) : null;
-        // bfsPath returns EDGE OBJECTS ({dir,to}) — extract .dir before
-        // building move lines. Raw objects used to render "move [object
-        // Object]"-style garbage (or a stale first-step dir), refusing every
-        // step and wedging the escape loop.
-        const dirs = (fresh?.length ? fresh : steps).map((e) => (typeof e === 'string' ? e : e?.dir)).filter(Boolean);
-        if (!dirs.length) { this.regenerateFromHere(); return; }
-        this.appendLog(`[escape] ${dirs.length} steps from ${here}: ${dirs.join(',')}`);
-        this.runner = createRunner(dirs.map((d) => 'move ' + d).join('\n') + '\nput look\nwait', [], {
-          roomNow: () => s.vitals.room,
-          send: async (line) => {
-            trackMove(s, line);
-            this.lastSendAt = Date.now();
-            // Escape moves ARE progress: without refreshing lastProgressAt
-            // the classifier reads the escape itself as silence and the
-            // watchdog re-fires mid-walk (the catrox_forge loop).
-            if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) this.lastProgressAt = Date.now();
-            void s.cmd(line);
-          },
-          onRefusedMove: (dir) => trackRefusedMove(s, dir),
-          say: () => {},
-        });
-        this.runner.start();
-      };
-      walkEscape();
+      this.walkBazaarEscape(steps);
       done();
       return;
     }
@@ -889,12 +888,27 @@ class SweepAgent {
     }
     this.updateStallVerdict();
 
-    // FLAT-PROGRESS BREAKER — must sit with the no-send breaker above the
+    // PENDING-ESCAPE EXECUTION: regenerateFromHere sets escapePath but only a
+    // restartCycle ever walked it — an agent whose sends keep flowing (exp
+    // polling) starved in transit rooms with the walk armed forever (measured:
+    // champ run lszo, room trav_grove_16, 20+ min of exp with [escape] armed).
+    // If a walk is armed and we're not restarting, execute it now.
+    if (this.runner && !this.restarting && this.escapePath?.length &&
+        this.session.vitals.room !== 'bazaar') {
+      const steps = this.escapePath;
+      this.escapePath = null;
+      this.appendLog('[escape] executing pending bazaar escape from heartbeat');
+      this.walkBazaarEscape(steps);
+      return;
+    }
+
+    // FLAT-PROGRESS BREAKER — must sit with the silence breaker above the
     // early-return interlocks. Sends are liveness, not progress: a script
     // polling `exp`/`look` in a starving loop refreshes lastSendAt every
-    // tick, so the no-send breaker never fires there. If kills AND exp-sourced
-    // ranks AND room have not changed for 6 minutes, the run is producing
-    // nothing — force a cycle restart, which routes through regenerateFromHere.
+    // tick, so the 90s-silence breaker never fires there. If kills AND
+    // exp-sourced ranks AND room have not changed for 6 minutes, the run is
+    // producing nothing — force a cycle restart, which routes through
+    // regenerateFromHere.
     if (this.runner && !this.restarting &&
         Date.now() - (this.flatSince || Date.now()) > 360000) {
       this.appendLog('[watchdog] flat kills+ranks+room for 6m — forcing restart/escape');
@@ -1343,7 +1357,7 @@ class SweepAgent {
       const s = this.sampleGaps(line);
       if (s) {
         // Liveness vs progress: `exp`/`look` SENDS refresh lastSendAt, so the
-        // no-send breaker cannot catch a starving agent that keeps talking.
+        // 90s-silence breaker cannot catch a starving agent that keeps talking.
         // Measured wedge (runs 2/3 of A/B ab30b): post-death respawn in a
         // safe zone left the hunt's WANDER loop polling look/exp for 15m
         // with zero kills or rank movement. Key on outcomes (kills, exp
