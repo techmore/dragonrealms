@@ -277,6 +277,14 @@ export class WireSession {
         this.handlers.onPrompt?.(m, plain);
         break;
       }
+      case 'hands': {
+        // Equipment snapshot (server/status.js sendHands). handSkill is the
+        // wielded weapon's SKILL CATEGORY — ground truth the generated
+        // rotation branches on via %wsp (see script-engine.js [WEAPON:]).
+        // A player sees the same thing on their hands bar; no side channel.
+        v.wsp = m.handSkill || '';
+        break;
+      }
       case 'msg': case 'combat': case 'notice': {
         const text = stripAnsi(m.msg);
         // rest ticks carry vitals outside prompts
@@ -357,7 +365,7 @@ export class WireSession {
     // it for %var mirroring but must NOT re-arm roundtime from the stale
     // RT count (a fresh roundtime arrives with the next REAL prompt).
     // Silvers ride along so scripts can branch purchases on purse size.
-    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}${v.rage ? ' [Raging]' : ''}`, 'inject');
+    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}${v.rage ? ' [Raging]' : ''}${v.wsp ? ` [WEAPON:${v.wsp}]` : ''}`, 'inject');
   }
 }
 

@@ -423,6 +423,7 @@ class SweepAgent {
       // tuning) must ride on cap — buildHuntScript/buildCircleScript read
       // them from here. skipRage gates the signature roar behind %rage.
       skipRage: this.variant?.skipRage,
+      closeNth: this.variant?.closeNth,
     };
     const huntSrc = buildHuntScript({
       cap,
@@ -631,7 +632,8 @@ class SweepAgent {
       this.lastProgressAt = Date.now(); // a circle attempt + curriculum parse is activity
       // Retarget: parse the exact missing list so the next hall trip trains
       // the blocking skills instead of the generic curriculum.
-      const missing = trainListFromMissing(stripAnsi(text), this.guild);
+      const missing = trainListFromMissing(stripAnsi(text), this.guild,
+        { targetNth: !!this.variant?.closeNth, ranks: this.expRanks });
       if (missing.length) {
         this.trainList = missing;
         log(`[${this.guild}/${this.race}] retargeting curriculum: ${missing.slice(0, 6).join(', ')}${missing.length > 6 ? ` +${missing.length - 6}` : ''}`);
@@ -745,7 +747,7 @@ class SweepAgent {
     const s = this.session;
     const arena = this.arena;
     if (!arena) return;
-    const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage };
+    const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth };
     this.library[this.scriptBase + 'hunt'] = buildHuntScript({
       cap,
       hallPath: s.bfsPath(arena, 'hall_' + this.guild, this.diskAdj()),

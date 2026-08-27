@@ -157,6 +157,25 @@ export function createRunner(src, args = [], io = {}) {
         }
         return true;
       }
+      case 'ife':
+      case 'ifne': {
+        // ife/ifne <var> <value> [goto] <label> — string-equality branch on a
+        // live %var. The weapon rotation uses it to pick the NEXT kit weapon
+        // from ground truth (%wsp) instead of remembering state in script
+        // vars: cycle restarts recreate the runner and wipe every variable,
+        // so any stored flip is wrong exactly when a new cycle begins.
+        const sp = rest.split(/\s+/);
+        const val = String(vars[sp[0]] ?? '');
+        const ref = sp[1] || '';
+        const hit = cmd === 'ife' ? val === ref : val !== ref;
+        if (hit && sp[2] === 'goto') {
+          const name = sp[3];
+          const target = name ? cur().labels[String(name).toLowerCase()] : undefined;
+          if (target !== undefined) { cur().pc = target; return true; }
+          say(`[script] no such label: ${name}`);
+        }
+        return true;
+      }
       default:
         if (/^if_\d+$/i.test(cmd)) {
           // if_N [goto] <label> — DR's branch-if-variable-set: when var N is
@@ -252,6 +271,15 @@ export function createRunner(src, args = [], io = {}) {
       // loops gate `tend` on %bleed so First Aid trains in the field exactly
       // when it's useful instead of burning roundtime on nothing.
       vars.bleed = /\[bleeding:/.test(plain) ? '1' : '0';
+      // Currently-wielded weapon's skill category ([WEAPON:blunt] — synthetic
+      // token injected by the sim harness from the server's `hands` snapshot,
+      // which a player reads off their own equipment bar). Ground truth for
+      // the per-kill weapon rotation, replacing the old wphase flip-flop
+      // whose state died with every cycle restart (fresh runner = fresh vars,
+      // and an undefined %wphase interpolated literally and always took the
+      // "phase B" branch — measured as 1 knife swap vs 6 club re-wields).
+      const wsp = /\[WEAPON:([a-z_]+)\]/.exec(plain);
+      if (wsp) vars.wsp = wsp[1];
     }
     // TDP balance surfaces in command OUTPUT (training refusals state the
     // exact balance, `tdp` prints it, spends confirm the cost) rather than

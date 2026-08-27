@@ -55,8 +55,16 @@ function buildHuntScript({ cap, arena, hallPath }) {
   // back to the legacy single-weapon ladder.
   const plan = cfg.weaponPlan;
   if (plan?.weapons?.length) {
-    const prices = { club: 112, throwing_knives: 30, mace: 206 };
-    for (const wid of plan.weapons) {
+    const prices = { club: 112, throwing_knives: 30, mace: 206, staff: 112 };
+    // DIVERSITY kit (cap.closeNth): swap the third weapon from mace (blunt —
+    // trains the SAME category as club, useless for Nth-set diversity) to
+    // staff (staff category, also 112s at Milgrym's). Three distinct
+    // categories = blunt/thrown/staff, exactly what circle-2's 2nd/3rd/4th
+    // weapon slots need exercised in the field.
+    const kit = cap.closeNth && plan.weapons.includes('club')
+      ? ['club', 'throwing_knives', 'staff']
+      : plan.weapons;
+    for (const wid of kit) {
       const nm = String(wid).replace(/_/g, ' ');
       const price = prices[wid];
       L.push(`BUY_${wid.replace(/_/g, '').toUpperCase()}:`);
@@ -142,6 +150,20 @@ function buildHuntScript({ cap, arena, hallPath }) {
   L.push('  wait');
   L.push('  put wear padded cloth armor');
   L.push('  wait');
+  // DIVERSITY (cap.closeNth): the 2nd armor slot needs a SECOND armor
+  // CATEGORY taking blows (armor exp is granted per landed blow against each
+  // WORN piece's own skill). padded cloth = light_armor; a 120s iron helm =
+  // chain_armor. Same purse gate style as the weapon plan.
+  if (cap.closeNth) {
+    L.push('  ifge silver 120 BUY_HELM');
+    L.push('  goto ARMED');
+    L.push('BUY_HELM:');
+    L.push('  matchre ARMED already have|Worn:[\\s\\S]*helm');
+    L.push('  put buy iron helm');
+    L.push('  wait');
+    L.push('  put wear iron helm');
+    L.push('  wait');
+  }
   L.push('  goto ARMED');
   L.push('BROKE:');
   L.push('  put withdraw 100');
@@ -324,6 +346,45 @@ function buildHuntScript({ cap, arena, hallPath }) {
     // weapon re-equips cleanly server-side.
     if (plan?.weapons?.length > 1) {
       const nm = (w) => String(w).replace(/_/g, ' ');
+      // DIVERSITY rotation (cap.closeNth): branch on ground truth. The old
+      // %wphase flip-flop held its memory IN THE RUNNER — every watchdog /
+      // regeneration restart creates a fresh createRunner with empty vars,
+      // and an undefined %wphase interpolates to the literal string
+      // '%wphase' (sub() leaves unknown vars intact), which if_1 read as
+      // SET: after each restart the first kill always took the ROT_A arm
+      // ('remove knives, wield club') — fidelity log run
+      // roarSmart-giantman 2026-08-27 shows 16 'remove throwing knives' vs
+      // ZERO 'wield throwing knives' past the last sweep-run marker.
+      // Fix: pick the NEXT kit weapon from %wsp (what is actually in hand,
+      // mirrored from the server's hands snapshot), so a restart re-syncs
+      // instead of desyncing. Baseline keeps the old block byte-for-byte.
+      const skillsOf = { club: 'blunt', mace: 'blunt', throwing_knives: 'thrown', staff: 'staff' };
+      const kit = cap.closeNth && plan.weapons.includes('club')
+        ? ['club', 'throwing_knives', 'staff']
+        : plan.weapons;
+      if (cap.closeNth && kit.length > 1) {
+        // Holding kit[i] -> drop it, raise kit[(i+1) % 3]. An EMPTY hand or
+        // anything unlisted matches no ife and falls into ROT_K0, which is
+        // safe either way (removing a not-held weapon prints harmless prose).
+        for (let i = 0; i < kit.length; i++) {
+          L.push(`  ife wsp ${skillsOf[kit[i]]} goto ROT_K${i}_${key}`);
+        }
+        L.push(`ROT_K0_${key}:`);
+        L.push(`  put remove ${nm(kit[0])}`);
+        L.push(`  put wield ${nm(kit[1])}`);
+        L.push('  wait');
+        L.push(`  goto ROT_END_${key}`);
+        L.push(`ROT_K1_${key}:`);
+        L.push(`  put remove ${nm(kit[1])}`);
+        L.push(`  put wield ${nm(kit[2])}`);
+        L.push('  wait');
+        L.push(`  goto ROT_END_${key}`);
+        L.push(`ROT_K2_${key}:`);
+        L.push(`  put remove ${nm(kit[2])}`);
+        L.push(`  put wield ${nm(kit[0])}`);
+        L.push('  wait');
+        L.push(`ROT_END_${key}:`);
+      } else {
       const [wa, wb] = plan.weapons;
       L.push('  setvariable 1 %wphase');   // copy phase into var "1" for if_1
       L.push(`  if_1 goto ROT_A_${key}`);
@@ -337,6 +398,7 @@ function buildHuntScript({ cap, arena, hallPath }) {
       L.push(`  put wield ${nm(wa)}`);
       L.push('  wait');
       L.push('  setvariable wphase');
+      } // end baseline wphase rotation
     }
     // Check the experience sheet after a kill, the way a real player does.
     // `exp` is a pure information command — no setRoundtime(), not in
@@ -404,9 +466,40 @@ function buildHuntScript({ cap, arena, hallPath }) {
 // targeted tdptrain curriculum. Handles both plain skills ("expertise at
 // least rank 8 (you have 5)") and set requirements ("2nd weapon at least
 // rank 8"), expanding the Nth-set entries into that guild's candidate pools.
-function trainListFromMissing(raw, guild) {
+function trainListFromMissing(raw, guild, opts = {}) {
   const cfg = GUILD_SCRIPTS[guild];
   const wanted = [];
+  // DIVERSITY targeting (opts.targetNth + opts.ranks): for a missing
+  // Nth-set line ("2nd weapon at least rank 8 (your 2nd is 0)"), rank the
+  // pool's current ranks descending and train the member SITTING AT that
+  // Nth position — the exact slot the requirement counts. The generic
+  // expansion below instead dumps EVERY pool candidate into the curriculum,
+  // which spread scarce TDPs across six weapon skills while the counted
+  // slots stayed behind.
+  if (opts.targetNth && opts.ranks) {
+    for (const m of raw.matchAll(/\d+(?:st|nd|rd|th) (weapon|armor|survival|lore|magic|supernatural) at least rank (\d+)/gi)) {
+      const set = m[1].toLowerCase();
+      const need = Number(m[2]);
+      const nth = ({ st: 1, nd: 2, rd: 3 })[m[0].match(/^(\d+)(st|nd|rd|th)/i)[2]] || Number(m[0].match(/^(\d+)/)[1]);
+      const pool = (cfg.trainSets[set] || []);
+      const ranked = [...pool]
+        .map((id) => ({ id, rank: opts.ranks[id] || 0 }))
+        .sort((a, b) => b.rank - a.rank);
+      const blocker = ranked[nth - 1];
+      if (blocker && blocker.rank < need) wanted.push(blocker.id);
+    }
+    // Plain skills still matter ("expertise at least rank 8") — strip the
+    // Nth-set lines FIRST or "2nd weapon …" parses as skill "weapon".
+    const plainOnly = raw.replace(/\d+(?:st|nd|rd|th) (?:weapon|armor|survival|lore|magic|supernatural) at least rank \d+[^\n]*/gi, '');
+    for (const m of plainOnly.matchAll(/([a-z_]+?) at least rank (\d+)/g)) {
+      const name = m[1].trim().toLowerCase();
+      if (name && !/^\d+(?:st|nd|rd|th)$/.test(name)) {
+        const id = name.replace(/\s+/g, '_');
+        if (!wanted.includes(id)) wanted.push(id);
+      }
+    }
+    return wanted;
+  }
   // Strip Nth-set lines ("2nd weapon at least rank 8") — expanded below from
   // the guild's candidate pools — then collect remaining plain skills.
   const plain = raw.replace(/\d+(?:st|nd|rd|th) (?:weapon|armor|survival|lore|magic) at least rank \d+[^\n]*/gi, '');

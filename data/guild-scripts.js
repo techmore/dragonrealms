@@ -359,4 +359,10 @@ export const VARIANTS = {
     diff: ['skipRage'],
     hypothesis: 'Skip the signature roar while a rage is already active. Rage lasts 12 ticks; a fight lasts ~2, so the per-fight roar is refused ("The rage already burns in you") on every fight after the first — wasted RT, stalled swings, fidelity-log noise. Rationale for exp impact: _useAbilityInner refuses the verb, so the wrapper grants NO augmentation either way (res.ok gate); roaring only when it can land loses nothing.',
   },
+  diversity: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true,
+    diff: ['closeNth'],
+    hypothesis: 'Close the Nth-set circle-2 slots (2nd/3rd/4th weapon, 2nd armor) that primary-pool grinding cannot reach: (1) the per-kill weapon rotation now branches on GROUND TRUTH (%wsp mirrored from the hands snapshot) instead of a %wphase flip-flop whose memory died with every cycle restart — after each restart the undefined variable interpolated literally and always took the club arm (log evidence: 16 remove-knives / 0 wield-knives in one run), and (2) hall tdptrain retargeting picks the EXACT Nth-ranked blocking pool member per missing set line instead of flooding every candidate; kit swaps mace (blunt dupe) -> staff and adds an iron helm for chain_armor field exp.',
+  },
 };

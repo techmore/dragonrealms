@@ -216,3 +216,46 @@ test('no errands config -> circle script unchanged (backward compatible)', () =>
   });
   assert.ok(!/sell |bundle |ERRAND/.test(src), 'no errand lines without errands config');
 });
+
+// DIVERSITY (closeNth): hall retargeting must train the EXACT Nth-ranked
+// blocking pool member for a missing Nth-set line, not flood the curriculum
+// with every candidate. Evidence it matters: with six weapon candidates in
+// the list, scarce TDPs spread thin while the counted slots stayed behind.
+import { trainListFromMissing } from '../scripts/lib/script-gen.mjs';
+
+const RANKS = { blunt: 15, thrown: 10, large_edged: 0, twohanded_edged: 0,
+  twohanded_blunt: 0, staff: 0, light_armor: 9, chain_armor: 0, brigandine: 0 };
+
+test('targetNth picks the exact Nth-ranked blocking pool member per set line', () => {
+  const raw = [
+    '2nd weapon at least rank 8 (your 2nd is 0)',
+    '3rd weapon at least rank 4 (your 3rd is 0)',
+    '4th weapon at least rank 2 (your 4th is 0)',
+    '2nd armor at least rank 2 (your 2nd is 0)',
+  ].join('\n');
+  const list = trainListFromMissing(raw, 'barbarian', { targetNth: true, ranks: RANKS });
+  // Weapon pool ranked desc: blunt15, thrown10, then zeros.
+  // 2nd weapon = thrown (10) — ALREADY satisfied, must NOT be trained.
+  // 3rd weapon = first zero member (large_edged by pool order); 4th = next zero.
+  assert.equal(list.filter((s) => s === 'thrown').length, 0,
+    'a satisfied slot is not retrained');
+  assert.ok(list.includes('large_edged'), `3rd-weapon blocker targeted (${list.join(',')})`);
+  assert.ok(list.includes('twohanded_edged'), `4th-weapon blocker targeted (${list.join(',')})`);
+  // Armor pool desc: light_armor9, then stable ties by pool order
+  // (brigandine before chain_armor) -> 2nd-armor blocker = first tie.
+  const armors = ['light_armor', 'brigandine', 'chain_armor', 'shield_usage'];
+  assert.ok(armors.includes(list[2]), `3rd entry is the armor blocker (${list.join(',')})`);
+  assert.notEqual(list[2], 'light_armor', '1st-armor rank (satisfied) is not retrained');
+});
+
+test('targetNth keeps plain named-skill blockers', () => {
+  const raw = 'expertise at least rank 8 (you have 7)\nmelee_mastery at least rank 8 (you have 4)\nparry at least rank 8 (you have 6)';
+  const list = trainListFromMissing(raw, 'barbarian', { targetNth: true, ranks: RANKS });
+  assert.deepEqual(list, ['expertise', 'melee_mastery', 'parry']);
+});
+
+test('targeting only fires when opted in (baseline behavior unchanged)', () => {
+  const raw = '2nd weapon at least rank 8 (your 2nd is 0)';
+  const generic = trainListFromMissing(raw, 'barbarian');
+  assert.ok(generic.length >= 5, 'without opt-in every candidate enters the list');
+});
