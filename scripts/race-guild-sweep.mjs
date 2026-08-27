@@ -465,6 +465,13 @@ class SweepAgent {
       [this.scriptBase + 'circle']: circleSrc,
       [this.scriptBase + 'mega']: megaSrc,
     };
+    this.lastScripts = {
+      hunt: huntSrc, circle: circleSrc, mega: megaSrc,
+    };
+    this.lastScriptMeta = {
+      arena: arena.id,
+      species: [...new Set(ROOMS[arena.id]?.spawns || [])].map(nounOf),
+    };
     for (const [name, body] of Object.entries(this.libraryPending || this.library || {})) {
       s.sendObj({ t: 'scripts_put', name, body });
       await sleep(250);
@@ -758,7 +765,16 @@ class SweepAgent {
     this.library[this.scriptBase + 'circle'] = buildCircleScript({
       cap,
       fromArena: {
-        hall: s.bfsPath(arena, 'hall_' + this.guild, this.diskAdj()),
+        // From the agent's CURRENT room, not the arena. Fallback hall trips
+        // fire wherever the agent is (bazaar, mid-transit) — a path generated
+        // from arena.id starts with moves that don't exist here (run bdas:
+        // 16 "You cannot go that way" refusals, first move `up` failing from
+        // rooms with no up exit), burning ~3 moves plus a recovery walk per
+        // trip. The fallback call sites call regenerateScripts() while the
+        // agent is still in the arena — but the readiness-gated site and the
+        // parked-watchdog don't guarantee that. s.vitals.room is the honest
+        // "where am I standing right now" answer.
+        hall: s.bfsPath(s.vitals.room || arena, 'hall_' + this.guild, this.diskAdj()),
         back: s.bfsPath('hall_' + this.guild, arena, this.diskAdj()),
       },
       errands: {
@@ -1135,6 +1151,30 @@ class SweepAgent {
       fidelity: this.fidelity, fidelityScore: `${checksPassed}/${checksTotal}`,
       grade,
     };
+    // Persist the generated script library beside the log so the Sims page
+    // can show WHAT ran, not just how it scored. Written per-run (timestamped
+    // in the filename) so a variant's latest scripts are always available.
+    if (this.lastScripts) {
+      try {
+        const tag = this.variantName ? '-' + String(this.variantName).replace(/[^a-z0-9]/gi, '') : '';
+        const base = `fidelity-${this.guild}${tag}-${this.race}`;
+        const dir = join(LIVE_DIR, 'scripts', base);
+        mkdirSync(dir, { recursive: true });
+        for (const [nm, body] of Object.entries(this.lastScripts)) {
+          if (typeof body !== 'string') continue;
+          writeFileSync(join(dir, `${nm}.dr`), body);
+        }
+        // One-line provenance: which goal/knobs generated these.
+        writeFileSync(join(dir, 'meta.json'), JSON.stringify({
+          char: this.char, guild: this.guild, race: this.race,
+          variant: this.variantName, restPct: this.restPct, hallEvery: this.hallEvery,
+          arenaBand: this.arenaBand, hallFallbackMs: this.hallFallbackMs,
+          targetCircle: CIRCLE_TARGET, boost: BOOST,
+          arena: this.lastScriptMeta?.arena, species: this.lastScriptMeta?.species,
+          ts: summary.ts,
+        }, null, 2));
+      } catch {}
+    }
     try { appendFileSync(join(LIVE_DIR, 'fidelity-summary.jsonl'), JSON.stringify(summary) + '\n'); } catch {}
     // SQLite sweeps history (sim artifact — public/live/sweeps.db, NOT the
     // game DB). One row per agent run.
