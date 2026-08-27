@@ -392,7 +392,7 @@
       </h2>
       <div class="controls">
         <select id="lb-guild"><option value="">all guilds…</option></select>
-        <span class="sub">rating = 40% velocity + 25% survival + 20% discipline + 15% fidelity; tiers S ≥85, A ≥70, B ≥55, C ≥35</span>
+        <span class="sub">rating = 30% progress (shortfall) + 25% velocity + 20% survival + 15% discipline + 10% fidelity; tiers S ≥85, A ≥70, B ≥55, C ≥35</span>
       </div>
       <div id="lb-body" class="note">loading…</div>
       <style>
@@ -877,11 +877,24 @@
       // rankSplits, median time-to-15-ranks was ~4.4min => ~190 ranks/h at
       // boost x20. The old 60 was set by judgment and graded healthy runs F.
       BASELINE_RANKS_PER_H: 180,
-      W: { velocity: 0.40, survival: 0.25, discipline: 0.20, fidelity: 0.15 },
+      // Recalibrated weights (2026-08-27, evidence: shortfall telemetry now
+      // exists on post-gapTelemetry runs): progress (how CLOSE to circling)
+      // deserves weight — ranks/h alone crowned baseline (grind-era legacy)
+      // while diversity2 sat 1-2 ranks from circle 2. Old W had velocity .40
+      // / survival .25 / discipline .20 / fidelity .15 with NO progress term.
+      W: { progress: 0.30, velocity: 0.25, survival: 0.20, discipline: 0.15, fidelity: 0.10 },
       tier(v) { return v >= 85 ? 'S' : v >= 70 ? 'A' : v >= 55 ? 'B' : v >= 35 ? 'C' : 'D'; },
     };
     function rateRun(r) {
       const hours = r.durationMs ? r.durationMs / 3600000 : null;
+      // ---- progress (NEW): how close did this run get to circling?
+      // shortfall = total ranks still missing for the next circle. Lower is
+      // better. Scale: shortfall 0 => 100; shortfall >= 40 => 0 (the historic
+      // c2 plateau). Absent (pre-telemetry rows) => null → neutral 50.
+      let progress = null;
+      if (r.shortfall != null) {
+        progress = Math.max(0, Math.min(100, Math.round(100 * (1 - r.shortfall / 40))));
+      }
       // ---- velocity. Sources in priority order; every score carries its
       // source so a degraded estimate is visible, never silent:
       //   A totalRanks/durationMs .... real full-run velocity (no producer yet)
@@ -925,9 +938,10 @@
       } else if (r.fidelity && Object.keys(r.fidelity).length) {
         fidelity = 100; // counters present but no denominator — full credit
       }
-      const parts = { velocity, survival, discipline, fidelity };
+      const parts = { progress, velocity, survival, discipline, fidelity };
       const val = Math.round(
-        (velocity ?? 50) * RATING.W.velocity
+        (parts.progress ?? 50) * RATING.W.progress
+        + (velocity ?? 50) * RATING.W.velocity
         + parts.survival * RATING.W.survival
         + parts.discipline * RATING.W.discipline
         + (parts.fidelity ?? 50) * RATING.W.fidelity); // unknown inputs neutral 50
@@ -1032,7 +1046,7 @@
           const detail = open ? `
           <tr class="lb-detail"><td colspan="10">
             <div class="bd-grid">
-              ${['velocity', 'survival', 'discipline', 'fidelity'].map((p) => {
+              ${['progress', 'velocity', 'survival', 'discipline', 'fidelity'].map((p) => {
                 const v = rv.avgParts[p];
                 const w = Math.round(RATING.W[p] * 100);
                 return `<div class="bd-item"><span class="dsub">${p} · ${w}%</span>
@@ -2039,8 +2053,14 @@
                 velSrcTxt = `${Math.round(velRaw)} est ranks/h (kills×2.2 proxy)`;
               }
               const vel = Math.min(100, Math.round(100 * velRaw / RATING.BASELINE_RANKS_PER_H));
+              // live progress: shortfall from the newest [gaps] sample
+              const shortNow = gaps.length ? +gaps[gaps.length - 1][3] : null;
+              const prog = shortNow != null
+                ? Math.max(0, Math.min(100, Math.round(100 * (1 - shortNow / 40))))
+                : 50;
               const rv = Math.round(
-                vel * RATING.W.velocity
+                prog * RATING.W.progress
+                + vel * RATING.W.velocity
                 + (kills > 0 ? 100 : 40) * RATING.W.survival
                 + 100 * RATING.W.discipline
                 + 50 * RATING.W.fidelity);
