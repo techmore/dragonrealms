@@ -233,6 +233,10 @@ export function createRunner(src, args = [], io = {}) {
       // signature roar on %rage — a second roar inside an active rage is
       // always refused and just charges roundtime + log noise.
       vars.rage = /\[Raging\]/.test(plain) ? '1' : '0';
+      // Bleeding wounds (prompt tag from server/status.js). Generated fight
+      // loops gate `tend` on %bleed so First Aid trains in the field exactly
+      // when it's useful instead of burning roundtime on nothing.
+      vars.bleed = /\[bleeding:/.test(plain) ? '1' : '0';
     }
     // TDP balance surfaces in command OUTPUT (training refusals state the
     // exact balance, `tdp` prints it, spends confirm the cost) rather than

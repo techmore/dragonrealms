@@ -48,6 +48,32 @@ function buildHuntScript({ cap, arena, hallPath }) {
   L.push('  goto ARMED');
   L.push('GETWEAPON:');
   if (cap.bazaarPath?.length) L.push(...moves(cap.bazaarPath));
+  // WEAPON PLAN buy block. With a weaponPlan the agent buys its FULL kit on
+  // this one visit (club + throwing knives + mace = 348s of starter silver:
+  // fresh chars have 150, so only what's affordable lands now and later
+  // bazaar trips fill gaps as pelt income arrives). Without a plan, falls
+  // back to the legacy single-weapon ladder.
+  const plan = cfg.weaponPlan;
+  if (plan?.weapons?.length) {
+    const prices = { club: 112, throwing_knives: 30, mace: 206 };
+    for (const wid of plan.weapons) {
+      const nm = String(wid).replace(/_/g, ' ');
+      const price = prices[wid];
+      L.push(`BUY_${wid.replace(/_/g, '').toUpperCase()}:`);
+      // Buying an owned weapon is harmless ("already have") but wastes a
+      // wait — gate each purchase on its price so poor agents skip ahead.
+      if (price) L.push(`  iflt silver ${price} goto PLAN_DONE`);
+      L.push(`  put buy ${nm}`);
+      L.push('  wait');
+    }
+    L.push('PLAN_DONE:');
+    // Wield the FIRST weapon (rotation handles swapping in the field).
+    const first = String(plan.weapons[0]).replace(/_/g, ' ');
+    L.push(`  put remove club`);
+    L.push(`  put wield ${first}`);
+    L.push('  wait');
+    L.push('  goto BUY_ARMOR');
+  }
   L.push('BUY:');
   L.push('  matchre WIELD You buy|You pay|hands you');
   // No shopkeeper here means our bazaar path was empty/stale — re-arm check
@@ -67,6 +93,11 @@ function buildHuntScript({ cap, arena, hallPath }) {
   // prompt parser). The weapon ladder only fires when the agent has actually
   // banked enough from selling pelts — without this, fresh chars spin on
   // BUY_CLUB forever because 150 silver never reaches 337.
+  // ONLY emitted when no weaponPlan exists — with a plan, the BUY_ labels
+  // above already define these names and the engine's LAST-definition-wins
+  // label map would silently redirect every plan jump into the dead legacy
+  // ladder (the duplicate-label class of bug).
+  if (!plan?.weapons?.length) {
   L.push('  ifge silver 562 goto BUY_SABRE');
   L.push('  ifge silver 337 goto BUY_SHORTSWORD');
   L.push('BUY_CLUB:');
@@ -90,6 +121,7 @@ function buildHuntScript({ cap, arena, hallPath }) {
   L.push('  put wield sword');
   L.push('  wait');
   L.push('  goto BUY_ARMOR');
+  } // end legacy-ladder-only guard
   // Armor, bought in the SAME bazaar visit as the weapon (the armorer shares
   // the room), so this adds no navigation. It must live here rather than as a
   // separate walk: an earlier attempt gave armor its own bazaarPath leg, but
@@ -222,6 +254,20 @@ function buildHuntScript({ cap, arena, hallPath }) {
       L.push(`  put skin ${noun}`);
       L.push('  wait');
     }
+    // FIRST AID field training — tend bleeding wounds between kills.
+    // Skins first (same RT window), then branch: only `tend` when the prompt
+    // shows [bleeding: ...] (%bleed mirrored by the engine). Tending earns
+    // First Aid exp per wound level — a survival skill that otherwise only
+    // trains via rare trainer visits. Worst-bleeder-first is the server's
+    // default; repeat once for double bleeders. "No wounds" prose is harmless.
+    if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('first_aid')) {
+      L.push(`  ifge bleed 1 goto TEND_${key}`);
+      L.push(`TEND_${key}:`);
+      L.push('  put tend');
+      L.push('  wait');
+      L.push('  put tend');   // second pass — double wounds are common at c2+
+      L.push('  wait');
+    }
     if (cfg.signature && cfg.signature.probe === 'ability') {
       // Skipped when signatureAfter already placed it mid-sequence. The
       // trailing slot only works for guilds whose signature does not need an
@@ -259,6 +305,39 @@ function buildHuntScript({ cap, arena, hallPath }) {
     L.push(`SD_${key}:`);
     L.push('  wait');
     L.push('  pause 3');
+    // WEAPON ROTATION — swap to the plan's OTHER weapon after every kill.
+    //
+    // Why: circle 2 needs FOUR weapon skills (1st@8, 2nd@8, 3rd@4, 4th@2);
+    // single-weapon farming trains only its own skill and leaves slots 2-4
+    // to TDP-only grind — measured at ~105 TDPs to lift one rank-2 filler to
+    // its requirement against ~2 TDPs of income per run. Rotating per kill
+    // turns kills into field exp for a second guild-taught category instead.
+    //
+    // How: a two-state flip on a script variable. The engine has no numeric
+    // compare on set variables (iflt/ifge branch on game-state numbers) but
+    // it DOES have if_N ("jump when var N is non-empty") — so:
+    //   wphase empty -> wield weapon B, set wphase=1
+    //   wphase set   -> wield weapon A, clear wphase, fall through to EXP
+    // Per-species labels (ROT_A_${key}) keep the two-phase state shared but
+    // the dispatch inline. Removing a not-wielded weapon prints harmless
+    // "You aren't wearing that." prose. After swapping, control falls into
+    // the exp/REST check below, then SCAN for the next target.
+    if (plan?.weapons?.length > 1) {
+      const nm = (w) => String(w).replace(/_/g, ' ');
+      const [wa, wb] = plan.weapons;
+      L.push('  setvariable 1 %wphase');   // copy phase into var "1" for if_1
+      L.push(`  if_1 ROT_A_${key}`);       // per-species: labels are LAST-wins
+      L.push(`  put remove ${nm(wa)}`);
+      L.push(`  put wield ${nm(wb)}`);
+      L.push('  wait');
+      L.push('  setvariable wphase 1');
+      L.push('  goto SCAN');
+      L.push(`ROT_A_${key}:`);
+      L.push(`  put remove ${nm(wb)}`);
+      L.push(`  put wield ${nm(wa)}`);
+      L.push('  wait');
+      L.push('  setvariable wphase');
+    }
     // Check the experience sheet after a kill, the way a real player does.
     // `exp` is a pure information command — no setRoundtime(), not in
     // RT_BLOCK — so this costs nothing and needs no special harness support.
