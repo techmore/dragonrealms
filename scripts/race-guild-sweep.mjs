@@ -233,6 +233,7 @@ class SweepAgent {
     this.trainList = null;
     this.killsAtVisit = 0;
     this.lastFleeAt = 0;
+    this.lastTendAt = 0;
     this.scriptsSaved = false;
     this.circleTimes = [];    // [{circle, ms}] wall-clock from enter to EACH circle-up
     // Leveling lab: time-to-first-EXP and total-rank crossings (5/10/15...).
@@ -815,6 +816,17 @@ class SweepAgent {
     // (default 55%), stand above 90%.
     if (!v.maxhp || v.inCombat) return;
     const frac = v.hp / v.maxhp;
+    // POST-FLEE TEND (bleed-out fix): deaths happen AFTER escaping — the
+    // agent flees to a safe room at low HP with open wounds and bleeds out
+    // (diversity-yahj died in the bazaar at 85/171 HP). If not bleeding,
+    // tend is pointless; if bleeding, tend before resting. Free of RT when
+    // out of combat; harmless 'no wounds' prose otherwise.
+    if ((v.bleeding || []).length && Date.now() - (this.lastTendAt || 0) > 4000) {
+      this.lastTendAt = Date.now();
+      this.appendLog(`[interlock] bleeding after escape (${v.bleeding.join(', ')}) — tending`);
+      void this.session.cmd('tend');
+      return; // one tend per prompt; re-evaluate next tick
+    }
     const now = Date.now();
 
     if (!v.restingFlag && frac < this.restPct / 100 && now - (this.lastRestCmdAt || 0) > 4000) {
