@@ -1087,8 +1087,17 @@ class SweepAgent {
     const worst = parsed.slice().sort((a, b) => b.short - a.short).slice(0, 6)
       .map((g) => `${g.what} ${g.have}/${g.need}`).join(', ');
     const totalRanks = Object.values(skills).reduce((s, r) => s + (r || 0), 0);
+    // Ranked contribution list for the Sims page's live "EXP ALL" panel:
+    // every skill with ranks, biggest first. top10 rides the line; the UI
+    // shows the sum (Σ) and can expand the leaders.
+    const rankList = Object.entries(skills)
+      .filter(([, r]) => r > 0)
+      .sort((a, b) => b[1] - a[1]);
+    const top10 = rankList.slice(0, 10);
+    const top10Sum = top10.reduce((s, [, r]) => s + r, 0);
     const src = this.expRanks ? 'exp' : 'mindstate';
-    return `[gaps] ${mins}m circle ${v.circle}->${target} blocked:${parsed.length} shortfall:${shortfall} ranks:${totalRanks} src:${src} | ${worst}`;
+    return `[gaps] ${mins}m circle ${v.circle}->${target} blocked:${parsed.length} shortfall:${shortfall} ranks:${totalRanks} src:${src}`
+      + ` | expall:${top10Sum}/${totalRanks} | ` + top10.map(([id, r]) => `${id} ${r}`).join(', ');
   }
 
   // Parse one [gaps] line into closure-rate telemetry: shortfall at run start

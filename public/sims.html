@@ -1772,7 +1772,25 @@
             const min = +pm[1];
             const kills = +pm[5];
             state.textContent = `${min}m · circle ${pm[2]} · ${kills} kills · hp ${pm[3]}/${pm[4]}`;
-            prog.style.width = Math.min(100, Math.round(min / 10 * 100)) + '%';
+            // EXP ALL chips — the operator's "total learning" read:
+            //   Σ ranks = every skill's rank summed (the [gaps] ranks:N,
+            //     authoritative exp-sheet count when src:exp)
+            //   EXP-10 Σ = sum of the top-10 skills' ranks (deep progress)
+            //   Δ = change since the previous [gaps] sample (movement)
+            // The line also carries "expall:top10Sum/totalRanks | skill r,"
+            // per-skill leaders; parse it so top-10 detail rides along.
+            const lastGapsLine = [...text.matchAll(/\[gaps\][^\n]*/g)].pop()?.[0] || '';
+            const expAll = /expall:(\d+)\/(\d+)/.exec(lastGapsLine);
+            const leaders = expAll
+              ? (lastGapsLine.split('|').pop() || '').trim().split(', ').slice(0, 3)
+              : [];
+            // Goal + runtime for honest progress: the sweep writes its target
+            // into meta.json ([gaps] circle d->T tells us the active goal);
+            // default max-runtime assumption is 6h until told otherwise.
+            const prog = card.el.querySelector('[data-role="prog"]');
+            // progress bar: elapsed vs 6h ceiling when no explicit duration
+            prog.style.width = Math.min(100, Math.round(min / 360 * 100)) + '%';
+            prog.title = `elapsed ${min}m of a 6h ceiling (target: reach next circles sooner)`;
             // Gap telemetry: [gaps] lines land every ~60s from the driver's
             // minute timer — parse ALL of them (a card may sit through many)
             // and show shortfall trend, not a stale single value.
@@ -1795,6 +1813,30 @@
               lh.insertBefore(gapsEl, card.el.querySelector('.lrate'));
             }
             gapsEl.innerHTML = gapsNote;
+            // EXP ALL chip: Σ ranks + top-10 sum + per-skill leaders. Shows
+            // total learning at a glance; hover reveals the leaders.
+            let expEl = card.el.querySelector('[data-role="expall"]');
+            if (!expEl) {
+              expEl = document.createElement('span');
+              expEl.dataset.role = 'expall';
+              const lh = card.el.querySelector('.lh');
+              lh.insertBefore(expEl, card.el.querySelector('[data-role="gaps"]'));
+            }
+            if (gaps.length && expAll) {
+              const gL = gaps[gaps.length - 1];
+              const totalRanks = +expAll[2];
+              // Δ across the run's samples — movement is what matters.
+              const firstRanks = +gaps[0][4];
+              const dRanks = totalRanks - firstRanks;
+              const dCol = dRanks > 0 ? 'var(--green)' : 'var(--dim)';
+              expEl.innerHTML =
+                `<span title="EXP ALL: every skill's rank summed (src:${gL[5]})${lastGapsLine.includes('UNDERSTATED') ? '' : ''}">`
+                + `Σ <b>${totalRanks}</b> <span style="color:${dCol}">${dRanks > 0 ? '+' : ''}${dRanks}</span></span>`
+                + `<span title="EXP ALL-10: sum of the top 10 skills' ranks — depth vs breadth of training" style="margin-left:8px">top10 <b>${expAll[1]}</b>${leaders.length ? ` · ${esc(leaders.join(', '))}` : ''}</span>`;
+            } else if (gaps.length) {
+              const gL = gaps[gaps.length - 1];
+              expEl.innerHTML = `<span title="total ranks from [gaps] (driver predates expall field)">Σ <b>${gL[4]}</b></span>`;
+            }
             // Provisional velocity prefers the authoritative [gaps] rank
             // counter (src:exp) over the kills×2.2 proxy; it degrades
             // gracefully per rateRun()'s source ladder.
