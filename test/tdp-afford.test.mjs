@@ -96,7 +96,7 @@ test('barbarian fight loop relies on engine WAIT semantics (no hand pauses)', ()
   });
   // The swing block flows straight into skin — the ENGINE parks RT-blocked
   // verbs and applies them when roundtime clears, so no hand-tuned pauses.
-  const fightIdx = src.indexOf('FIGHT_NOW:');
+  const fightIdx = src.indexOf('FN_rat:');
   const skinIdx = src.indexOf('put skin ', fightIdx);
   assert.ok(skinIdx > fightIdx, 'skin follows the swings');
   const seg = src.slice(fightIdx, skinIdx);
@@ -114,7 +114,7 @@ test('barbarian fight loop relies on engine WAIT semantics (no hand pauses)', ()
   // After the first attack, combat exists AND the engine parks the roar until
   // that attack's roundtime drains, so it applies. Verified: augmentation
   // pool 0 -> 10 on the first roar.
-  const seq = src.slice(src.indexOf('FIGHT_NOW:'))
+  const seq = src.slice(src.indexOf('FN_rat:'))
     .split('\n').filter((l) => /^\s+put /.test(l)).map((l) => l.trim());
   assert.match(seq[0], /put attack/, 'the first swing leads');
   assert.match(seq[1], /put roar/, 'signature fires right after the first attack');

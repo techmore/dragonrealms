@@ -415,6 +415,10 @@ class SweepAgent {
     const cap = {
       guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase,
       bazaarPath, trainList: null, trainOffset: this.trainOffset || 0,
+      // Variant knobs that alter generated script bodies (not just supervisor
+      // tuning) must ride on cap — buildHuntScript/buildCircleScript read
+      // them from here. skipRage gates the signature roar behind %rage.
+      skipRage: this.variant?.skipRage,
     };
     const huntSrc = buildHuntScript({
       cap,
@@ -738,7 +742,7 @@ class SweepAgent {
     const s = this.session;
     const arena = this.arena;
     if (!arena) return;
-    const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0 };
+    const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage };
     this.library[this.scriptBase + 'hunt'] = buildHuntScript({
       cap,
       hallPath: s.bfsPath(arena, 'hall_' + this.guild, this.diskAdj()),

@@ -336,4 +336,10 @@ export const VARIANTS = {
     diff: ['hallEvery', 'arenaBand'],
     hypothesis: 'Wider creature weight class (+4 circles, hall every 6) — faster exp, higher death risk.',
   },
+  roarSmart: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    skipRage: true,
+    diff: ['skipRage'],
+    hypothesis: 'Skip the signature roar while a rage is already active. Rage lasts 12 ticks; a fight lasts ~2, so the per-fight roar is refused ("The rage already burns in you") on every fight after the first — wasted RT, stalled swings, fidelity-log noise. Rationale for exp impact: _useAbilityInner refuses the verb, so the wrapper grants NO augmentation either way (res.ok gate); roaring only when it can land loses nothing.',
+  },
 };

@@ -31,6 +31,11 @@ export const status = {
     const rt = roundtimeLeft(p);
     const rtTxt = rt > 0 ? `  \x1b[31mRT: ${rt}\x1b[0m` : '';
     const hidden = p.hidden ? '  \x1b[1m[Hidden]\x1b[0m' : '';
+    // Rage state for scripted agents (and DR-authentic: a barbarian feels
+    // their own berserk). %rage mirrors this wire-side, so generated fight
+    // loops can skip a roar that would only be refused.
+    const combat = game.combat.getFor(p);
+    const raging = combat?.rageTicks > 0 ? '  [Raging]' : '';
     const resting = p.resting ? '  [Resting]' : '';
     // Agent boost tag: boosted test runs are always visible in the prompt.
     const bm = Number(p.boostMult) || 1;
@@ -91,7 +96,7 @@ export const status = {
     if (bm > 1) buffs.push({ key: '_boost', name: `Agent Boost x${bm}`, ticks: null, permanent: true });
     sayRaw(p, {
       t: 'prompt',
-      msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${hidden}${resting}${boost}${prep}${bleedTxt}\n> `,
+      msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${raging}${hidden}${resting}${boost}${prep}${bleedTxt}\n> `,
       buffs,
     });
     // FE tracker (DR field-experience pane): push skills currently learning,

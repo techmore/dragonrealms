@@ -159,8 +159,13 @@ function buildHuntScript({ cap, arena, hallPath }) {
   // external watchdog restarts the whole cycle ~90s later.
   L.push('  matchwait 8');
   for (const sp of species) {
-    const label = `FIGHT_${sp.replace(/\W/g, '_')}`;
+    const key = sp.replace(/\W/g, '_');
+    const label = `FIGHT_${key}`;
     const noun = nounOf(sp);
+    // Per-species UNIQUE labels: the engine's label map is LAST-definition-wins,
+    // so shared labels (TARGET_GONE/FIGHT_NOW/SCAN_DONE) collided across species
+    // blocks — in multi-species arenas (sewers_3: kobold/silverfish/rat) a rat
+    // match jumped into the last species' fight block and swung at the wrong noun.
     L.push(`${label}:`);
     // Target-presence gate: prose matched a moment ago, but the creature may
     // have been slain (or despawned) between then and now. Re-look; if the
@@ -171,12 +176,12 @@ function buildHuntScript({ cap, arena, hallPath }) {
     // never-fight wedge. Anchor ^ at string start with [\s\S]* so the
     // detector only fires when the noun is absent from the WHOLE message.
     L.push('  put look');
-    L.push(`  matchre TARGET_GONE ^(?![\\s\\S]*${noun} is here)`);
-    L.push(`  matchre FIGHT_NOW ${noun} is here`);
+    L.push(`  matchre TG_${key} ^(?![\\s\\S]*${noun} is here)`);
+    L.push(`  matchre FN_${key} ${noun} is here`);
     L.push('  matchwait 4');
-    L.push('TARGET_GONE:');
+    L.push(`TG_${key}:`);
     L.push('  goto SCAN');
-    L.push('FIGHT_NOW:');
+    L.push(`FN_${key}:`);
     // Each verb gets its own `wait` so the engine syncs with roundtime
     // before the next fires — without this, verbs pile up mid-RT and spam
     // "You must wait N seconds" refusals.
@@ -189,8 +194,23 @@ function buildHuntScript({ cap, arena, hallPath }) {
       L.push('  ' + step.replace(/%target/g, noun));
       L.push('  wait');
       if (sigAt === i + 1) {
-        L.push(`  put ${cfg.signature.cmd}`);
-        L.push('  wait');
+        if (cap.skipRage) {
+          // roarSmart variant: only roar when no rage is active. The rage
+          // lasts 12 ticks and a fight lasts ~2, so the ungated line is
+          // refused ("The rage already burns in you") on every fight after
+          // the first — charged RT, stalled swing block, log noise. The
+          // refused roar banks NO augmentation either way (the wrapper's
+          // res.ok gate), so skipping it costs zero exp. %rage is mirrored
+          // from the prompt's [Raging] tag by the engine.
+          const rl = `RAGE_LIT_${key}`;
+          L.push(`  ifge rage 1 goto ${rl}`);
+          L.push(`  put ${cfg.signature.cmd}`);
+          L.push(`${rl}:`);
+          L.push('  wait');
+        } else {
+          L.push(`  put ${cfg.signature.cmd}`);
+          L.push('  wait');
+        }
       }
     });
     // Skinning guilds (ranger, barbarian...): skin the distinctive noun —
@@ -233,10 +253,10 @@ function buildHuntScript({ cap, arena, hallPath }) {
     // Kill check: the foe's death sends us back to SCAN for the next one;
     // a missing corpse/target after the exchange means it too is gone.
     L.push('  put look');
-    L.push(`  matchre SCAN_DONE ${noun} is here`);
+    L.push(`  matchre SD_${key} ${noun} is here`);
     L.push('  matchwait 3');
     L.push('  goto SCAN'); // target no longer present -> next scan
-    L.push('SCAN_DONE:');
+    L.push(`SD_${key}:`);
     L.push('  wait');
     L.push('  pause 3');
     // Check the experience sheet after a kill, the way a real player does.

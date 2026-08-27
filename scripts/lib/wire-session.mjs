@@ -262,6 +262,10 @@ export class WireSession {
         const rt = /RT:\s*(\d+)/.exec(plain);
         v.rt = rt ? Number(rt[1]) : 0;
         v.inCombat = /\[COMBAT\]/.test(plain);
+        // Rage state — scripts gate the signature roar on %rage so a second
+        // roar inside an active rage (always refused, rageTicks=12 vs ~2-tick
+        // fights) never charges roundtime or spams the fidelity log.
+        v.rage = /\[Raging\]/.test(plain);
         v.restingFlag = /\[Resting\]/.test(plain);
         // Purse tracking: scripts branch purchases on %silver.
         const sil = /(\d+)\s+silvers/.exec(plain);
@@ -353,7 +357,7 @@ export class WireSession {
     // it for %var mirroring but must NOT re-arm roundtime from the stale
     // RT count (a fresh roundtime arrives with the next REAL prompt).
     // Silvers ride along so scripts can branch purchases on purse size.
-    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}`, 'inject');
+    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}${v.rage ? ' [Raging]' : ''}`, 'inject');
   }
 }
 

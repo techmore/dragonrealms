@@ -229,6 +229,10 @@ export function createRunner(src, args = [], io = {}) {
         }
       }
       vars.combat = /\[COMBAT\]/.test(plain) ? '1' : '0';
+      // Rage state (barbarian berserk active). Generated fight loops gate the
+      // signature roar on %rage — a second roar inside an active rage is
+      // always refused and just charges roundtime + log noise.
+      vars.rage = /\[Raging\]/.test(plain) ? '1' : '0';
     }
     // TDP balance surfaces in command OUTPUT (training refusals state the
     // exact balance, `tdp` prints it, spends confirm the cost) rather than
