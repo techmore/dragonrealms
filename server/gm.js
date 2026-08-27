@@ -12,6 +12,7 @@ import { GUILDS } from '../data/guilds.js';
 import { RACES } from '../data/races.js';
 import { SKILLS } from '../data/skills.js';
 import { KHRI } from '../data/khri.js';
+import { VARIANTS } from '../data/guild-scripts.js';
 import { db } from './db.js';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
@@ -98,6 +99,9 @@ function gmScripts(res, openFolder) {
   return json(res, 200, {
     ok: true,
     variants,
+    // The variant matrix itself: knobs + hypothesis per name (single source
+    // of truth = data/guild-scripts.js, shared with the sweep CLI).
+    definitions: VARIANTS,
     scriptsDir: join(ROOT, 'scripts'),
     libDir: join(ROOT, 'scripts', 'lib'),
   });

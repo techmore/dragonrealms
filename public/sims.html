@@ -1340,105 +1340,81 @@
     setInterval(loadLab, 30000);
 
     /* ================= scripts pane ================= */
-    // What a config IS (knob table) + what actually ran (.dr viewer).
-    const KNOB_HYPOTHESIS = {
-      baseline: 'Control — every other variant changes exactly one knob against it.',
-      baseline_v2: 'Blind hall timer 4m → 9m: trust the rank-readiness gate, keep short runs hunting instead of commuting.',
-      rest50: 'Rest at 50% HP instead of 35% — fewer deaths vs less time hunting.',
-      hall8: 'Hall trip every 8 kills instead of 4 — more hunting, slower TDP spend.',
-      wide2: 'Arena band ±4 creature circles instead of ±2, hall every 6 — faster exp, higher death risk.',
-      errand: 'Town errands: sell/bundle pelts on the way home to fund the weapon ladder. (Dropped on a harness bug — deserves a retrial.)',
-    };
-    const KNOBS = {
-      baseline: { restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: '4m' },
-      baseline_v2: { restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: '9m', diff: ['hallFallbackMs'] },
-      rest50: { restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: '4m', diff: ['restPct'] },
-      hall8: { restPct: 35, hallEvery: 8, arenaBand: 2, hallFallbackMs: '4m', diff: ['hallEvery'] },
-      wide2: { restPct: 35, hallEvery: 6, arenaBand: 4, hallFallbackMs: '4m', diff: ['hallEvery', 'arenaBand'] },
-    };
+    // What a config IS (knob table from /api/gm/scripts — single source of
+    // truth: data/guild-scripts.js) + what actually ran (.dr viewer backed
+    // by /live/scripts/index.json, written per run by the sweep).
+    let KNOBS = {};   // filled from the GM API; refreshed by renderKnobs()
+    async function refreshKnobs() {
+      try {
+        const r = await gm('scripts');
+        if (r.ok && r.d?.definitions) KNOBS = r.d.definitions;
+      } catch {}
+    }
     function renderKnobs() {
+      const names = Object.keys(KNOBS);
       const bestVariant = (() => {
         // Reuse the leaderboard's medians when available.
         try {
           const rows = [...document.querySelectorAll('#lb-body tr.lb-row')];
           if (!rows.length) return null;
-          const first = rows[0].dataset.lb?.split('|')[1];
-          return first || null;
+          return rows[0].dataset.lb?.split('|')[1] || null;
         } catch { return null; }
       })();
-      $('knobsList').innerHTML = Object.entries(KNOBS).map(([name, k]) => {
+      $('knobsList').innerHTML = names.map((name) => {
+        const k = KNOBS[name];
+        const changed = k.diff || [];
         const knobs = ['restPct', 'hallEvery', 'arenaBand', 'hallFallbackMs'].map((kk) => {
-          const changed = k.diff?.includes(kk);
-          return `<span class="kv2">${kk} <b style="${changed ? 'color:var(--amber)' : ''}">${k[kk]}</b></span>`;
+          if (k[kk] == null) return '';
+          const hot = changed.includes(kk);
+          return `<span class="kv2">${kk} <b style="${hot ? 'color:var(--amber)' : ''}">${kk === 'hallFallbackMs' ? Math.round(k[kk] / 60000) + 'm' : k[kk]}</b></span>`;
         }).join('');
         return `<div class="knob-row">
-          <span class="kn${name === bestVariant ? ' best' : ''}">${esc(name)}${name === bestVariant ? ' ★' : ''}</span>
+          <span class="kn${name === bestVariant ? ' best' : ''}" title="${esc(k.hypothesis || '')}">${esc(name)}${name === bestVariant ? ' ★' : ''}</span>
           ${knobs}
-          <span class="hyp" title="hypothesis under test">${esc(KNOB_HYPOTHESIS[name] || '')}</span>
+          <span class="hyp">${esc(k.hypothesis || '')}</span>
         </div>`;
-      }).join('');
+      }).join('') || '<div class="note">loading variant definitions…</div>';
     }
 
-    async function loadScriptsPane() {
-      renderKnobs();
-      // Which variants saved script libraries? Probe /live/scripts/<base>/meta.json.
-      // Sweep writes base = fidelity-<guild>[-<variant>]-<race>; we check every
-      // race × variant combo we know about (cheap HEAD-ish GETs).
-      const candidates = [];
-      for (const vn of ['baseline', 'baseline_v2', 'rest50', 'hall8', 'wide2']) {
-        const tag = vn === 'baseline' ? '-baseline' : '-' + vn.replace(/[^a-z0-9]/gi, '');
-        for (const race of ['giantman', 'human']) {
-          candidates.push({ name: vn, base: `fidelity-barbarian${tag}-${race}` });
-        }
-      }
-      // Plus any non-variant ad-hoc runs (no tag segment).
-      for (const race of ['giantman', 'human']) {
-        candidates.push({ name: '(ad-hoc)', base: `fidelity-barbarian-${race}` });
-      }
-      const found = [];
-      await Promise.all(candidates.map(async (c) => {
-        try {
-          const r = await fetch(`/live/scripts/${c.base}/meta.json`, { cache: 'no-store' });
-          if (r.ok) found.push(c);
-        } catch {}
-      }));
+    let SAVED_RUNS = [];  // entries from /live/scripts/index.json
+    async function loadSavedRuns() {
+      try {
+        SAVED_RUNS = await fetch('/live/scripts/index.json', { cache: 'no-store' }).then((r) => r.json());
+      } catch { SAVED_RUNS = []; }
       const sel = $('scr-variant');
-      if (!found.length) {
-        sel.innerHTML = '<option value="">no saved scripts yet</option>';
-        $('scr-src').textContent = 'No generated scripts saved yet.\n\nThey appear after the next sweep run finishes (race-guild-sweep.mjs writes them to public/live/scripts/<run>/ automatically).';
-        return;
-      }
       const cur = sel.value;
-      sel.innerHTML = found.map((f) => `<option value="${esc(f.base)}">${esc(f.name)}</option>`).join('');
-      if (found.some((f) => f.base === cur)) sel.value = cur;
+      sel.innerHTML = !SAVED_RUNS.length ? '<option value="">no saved scripts yet</option>'
+        : SAVED_RUNS.slice().sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts)).map((e) =>
+            `<option value="${esc(e.dir)}" ${e.dir === cur ? 'selected' : ''}>${esc(e.guild)} · ${esc(e.race)} · ${esc(e.variant || 'ad-hoc')} · ${e.dir.split('-').pop()} (${new Date(e.ts).toLocaleTimeString()})</option>`).join('');
       loadScriptSource();
     }
     async function loadScriptSource() {
-      const base = $('scr-variant').value;
-      if (!base) return;
-      // Which files does this run have? Try the standard trio.
+      const dir = $('scr-variant').value;
+      if (!dir) return;
       const files = ['hunt', 'circle', 'mega'];
-      let firstHtml = null;
       const srcSel = $('scr-file');
       srcSel.hidden = false;
       srcSel.innerHTML = files.map((f) => `<option value="${f}">${f}.dr</option>`).join('');
-      srcSel.onchange = () => showFile(base, srcSel.value);
-      await showFile(base, 'hunt');
+      srcSel.onchange = () => showFile(dir, srcSel.value);
+      await showFile(dir, 'hunt');
       try {
-        const meta = await fetch(`/live/scripts/${base}/meta.json`, { cache: 'no-store' }).then((r) => r.json());
-        $('scr-meta').innerHTML = `${esc(meta.char || '')} · target circle ${esc(meta.targetCircle ?? '?')} · boost x${esc(meta.boost ?? '?')} · arena ${esc(meta.arena || '?')}`;
+        const meta = await fetch(`/live/scripts/${encodeURIComponent(dir)}/meta.json`, { cache: 'no-store' }).then((r) => r.json());
+        $('scr-meta').innerHTML = `${esc(meta.char || '')} · target circle ${esc(meta.targetCircle ?? '?')} · boost x${esc(meta.boost ?? '?')} · arena ${esc(meta.arena || '?')} · species ${(meta.species || []).join(', ')}`;
       } catch { $('scr-meta').textContent = ''; }
     }
-    async function showFile(base, file) {
+    async function showFile(dir, file) {
       try {
-        const txt = await fetch(`/live/scripts/${base}/${file}.dr`, { cache: 'no-store' }).then((r) => r.text());
+        const txt = await fetch(`/live/scripts/${encodeURIComponent(dir)}/${file}.dr`, { cache: 'no-store' }).then((r) => r.text());
         $('scr-src').textContent = txt;
       } catch {
         $('scr-src').textContent = `(could not load ${file}.dr)`;
       }
     }
-    loadScriptsPane();
-    setInterval(loadScriptsPane, 60000);
+    $('scr-variant').addEventListener('change', loadScriptSource);
+    refreshKnobs().then(renderKnobs);   // async: render once definitions land
+    loadSavedRuns();
+    setInterval(() => { refreshKnobs().then(renderKnobs); }, 60000);
+    setInterval(loadSavedRuns, 60000);
 
     /* ================= live sims ================= */
     // Detect running sims by polling public/live/ for logs with recent mtime,
