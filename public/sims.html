@@ -351,6 +351,34 @@
       </style>
     </section>
 
+    <!-- ===================== VARIANT HEAD-TO-HEAD ===================== -->
+    <!-- Kaizen discipline: a variant only means something against its
+         baseline, one knob at a time. This view diffs medians per metric and
+         says plainly how much to trust the delta (runs behind each side). -->
+    <section id="compare" data-pane="results">
+      <h2>Variant head-to-head
+        <span class="right sub" id="cmp-state">medians across runs · deltas are only as good as the sample sizes</span>
+      </h2>
+      <div class="controls">
+        <select id="cmp-guild"><option value="">guild…</option></select>
+        <span class="sub">vs</span>
+        <select id="cmp-a"><option value="">variant A…</option></select>
+        <select id="cmp-b"><option value="">variant B…</option></select>
+        <button class="btn" id="cmp-go">compare</button>
+      </div>
+      <div id="cmp-body" class="note">pick two variants of one guild — lower-is-better rows are labelled; every row states the runs behind it.</div>
+      <style>
+        #compare .delta-pos { color: var(--green); }
+        #compare .delta-neg { color: var(--red); }
+        #compare .delta-flat { color: var(--dim); }
+        #compare .conf { font-size: 10px; letter-spacing: .05em; text-transform: uppercase;
+          border-radius: 99px; padding: 1px 8px; border: 1px solid var(--panel-inset); }
+        #compare .conf-solid { color: var(--green); }
+        #compare .conf-thin { color: var(--amber); }
+        #compare .conf-noise { color: var(--red); }
+      </style>
+    </section>
+
     <!-- ===================== CHARACTER TRACKER ===================== -->
     <section id="tracker" data-pane="learn">
       <h2>Character tracker
@@ -501,7 +529,8 @@
       for (const s of summaries) {
         seenLogKeys.add(`${s.guild}:${s.race}`);
         RUNS.push({
-          run: `fidelity-${s.guild}-${s.race}`, guild: s.guild, race: s.race,
+          run: s.run_id ? `${s.run_id}-${s.guild}-${s.race}` : `fidelity-${s.guild}-${s.race}`,
+          runId: s.run_id || null, guild: s.guild, race: s.race,
           char: s.char || null, ts: s.ts ? Date.parse(s.ts) : null,
           reason: s.reason || null, circle: s.circle ?? null,
           circles: s.circles ?? null, kills: s.kills ?? null,
@@ -509,11 +538,28 @@
           grade: s.grade || null, score: s.fidelityScore || null, fidelity: s.fidelity || null,
           variant: s.variant || null, stallVerdict: s.stallVerdict || null,
           durationMs: s.durationMs ?? null, totalRanks: s.totalRanks ?? null,
+          // gap telemetry (only the newest driver emits these — absent ≠ zero)
+          shortfall: Number.isFinite(s.shortfall) ? s.shortfall : null,
+          blocked: Number.isFinite(s.blocked) ? s.blocked : null,
+          refusals: s.refusals ?? null,
+          // real early-velocity signal: ms to reach each of the first few ranks
+          rankSplits: Array.isArray(s.rankSplits) && s.rankSplits.length ? s.rankSplits : null,
+          timeToCircleMs: s.timeToCircleMs ?? null,
         });
       }
       // 2. Log files with no summary rows at all still appear (raw scripts).
+      // Filenames are fidelity-<guild>[-<variant>]-<race>: race is the final
+      // dash-segment (must be one actually seen in summaries), guild is the
+      // FIRST segment — the naive /(.+)-([a-z]+)/ captured the middle
+      // variant too and invented guilds like 'barbarian-baseline'.
+      const knownRaces = new Set(summaries.map((s) => s.race).filter(Boolean));
       for (const run of logs) {
-        const m = /^fidelity-(.+)-([a-z]+)$/.exec(run);
+        let m = null;
+        if (/^fidelity-/.test(run)) {
+          const seg = run.slice('fidelity-'.length).split('-');
+          const race = seg[seg.length - 1];
+          if (knownRaces.has(race)) m = [run, seg[0], race];
+        }
         if (m && seenLogKeys.has(`${m[1]}:${m[2]}`)) continue;
         const s = m ? latest.get(`${m[1]}:${m[2]}`) : null;
         RUNS.push({
@@ -735,23 +781,45 @@
     //   discipline 20% — verdict (healthy=1) and train activity
     //   fidelity   15% — signature checks passed ÷ total
     const RATING = {
-      BASELINE_RANKS_PER_H: 60,
+      // Calibrated 2026-08-27 from real data: across 22 post-fix runs with
+      // rankSplits, median time-to-15-ranks was ~4.4min => ~190 ranks/h at
+      // boost x20. The old 60 was set by judgment and graded healthy runs F.
+      BASELINE_RANKS_PER_H: 180,
       W: { velocity: 0.40, survival: 0.25, discipline: 0.20, fidelity: 0.15 },
       tier(v) { return v >= 85 ? 'S' : v >= 70 ? 'A' : v >= 55 ? 'B' : v >= 35 ? 'C' : 'D'; },
     };
     function rateRun(r) {
       const hours = r.durationMs ? r.durationMs / 3600000 : null;
-      // ---- velocity: totalRanks/hour (fidelity-summary carries no rank count;
-      // trains+kills proxy it when absent: each kill ≈ 2.2 ranks at boost x20).
-      const rankProxy = r.totalRanks ?? Math.round((r.kills || 0) * 2.2);
-      let velocity = 0;
-      if (hours && hours > 0.05) {
-        const perH = rankProxy / hours;
+      // ---- velocity. Sources in priority order; every score carries its
+      // source so a degraded estimate is visible, never silent:
+      //   A totalRanks/durationMs .... real full-run velocity (no producer yet)
+      //   B time-to-15-ranks ......... rankSplits[2].ms → r/h over that window.
+      //     rankSplits stop at rank 15, so this reads EARLY-run pace only —
+      //     shown as an estimate (≈).
+      //   C kills×2.2 proxy/h ........ weakest; mindstate-era fallback.
+      //   D unavailable .............. durationMs absent on 78/79 rows today;
+      //     neutral 50 with an explicit "—" not a fabricated number.
+      let velocity = null, velSrc = null;
+      if (r.totalRanks != null && hours && hours > 0.05) {
+        velocity = Math.min(100, Math.round(100 * (r.totalRanks / hours) / RATING.BASELINE_RANKS_PER_H));
+        velSrc = `measured ${r.totalRanks} ranks / ${Math.round(hours * 60)}min`;
+      } else if (r.rankSplits) {
+        const t15 = r.rankSplits.find((s) => s.ranks === 15)?.ms
+          ?? [...r.rankSplits].sort((a, b) => b.ranks - a.ranks)[0]?.ms;
+        const rk15 = r.rankSplits.find((s) => s.ms === t15)?.ranks;
+        if (t15 > 60000 && rk15) {
+          const perH = rk15 / (t15 / 3600000);
+          velocity = Math.min(100, Math.round(100 * perH / RATING.BASELINE_RANKS_PER_H));
+          velSrc = `est from time-to-${rk15}th-rank ${(t15 / 60000).toFixed(1)}min ≈ ${Math.round(perH)} ranks/h`;
+        }
+      } else if (hours && hours > 0.05) {
+        const perH = Math.round((r.kills || 0) * 2.2) / hours;
         velocity = Math.min(100, Math.round(100 * perH / RATING.BASELINE_RANKS_PER_H));
-        if (r.circles > 0) velocity = Math.min(100, velocity * (1 + 0.25 * r.circles));
+        velSrc = `proxy kills×2.2 (${Math.round(perH)} est ranks/h)`;
       }
-      // ---- survival: deaths/h; 1 death in a 10m run is bad (6/h → 0)
-      const deathsPerH = hours ? (r.deaths || 0) / hours : (r.deaths ? 1 : 0);
+      if (velocity != null && r.circles > 0) velocity = Math.min(100, velocity * (1 + 0.25 * r.circles));
+      // ---- survival: deaths/h; guard absent fields
+      const deathsPerH = hours ? ((r.deaths || 0) / hours) : (r.deaths ? 1 : 0);
       const survival = Math.max(0, Math.round(100 - deathsPerH * 100));
       // ---- discipline: healthy runs that also spend TDPs score full
       const verdictOk = !r.stallVerdict || r.stallVerdict === 'healthy';
@@ -767,15 +835,18 @@
       }
       const parts = { velocity, survival, discipline, fidelity };
       const val = Math.round(
-        parts.velocity * RATING.W.velocity
+        (velocity ?? 50) * RATING.W.velocity
         + parts.survival * RATING.W.survival
         + parts.discipline * RATING.W.discipline
-        + (parts.fidelity ?? 50) * RATING.W.fidelity); // unknown fidelity scores neutral 50
-      return { val, tier: RATING.tier(val), parts };
+        + (parts.fidelity ?? 50) * RATING.W.fidelity); // unknown inputs neutral 50
+      return { val, tier: RATING.tier(val), parts, velSrc };
     }
     function rateBadgeHtml(rating, titleExtra = '') {
-      return `<span class="tier t-${rating.tier}" title="rating ${rating.val}/100 ${titleExtra}"
-        style="cursor:help"><b>${rating.tier}</b><span class="sub">${rating.val}</span></span>`;
+      // ≈ marks a degraded/estimated velocity source (see rateRun velSrc);
+      // the tooltip always says WHICH signal produced the number.
+      const mark = rating.velSrc && !/^measured/.test(rating.velSrc) ? '<span class="sub">≈</span>' : '';
+      return `<span class="tier t-${rating.tier}" title="${esc(rating.val)}/100 · ${esc(rating.velSrc || 'velocity unmeasurable on this row')} ${titleExtra}"
+        style="cursor:help"><b>${rating.tier}</b>${mark}<span class="sub">${rating.val}</span></span>`;
     }
 
     /* ================= script leaderboard ================= */
@@ -840,7 +911,7 @@
             <td><b style="color:var(--amber)">${esc(rv.variant)}</b></td>
             <td>${esc(rv.guild)}</td>
             <td>${rateBadgeHtml({ val: rv.medianVal, tier: rv.tier }, `median of ${rv.runs.length} runs`)}</td>
-            <td class="runs-cell">${rv.runs.length}</td>
+            <td class="runs-cell" title="runs behind this median${rv.runs.length < 5 ? ' — with fewer than 5 runs a median is noise-prone; treat rank order as provisional' : ''}">${rv.runs.length}${rv.runs.length < 5 ? '<span class="sub" style="color:var(--amber)">†</span>' : ''}</td>
             <td>${rv.runs.reduce((s, r) => s + (r.circles || 0), 0)}</td>
             <td>${rv.runs.reduce((s, r) => s + (r.kills || 0), 0)}</td>
             <td>${rv.deaths || '<span class="sub">0</span>'}</td>
@@ -859,17 +930,22 @@
               }).join('')}
             </div>
             <table class="tbl">
-              <thead><tr><th>char</th><th>ended</th><th>duration</th><th>kills</th><th>deaths</th><th>trains</th><th>fidelity</th><th>verdict</th><th>rating</th></tr></thead>
-              <tbody>${rv.runs.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).map((r) => `
+              <thead><tr><th>char</th><th>ended</th><th>t15</th><th>kills</th><th>deaths</th><th>trains</th><th>refusals</th><th>shortfall</th><th>fidelity</th><th>verdict</th><th>rating</th></tr></thead>
+              <tbody>${rv.runs.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).map((r) => {
+                const t15 = r.rankSplits?.find((s) => s.ranks === 15)?.ms;
+                return `
                 <tr>
                   <td>${esc(r.char || '—')}</td>
                   <td>${fmtAge(r.ts)}</td>
-                  <td>${r.durationMs ? Math.round(r.durationMs / 60000) + 'm' : '—'}</td>
+                  <td title="minutes to reach the 15th skill rank (early-pace signal)">${t15 ? (t15 / 60000).toFixed(1) + 'm' : '—'}</td>
                   <td>${r.kills ?? '—'}</td><td>${r.deaths ?? '—'}</td><td>${r.trains ?? '—'}</td>
+                  <td title="commands refused by the game — high counts mean the script is guessing">${r.refusals ?? '—'}</td>
+                  <td title="total ranks still needed to reach next circle; only runs on the new gap-telemetry driver carry it">${r.shortfall ?? '<span class="sub" title="not recorded by this run\'s driver">n/a</span>'}</td>
                   <td>${esc(r.score || '—')}</td>
                   <td class="verdict-${esc(r.stallVerdict || '')}">${esc(r.stallVerdict || '—')}</td>
                   <td>${rateBadgeHtml(r.rating)}</td>
-                </tr>`).join('')}</tbody>
+                </tr>`;
+              }).join('')}</tbody>
             </table>
           </td></tr>` : '';
           return main + detail;
@@ -891,6 +967,90 @@
       if (d > 5) return '<span style="color:var(--green)">▲ improving</span>';
       if (d < -5) return '<span style="color:var(--red)">▼ declining</span>';
       return '<span class="sub">≈ flat</span>';
+    }
+
+    /* ================= variant head-to-head ================= */
+    // Medians only, and every row shows the runs behind each side. With N=3
+    // runs per variant (the common case today), a delta is direction-hinting
+    // at best — the confidence chip says so instead of letting a 12% median
+    // gap masquerade as signal.
+    const CMP_METRICS = [
+      { k: 'rating',   label: 'rating (composite)', higher: true,  val: (r) => rateRun(r).val },
+      { k: 't15',      label: 'time→15th rank (min)', higher: false, fmt: (v) => v == null ? null : (v / 60000).toFixed(1),
+        tip: 'early-pace; rankSplits stop at rank 15 so this window is minutes 0–~5 of the run',
+        val: (r) => r.rankSplits?.find((s) => s.ranks === 15)?.ms ?? null },
+      { k: 'kills',    label: 'kills / run', higher: true,  val: (r) => r.kills ?? null },
+      { k: 'trains',   label: 'TDP trains', higher: true,   val: (r) => r.trains ?? null,
+        tip: 'a run that never spends TDPs is circling-blind even if it looks busy' },
+      { k: 'refusals', label: 'refusals / run', higher: false, val: (r) => r.refusals ?? null,
+        tip: 'game-refused commands; high counts mean the script is guessing' },
+      { k: 'shortfall',label: 'end-of-run shortfall (ranks to next circle)', higher: false, val: (r) => r.shortfall ?? null,
+        tip: 'only runs on the new gap-telemetry driver carry this — absent sides show n/a' },
+      { k: 'deaths',   label: 'deaths (total)', higher: false, sum: true, val: (r) => r.deaths ?? 0 },
+      { k: 'circles',  label: 'circle-ups (total)', higher: true, sum: true, val: (r) => r.circles ?? 0 },
+    ];
+    function cmpMedian(vals) {
+      const s = vals.filter((x) => x != null).sort((a, b) => a - b);
+      if (!s.length) return null;
+      return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+    }
+    function renderCompareOptions() {
+      const gs = [...new Set(RUNS.map((r) => r.guild).filter(Boolean))].sort();
+      const gc = $('cmp-guild');
+      const gCur = gc.value;
+      gc.innerHTML = gs.map((g) => `<option${g === gCur ? ' selected' : ''}>${esc(g)}</option>`).join('');
+      renderCompareVariants();
+    }
+    function renderCompareVariants() {
+      const g = $('cmp-guild').value;
+      const vs = [...new Set(RUNS.filter((r) => r.guild === g && r.variant).map((r) => r.variant))];
+      for (const id of ['cmp-a', 'cmp-b']) {
+        const cur = $(id).value;
+        $(id).innerHTML = '<option value="">variant…</option>'
+          + vs.map((v) => `<option${v === cur ? ' selected' : ''}>${esc(v)}</option>`).join('');
+      }
+    }
+    function confChip(minN) {
+      // honesty first: fewer than 5 runs/side = thin; fewer than 3 = noise
+      const [cls, txt] = minN == null ? ['conf-noise', 'n/a'] :
+        minN >= 5 ? ['conf-solid', `${minN}× solid`] :
+        minN >= 3 ? ['conf-thin', `${minN}× thin`] : ['conf-noise', `${minN}× noise`];
+      return `<span class="conf ${cls}" title="${minN == null ? 'no sample on one side'
+        : minN + ' runs behind the sparser side — medians under 5 are noise-prone'}">${txt}</span>`;
+    }
+    function renderCompare() {
+      const body = $('cmp-body');
+      const g = $('cmp-guild').value, va = $('cmp-a').value, vb = $('cmp-b').value;
+      if (!g || !va || !vb || va === vb) return;
+      const ra = RUNS.filter((r) => r.guild === g && r.variant === va);
+      const rb = RUNS.filter((r) => r.guild === g && r.variant === vb);
+      body.innerHTML = `<table class="tbl"><thead><tr>
+        <th>Metric</th><th>${esc(va)} <span class="sub">(med · n=${ra.length})</span></th>
+        <th>${esc(vb)} <span class="sub">(med · n=${rb.length})</span></th><th>Δ</th><th>Trust</th>
+      </tr></thead><tbody>` +
+        CMP_METRICS.map((m) => {
+          const A = ra.map(m.val), B = rb.map(m.val);
+          const ma = m.sum ? A.reduce((s, x) => s + (x || 0), 0) : cmpMedian(A);
+          const mb = m.sum ? B.reduce((s, x) => s + (x || 0), 0) : cmpMedian(B);
+          let delta;
+          if (ma != null && mb != null && mb !== 0) {
+            delta = Math.round(100 * (ma - mb) / Math.abs(mb));
+            // normalize so "positive" always means A better per `higher`
+            delta = m.higher ? delta : -delta;
+          } else delta = null;
+          const dCls = delta == null ? 'delta-flat' : (Math.abs(delta) < 8 ? 'delta-flat' : delta > 0 ? 'delta-pos' : 'delta-neg');
+          const f = (x) => (m.fmt ? m.fmt(x) : x);
+          const nA = A.filter((x) => x != null).length, nB = B.filter((x) => x != null).length;
+          const hasAny = [...A, ...B].some((x) => x != null);
+          return `<tr>
+            <td title="${esc(m.tip || '')}">${esc(m.label)}</td>
+            <td>${hasAny ? (ma == null ? '<span class="sub">n/a</span>' : f(ma)) : '<span class="sub" title="field absent from this run\'s summary row — absent ≠ zero">not recorded</span>'}</td>
+            <td>${hasAny ? (mb == null ? '<span class="sub">n/a</span>' : f(mb)) : '<span class="sub">not recorded</span>'}</td>
+            <td class="${dCls}" title="${delta == null ? 'not computable' : (m.higher ? 'A higher is better' : 'lower is better') + '; % change toward whoever wins'}">${delta == null ? '—' : (delta > 0 ? '+' : '') + delta + '%'}</td>
+            <td>${hasAny ? confChip(Math.min(nA, nB) || null) : '<span class="conf conf-noise">—</span>'}</td>
+          </tr>`;
+        }).join('') + '</tbody></table>'
+        + `<div class="note" style="margin-top:8px">Δ% normalised per row (+ always means ${esc(va)} ahead). Rows where either side never recorded the field are marked <b>not recorded</b> — that is missing telemetry, not a zero.</div>`;
     }
 
     /* ================= character tracker ================= */
@@ -1072,8 +1232,14 @@
       renderLeaderboard();
     }
     $('lb-guild').addEventListener('change', renderLeaderboard);
+    // head-to-head wiring
+    $('cmp-guild').addEventListener('change', renderCompareVariants);
+    $('cmp-go').addEventListener('click', renderCompare);
+    $('cmp-a').addEventListener('change', () => { if ($('cmp-b').value) renderCompare(); });
+    $('cmp-b').addEventListener('change', () => { if ($('cmp-a').value) renderCompare(); });
     loadRuns();          // runs table immediately (existing behavior)
     bootRuns();          // leaderboard after RUNS land
+    loadLeaderboard().then(renderCompareOptions); // compare selects once RUNS land
     setInterval(() => { loadRuns().then(renderLeaderboard); }, 15000);
     // deep link: /sims.html?char=Name
     const want = new URLSearchParams(location.search).get('char');
@@ -1509,13 +1675,49 @@
             const kills = +pm[5];
             state.textContent = `${min}m · circle ${pm[2]} · ${kills} kills · hp ${pm[3]}/${pm[4]}`;
             prog.style.width = Math.min(100, Math.round(min / 10 * 100)) + '%';
+            // Gap telemetry: [gaps] lines land every ~60s from the driver's
+            // minute timer — parse ALL of them (a card may sit through many)
+            // and show shortfall trend, not a stale single value.
+            const gaps = [...text.matchAll(
+              /\[gaps\]\s+(\d+)m\s+circle\s+\d+->\d+\s+blocked:(\d+)\s+shortfall:(\d+)\s+ranks:(\d+)\s+src:(exp|mindstate)/g)];
+            let gapsNote = '';
+            if (gaps.length) {
+              const first = gaps[0], lastG = gaps[gaps.length - 1];
+              const dShort = +lastG[3] - +first[3];
+              const arrow = Math.abs(dShort) < 5 ? '≈' : dShort < 0 ? '↓' : '↑';
+              const aCol = dShort < -5 ? 'var(--green)' : dShort > 5 ? 'var(--red)' : '';
+              gapsNote = `<span class="sub" title="from the driver's [gaps] lines (sampled ~every 60s): shortfall ${lastG[3]} ranks to next circle ${arrow}${dShort ? ` (${dShort > 0 ? '+' : ''}${dShort} since ${first[1]}m)` : ' flat'} · blocked slots ${lastG[2]} · rank source ${lastG[5]}${lastG[5] === 'mindstate' ? ' (UNDERSTATED: mindstate feed omits fully-converted skills)' : ''}"> · short ${lastG[3]}<b style="color:${aCol}">${arrow}</b> blk ${lastG[2]}</span>`;
+            }
+            // update (or lazily create) the card's telemetry chip
+            let gapsEl = card.el.querySelector('[data-role="gaps"]');
+            if (!gapsEl) {
+              gapsEl = document.createElement('span');
+              gapsEl.dataset.role = 'gaps';
+              const lh = card.el.querySelector('.lh');
+              lh.insertBefore(gapsEl, card.el.querySelector('.lrate'));
+            }
+            gapsEl.innerHTML = gapsNote;
+            // Provisional velocity prefers the authoritative [gaps] rank
+            // counter (src:exp) over the kills×2.2 proxy; it degrades
+            // gracefully per rateRun()'s source ladder.
             if (min >= 3) {
-              const vel = Math.min(100, Math.round((kills * 2.2) / (min / 60) / RATING.BASELINE_RANKS_PER_H * 100));
+              let velSrcTxt;
+              let velRaw = null;
+              if (gaps.length && +gaps[gaps.length - 1][1] >= 2) {
+                const gL = gaps[gaps.length - 1];
+                velRaw = (+gL[4]) / (+gL[1] / 60);
+                velSrcTxt = `${Math.round(velRaw)} ranks/h ([gaps] src:${gL[5]})`;
+              } else {
+                velRaw = (kills * 2.2) / (min / 60);
+                velSrcTxt = `${Math.round(velRaw)} est ranks/h (kills×2.2 proxy)`;
+              }
+              const vel = Math.min(100, Math.round(100 * velRaw / RATING.BASELINE_RANKS_PER_H));
               const rv = Math.round(
                 vel * RATING.W.velocity
                 + (kills > 0 ? 100 : 40) * RATING.W.survival
                 + 100 * RATING.W.discipline
                 + 50 * RATING.W.fidelity);
+              rateEl.title = `provisional · ${velSrcTxt} · final run grade differs (survival/discipline use full-run data)`;
               rateEl.innerHTML = `live <b>${RATING.tier(rv)}</b> ${rv}`;
             } else {
               rateEl.textContent = 'warming up';
