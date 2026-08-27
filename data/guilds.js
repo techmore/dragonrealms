@@ -278,22 +278,22 @@ const CIRCLE_TABLES = {
   // Rows verified against docs/elanthipedia/<Guild>.md "Circle Requirements"
   // (1-10 band column) + "Cumulative"@10 anchor checks, 2026-08 audit.
   barbarian: [
-    { skill: 'expertise', rank: 4, hard: true },
+    { skill: 'expertise', rank: 4, hard: true, inc1130: 5 },
     // wiki "Primary Mastery" — melee mastery for the all-melee guild.
-    { skill: 'melee_mastery', rank: 4, hard: true },
-    { skill: 'inner_fire', rank: 1, hard: true },
+    { skill: 'melee_mastery', rank: 4, hard: true, inc1130: 5 },
+    { skill: 'inner_fire', rank: 1, hard: true, inc1130: 2 },
     // wiki "1st Supernatural" band 1 (cumulative@10 = 10).
-    { nth: 1, set: 'supernatural', rank: 1 },
-    { skill: 'parry', rank: 4, hard: true },
-    { nth: 1, set: 'weapon', rank: 4 }, { nth: 2, set: 'weapon', rank: 4 },
-    { nth: 3, set: 'weapon', rank: 2 }, { nth: 4, set: 'weapon', rank: 1 },
-    { nth: 1, set: 'armor', rank: 3 }, { nth: 2, set: 'armor', rank: 1 },
-    { skill: 'evasion', rank: 3, hard: true },
-    { nth: 1, set: 'survival', rank: 2 }, { nth: 2, set: 'survival', rank: 2 },
-    { nth: 3, set: 'survival', rank: 2 }, { nth: 4, set: 'survival', rank: 1 },
-    { skill: 'tactics', rank: 1, hard: true },
+    { nth: 1, set: 'supernatural', rank: 1, inc1130: 2 },
+    { skill: 'parry', rank: 4, hard: true, inc1130: 4 },
+    { nth: 1, set: 'weapon', rank: 4, inc1130: 5 }, { nth: 2, set: 'weapon', rank: 4, inc1130: 5 },
+    { nth: 3, set: 'weapon', rank: 2, inc1130: 3 }, { nth: 4, set: 'weapon', rank: 1, inc1130: 2 },
+    { nth: 1, set: 'armor', rank: 3, inc1130: 4 }, { nth: 2, set: 'armor', rank: 1, inc1130: 2 },
+    { skill: 'evasion', rank: 3, hard: true, inc1130: 4 },
+    { nth: 1, set: 'survival', rank: 2, inc1130: 2 }, { nth: 2, set: 'survival', rank: 2, inc1130: 2 },
+    { nth: 3, set: 'survival', rank: 2, inc1130: 2 }, { nth: 4, set: 'survival', rank: 1, inc1130: 1 },
+    { skill: 'tactics', rank: 1, hard: true, inc1130: 1 },
     // wiki "1st Lore" AND "2nd Lore" are both band 1 (@c10 = 10 each).
-    { nth: 1, set: 'lore', rank: 1 }, { nth: 2, set: 'lore', rank: 1 },
+    { nth: 1, set: 'lore', rank: 1, inc1130: 1 }, { nth: 2, set: 'lore', rank: 1, inc1130: 1 },
   ],
   bard: [
     { nth: 1, set: 'armor', rank: 2 },
@@ -334,7 +334,7 @@ const CIRCLE_TABLES = {
     { skill: 'astrology', rank: 3, hard: true },
     { nth: 1, set: 'magic', rank: 4 }, { nth: 2, set: 'magic', rank: 4 },
     { nth: 3, set: 'magic', rank: 3 }, { nth: 4, set: 'magic', rank: 2 },
-    { nth: 1, set: 'survival', rank: 2 }, { nth: 2, set: 'survival', rank: 2 },
+    { nth: 1, set: 'survival', rank: 2, inc1130: 2 }, { nth: 2, set: 'survival', rank: 2, inc1130: 2 },
     { nth: 3, set: 'survival', rank: 2 }, { nth: 4, set: 'survival', rank: 2 },
   ],
   necromancer: [
@@ -395,7 +395,7 @@ const CIRCLE_TABLES = {
     { nth: 1, set: 'armor', rank: 2 },
     // wiki "1st Magic" band 1 (@c10 = 10); "2nd Magic" is zero in the 1-10 band.
     { nth: 1, set: 'magic', rank: 1 },
-    { nth: 1, set: 'lore', rank: 1 }, { nth: 2, set: 'lore', rank: 1 }, { nth: 3, set: 'lore', rank: 1 },
+    { nth: 1, set: 'lore', rank: 1, inc1130: 1 }, { nth: 2, set: 'lore', rank: 1, inc1130: 1 }, { nth: 3, set: 'lore', rank: 1 },
   ],
   trader: [
     { nth: 1, set: 'armor', rank: 2 }, { nth: 2, set: 'armor', rank: 1 },
@@ -404,7 +404,7 @@ const CIRCLE_TABLES = {
     { skill: 'appraisal', rank: 3, hard: true },
     { nth: 1, set: 'lore', rank: 3 }, { nth: 2, set: 'lore', rank: 2 }, { nth: 3, set: 'lore', rank: 2 },
     { nth: 1, set: 'survival', rank: 3 }, { nth: 2, set: 'survival', rank: 2 },
-    { nth: 3, set: 'survival', rank: 2 }, { nth: 4, set: 'survival', rank: 1 },
+    { nth: 3, set: 'survival', rank: 2, inc1130: 2 }, { nth: 4, set: 'survival', rank: 1, inc1130: 1 },
     { nth: 5, set: 'survival', rank: 1 }, { nth: 6, set: 'survival', rank: 1 },
   ],
   warmage: [
@@ -422,11 +422,29 @@ const CIRCLE_TABLES = {
   ],
 };
 
-// Cumulative ranks required within the 1-10 band. For example, a band value
-// of 4 requires 40 ranks at circle 10 (matching the source cumulative tables).
-function needFor(band, circle) {
-  return Math.max(1, band * circle);
+// Cumulative ranks required within a band. For example, a band value of 4
+// requires 40 ranks at circle 10 (matching the source cumulative tables).
+//
+// BANDED MODEL (verified 2026-08-27 against Olwydd.org's per-circle cumulative
+// table for barbarians, c1-c30): each skillset has per-circle INCREMENTS that
+// change by level band. Circle requirement = sum of increments up to that
+// circle:
+//   cum(c) = band_1_10 * min(c, 10) + band_11_30 * max(0, c - 10)
+// Verified anchors (barbarian 1st Weapon: bands 4,5 → c2=8 ✓, c10=40 ✓,
+// c11=45 ✓, c15=65 ✓, c20=90 ✓, c30=140 ✓; same shape for all rows).
+function needFor(band, circle, inc1130) {
+  const inc = inc1130 ?? BANDS_11_30[band] ?? band;
+  return Math.max(1,
+    band * Math.min(circle, 10)
+    + (circle > 10 ? inc * (circle - 10) : 0));
 }
+
+// Per-circle increments for the 11-30 level band, keyed by the 1-10 band
+// value (DR's tables key the escalation to the same column, and every
+// Barbarian.md row's 11-30 value is a function of its 1-10 one — e.g. a
+// band-4 skill jumps 4→5/circle, a band-3 skill 3→4/circle). Source:
+// docs/elanthipedia/Barbarian.md "Circle Requirements" 1-30 columns.
+const BANDS_11_30 = { 1: 1, 2: 2, 3: 4, 4: 5 };
 
 function nthCandidates(guildId, table, set) {
   const hardSkills = new Set(
@@ -450,11 +468,11 @@ function nthLabel(n) {
 export function circleRequirements(guild, skills, targetCircle) {
   if (targetCircle <= 1) return { ok: true, missing: [] };
   const table = CIRCLE_TABLES[guild.id] || [];
-  const n = Math.min(targetCircle, 10);
+  const n = targetCircle;
   const missing = [];
   for (const r of table) {
     if (!r.rank || r.rank <= 0) continue;
-    const need = needFor(r.rank, n);
+    const need = needFor(r.rank, n, r.inc1130);
     if (r.skill) {
       const rank = (skills[r.skill] || {}).rank || 0;
       if (rank < need) missing.push(`${r.skill} at least rank ${need} (you have ${rank})`);
@@ -472,11 +490,11 @@ export function circleRequirements(guild, skills, targetCircle) {
 // Human-readable list of requirements for the target circle, e.g. for ask dialogs.
 export function circleRequirementSummary(guild, targetCircle) {
   const table = CIRCLE_TABLES[guild.id] || [];
-  const n = Math.min(targetCircle, 10);
+  const n = targetCircle;
   const out = [];
   for (const r of table) {
     if (!r.rank || r.rank <= 0) continue;
-    const need = needFor(r.rank, n);
+    const need = needFor(r.rank, n, r.inc1130);
     if (r.skill) out.push(`${r.skill}${r.hard ? ' (hard)' : ''} ${need}`);
     else out.push(`${nthLabel(r.nth)} ${r.set} ${need}`);
   }
@@ -489,11 +507,11 @@ export function circleRequirementSummary(guild, targetCircle) {
 export function circleRequirementNeeds(guild, skills, targetCircle) {
   if (targetCircle <= 1) return [];
   const table = CIRCLE_TABLES[guild.id] || [];
-  const n = Math.min(targetCircle, 10);
+  const n = targetCircle;
   const out = [];
   for (const r of table) {
     if (!r.rank || r.rank <= 0) continue;
-    const need = needFor(r.rank, n);
+    const need = needFor(r.rank, n, r.inc1130);
     if (r.skill) {
       const rank = (skills[r.skill] || {}).rank || 0;
       if (rank < need) out.push({ skill: r.skill, need });
