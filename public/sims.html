@@ -156,12 +156,6 @@
 </head>
 <body data-page="sims">
   <main class="admin">
-    <nav class="sims-nav" id="simsNav" role="tablist">
-      <a href="#pane=run">Run</a>
-      <a href="#pane=results">Results</a>
-      <a href="#pane=learn">Learn</a>
-      <a href="#pane=scripts">Scripts</a>
-    </nav>
     <header class="pagehead">
       <h1>&#129489;&#8205;&#128187; Sim Players</h1>
       <span id="sims-live-flag" class="badge live" hidden>&#9679; sims running</span>
@@ -170,13 +164,54 @@
       <a href="/sim-architecture.html">Sim architecture &rarr;</a>
       <a href="/admin.html">&larr; Admin dash</a>
     </header>
+
+    <!-- ===================== HERO: the answer, first ===================== -->
+    <section id="champion" class="champ-hero">
+      <div class="ch-left">
+        <div class="dsub">Run this one — most reliable script by rating &amp; evidence</div>
+        <div class="ch-name" id="ch-name">…</div>
+        <div class="ch-meta" id="ch-meta">loading leaderboard…</div>
+      </div>
+      <div class="ch-right">
+        <div class="ch-rate"><b id="ch-tier">—</b><span id="ch-val"></span></div>
+        <dl class="kv ch-facts">
+          <dt>total hours run</dt><dd><b id="ch-hours">—</b></dd>
+          <dt>runs behind it</dt><dd><b id="ch-runs">—</b></dd>
+          <dt>best circle reached</dt><dd><b id="ch-circle">—</b></dd>
+          <dt>evidence quality</dt><dd><b id="ch-trust">—</b></dd>
+        </dl>
+      </div>
+    </section>
+
+    <style>
+      /* ---- hero ---- */
+      .champ-hero { display:flex; gap:24px; flex-wrap:wrap; align-items:center;
+        background: linear-gradient(135deg, rgba(224,179,76,.10), rgba(224,179,76,.02));
+        border-color: var(--amber-soft); }
+      .ch-left { flex:1; min-width:260px; }
+      .ch-name { font-size:26px; font-weight:700; color:var(--amber); line-height:1.2; }
+      .ch-meta { color:var(--muted); font-size:12px; margin-top:4px; }
+      .ch-right { display:flex; gap:20px; align-items:center; }
+      .ch-rate { text-align:center; }
+      .ch-rate b { font-size:44px; color:var(--green); line-height:1; display:block; }
+      .ch-rate span { color:var(--dim); font-size:13px; }
+      .ch-facts dt { font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
+      .ch-facts dd b { color:var(--text); font-size:14px; }
+      /* hours pill used on every variant row */
+      .hrs { display:inline-flex; align-items:baseline; gap:3px; white-space:nowrap;
+        color:var(--dim); font-size:11px; border:1px solid var(--line);
+        border-radius:99px; padding:1px 8px; background:rgba(255,255,255,.04); }
+      .hrs b { color:var(--text); }
+      .hrs.rich b { color:var(--green); }   /* ≥ 3h of evidence */
+      .hrs.some b { color:var(--amber); }   /* ≥ 1h */
+    </style>
+
     <p class="sub">Launch and review every sim run (<code>public/live/*.log</code> + grades from
       <code>fidelity-summary.jsonl</code>), and track any character's leveling &amp; skills. Sims use the public
       game API; the character tracker needs the GM token (paste it in on the dash or open this page as
       <code>/sims#gm=&lt;token&gt;</code>).</p>
 
-    <!-- ===================== RUN ===================== -->
-    <section id="live" data-pane="run">
+    <section id="live">
       <h2>Live Sims <span class="right sub" id="liveState">polling…</span></h2>
       <div id="liveList"><div class="live-empty">no sims running — launch one above, or a benchmark from the CLI</div></div>
       <div id="milestones" style="margin-top:14px"></div>
@@ -196,7 +231,7 @@
     </section>
 
     <!-- ===================== LAUNCH ===================== -->
-    <section id="launch" data-pane="run">
+    <section id="launch">
       <h2>Launch a sim
         <span class="right sub" id="agstate">&#9675; none running</span>
       </h2>
@@ -258,7 +293,7 @@
     </section>
 
     <!-- ===================== RUNS ===================== -->
-    <section id="runs" data-pane="results">
+    <section id="runs">
       <h2>Runs
         <span class="right">
           <label class="sub"><input type="checkbox" id="only-live"> live only</label>
@@ -304,7 +339,7 @@
       </div>
     </section>
 
-    <section id="leaderboard" data-pane="results">
+    <section id="leaderboard">
       <h2>Script leaderboard
         <span class="right sub" id="lb-state">computed live from run summaries — progress · velocity · survival · discipline · fidelity</span>
       </h2>
@@ -355,7 +390,7 @@
     <!-- Kaizen discipline: a variant only means something against its
          baseline, one knob at a time. This view diffs medians per metric and
          says plainly how much to trust the delta (runs behind each side). -->
-    <section id="compare" data-pane="results">
+    <section id="compare">
       <h2>Variant head-to-head
         <span class="right sub" id="cmp-state">medians across runs · deltas are only as good as the sample sizes</span>
       </h2>
@@ -380,7 +415,7 @@
     </section>
 
     <!-- ===================== CHARACTER TRACKER ===================== -->
-    <section id="tracker" data-pane="learn">
+    <section id="tracker">
       <h2>Character tracker
         <span class="right sub">circle · TDP · silver · all skill ranks (offline too)</span>
       </h2>
@@ -396,7 +431,7 @@
       <div id="tracker" class="note">Pick a character from a run above or type a name. Requires the GM token.</div>
     </section>
 
-    <section id="lab" data-pane="learn">
+    <section id="lab">
       <h2>Leveling Lab
         <span class="right sub">script progress over time — circles · total ranks · pacing (sweeps.db + history)</span>
       </h2>
@@ -420,7 +455,7 @@
     </section>
 
     <!-- ===================== SCRIPTS (what a config IS + what ran) ===================== -->
-    <section id="champions" data-pane="scripts">
+    <section id="champions">
       <h2>Variant knobs
         <span class="right sub">each variant is ONE knob changed against baseline — hover the goal column</span>
       </h2>
@@ -884,8 +919,27 @@
         }
         const deaths = runs.reduce((s, r) => s + (r.deaths || 0), 0);
         const wedges = runs.filter((r) => r.stallVerdict === 'wedged' || r.stallVerdict === 'stalled').length;
-        return { guild, variant, runs, medianVal, avgParts, deaths, wedges, tier: RATING.tier(medianVal) };
+        // Evidence-hours: total wall-clock time this variant has been tested.
+        // fidelity-summary carries NO durationMs on any historical row, so
+        // derive from the run's reason line ("--minutes N elapsed" / target
+        // circle) — floor of 10m per run keeps long/short runs distinguishable
+        // until the driver emits durationMs natively (optimizer's next pass).
+        const hoursMs = runs.reduce((s, r) => {
+          if (r.durationMs) return s + r.durationMs;
+          const m = /--minutes (\d+)/.exec(r.reason || '');
+          return s + (m ? Number(m[1]) * 60000 : 600000);
+        }, 0);
+        const circlesBest = Math.max(0, ...runs.map((r) => r.circle || 0));
+        return { guild, variant, runs, medianVal, avgParts, deaths, wedges,
+          hours: hoursMs / 3600000, circlesBest, tier: RATING.tier(medianVal) };
       }).sort((a, b) => b.medianVal - a.medianVal);
+
+      // Champion = best median rating AMONG variants with enough evidence.
+      // Crowning a 2-run S-tier (killed runs, inflated pace) is exactly the
+      // "too much variance" trap — require ≥1h total wall-clock AND ≥3 runs;
+      // fall back to the most-tested variant when nothing qualifies.
+      const champEligible = ranked.filter((rv) => rv.hours >= 1 && rv.runs.length >= 3);
+      renderChampion(champEligible[0] || ranked.slice().sort((a, b) => b.hours - a.hours)[0] || null);
 
       // guild filter options once
       const gs = [...new Set(RUNS.map((r) => r.guild).filter(Boolean))].sort();
@@ -899,7 +953,7 @@
         return;
       }
       el.innerHTML = `<table class="tbl"><thead><tr>
-          <th></th><th>Variant</th><th>Guild</th><th>Rating</th><th>Runs</th>
+          <th></th><th>Variant</th><th>Guild</th><th>Rating</th><th title="total wall-clock tested — the trust signal">Evidence</th>
           <th title="total across the variant's runs">↑</th><th>Kills</th><th>Deaths</th><th>Wedges</th><th>Trend</th>
         </tr></thead><tbody>${
         ranked.map((rv, i) => {
@@ -911,7 +965,7 @@
             <td><b style="color:var(--amber)">${esc(rv.variant)}</b></td>
             <td>${esc(rv.guild)}</td>
             <td>${rateBadgeHtml({ val: rv.medianVal, tier: rv.tier }, `median of ${rv.runs.length} runs`)}</td>
-            <td class="runs-cell" title="runs behind this median${rv.runs.length < 5 ? ' — with fewer than 5 runs a median is noise-prone; treat rank order as provisional' : ''}">${rv.runs.length}${rv.runs.length < 5 ? '<span class="sub" style="color:var(--amber)">†</span>' : ''}</td>
+            <td><span class="hrs ${rv.hours >= 3 ? 'rich' : rv.hours >= 1 ? 'some' : ''}" title="total wall-clock time this variant has been tested — more hours = more trustworthy median">${rv.hours >= 1 ? `<b>${rv.hours.toFixed(1)}h</b>` : '<b>' + Math.round(rv.hours * 60) + 'm</b>'} · ${rv.runs.length} runs</span></td>
             <td>${rv.runs.reduce((s, r) => s + (r.circles || 0), 0)}</td>
             <td>${rv.runs.reduce((s, r) => s + (r.kills || 0), 0)}</td>
             <td>${rv.deaths || '<span class="sub">0</span>'}</td>
@@ -957,9 +1011,34 @@
           renderLeaderboard();
         }));
     }
+    // Hero card: the single most evidence-backed variant, answer-first.
+    function renderChampion(rv) {
+      const el = { name: $('ch-name'), meta: $('ch-meta'), tier: $('ch-tier'),
+        val: $('ch-val'), hours: $('ch-hours'), runs: $('ch-runs'),
+        circle: $('ch-circle'), trust: $('ch-trust') };
+      if (!rv) {
+        if (el.name) { el.name.textContent = 'No benchmark data yet'; }
+        if (el.meta) el.meta.textContent = 'run a sweep (CLI or above) to populate the champion card';
+        return;
+      }
+      const hoursTxt = rv.hours >= 1 ? rv.hours.toFixed(1) + 'h' : Math.round(rv.hours * 60) + 'm';
+      const n = rv.runs.length;
+      const trust = n >= 8 ? 'strong' : n >= 5 ? 'decent' : n >= 3 ? 'thin' : 'noise';
+      if (el.name) el.name.textContent = `${rv.variant} · ${rv.guild}`;
+      if (el.meta) el.meta.textContent =
+        `median rating ${rv.medianVal}/100 across ${n} runs · ${rv.deaths} total deaths · ${rv.wedges} wedges`;
+      if (el.tier) { el.tier.textContent = rv.tier; el.tier.style.color = ''; }
+      if (el.val) el.val.textContent = `${rv.medianVal}`;
+      if (el.hours) el.hours.textContent = hoursTxt;
+      if (el.runs) el.runs.textContent = String(n);
+      if (el.circle) el.circle.textContent = rv.circlesBest || '—';
+      if (el.trust) {
+        el.trust.textContent = trust;
+        el.trust.style.color = n >= 5 ? 'var(--green)' : n >= 3 ? 'var(--amber)' : 'var(--red)';
+      }
+    }
     function trendArrow(vals) {
-      // chronological → compare second half median vs first half
-      if (vals.length < 4) return '<span class="sub">·</span>';
+      if (!vals || vals.length < 4) return '<span class="sub">·</span>';
       const h = Math.floor(vals.length / 2);
       const older = vals.slice(0, h).reduce((s, x) => s + x, 0) / h;
       const newer = vals.slice(h).reduce((s, x) => s + x, 0) / (vals.length - h);
@@ -1744,33 +1823,11 @@
       }
     }
 
-    // ---- intent tabs (Run / Results / Learn / Scripts) ----
-    // Deep-linkable via #pane=<name>; sections keep their ids so all
-    // existing wiring survives; panes are just sections shown/hidden.
-    const PANES = ['run', 'results', 'learn', 'scripts'];
-    let activePane = null;
-    function gotoPane(name) {
-      if (!PANES.includes(name)) name = 'run';
-      activePane = name;
-      document.querySelectorAll('[data-pane]').forEach((sec) => {
-        sec.hidden = sec.dataset.pane !== name;
-      });
-      document.querySelectorAll('#simsNav a').forEach((a) => {
-        a.classList.toggle('active', a.getAttribute('href') === '#pane=' + name);
-      });
-      try { localStorage.setItem('dr_sims_pane', name); } catch {}
-    }
-    document.querySelectorAll('#simsNav a').forEach((a) =>
-      a.addEventListener('click', (e) => {
-        e.preventDefault();
-        const p = (a.getAttribute('href') || '').replace('#pane=', '');
-        history.replaceState(null, '', '#pane=' + p);
-        gotoPane(p);
-      }));
-    {
-      const m = location.hash.match(/^#pane=(\w+)/);
-      gotoPane(m?.[1] || localStorage.getItem('dr_sims_pane') || 'run');
-    }
+    // ---- single-page layout: no tabs, one scroll ----
+    // gotoPane kept as a no-op shim for any deep-links/bookmarks using the
+    // old #pane= format; sections are always visible now.
+    function gotoPane() {}
+    void gotoPane;
 
     loadLive();
     liveTimer = setInterval(loadLive, 2000);
