@@ -283,12 +283,17 @@ function buildHuntScript({ cap, arena, hallPath }) {
     // trains via rare trainer visits. Worst-bleeder-first is the server's
     // default; repeat once for double bleeders. "No wounds" prose is harmless.
     if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('first_aid')) {
-      L.push(`  ifge bleed 1 goto TEND_${key}`);
+      // Gate on %bleed — but INVERTED: jump PAST tend when NOT bleeding.
+      // (The old 'ifge bleed 1 goto TEND' fell through into tend even when
+      // the gate matched, making it unconditional; and when it didn't match,
+      // execution still entered TEND_ from below. Both paths must skip.)
+      L.push(`  iflt bleed 1 goto NOTEND_${key}`);
       L.push(`TEND_${key}:`);
       L.push('  put tend');
       L.push('  wait');
       L.push('  put tend');   // second pass — double wounds are common at c2+
       L.push('  wait');
+      L.push(`NOTEND_${key}:`);
     }
     if (cfg.signature && cfg.signature.probe === 'ability') {
       // Skipped when signatureAfter already placed it mid-sequence. The

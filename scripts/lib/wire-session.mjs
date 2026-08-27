@@ -365,7 +365,11 @@ export class WireSession {
     // it for %var mirroring but must NOT re-arm roundtime from the stale
     // RT count (a fresh roundtime arrives with the next REAL prompt).
     // Silvers ride along so scripts can branch purchases on purse size.
-    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}${v.rage ? ' [Raging]' : ''}${v.wsp ? ` [WEAPON:${v.wsp}]` : ''}`, 'inject');
+    // Bleeding rides too ([bleeding: ...] → %bleed) — the First Aid tend loop
+    // gates on it, and this synthetic refresh is the ONLY prompt between
+    // fights while resting, so omitting it left %bleed stale-empty and the
+    // tend block never fired (first_aid stayed 0 for whole runs).
+    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}${v.rage ? ' [Raging]' : ''}${(v.bleeding || []).length ? ' [bleeding: ' + v.bleeding.join('; ') + ']' : ''}${v.wsp ? ` [WEAPON:${v.wsp}]` : ''}`, 'inject');
   }
 }
 
