@@ -499,7 +499,7 @@ class SweepAgent {
         // ability-learn step looked like it never ran (grep count 0) even
         // though the script provably contained it and the walk completed.
         // Keep this list in sync when adding scripted verbs.
-        if (process.env.SWEEP_DEBUG || /^(attack|tdptrain|flee|rest|stand|circle|buy|wear|remove|wield|prepare|cast|khri|enchant|backstab|analyze|roar|meditate|form|learn|drink|effects|stealth|hide|skin|withdraw|sell|bundle|exp)/.test(line)) {
+        if (process.env.SWEEP_DEBUG || /^(attack|tdptrain|flee|rest|stand|circle|buy|wear|remove|wield|prepare|cast|khri|enchant|backstab|analyze|roar|meditate|form|learn|drink|effects|stealth|hide|skin|withdraw|sell|bundle|exp|tend)/.test(line)) {
 
           this.appendLog(`script> ${line}`);
           log(`[${this.guild}/${this.race}] > ${line}`);
