@@ -470,21 +470,26 @@ export function circleRequirements(guild, skills, targetCircle) {
   const table = CIRCLE_TABLES[guild.id] || [];
   const n = targetCircle;
   const missing = [];
+  // Full per-requirement rows (not just the missing ones) so UIs can render
+  // an at-a-glance have/need table — see public/js/req-table.js consumers.
+  const rows = [];
   for (const r of table) {
     if (!r.rank || r.rank <= 0) continue;
     const need = needFor(r.rank, n, r.inc1130);
     if (r.skill) {
       const rank = (skills[r.skill] || {}).rank || 0;
+      rows.push({ label: r.skill, have: rank, need, hard: !!r.hard });
       if (rank < need) missing.push(`${r.skill} at least rank ${need} (you have ${rank})`);
     } else {
       const ranks = nthCandidates(guild.id, table, r.set)
         .map((id) => (skills[id] || {}).rank || 0)
         .sort((a, b) => b - a);
       const have = ranks[r.nth - 1] || 0;
+      rows.push({ label: `${nthLabel(r.nth)} ${r.set}`, have, need });
       if (have < need) missing.push(`${nthLabel(r.nth)} ${r.set} at least rank ${need} (your ${nthLabel(r.nth)} is ${have})`);
     }
   }
-  return { ok: missing.length === 0, missing };
+  return { ok: missing.length === 0, missing, rows };
 }
 
 // Human-readable list of requirements for the target circle, e.g. for ask dialogs.

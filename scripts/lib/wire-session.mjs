@@ -369,10 +369,14 @@ export class WireSession {
     // gates on it, and this synthetic refresh is the ONLY prompt between
     // fights while resting, so omitting it left %bleed stale-empty and the
     // tend block never fired (first_aid stayed 0 for whole runs).
-    // WSRANK tokens: each weapon-pool skill's current rank, so the diversity
-    // rotation can skip satisfied requirements ("4 levels over needed").
+    // WSRANK tokens: every skill's current rank (merged exp-sheet ranks win —
+    // the mindstate feed omits fully-converted skills). Originally only the
+    // weapon pool rode along for the rotation; now ALL skills do so generated
+    // scripts can gate armor/survival/etc. blocks the same way, and the
+    // operator's requirement table (public/js/req-table.js) reads the same
+    // mirror. Non-zero only: a zero rank adds noise, not information.
     const wsrankTokens = Object.entries(v.skills || {})
-      .filter(([id]) => /edged|blunt|thrown|staff|brawling|bow|crossbow|slings|polearm|heavy_thrown/.test(id))
+      .filter(([, rank]) => rank > 0)
       .map(([id, rank]) => `[WSRANK:${id}:${rank}]`)
       .join('');
     runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}${v.rage ? ' [Raging]' : ''}${(v.bleeding || []).length ? ' [bleeding: ' + v.bleeding.join('; ') + ']' : ''}${v.wsp ? ` [WEAPON:${v.wsp}]` : ''}${wsrankTokens}`, 'inject');
