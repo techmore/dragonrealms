@@ -55,14 +55,14 @@ function buildHuntScript({ cap, arena, hallPath }) {
   // back to the legacy single-weapon ladder.
   const plan = cfg.weaponPlan;
   if (plan?.weapons?.length) {
-    const prices = { club: 112, throwing_knives: 30, mace: 206, staff: 112 };
+    const prices = { club: 112, throwing_knives: 30, mace: 206, staff: 112, dagger: 25 };
     // DIVERSITY kit (cap.closeNth): swap the third weapon from mace (blunt —
     // trains the SAME category as club, useless for Nth-set diversity) to
     // staff (staff category, also 112s at Milgrym's). Three distinct
     // categories = blunt/thrown/staff, exactly what circle-2's 2nd/3rd/4th
     // weapon slots need exercised in the field.
     const kit = cap.closeNth && plan.weapons.includes('club')
-      ? ['club', 'throwing_knives', 'staff']
+      ? ['club', 'dagger', 'throwing_knives']
       : plan.weapons;
     for (const wid of kit) {
       const nm = String(wid).replace(/_/g, ' ');
@@ -391,9 +391,9 @@ function buildHuntScript({ cap, arena, hallPath }) {
       // Fix: pick the NEXT kit weapon from %wsp (what is actually in hand,
       // mirrored from the server's hands snapshot), so a restart re-syncs
       // instead of desyncing. Baseline keeps the old block byte-for-byte.
-      const skillsOf = { club: 'blunt', mace: 'blunt', throwing_knives: 'thrown', staff: 'staff' };
+      const skillsOf = { club: 'blunt', mace: 'blunt', throwing_knives: 'thrown', staff: 'staff', dagger: 'small_edged' };
       const kit = cap.closeNth && plan.weapons.includes('club')
-        ? ['club', 'throwing_knives', 'staff']
+        ? ['club', 'dagger', 'throwing_knives']
         : plan.weapons;
       if (cap.closeNth && kit.length > 1) {
         // DIVERSITY rotation, requirement-aware ("4 levels over needed ->
@@ -409,7 +409,7 @@ function buildHuntScript({ cap, arena, hallPath }) {
         // all skips chain to ROT_END and the currently-held weapon stays.
         // Overwhelmed handling remains the supervisor's flee interlock +
         // WEAKSWING primary-weapon fallback — unchanged here.
-        const needs = { blunt: 8, thrown: 8, staff: 8 };
+        const needs = { blunt: 8, thrown: 8, small_edged: 8 };
         const MARGIN = 4;
         // satisfied-check helper: 'iflt' var threshold jumps to label when
         // rank is BELOW margin-adjusted need (i.e. still needs training).

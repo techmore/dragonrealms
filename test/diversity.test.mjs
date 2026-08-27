@@ -71,15 +71,15 @@ test('closeNth rotation wields the NEXT kit weapon from ground truth', async () 
   // All weapons below need+margin (8+4=12): straight rotation blunt->knives->staff->blunt.
   const ranks = { blunt: 0, thrown: 0, staff: 0 };
   assert.deepEqual(await swapFor(seg, 'blunt', ranks), ['remove club', 'wield throwing knives']);
-  assert.deepEqual(await swapFor(seg, 'thrown', ranks), ['remove throwing knives', 'wield staff']);
-  assert.deepEqual(await swapFor(seg, 'staff', ranks), ['remove staff', 'wield club']);
+  assert.deepEqual(await swapFor(seg, 'small_edged', ranks), ['remove dagger', 'wield throwing knives']);
+  assert.deepEqual(await swapFor(seg, 'thrown', ranks), ['remove throwing knives', 'wield club']);
 });
 
 test('a weapon at need+4 margin rotates away even though the others are fresh', async () => {
   const seg = rotationSeg(mkHunt(true));
-  const satBlunt = { blunt: 12, thrown: 2, staff: 1 };
+  const satBlunt = { blunt: 12, small_edged: 2, thrown: 1 };
   const res = await swapFor(seg, 'blunt', satBlunt);
-  assert.deepEqual(res.filter((x) => x.startsWith('wield')), ['wield throwing knives'],
+  assert.deepEqual(res.filter((x) => x.startsWith('wield')), ['wield dagger'],
     'satisfied holder still rotates onward — exp flows into unsatisfied slots');
 });
 
@@ -97,9 +97,9 @@ test('rotation survives cycle restarts — alternation does not need runner stat
     const sent = await swapFor(seg, hand, ranks);
     const wielded = sent.find((l) => l.startsWith('wield '));
     order.push(wielded.replace('wield ', ''));
-    hand = { 'throwing knives': 'thrown', staff: 'staff', club: '' }[order[kill]] ?? '';
+    hand = { 'throwing knives': 'thrown', dagger: 'small_edged', club: '' }[order[kill]] ?? '';
   }
-  assert.ok(order.includes('throwing knives') && order.includes('staff') && order.includes('club'),
+  assert.ok(order.includes('throwing knives') && order.includes('dagger') && order.includes('club'),
     `all three categories exercised across restarts (${order.join(' -> ')})`);
 });
 
