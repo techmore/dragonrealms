@@ -60,7 +60,7 @@ const RUN_ID = Array.from(randomBytes(4), (b) => String.fromCharCode(97 + (b % 2
 const { GUILDS } = await import('../data/guilds.js');
 const { ROOMS } = await import('../data/world.js');
 const { creatureById } = await import('../data/creatures.js');
-const { GUILD_SCRIPTS, RACE_MATRIX } = await import('../data/guild-scripts.js');
+const { GUILD_SCRIPTS, RACE_MATRIX, VARIANTS } = await import('../data/guild-scripts.js');
 const { nounOf, moves, buildHuntScript, buildCircleScript, buildMegaScript, reversePath, trainListFromMissing } = await import('./lib/script-gen.mjs');
 const { WireSession, stripAnsi, trackMove, trackRefusedMove } = await import('./lib/wire-session.mjs');
 const { createRunner } = await import('../public/js/script-engine.js');
@@ -90,28 +90,11 @@ const ALL_GUILDS = Object.keys(GUILDS).filter((g) => GUILD_SCRIPTS[g]);
 
 // ---------------- benchmark variant matrix ----------------
 // A variant is a named param set over the generated script library + the
-// supervisor interlocks. The SweepAgent applies it at script-build time and
-// in supervise(); benchmark mode times each variant to CIRCLE_TARGET.
-//   restPct   — supervisor rest interlock floor (% of maxhp; stand at 90%)
-//   hallEvery — kills between forced guild-hall trips while hunting
-//   arenaBand — allowed creature-circle spread above the agent's circle
-//                 for nearestSpawnRoom (+2 = default weight-class filter)
-//   hallFallbackMs — how long to keep hunting before a hall trip fires on the
-//                 TIMER alone (the readiness gate still triggers immediately
-//                 when mindstate ranks actually satisfy the next circle).
-//                 Baseline's 4 minutes walked the full arena→hall→bazaar→arena
-//                 circuit while ranks were still nowhere near (expertise 5/8),
-//                 spending most of a 10-minute run in transit for 4 kills.
-const VARIANTS = {
-  baseline: { restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000 },
-  // Kaizen v2: baseline with ONE variable changed — trust the rank-readiness
-  // gate and let the blind timer fall back to 9 minutes, so a short run hunts
-  // instead of commuting. Everything else matches baseline for a clean A/B.
-  baseline_v2: { restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 540000 },
-  rest50:   { restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000 },
-  hall8:    { restPct: 35, hallEvery: 8, arenaBand: 2, hallFallbackMs: 240000 },
-  wide2:    { restPct: 35, hallEvery: 6, arenaBand: 4, hallFallbackMs: 240000 },
-};
+// supervisor interlocks; the SweepAgent applies it at script-build time and
+// in supervise(). Definitions (knobs + hypothesis) live in data/guild-scripts.js
+// as the single source of truth (top-level VARIANTS export, already in pure
+// knob form) — consumed here, by /api/gm/scripts, and by the Sims page.
+void VARIANTS; // referenced below via plan parsing
 
 let wanted = [];            // [{guild, race, variant?}]
 let MODE = 'sweep';         // 'sweep' | 'benchmark' | 'spawn'
@@ -1152,20 +1135,26 @@ class SweepAgent {
       grade,
     };
     // Persist the generated script library beside the log so the Sims page
-    // can show WHAT ran, not just how it scored. Written per-run (timestamped
-    // in the filename) so a variant's latest scripts are always available.
+    // can show WHAT ran, not just how it scored. Directory name encodes
+    // guild-race-variant-<run-id> so every run keeps its own copy (no
+    // overwrite between repeats) and the UI discovers runs via index.json
+    // instead of guessing names.
     if (this.lastScripts) {
       try {
-        const tag = this.variantName ? '-' + String(this.variantName).replace(/[^a-z0-9]/gi, '') : '';
-        const base = `fidelity-${this.guild}${tag}-${this.race}`;
-        const dir = join(LIVE_DIR, 'scripts', base);
+        const scriptDirName = [
+          this.guild, this.race,
+          this.variantName || 'adhoc',
+          RUN_ID,
+        ].join('-');
+        const dir = join(LIVE_DIR, 'scripts', scriptDirName);
         mkdirSync(dir, { recursive: true });
         for (const [nm, body] of Object.entries(this.lastScripts)) {
           if (typeof body !== 'string') continue;
           writeFileSync(join(dir, `${nm}.dr`), body);
         }
-        // One-line provenance: which goal/knobs generated these.
         writeFileSync(join(dir, 'meta.json'), JSON.stringify({
+          dir: scriptDirName,
+          runId: RUN_ID,
           char: this.char, guild: this.guild, race: this.race,
           variant: this.variantName, restPct: this.restPct, hallEvery: this.hallEvery,
           arenaBand: this.arenaBand, hallFallbackMs: this.hallFallbackMs,
@@ -1173,6 +1162,16 @@ class SweepAgent {
           arena: this.lastScriptMeta?.arena, species: this.lastScriptMeta?.species,
           ts: summary.ts,
         }, null, 2));
+        // Append-only index so the UI lists saved runs without probing.
+        const indexPath = join(LIVE_DIR, 'scripts', 'index.json');
+        let index = [];
+        try { index = JSON.parse(readFileSync(indexPath, 'utf8')); } catch {}
+        index = index.filter((e) => e.dir !== scriptDirName);
+        index.push({
+          dir: scriptDirName, guild: this.guild, race: this.race,
+          variant: this.variantName, ts: summary.ts, char: this.char,
+        });
+        writeFileSync(indexPath, JSON.stringify(index.slice(-200), null, 2));
       } catch {}
     }
     try { appendFileSync(join(LIVE_DIR, 'fidelity-summary.jsonl'), JSON.stringify(summary) + '\n'); } catch {}

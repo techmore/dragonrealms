@@ -46,6 +46,9 @@ export const GUILD_SCRIPTS = {
     // circling frees slots; extras fail harmlessly with "no free ability
     // slots" / path-requirement prose and fall through.
     learnAbilities: ['everilds_rage', 'dragon', 'tenacity', 'wildfire', 'screech'],
+    // Free ability slots at a given circle — used by the circle script to
+    // learn only what can actually stick. barbarianSlots = 1 + floor(c/2).
+    abilitySlots: (circle) => 1 + Math.floor(circle / 2),
     fidelityChecks: [
       { name: 'analyze-expertise', re: /You analyze|combo|expertise/i },
       { name: 'roar-ability', re: /roar a battle cry|blood ablaze|voice is spent/i },
@@ -297,4 +300,40 @@ export const RACE_MATRIX = {
   necromancer: ['kaldar', 'skra', 'halfling'],
   paladin: ['dwarf', 'human', 'prydaen'],
   ranger: ['prydaen', 'rakash', 'gnome'],
+};
+
+// Benchmark variant matrix — the single source of truth for the sweep CLI,
+// the GM API (/api/gm/scripts) and the Sims page knob table. Each variant is
+// ONE knob changed against baseline (kaizen rule), with its hypothesis
+// written down so a variant whose diff spans several knobs can't hide.
+//   restPct         — supervisor rest interlock floor (% of maxhp; stand at 90%)
+//   hallEvery       — kills between forced guild-hall trips while hunting
+//   arenaBand       — allowed creature-circle spread above the agent's circle
+//   hallFallbackMs  — blind hall-trip timer; the rank-readiness gate still
+//                     fires immediately when ranks actually qualify
+export const VARIANTS = {
+  baseline: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    hypothesis: 'Control — every other variant changes exactly one knob against it.',
+  },
+  baseline_v2: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 540000,
+    diff: ['hallFallbackMs'],
+    hypothesis: 'Blind hall timer 4m -> 9m: trust the rank-readiness gate so short runs hunt instead of commuting.',
+  },
+  rest50: {
+    restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    diff: ['restPct'],
+    hypothesis: 'Rest at 50% HP instead of 35% — fewer deaths vs less time hunting.',
+  },
+  hall8: {
+    restPct: 35, hallEvery: 8, arenaBand: 2, hallFallbackMs: 240000,
+    diff: ['hallEvery'],
+    hypothesis: 'Hall trip every 8 kills instead of 4 — more hunting, slower TDP spend.',
+  },
+  wide2: {
+    restPct: 35, hallEvery: 6, arenaBand: 4, hallFallbackMs: 240000,
+    diff: ['hallEvery', 'arenaBand'],
+    hypothesis: 'Wider creature weight class (+4 circles, hall every 6) — faster exp, higher death risk.',
+  },
 };

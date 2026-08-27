@@ -336,7 +336,16 @@ function buildCircleScript({ cap, fromArena, errands }) {
   // only path to the "1st Supernatural" circle requirement for a manaless
   // guild) never accrued. Failure prose is harmless — already-known and
   // no-free-slot both just print and fall through.
-  for (const abil of (cfg.learnAbilities || [])) {
+  // Learn only up to the guild's available ability slots. Slots are scarce
+  // (barbarianSlots() = 1 + floor(circle/2) — exactly ONE at circle 1), so
+  // attempting the whole list every trip is pure waste: run bdas fired 25
+  // learn attempts across 5 trips for a single always-satisfied slot. The
+  // first `slots` entries of learnAbilities are the priority order from
+  // data/guild-scripts.js; later ones fail harmlessly but cost a wait each.
+  const slots = GUILD_SCRIPTS[cap.guild]?.abilitySlots
+    ? cfg.abilitySlots(1) // circle-1 slot count; circling re-fires this script with more slots
+    : (cfg.learnAbilities || []).length;
+  for (const abil of (cfg.learnAbilities || []).slice(0, slots)) {
     L.push(`  put learn ${abil}`);
     L.push('  wait');
   }
@@ -348,11 +357,16 @@ function buildCircleScript({ cap, fromArena, errands }) {
   L.push('  echo CIRCLE_UP_OK');
   L.push('  exit');
   L.push('TRAIN:');
+  // Rotate across BOTH curricula: targeted retarget lists AND the generic
+  // defaultTrain. The offset originally applied only when
+  // cap.trainList?.length, i.e. only on retargeted trips — but fallback hall
+  // trips pass trainList:null, which is the DOMINANT path (run bdas: 5
+  // fallback trips, 0 circle attempts => 0 retargets), so all five trips ran
+  // the byte-identical list. trainOffset may also legitimately be 0 on the
+  // first trip, hence the explicit modulo guard rather than truthiness.
   let train = cap.trainList?.length ? cap.trainList : cfg.defaultTrain;
-  if (cap.trainOffset && cap.trainList?.length) {
-    // Rotate the start so repeated trips spend TDPs across ALL blocking
-    // candidates instead of always re-training the first few.
-    const off = cap.trainOffset % train.length;
+  const off = (cap.trainOffset || 0) % Math.max(1, train.length);
+  if (off > 0) {
     train = [...train.slice(off), ...train.slice(0, off)];
   }
   // Guild-taught skills first: hard circle requirements are always taught,
