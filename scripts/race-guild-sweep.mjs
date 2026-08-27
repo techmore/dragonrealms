@@ -425,6 +425,8 @@ class SweepAgent {
       // them from here. skipRage gates the signature roar behind %rage.
       skipRage: this.variant?.skipRage,
       closeNth: this.variant?.closeNth,
+      tdpFloor: this.variant?.tdpFloor,
+      helmRetry: this.variant?.helmRetry,
     };
     const huntSrc = buildHuntScript({
       cap,
@@ -748,7 +750,7 @@ class SweepAgent {
     const s = this.session;
     const arena = this.arena;
     if (!arena) return;
-    const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth };
+    const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth, tdpFloor: this.variant?.tdpFloor, helmRetry: this.variant?.helmRetry };
     this.library[this.scriptBase + 'hunt'] = buildHuntScript({
       cap,
       hallPath: s.bfsPath(arena, 'hall_' + this.guild, this.diskAdj()),
@@ -979,7 +981,8 @@ class SweepAgent {
     // afford-gates again at the hall in case balance changed en route.
     // Fires at most once per fresh kill (killsAtVisit reset) — not per tick.
     const tdpKnown = Number.isFinite(v2.tdp);
-    if (huntingLeg && tdpKnown && v2.tdp < 8 && !v2.inCombat
+    const tdpFloor = this.variant?.tdpFloor ?? 8;
+    if (huntingLeg && tdpKnown && v2.tdp < tdpFloor && !v2.inCombat
       && this.kills > this.killsAtVisit) {
       this.appendLog(`[hall-skip] only ${v2.tdp} TDPs — hunting until the pool fills`);
       log(`[${this.guild}/${this.race}] hall skipped: ${v2.tdp} TDPs below floor`);

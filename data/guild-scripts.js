@@ -365,4 +365,12 @@ export const VARIANTS = {
     diff: ['closeNth'],
     hypothesis: 'Close the Nth-set circle-2 slots (2nd/3rd/4th weapon, 2nd armor) that primary-pool grinding cannot reach: (1) the per-kill weapon rotation now branches on GROUND TRUTH (%wsp mirrored from the hands snapshot) instead of a %wphase flip-flop whose memory died with every cycle restart — after each restart the undefined variable interpolated literally and always took the club arm (log evidence: 16 remove-knives / 0 wield-knives in one run), and (2) hall tdptrain retargeting picks the EXACT Nth-ranked blocking pool member per missing set line instead of flooding every candidate; kit swaps mace (blunt dupe) -> staff and adds an iron helm for chain_armor field exp.',
   },
+  diversity2: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true,
+    tdpFloor: 4,
+    helmRetry: true,
+    diff: ['tdpFloor', 'helmRetry'],
+    hypothesis: 'Two evidence-backed closures on top of diversity: (1) tdpFloor 8 -> 4 — tdptrain costs 4+3*rank, so the cheapest useful spend is 4 TDPs; the floor of 8 blocked a hall trip at 4 TDPs while shortfall sat at 10 (kjvh log: "[hall-skip] only 4 TDPs"). At 4 the trip can still buy 1-2 rank-0 members (3rd-weapon / 2nd-survival slots sit at rank 0-2). (2) helmRetry — the diversity kit\'s iron helm never fires: the first-visit gate needs 120s silver but club(112s)+knives+armor drain the 150s purse, so 2nd armor was stuck 1/2 by economics. Every hall trip already passes the bazaar with banked loot silver; retry the buy there. Payoff beyond the 2nd armor slot itself: armor exp is granted PER WORN PIECE per landed blow (server/combat.js), so chain_armor worn roughly doubles 1st-armor income too (2/6 blocker).',
+  },
 };

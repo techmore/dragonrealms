@@ -607,7 +607,7 @@ function buildCircleScript({ cap, fromArena, errands }) {
   // used to spam every entry as a refusal and walk home — pure noise lines
   // and zero progress. TDP_FLOOR keeps a small reserve instead of burning
   // down to pocket change on cheap ranks.
-  const TDP_FLOOR = 8;
+  const TDP_FLOOR = cap.tdpFloor ?? 8;
   L.push('  put tdp');
   L.push('  wait');
   L.push('  pause 1');
@@ -635,6 +635,22 @@ function buildCircleScript({ cap, fromArena, errands }) {
       L.push(`  put bundle ${loot}`);
       L.push('  wait');
       L.push('  pause 0.5');
+    }
+    // HELM RETRY (cap.helmRetry): the first-visit helm buy is purse-gated at
+    // 120s but club+knives+armor drain the 150s purse on a fresh character,
+    // so the gate can never fire on leg one (kjvh evidence: 1x buy padded
+    // cloth armor, 0x buy iron helm, 2nd armor pinned 1/2). Every hall trip
+    // passes the bazaar for errands with BANKED loot silver — retry here.
+    if (cap.helmRetry) {
+      L.push('HELM_RETRY:');
+      L.push('  iflt silver 130 ERRAND_DONE');
+      L.push('  matchre ERRAND_DONE Worn:[\\s\\S]*helm');
+      L.push('  put inventory');
+      L.push('  matchwait 4');
+      L.push('  put buy iron helm');
+      L.push('  wait');
+      L.push('  put wear iron helm');
+      L.push('  wait');
     }
     L.push('ERRAND_DONE:');
     if (errands.returnPath?.length) L.push(...moves(errands.returnPath));
