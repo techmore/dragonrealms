@@ -173,6 +173,20 @@
       <a href="/admin.html">&larr; Admin dash</a>
     </header>
 
+    <style>
+      /* section-group dividers */
+      .group-label { display:flex; align-items:center; gap:12px;
+        margin:28px 0 4px; color:var(--dim); font-size:11px;
+        letter-spacing:.14em; text-transform:uppercase; }
+      .group-label::after { content:''; flex:1; height:1px; background:var(--line); }
+      .group-label:first-of-type { margin-top:8px; }
+      .milestone-chip { cursor:default; }
+      .ms-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
+    </style>
+
+    <!-- ===================== GROUP: NOW ===================== -->
+    <div class="group-label" id="g-now">Now — what's in flight &amp; what to run</div>
+
     <!-- ===================== HERO: the answer, first ===================== -->
     <section id="champion" class="champ-hero">
       <div class="ch-left">
@@ -252,20 +266,6 @@
     <section id="live">
       <h2>Live Sims <span class="right sub" id="liveState">polling…</span></h2>
       <div id="liveList"><div class="live-empty">no sims running — launch one above, or a benchmark from the CLI</div></div>
-      <div id="milestones" style="margin-top:14px"></div>
-      <style>
-        .ms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
-        .ms-card {
-          background: var(--panel-inset); border: 1px solid var(--line); border-radius: 8px;
-          padding: 8px 10px; text-align: center;
-        }
-        .ms-card.done { border-color: var(--green); }
-        .ms-card .ms-ico { font-size: 18px; margin-bottom: 2px; }
-        .ms-card .ms-nm { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
-        .ms-card .ms-tm { font-size: 12px; color: var(--amber); margin-top: 2px; }
-        .ms-card .ms-pending { color: var(--dim); }
-        .ms-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
-      </style>
     </section>
 
     <!-- ===================== LAUNCH ===================== -->
@@ -329,6 +329,9 @@
       </style>
       <div id="aglog">(no sims launched from here)</div>
     </section>
+
+    <!-- ===================== GROUP: EVIDENCE ===================== -->
+    <div class="group-label" id="g-evidence">Evidence — every run, ranked &amp; compared</div>
 
     <!-- ===================== RUNS ===================== -->
     <section id="runs">
@@ -452,6 +455,9 @@
       </style>
     </section>
 
+    <!-- ===================== GROUP: DEEP DIVE ===================== -->
+    <div class="group-label" id="g-deepdive">Deep dive — characters, trends &amp; the scripts themselves</div>
+
     <!-- ===================== CHARACTER TRACKER ===================== -->
     <section id="tracker">
       <h2>Character tracker
@@ -466,7 +472,7 @@
         <label class="sub"><input type="checkbox" id="track-trained" checked> hide rank-0</label>
         <a id="track-spectate" href="#" target="_blank" rel="opener" hidden>&#128065; watch live</a>
       </div>
-      <div id="tracker" class="note">Pick a character from a run above or type a name. Requires the GM token.</div>
+      <div id="trackerBody" class="note">Pick a character from a run above or type a name. Requires the GM token.</div>
     </section>
 
     <section id="lab">
@@ -493,7 +499,7 @@
     </section>
 
     <!-- ===================== SCRIPTS (what a config IS + what ran) ===================== -->
-    <section id="champions">
+    <section id="scripts-section">
       <h2>Variant knobs
         <span class="right sub">each variant is ONE knob changed against baseline — hover the goal column</span>
       </h2>
@@ -510,14 +516,14 @@
       <pre id="scr-src" style="background:var(--panel-inset);border:1px solid var(--line);border-radius:8px;
         padding:12px;font-size:11.5px;line-height:1.5;max-height:50vh;overflow:auto;white-space:pre">(pick a variant)</pre>
       <style>
-        #champions .knob-row { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
+        #scripts-section .knob-row { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
           padding:7px 4px; border-top:1px solid var(--line); font-size:12px; }
-        #champions .knob-row:first-child { border-top:none; }
-        #champions .kn { min-width:110px; font-weight:bold; color:var(--amber); }
-        #champions .kv2 { color:var(--muted); }
-        #champions .kv2 b { color:var(--text); font-weight:normal; }
-        #champions .hyp { color:var(--dim); flex:1; min-width:220px; }
-        #champions .best { color:var(--green); }
+        #scripts-section .knob-row:first-child { border-top:none; }
+        #scripts-section .kn { min-width:110px; font-weight:bold; color:var(--amber); }
+        #scripts-section .kv2 { color:var(--muted); }
+        #scripts-section .kv2 b { color:var(--text); font-weight:normal; }
+        #scripts-section .hyp { color:var(--dim); flex:1; min-width:220px; }
+        #scripts-section .best { color:var(--green); }
       </style>
     </section>
   </main>
@@ -1132,6 +1138,14 @@
         $(id).innerHTML = '<option value="">variant…</option>'
           + vs.map((v) => `<option${v === cur ? ' selected' : ''}>${esc(v)}</option>`).join('');
       }
+      // Smart defaults on first load: A = baseline (the control), B = the
+      // leaderboard's top non-baseline variant. Runs the comparison so the
+      // pane answers on arrival instead of waiting for two picks.
+      if (!$('cmp-a').value && !$('cmp-b').dataset.touched) {
+        if (vs.includes('baseline')) $('cmp-a').value = 'baseline';
+        const other = vs.find((v) => v !== 'baseline');
+        if (other) $('cmp-b').value = other;
+      }
     }
     function confChip(minN) {
       // honesty first: fewer than 5 runs/side = thin; fewer than 3 = noise
@@ -1186,8 +1200,8 @@
       const r = await gm('player/' + encodeURIComponent(name));
       if (!r.ok) {
         TRACK_DATA = null;
-        $('tracker').className = 'note';
-        $('tracker').innerHTML = r.code === 401
+        $('trackerBody').className = 'note';
+        $('trackerBody').innerHTML = r.code === 401
           ? 'GM token required — paste it on the dash, or reopen as <code>/sims#gm=&lt;token&gt;</code>.'
           : (r.d?.error ? esc(r.d.error) : `lookup failed (HTTP ${r.code}).`);
         $('track-state').textContent = '';
@@ -1278,8 +1292,8 @@
         .sort((a, b) => (b[1].rank - a[1].rank) || (b[1].exp - a[1].exp));
       // exp-to-next approximation: rank N needs ~N*100+100 exp pool; show fill vs current bucket
       const expPct = (s) => Math.min(100, Math.round(100 * s.exp / Math.max(100, (s.rank + 1) * 60)));
-      $('tracker').className = '';
-      $('tracker').innerHTML = `
+      $('trackerBody').className = '';
+      $('trackerBody').innerHTML = `
         <div class="statgrid">
           <div class="stat"><b>${pl.circle}</b><span>circle</span></div>
           <div class="stat"><b>${pl.tdpPool ?? pl.tdp ?? 0}</b><span>TDP pool</span></div>
@@ -1301,7 +1315,7 @@
           </tbody>
         </table>
         ${skills.length > 400 ? `<p class="note">…and ${skills.length - 400} more rank-0 skills (toggle “hide rank-0” off)</p>` : ''}`;
-      $('tracker').querySelectorAll('th[data-tk]').forEach((th) => th.addEventListener('click', () => {
+      $('trackerBody').querySelectorAll('th[data-tk]').forEach((th) => th.addEventListener('click', () => {
         const k = th.dataset.tk;
         TRACK_SORT = { k, dir: TRACK_SORT.k === k ? -TRACK_SORT.dir : -1 };
         renderTrackerSorted(k);
@@ -1319,7 +1333,7 @@
           return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * TRACK_SORT.dir;
         });
       const expPct = (s) => Math.min(100, Math.round(100 * s.exp / Math.max(100, (s.rank + 1) * 60)));
-      $('tracker').querySelector('tbody').innerHTML = skills.slice(0, 400).map(([id, s]) => `
+      $('trackerBody').querySelector('tbody').innerHTML = skills.slice(0, 400).map(([id, s]) => `
         <tr><td>${esc(id)}</td><td><b>${s.rank}</b></td>
           <td><span class="expbar"><i style="width:${expPct(s)}%"></i></span>
               <span class="sub" style="margin-left:8px">${s.exp} exp</span></td></tr>`).join('');
@@ -1443,11 +1457,11 @@
     // head-to-head wiring
     $('cmp-guild').addEventListener('change', renderCompareVariants);
     $('cmp-go').addEventListener('click', renderCompare);
-    $('cmp-a').addEventListener('change', () => { if ($('cmp-b').value) renderCompare(); });
-    $('cmp-b').addEventListener('change', () => { if ($('cmp-a').value) renderCompare(); });
+    $('cmp-a').addEventListener('change', () => { $('cmp-b').dataset.touched = '1'; if ($('cmp-b').value) renderCompare(); });
+    $('cmp-b').addEventListener('change', () => { $('cmp-b').dataset.touched = '1'; if ($('cmp-a').value) renderCompare(); });
     loadRuns();          // runs table immediately (existing behavior)
     bootRuns();          // leaderboard after RUNS land
-    loadLeaderboard().then(renderCompareOptions); // compare selects once RUNS land
+    loadLeaderboard().then(() => { renderCompareOptions(); renderCompare(); });
     setInterval(() => { loadRuns().then(renderLeaderboard); }, 15000);
     setInterval(renderExperimentBoard, 30000);  // experiment board refresh
     renderExperimentBoard();
@@ -2066,32 +2080,39 @@
       }
     }
 
+    // Milestones render per-LIVE-CARD (a condensed chip + full list inside
+    // the expanded card), replacing the old standalone strip that grew a
+    // duplicate grid for every run and showed noise like the 40th "Buy Club".
     function renderMilestones() {
-      const el = $('milestones');
-      const names = Object.keys(msSeen);
-      if (!names.length) {
-        el.innerHTML = '<div class="ms-title">Milestones</div><div class="live-empty">waiting for a run…</div>';
-        return;
-      }
-      // Show the most recent run
-      const name = names[names.length - 1];
-      const seen = msSeen[name];
-      const cards = MILESTONES.map(ms => {
-        const hit = seen[ms.id];
-        let time = '';
-        if (hit && typeof hit === 'string') {
-          if (ms.stat === 's') time = hit + 's';
-          else time = '✓';
-        } else if (hit) {
-          time = '✓';
+      for (const [name, card] of Object.entries(liveCards)) {
+        const seen = msSeen[name];
+        if (!seen) continue;
+        const hitCount = MILESTONES.filter((ms) => seen[ms.id]).length;
+        let chip = card.el.querySelector('[data-role="ms"]');
+        if (!chip) {
+          chip = document.createElement('span');
+          chip.dataset.role = 'ms';
+          chip.className = 'chip milestone-chip';
+          card.el.querySelector('.lh').appendChild(chip);
         }
-        return `<div class="ms-card ${hit ? 'done' : ''}">
-          <div class="ms-ico">${ms.ico}</div>
-          <div class="ms-nm">${ms.nm}</div>
-          <div class="ms-tm">${time || '<span class="ms-pending">—</span>'}</div>
-        </div>`;
-      }).join('');
-      el.innerHTML = `<div class="ms-title">Milestones — ${esc(name)}</div><div class="ms-grid">${cards}</div>`;
+        chip.textContent = `✓ ${hitCount}/${MILESTONES.length}`;
+        chip.title = 'milestones hit this run — expand the card to see which';
+        // Full milestone list inside the log area header when expanded.
+        let det = card.el.querySelector('[data-role="ms-detail"]');
+        if (!det) {
+          det = document.createElement('div');
+          det.dataset.role = 'ms-detail';
+          det.style.cssText = 'padding:4px 0 8px;font-size:11px;';
+          const lg = card.el.querySelector('.lg');
+          lg.parentElement.insertBefore(det, lg);
+        }
+        const parts = MILESTONES.map((ms) => {
+          const hit = seen[ms.id];
+          const t = hit ? (typeof hit === 'string' && ms.stat === 's' ? `${hit}s` : '✓') : '<span style="color:var(--muted)">—</span>';
+          return `<span style="margin-right:10px;white-space:nowrap">${ms.ico} ${esc(ms.nm)} <b style="color:${hit ? 'var(--amber)' : 'var(--muted)'}">${t}</b></span>`;
+        }).join('');
+        det.innerHTML = `<div class="ms-title">Milestones this run</div><div style="display:flex;flex-wrap:wrap;gap:2px 0">${parts}</div>`;
+      }
     }
     renderMilestones();
   </script>
