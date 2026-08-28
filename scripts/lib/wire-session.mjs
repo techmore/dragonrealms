@@ -41,12 +41,14 @@ export class WireSession {
     this.vitals = {
       room: null, hp: 0, maxhp: 0, mana: 0, maxmana: 0,
       circle: 1, rt: 0, inCombat: false, restingFlag: false,
+      players: [], // other player NAMES observed in the current room
     };
     this.done = false;
     // navigation learning: observed transitions beat exit lists beat disk data
     this.observedEdges = {};  // roomId -> [{dir,to}]
     this.liveExits = {};      // roomId -> [{dir,to}]
     this.pendingMove = null;  // {from, dir}
+    this.charAllocHandled = false;
   }
 
   async httpLogin() {
@@ -239,7 +241,16 @@ export class WireSession {
       case 'charcreate':
         this.sendObj({ t: 'charcreate', name: this.char, race: this.race, guild: this.guild, city: 'crossing' });
         break;
-      case 'charalloc': this.sendObj({ t: 'enter' }); break;
+      case 'charalloc':
+        // Callers that want a reproducible chargen build can allocate before
+        // entering; legacy agents keep the original immediate-enter behavior.
+        if (this.handlers.onCharAlloc) {
+          if (!this.charAllocHandled) {
+            this.charAllocHandled = true;
+            await this.handlers.onCharAlloc(m);
+          }
+        } else this.sendObj({ t: 'enter' });
+        break;
       case 'enter': this.handlers.onEnter?.(); break;
       case 'room': {
         if (this.pendingMove) {
@@ -256,6 +267,11 @@ export class WireSession {
         }
         const changed = v.room !== m.roomId;
         v.room = m.roomId;
+        // Snapshot who else is standing here — the arena-picking ladder in
+        // generated hunt scripts gates on occupancy (%pcount), and this is
+        // the only place the sim learns it (the room message carries
+        // contents.players). Only count OTHER players, not ourselves.
+        v.players = Array.isArray(m.contents?.players) ? m.contents.players.slice() : [];
         this.noteLiveExits(m.roomId, m.exits);
         this.handlers.onRoom?.(m, changed);
         break;
@@ -388,7 +404,7 @@ export class WireSession {
       .filter(([, rank]) => rank > 0)
       .map(([id, rank]) => `[WSRANK:${id}:${rank}]`)
       .join('');
-    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}${v.rage ? ' [Raging]' : ''}${(v.bleeding || []).length ? ' [bleeding: ' + v.bleeding.join('; ') + ']' : ''}${v.wsp ? ` [WEAPON:${v.wsp}]` : ''}${wsrankTokens}`, 'inject');
+    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}${v.rage ? ' [Raging]' : ''}${(v.bleeding || []).length ? ' [bleeding: ' + v.bleeding.join('; ') + ']' : ''}${v.wsp ? ` [WEAPON:${v.wsp}]` : ''}${v.room ? ` [ROOM:${v.room}]` : ''}${v.players?.length ? ` [PLAYERS:${v.players.length}]` : ''}${wsrankTokens}`, 'inject');
   }
 }
 
@@ -416,5 +432,14 @@ export function trackRefusedMove(session, dir) {
     const idx = list.findIndex((e) => e.dir === dir);
     if (idx >= 0) list.splice(idx, 1);
     if (!list.length) delete session.observedEdges[room];
+    // If the refused dir was NOT a known edge for this room, our room
+    // tracking is likely STALE (vitals.room disagrees with where we are) —
+    // e.g. the bazaar wedge where every move is refused but bazaar has valid
+    // exits. Re-request the room (look) so the next room message corrects
+    // vitals.room and BFS re-paths from the REAL room instead of looping on
+    // doomed dirs. KAIZEN 2026-08-28.
+    if (idx < 0) {
+      try { session.sendRaw('look'); } catch { /* sendRaw may be unavailable in tests */ }
+    }
   }
 }
