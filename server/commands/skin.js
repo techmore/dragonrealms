@@ -1,6 +1,7 @@
 // Skinning loot from corpses (used by the combat command module).
 import { skillRank, effectiveRank, gainSkillExp, addItem } from '../player.js';
 import { itemByIdName } from './util.js';
+import { pruneCorpses } from '../combat.js';
 
 // Skin difficulty scales with the creature's circle; a fresh hunter can still
 // dress a rat, but a dire wolf needs trained hands.
@@ -12,6 +13,7 @@ function skinChance(p, corpse) {
 
 export function skinCreature(game, p, name, say, emit) {
   if (!name) return emit('Skin what?');
+  pruneCorpses(p);
   const n = name.toLowerCase();
   const idx = (p.corpses || []).findIndex((c) =>
     c.def.id === n || c.def.name.includes(n) || c.def.name.replace(/^a /, '').split(' ')[0] === n);

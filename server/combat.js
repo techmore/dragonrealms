@@ -12,6 +12,12 @@ import {
   say, sayRaw,
 } from './player.js';
 import { itemById } from '../data/items.js';
+
+// How long an un-skinned creature corpse lingers before it decays and is
+// removed from the room (DR-authentic: bodies rot). Skinning removes the
+// corpse immediately, so this only governs kills that are left un-skinned or
+// whose skinning attempt failed. KAIZEN 2026-08-28.
+export const CORPSE_DECAY_MS = 5 * 60 * 1000;
 import { rollWound, bleedInfo, bleedRate, tendWound, tendRoundtime, clotTick } from './wounds.js';
 import { cap } from './util.js';
 
@@ -304,7 +310,10 @@ say(t, text, 'combat');
   killCreature(target) {
     target.dead = true;
     if (!this.player.corpses) this.player.corpses = [];
-    this.player.corpses.push({ uid: target.uid, def: target.def });
+    // Stamp a decay time so un-skinned corpses rot away instead of piling up
+    // in the room forever (DR-authentic: bodies decay). Skinning removes the
+    // corpse immediately; this is the safety net for failed/unsolicited skins.
+    this.player.corpses.push({ uid: target.uid, def: target.def, decayedAt: Date.now() + CORPSE_DECAY_MS });
     // Empath: taking a living life leaves an empathic stain (DR-authentic).
     if (this.player.guild.id === 'empath') {
       const cap = Math.max(5, Math.floor(this.player.maxHp * 0.1));
@@ -1514,6 +1523,18 @@ function teachingFactor(playerSkill, def) {
 // a small defense edge in creatureAttack — DR's "bonus stance points" made
 // real (roadmap P11).
 Combat.stanceEdge = function stanceEdge(p) {
+
   return Math.max(0, stancePoints(p) - 3);
 };
+
+// Remove creature corpses that have passed their decay time. Called from the
+// game pulse so un-skinned bodies rot out of the room on a steady cadence
+// instead of accumulating. Survives restarts because decayedAt is absolute.
+export function pruneCorpses(p) {
+  if (!p || !p.corpses || !p.corpses.length) return;
+  const now = Date.now();
+  const before = p.corpses.length;
+  p.corpses = p.corpses.filter((c) => !c.decayedAt || c.decayedAt > now);
+  if (p.corpses.length !== before) p.handsDirty = true;
+}
 

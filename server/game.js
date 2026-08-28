@@ -35,7 +35,7 @@ const MANA_PULSE_MS = 6 * 1000;
 // Weather kinds and their weightings by season — see server/weather.js.
 const DIRS = DIR_NAMES;
 
-import { vitalityLabel } from './combat.js';
+import { vitalityLabel, pruneCorpses } from './combat.js';
 
 function resolveExit(room, dir) {
   if (room.exits[dir]) return room.exits[dir];
@@ -102,6 +102,7 @@ export class Game {
       for (const p of this.players.values()) {
         try {
           if (pulseExp(p, tick) > 0) savePlayer(p);
+          pruneCorpses(p);
         } catch (e) { console.error('pulse error', e); }
       }
     }, 20 * 1000);
