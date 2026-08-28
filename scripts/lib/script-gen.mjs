@@ -62,7 +62,7 @@ function buildHuntScript({ cap, arena, hallPath }) {
     // categories = blunt/thrown/staff, exactly what circle-2's 2nd/3rd/4th
     // weapon slots need exercised in the field.
     const kit = cap.closeNth && plan.weapons.includes('club')
-      ? ['club', 'dagger', 'throwing_knives']
+      ? ['club', 'staff', 'throwing_knives']
       : plan.weapons;
     for (const wid of kit) {
       const nm = String(wid).replace(/_/g, ' ');
@@ -217,9 +217,19 @@ function buildHuntScript({ cap, arena, hallPath }) {
   // Field readiness check (player-style `exp`): the view ends with either
   // "ready to circle!" or the missing-requirements list. Branch on it so a
   // ready agent heads for the hall instead of over-farming one arena.
-  L.push('  matchre CIRCLE_READY ready to circle');
-  L.push('  put exp');
-  L.push('  matchwait 5');
+    L.push('  matchre CIRCLE_READY ready to circle');
+    // `exp` is information-only, but probing it on every scan floods the
+    // wire when an arena is empty or a runner is parked (348 probes in one
+    // 40m leg). Alternate probes: the supervisor also receives the merged
+    // exp sheet and can force a hall trip as soon as the gate is met.
+    L.push('  if_2 goto SCAN_NOEXP');
+    L.push('  setvariable 2 1');
+    L.push('  put exp');
+    L.push('  matchwait 5');
+    L.push('  goto SCAN_LOOK');
+    L.push('SCAN_NOEXP:');
+    L.push('  setvariable 2');
+    L.push('SCAN_LOOK:');
   if (cfg.magic) L.push('  iflt mana 8 goto WEAKSWING');
   for (const pre of cfg.preFight || []) L.push(`  put ${pre.replace(/^put /, '').replace('%target', '')}`);
   // Bard area enchantes: segue mid-hunt so the song stays fresh and the
@@ -649,6 +659,7 @@ function buildCircleScript({ cap, fromArena, errands }) {
   L.push('BACK:');
   // Town errands: sell loot + bundle leftovers on the way home —
   // skins fund the weapon ladder (club → short sword → cavalry_sabre).
+  let returnedViaErrands = false;
   if (errands?.bazaarPath?.length) {
     L.push(...moves(errands.bazaarPath));
     L.push('ERRAND_SELL:');
@@ -703,9 +714,16 @@ function buildCircleScript({ cap, fromArena, errands }) {
       }
     }
     L.push('ERRAND_DONE:');
-    if (errands.returnPath?.length) L.push(...moves(errands.returnPath));
+    if (errands.returnPath?.length) {
+      L.push(...moves(errands.returnPath));
+      returnedViaErrands = true;
+    }
   }
-  if (fromArena.back?.length) L.push(...moves(fromArena.back));
+  // Both paths terminate at the arena. Appending hall->arena after the
+  // errands route has already walked bazaar->arena replays moves from the
+  // wrong origin and strands the agent in a transit room. This was the
+  // dominant late-run Barbarian wedge while one rank short of circle 2.
+  if (!returnedViaErrands && fromArena.back?.length) L.push(...moves(fromArena.back));
   L.push('  exit');
   return L.join('\n');
 }

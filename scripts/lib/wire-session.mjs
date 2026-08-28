@@ -13,8 +13,9 @@
 //   s.vitals                        // {hp,maxhp,circle,rt,inCombat,room}
 import WebSocket from 'ws';
 
-const BASE = 'http://localhost:3000';
-const ORIGIN = 'ws://localhost:3000/ws?bot=1'; // sims self-identify for roster tagging
+const PORT = Number(process.env.DR_PORT || process.env.PORT || 3000);
+const BASE = `http://localhost:${PORT}`;
+const ORIGIN = `ws://localhost:${PORT}/ws?bot=1`; // sims self-identify for roster tagging
 const DIR_SHORT = {
   north: 'n', south: 's', east: 'e', west: 'w',
   northeast: 'ne', northwest: 'nw', southeast: 'se', southwest: 'sw',
@@ -35,6 +36,7 @@ export class WireSession {
     this.knownChar = null; // {charId} when the character already exists
     this.reconnects = 0;
     this.lastCmdAt = 0;
+    this.cmdQueue = Promise.resolve();
     // live vitals, updated from prompts + rest msgs
     this.vitals = {
       room: null, hp: 0, maxhp: 0, mana: 0, maxmana: 0,
@@ -85,11 +87,18 @@ export class WireSession {
 
 
   // Server allows 20 cmds/sec; stay well under it.
-  async cmd(line) {
-    const wait = 150 - (Date.now() - this.lastCmdAt);
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    this.lastCmdAt = Date.now();
-    this.sendObj({ t: 'input', line });
+  cmd(line) {
+    const send = async () => {
+      const wait = 150 - (Date.now() - this.lastCmdAt);
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      this.lastCmdAt = Date.now();
+      this.sendObj({ t: 'input', line });
+    };
+    // Script sends and supervisor interlocks share this path. A promise chain
+    // keeps the 150ms floor real even when several callers use void cmd(...)
+    // in the same tick; the old timestamp check let all of them wake together.
+    this.cmdQueue = this.cmdQueue.catch(() => {}).then(send);
+    return this.cmdQueue;
   }
 
   connect(handlers) {
