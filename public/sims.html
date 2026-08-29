@@ -145,6 +145,10 @@
       background: var(--green); margin-right: 5px; animation: pulse 1.5s infinite;
     }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+    /* Phone: larger tap targets so the workspace nav is thumb-friendly. */
+    @media (max-width: 560px) {
+      .sims-nav a, .sims-nav button { padding: 9px 13px; font-size: 12px; }
+    }
 
     /* ---- live sims ---- */
     .live-card {
@@ -312,7 +316,7 @@
       <h2>Per-guild roadmaps
         <span class="right sub">the kaizen story behind the numbers — what each guild is trying to prove</span>
       </h2>
-      <div class="decision-grid" style="grid-template-columns:repeat(2,minmax(260px,1fr))">
+      <div class="decision-grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
         <a class="decision-card" href="/barbarian-roadmap.html" style="text-decoration:none;color:inherit">
           <b style="color:var(--amber)">&#128009; Barbarian</b>
           <span>Identity chain works; circling kaizen verified engaging (186 ranks drained at hall in zrmn) but circle 2 still unlanded — kill rate + bazaar nav are the walls.</span>
