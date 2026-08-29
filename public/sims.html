@@ -33,6 +33,17 @@
     input[type=text] { cursor: text; }
     .btn:hover, select:hover { border-color: var(--amber); }
     .btn.active { border-color: var(--amber); color: var(--amber); }
+    .live-stop { color: var(--red); border-color: color-mix(in srgb, var(--red) 55%, var(--line)); }
+    .live-stop:disabled { opacity: .55; cursor: not-allowed; }
+    .live-help { margin-top: 8px; font-size: 10px; }
+    .table-wrap { overflow-x: auto; }
+    .decision-grid { display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:8px; margin:10px 0 14px; }
+    .decision-card { background:var(--panel-inset); border:1px solid var(--line); border-radius:8px; padding:9px 11px; }
+    .decision-card b { display:block; color:var(--text); font-size:17px; line-height:1.2; }
+    .decision-card span { color:var(--dim); font-size:9px; letter-spacing:.09em; text-transform:uppercase; }
+    .evidence-key { display:flex; gap:12px; flex-wrap:wrap; color:var(--dim); font-size:10px; margin-left:auto; }
+    .evidence-key i { width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:4px; }
+    @media (max-width: 700px) { .decision-grid { grid-template-columns:1fr 1fr; } }
 
     .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
     .tbl th, .tbl td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -123,6 +134,12 @@
     }
     .sims-nav a:hover { color: var(--text); background: var(--panel-inset); }
     .sims-nav a.active { color: var(--amber); border: 1px solid var(--amber); }
+    .sims-nav button { appearance:none; background:transparent; border:1px solid transparent;
+      color:var(--dim); font:inherit; font-size:11px; padding:5px 11px; border-radius:6px; cursor:pointer; }
+    .sims-nav button:hover { color:var(--text); background:var(--panel-inset); }
+    .sims-nav button[aria-selected="true"] { color:var(--amber); border-color:var(--amber-soft); background:rgba(224,179,76,.06); }
+    .sims-nav .nav-spacer { flex:1; }
+    [data-view-hidden="true"] { display:none !important; }
     .sims-nav .live-dot {
       display: inline-block; width: 7px; height: 7px; border-radius: 50%;
       background: var(--green); margin-right: 5px; animation: pulse 1.5s infinite;
@@ -134,11 +151,36 @@
       background: var(--panel-inset); border: 1px solid var(--line); border-radius: 10px;
       padding: 12px 14px; margin-bottom: 10px;
     }
-    .live-card .lh {
-      display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;
-    }
-    .live-card .ln { color: var(--amber); font-weight: 600; font-size: 13px; }
-    .live-card .ls { font-size: 11px; }
+    .live-card .lh { display:flex; align-items:center; justify-content:flex-end; gap:8px; min-height:20px; margin-bottom:5px; }
+    /* The summary below is now the source of truth; keep only the action in
+       the old header so the card does not repeat identity/state text. */
+    .live-card .ln, .live-card .ls, .live-card .lidentity, .live-card .lrate,
+    .live-card [data-role="gaps"], .live-card [data-role="expall"] { display:none; }
+    .live-card .lmeta { display:none; }
+    .live-card .lmeta b { color:var(--text); }
+    .live-summary { display:grid; grid-template-columns:2fr repeat(5,minmax(82px,1fr)); gap:6px; margin:4px 0 9px 0; }
+    .live-metric { min-width:0; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:rgba(255,255,255,.025); }
+    .live-metric .lm-label { display:block; color:var(--dim); font-size:9px; line-height:1.15; text-transform:uppercase; letter-spacing:.06em; }
+    .live-metric .lm-value { display:block; color:var(--text); font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+    .live-metric .lm-sub { display:block; color:var(--muted); font-size:9px; line-height:1.2; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .live-card .lwatch { margin-left:auto; display:inline-flex; align-items:center; gap:5px;
+      padding:5px 9px; border:1px solid var(--cyan); border-radius:6px;
+      color:var(--cyan); background:rgba(86,190,205,.08); text-decoration:none;
+      font-size:11px; font-weight:700; white-space:nowrap; }
+    .live-card .lwatch:hover { color:var(--bg); background:var(--cyan); }
+    .live-card .lwatch[aria-disabled="true"] { opacity:.45; pointer-events:none; }
+    .live-card .lwatch svg { width:15px; height:15px; flex:none; }
+    .live-card .lwatch { vertical-align:middle; }
+    .live-card .lexp-gate { display:inline-flex; align-items:center; gap:5px; color:var(--dim); font-size:10px; white-space:nowrap; }
+    .live-card .lexp-gate b { color:var(--text); font-size:11px; }
+    .live-card .lexp-segments { display:inline-flex; gap:2px; align-items:center; }
+    .live-card .lexp-segment { width:7px; height:10px; border-radius:2px; background:var(--red); }
+    .live-card .lexp-segment.near { background:var(--amber); }
+    .live-card .lexp-segment.met { background:var(--green); }
+    .live-card .lexp-gate[data-empty="true"] { opacity:.55; }
+    #experiment .exp-live-card .lexp-gate { margin-left:auto; }
+    @media (max-width:560px) { .live-card .lexp-segment { width:5px; } }
+
     .live-card .lpwrap { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
     .live-card .lp { flex:1; height:4px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; }
     .live-card .lp i { display: block; height: 100%; background: var(--cyan); transition: width .5s; }
@@ -150,12 +192,17 @@
     /* Collapsed-by-default live cards: header + progress bar stay visible,
        the raw log tail hides until the operator clicks the chevron. */
     .live-card.collapsed .lg { display: none; }
-    .live-card.collapsed .lreqs { display: none; }
     /* Olwydd-style requirement table inside the expanded live card. */
-    .live-card .lreqs { margin: 6px 0; overflow-x: auto; }
-    .live-card .lreqs table.reqtable { border-collapse: collapse; font-size: 10px; white-space: nowrap; }
-    .live-card .lreqs th { font-weight: normal; color: var(--dim); padding: 1px 6px 1px 0; text-align: left; }
-    .live-card .lreqs td { padding: 1px 6px 1px 0; font-weight: 600; font-size: 11px; text-align: left; }
+    .live-card .lreqs { margin: 7px 0 9px; border-top:1px solid var(--line); padding-top:7px; }
+    .live-card .lreqs.exp-table-collapsed .reqgrid { display:none; }
+    .live-card .exp-table-toggle { appearance:none; background:transparent; border:0; color:var(--dim); cursor:pointer; font:inherit; font-size:10px; padding:0; }
+    .live-card .exp-table-toggle:hover { color:var(--cyan); }
+    .live-card .reqgrid { display:grid; grid-template-columns:repeat(10,minmax(70px,1fr)); gap:4px; }
+    .live-card .reqitem { min-width:0; padding:5px 4px 4px; border:1px solid var(--line); border-radius:5px; background:rgba(255,255,255,.025); text-align:center; }
+    .live-card .req-label { min-height:25px; color:var(--dim); font-size:9px; line-height:1.1; overflow-wrap:anywhere; display:flex; align-items:flex-end; justify-content:center; }
+    .live-card .req-have { font-size:11px; font-weight:700; margin-top:3px; white-space:nowrap; }
+    .live-card .req-first { display:block; color:var(--muted); font-size:9px; font-weight:400; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .live-card .lreq-caption { color:var(--dim); font-size:10px; margin-bottom:4px; }
     .live-card .lchev { color: var(--dim); font-size: 12px; width: 12px;
       display: inline-block; transition: transform .15s; }
     .live-card:not(.collapsed) .lchev { transform: rotate(90deg); }
@@ -166,6 +213,8 @@
     .live-card .lg .l-ok { color: var(--green); }
     .live-card .lg .l-dim { color: var(--dim); }
     .live-empty { color: var(--dim); font-style: italic; font-size: 12px; padding: 16px; text-align: center; }
+    @media (max-width:900px) { .live-summary { grid-template-columns:2fr repeat(3,minmax(82px,1fr)); } .live-card .reqgrid { grid-template-columns:repeat(7,minmax(70px,1fr)); } }
+    @media (max-width:560px) { .live-summary { grid-template-columns:repeat(2,minmax(105px,1fr)); } .live-summary .live-metric:first-child { grid-column:span 2; } .live-card .reqgrid { grid-template-columns:repeat(4,minmax(70px,1fr)); } }
   </style>
 </head>
 <body data-page="sims">
@@ -176,8 +225,20 @@
       <span id="sum" class="sub"></span>
       <span class="spacer"></span>
       <a href="/sim-architecture.html">Sim architecture &rarr;</a>
+      <a href="/sim-chart.html">Live chart &rarr;</a>
+      <a href="/barbarian-roadmap.html">Barbarian roadmap &rarr;</a>
+      <a href="/warmage-roadmap.html">Warmage roadmap &rarr;</a>
       <a href="/admin.html">&larr; Admin dash</a>
     </header>
+    <nav class="sims-nav" aria-label="Simulation workspace">
+      <button data-view="overview" aria-selected="true">01 · Monitor</button>
+      <button data-view="decide" aria-selected="false">02 · Decide</button>
+      <button data-view="evidence" aria-selected="false">03 · Evidence</button>
+      <button data-view="deep" aria-selected="false">04 · Investigate</button>
+      <button data-view="roadmaps" aria-selected="false">05 · Roadmaps</button>
+      <span class="nav-spacer"></span>
+      <span id="view-context" class="sub">live state and next action</span>
+    </nav>
 
     <style>
       /* section-group dividers */
@@ -196,9 +257,10 @@
     <!-- ===================== HERO: the answer, first ===================== -->
     <section id="champion" class="champ-hero">
       <div class="ch-left">
-        <div class="dsub">Run this one — most reliable script by rating &amp; evidence</div>
+        <div class="dsub" id="ch-eyebrow">Best verified result · scoped to a matched cohort</div>
         <div class="ch-name" id="ch-name">…</div>
         <div class="ch-meta" id="ch-meta">loading leaderboard…</div>
+        <div class="ch-next" id="ch-next"></div>
       </div>
       <div class="ch-right">
         <div class="ch-rate"><b id="ch-tier">—</b><span id="ch-val"></span></div>
@@ -219,6 +281,9 @@
       .ch-left { flex:1; min-width:260px; }
       .ch-name { font-size:26px; font-weight:700; color:var(--amber); line-height:1.2; }
       .ch-meta { color:var(--muted); font-size:12px; margin-top:4px; }
+      .ch-next { margin-top:10px; padding:7px 9px; border-left:2px solid var(--cyan);
+        background:rgba(86,190,205,.06); color:var(--muted); font-size:11px; }
+      .ch-next b { color:var(--cyan); }
       .ch-right { display:flex; gap:20px; align-items:center; }
       .ch-rate { text-align:center; }
       .ch-rate b { font-size:44px; color:var(--green); line-height:1; display:block; }
@@ -234,10 +299,36 @@
       .hrs.some b { color:var(--amber); }   /* ≥ 1h */
     </style>
 
-    <p class="sub">Launch and review every sim run (<code>public/live/*.log</code> + grades from
+    <p class="sub" id="page-intro">Launch and review every sim run (<code>public/live/*.log</code> + grades from
       <code>fidelity-summary.jsonl</code>), and track any character's leveling &amp; skills. Sims use the public
       game API; the character tracker needs the GM token (paste it in on the dash or open this page as
       <code>/sims#gm=&lt;token&gt;</code>).</p>
+
+    <!-- ===================== ROADMAPS ===================== -->
+    <!-- Per-guild kaizen roadmaps: the narrative companion to the raw
+         evidence above. Each page explains what a guild's scripting sim is
+         trying to prove, what's measured, and what's next. -->
+    <section id="roadmaps">
+      <h2>Per-guild roadmaps
+        <span class="right sub">the kaizen story behind the numbers — what each guild is trying to prove</span>
+      </h2>
+      <div class="decision-grid" style="grid-template-columns:repeat(2,minmax(260px,1fr))">
+        <a class="decision-card" href="/barbarian-roadmap.html" style="text-decoration:none;color:inherit">
+          <b style="color:var(--amber)">&#128009; Barbarian</b>
+          <span>Identity chain works; circling kaizen verified engaging (186 ranks drained at hall in zrmn) but circle 2 still unlanded — kill rate + bazaar nav are the walls.</span>
+        </a>
+        <a class="decision-card" href="/warmage-roadmap.html" style="text-decoration:none;color:inherit">
+          <b style="color:#88b4d9">&#9889; Warrior Mage</b>
+          <span>Never circled (0 circle-ups recorded). 2 of 3 warmages wedged at the bazaar in zrmn — nav stall is the #1 wall ahead of the shared circling kaizen.</span>
+        </a>
+      </div>
+      <p class="note">These are the human-written companions to this dashboard. The <a href="/ROADMAP.html">full roadmap tracker</a> covers feature parity to circle 10 across all guilds; <a href="/sim-architecture.html">Sim architecture</a> explains the harness and the measurement traps we've hit.</p>
+      <style>
+        #roadmaps .decision-card { transition: border-color .15s; }
+        #roadmaps .decision-card:hover { border-color: var(--amber); }
+        #roadmaps .decision-card span { color: var(--muted); font-size: 11px; line-height: 1.45; margin-top: 4px; display: block; text-transform: none; letter-spacing: 0; }
+      </style>
+    </section>
 
     <!-- ===================== EXPERIMENT BOARD ===================== -->
     <!-- Answers: what experiment is in flight, which leg is running now,
@@ -245,13 +336,16 @@
          (variant + run_id grouping); zero server work. -->
     <section id="experiment">
       <h2>Experiment board
-        <span class="right sub" id="exp-state">reading recent runs…</span>
+        <span class="right"><span class="sub" id="exp-state">reading recent runs…</span>
+          <button class="btn live-stop" id="live-stop-browser" disabled title="Stops only sims launched from this page">&#9208; Stop browser sims</button>
+        </span>
       </h2>
       <div id="exp-legs" class="note">no experiment detected — launch a benchmark or check back after the next run lands</div>
       <div class="explan" id="explan">
-        <b>How to read a benchmark:</b> an A/B is <em>N sequential runs</em> — one agent at a time,
-        fresh level-1 character per leg, each capped at 30 minutes and stopping early only if it
-        reaches the target circle (10). Sequential = no spawn contention, so pacing is honest.
+        <b>How to read a benchmark:</b> an A/B is a set of matched runs by guild, race, boost,
+        target circle, and code revision. The default is one worker at a time for clean pacing;
+        <code>--concurrency N</code> is a deliberate crowded-world test.
+        Compare medians and the promotion gate only within the same concurrency setting.
         Median-of-repeats beats any single run; legs with &lt;2 completions are noise-prone.
       </div>
       <style>
@@ -266,18 +360,63 @@
         #experiment .explan { font-size:11px; color:var(--dim); margin-top:8px;
           padding:7px 10px; background:var(--panel-inset); border-radius:6px; line-height:1.5; }
         #experiment .res-row td { padding:3px 8px; }
+        #experiment .exp-models { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px; }
+        #experiment .exp-model { border:1px solid var(--line); border-radius:8px; padding:9px 10px; background:var(--panel-inset); }
+        #experiment .exp-model.live { border-color:var(--amber-soft); box-shadow:0 0 0 1px rgba(224,179,76,.08); }
+        #experiment .exp-model-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+        #experiment .exp-model-name { color:var(--amber); font-weight:700; }
+        #experiment .exp-model-meta { color:var(--muted); font-size:10px; margin-left:auto; }
+        #experiment .exp-model-facts { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:5px; }
+        #experiment .exp-model-facts .badge { font-size:9px; }
+        #experiment .exp-live-board { margin:10px 0 12px; border-top:1px solid var(--line); padding-top:10px; }
+        #experiment .exp-live-title { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:6px; }
+        #experiment .exp-live-card { margin-bottom:7px; }
+        #experiment .exp-live-card .lh { justify-content:flex-start; cursor:pointer; }
+        #experiment .exp-live-card .ln { display:inline; color:var(--amber); font-weight:600; font-size:13px; }
+        #experiment .exp-live-card .lchev { display:inline-block; }
+        #experiment .exp-live-card .live-summary { display:grid; }
+        #experiment .exp-live-card .lg { max-height:220px; }
+        @media (max-width:600px) { #experiment .exp-models { grid-template-columns:1fr; } }
       </style>
     </section>
 
-    <section id="live">
-      <h2>Live Sims <span class="right sub" id="liveState">polling…</span></h2>
-      <div id="liveList"><div class="live-empty">no sims running — launch one above, or a benchmark from the CLI</div></div>
+    <!-- ===================== SPEEDRUN SPLITS ===================== -->
+    <section id="speedrun" hidden>
+      <h2>Barbarian speedrun milestones <span class="right sub" id="split-state">waiting for a live run…</span></h2>
+      <p class="sub">The route is judged by release gates, like a speedrun: prove the Gor’Tog circle-2 kit, certify the gate, then run regression climbs through circle 10. Circle 20 is split into an engine gate and a playable-world gate so coverage is never overstated.</p>
+      <div id="split-board" class="split-board"><div class="note">Start a Barbarian run to see its milestone clock.</div></div>
+      <div id="split-reqs" class="split-reqs"></div>
+      <style>
+        #speedrun .split-board { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:8px; }
+        #speedrun .split-lanes { display:grid; gap:10px; }
+        #speedrun .split-lane { border:1px solid var(--line); border-radius:9px; padding:9px; background:rgba(0,0,0,.08); }
+        #speedrun .split-lane-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin:0 2px 8px; font-size:12px; }
+        #speedrun .split-lane-head b { color:var(--cyan); }
+        #speedrun .split.locked { opacity:.62; }
+        #speedrun .split { border:1px solid var(--line); border-radius:8px; padding:9px 10px; background:var(--panel-inset); min-height:72px; }
+        #speedrun .split.done { border-color:rgba(96,201,130,.55); }
+        #speedrun .split.next { border-color:var(--cyan); box-shadow:0 0 0 1px rgba(86,190,205,.14); }
+        #speedrun .split .phase { color:var(--dim); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+        #speedrun .split .label { display:block; font-weight:700; margin-top:4px; }
+        #speedrun .split .detail { color:var(--muted); font-size:11px; margin-top:4px; line-height:1.35; }
+        #speedrun .split .mark { float:right; font-size:11px; }
+        #speedrun .split-reqs { margin-top:10px; overflow-x:auto; }
+        #speedrun .split-reqs table { width:100%; border-collapse:collapse; font-size:11px; }
+        #speedrun .split-reqs th, #speedrun .split-reqs td { padding:5px 7px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+        #speedrun .split-reqs th { color:var(--dim); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+        #speedrun .split-reqs td:first-child { color:var(--text); font-weight:600; }
+        #speedrun .split-reqs .req-met { color:var(--green); }
+        #speedrun .split-reqs .req-near { color:var(--amber); }
+        #speedrun .split-reqs .req-far { color:var(--red); }
+        #speedrun .split-reqs .req-time { color:var(--muted); font-variant-numeric:tabular-nums; }
+      </style>
     </section>
 
     <!-- ===================== LAUNCH ===================== -->
-    <section id="launch">
+    <section id="launch" class="launch-collapsed">
       <h2>Launch a sim
-        <span class="right sub" id="agstate">&#9675; none running</span>
+        <span class="right"><span class="sub" id="agstate">&#9675; none running</span>
+          <button class="btn" id="launch-toggle" aria-expanded="false">configure ad-hoc run</button></span>
       </h2>
       <div class="controls">
         <label for="ag-name" class="sub">name</label>
@@ -308,10 +447,13 @@
         <label for="ag-tick" class="sub" title="watchdog tick interval — lower = more responsive, higher = lighter">tick ms</label>
         <input id="ag-tick" type="number" min="500" max="10000" step="250" value="1500" style="width:70px">
         <button class="btn" id="ag-launch">&#9654; Launch</button>
-        <button class="btn" id="ag-stop">&#9208; Stop all</button>
+        <button class="btn live-stop" id="ag-stop" title="Stops all browser-launched sims">&#9208; Stop all browser sims</button>
       </div>
       <div id="agroster"></div>
       <style>
+        #launch.launch-collapsed > .controls,
+        #launch.launch-collapsed > #agroster,
+        #launch.launch-collapsed > #aglog { display:none; }
         #agroster .row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; flex-wrap: wrap; }
         #agroster .row[data-ag] { cursor: pointer; }
         #agroster .nm { color: var(--amber); min-width: 130px; }
@@ -347,16 +489,21 @@
           <button class="btn" id="refresh-runs">&#8635; refresh</button>
         </span>
       </h2>
-      <table class="tbl">
+      <div class="controls">
+        <input id="run-search" type="text" placeholder="filter run, character, guild, race…" style="min-width:280px">
+        <span id="runs-shown" class="sub"></span>
+        <button class="btn" id="runs-more" hidden>show 25 more</button>
+      </div>
+      <div class="table-wrap"><table class="tbl">
         <thead><tr>
-          <th data-k="run">Run</th><th data-k="char">Char</th><th data-k="guild">Guild</th><th data-k="race">Race</th>
+          <th data-k="run">Experiment</th><th data-k="char">Character</th><th data-k="guild">Guild</th><th data-k="race">Race</th>
           <th data-k="ts">Ended</th><th data-k="circle">Circle</th><th data-k="circles">&#8593;</th>
           <th data-k="kills">Kills</th><th data-k="deaths">Deaths</th><th data-k="trains">Trains</th>
           <th data-k="rating" title="S/A/B/C/D — click a row for the transparent breakdown">Rating</th>
           <th data-k="grade">Grade</th><th></th>
         </tr></thead>
         <tbody id="runsBody"><tr><td colspan="13" class="note">loading…</td></tr></tbody>
-      </table>
+      </table></div>
 
       <!-- detail -->
       <div id="detail" hidden>
@@ -392,9 +539,17 @@
       </h2>
       <div class="controls">
         <select id="lb-guild"><option value="">all guilds…</option></select>
-        <span class="sub">rating = 30% progress (shortfall) + 25% velocity + 20% survival + 15% discipline + 10% fidelity; tiers S ≥85, A ≥70, B ≥55, C ≥35</span>
+        <select id="lb-evidence" title="hide rankings based on too little evidence">
+          <option value="0">all evidence</option>
+          <option value="3" selected>3+ runs</option>
+          <option value="5">5+ runs</option>
+        </select>
+        <input id="lb-search" type="text" placeholder="find variant…">
+        <span class="evidence-key"><span><i style="background:var(--green)"></i>5+ solid</span><span><i style="background:var(--amber)"></i>3–4 directional</span><span><i style="background:var(--red)"></i>&lt;3 noise</span></span>
       </div>
+      <div id="lb-overview" class="decision-grid"></div>
       <div id="lb-body" class="note">loading…</div>
+      <p class="note">Composite rating: 30% progress · 25% velocity · 20% survival · 15% discipline · 10% fidelity. Rank is a decision aid, not proof; compare variants with similar evidence.</p>
       <style>
         #leaderboard .lb-row { cursor: pointer; }
         #leaderboard .lb-main td { padding-top: 8px; padding-bottom: 8px; }
@@ -461,10 +616,53 @@
       </style>
     </section>
 
+    <section id="kaizen">
+      <h2>Barbarian KAIZEN gate
+        <span class="right sub">one bottleneck · one change · matched repeats · promote only on the leveling outcome</span>
+      </h2>
+      <div id="kaizen-body" class="note">building the next experiment from run evidence…</div>
+      <style>
+        #kaizen .k-flow { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:8px; }
+        #kaizen .k-step { position:relative; background:var(--panel-inset); border:1px solid var(--line);
+          border-radius:8px; padding:10px 11px; min-height:84px; }
+        #kaizen .k-step:not(:last-child)::after { content:'→'; position:absolute; right:-10px; top:34px;
+          z-index:2; color:var(--dim); background:var(--panel); padding:0 2px; }
+        #kaizen .k-step .k-num { color:var(--dim); font-size:9px; letter-spacing:.1em; text-transform:uppercase; }
+        #kaizen .k-step b { display:block; margin:4px 0; color:var(--text); font-size:13px; }
+        #kaizen .k-step p { margin:0; color:var(--muted); font-size:10.5px; line-height:1.45; }
+        #kaizen .k-gate { margin-top:10px; padding:8px 10px; border-radius:6px;
+          background:rgba(224,78,78,.07); border-left:2px solid var(--red); font-size:11px; }
+        @media (max-width:850px) { #kaizen .k-flow { grid-template-columns:1fr 1fr; }
+          #kaizen .k-step::after { display:none; } }
+      </style>
+    </section>
+
     <!-- ===================== GROUP: DEEP DIVE ===================== -->
     <div class="group-label" id="g-deepdive">Deep dive — characters, trends &amp; the scripts themselves</div>
 
     <!-- ===================== CHARACTER TRACKER ===================== -->
+    <section id="kaizen-investigation">
+      <h2>Kaizen investigation
+        <span class="right sub" id="ki-state">script-tweaking checks · one knob · matched evidence</span>
+      </h2>
+      <div id="ki-body" class="note">loading investigation checks…</div>
+      <style>
+        #kaizen-investigation .ki-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:8px; margin-bottom:10px; }
+        #kaizen-investigation .ki-check { background:var(--panel-inset); border:1px solid var(--line); border-radius:8px; padding:9px 10px; }
+        #kaizen-investigation .ki-check b { display:block; font-size:16px; color:var(--text); }
+        #kaizen-investigation .ki-check span { color:var(--dim); font-size:9px; text-transform:uppercase; letter-spacing:.08em; }
+        #kaizen-investigation .ki-pass b { color:var(--green); }
+        #kaizen-investigation .ki-warn b { color:var(--amber); }
+        #kaizen-investigation .ki-fail b { color:var(--red); }
+        #kaizen-investigation .ki-table { width:100%; border-collapse:collapse; font-size:11px; }
+        #kaizen-investigation .ki-table th, #kaizen-investigation .ki-table td { padding:5px 7px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+        #kaizen-investigation .ki-table th { color:var(--dim); text-transform:uppercase; font-size:9px; letter-spacing:.07em; }
+        #kaizen-investigation .ki-table tr[data-ki] { cursor:pointer; }
+        #kaizen-investigation .ki-table tr[data-ki]:hover td { background:var(--panel-inset); }
+        #kaizen-investigation .ki-detail td { background:var(--panel-inset); white-space:normal; line-height:1.45; color:var(--muted); }
+      </style>
+    </section>
+
     <section id="tracker">
       <h2>Character tracker
         <span class="right sub">circle · TDP · silver · all skill ranks (offline too)</span>
@@ -546,6 +744,52 @@
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const stripAnsi = (s) => String(s ?? '').replace(/\x1b\[\d+m/g, '');
 
+    // Put decisions before raw evidence. The source sections stay independent,
+    // but operators encounter ranking → comparison → individual runs.
+    $('g-evidence').after($('kaizen'));
+    $('kaizen').after($('compare'));
+    $('compare').after($('leaderboard'));
+    $('leaderboard').after($('runs'));
+
+    const VIEW_SECTIONS = {
+      overview: ['champion', 'experiment', 'launch', 'roadmaps'],
+      decide: ['kaizen', 'compare', 'leaderboard'],
+      evidence: ['runs'],
+      deep: ['tracker', 'lab', 'scripts-section', 'kaizen-investigation'],
+      roadmaps: ['roadmaps'],
+    };
+    const VIEW_COPY = {
+      overview: 'live state and next action',
+      decide: 'promotion gate and matched comparison',
+      evidence: 'individual runs and forensic logs',
+      deep: 'characters, trends and generated scripts',
+      roadmaps: 'per-guild scripting roadmaps',
+    };
+    function setWorkspaceView(view) {
+      if (!VIEW_SECTIONS[view]) view = 'overview';
+      const visible = new Set(VIEW_SECTIONS[view]);
+      for (const ids of Object.values(VIEW_SECTIONS)) for (const id of ids) {
+        const el = $(id); if (el) el.dataset.viewHidden = visible.has(id) ? 'false' : 'true';
+      }
+      for (const id of ['g-now', 'g-evidence', 'g-deepdive', 'page-intro']) {
+        const el = $(id); if (el) el.dataset.viewHidden = 'true';
+      }
+      document.querySelectorAll('.sims-nav button[data-view]').forEach((b) =>
+        b.setAttribute('aria-selected', String(b.dataset.view === view)));
+      $('view-context').textContent = VIEW_COPY[view];
+      try { sessionStorage.setItem('dr_sims_view', view); } catch {}
+    }
+    document.querySelectorAll('.sims-nav button[data-view]').forEach((b) =>
+      b.addEventListener('click', () => setWorkspaceView(b.dataset.view)));
+    $('launch-toggle').addEventListener('click', () => {
+      const collapsed = $('launch').classList.toggle('launch-collapsed');
+      $('launch-toggle').setAttribute('aria-expanded', String(!collapsed));
+      $('launch-toggle').textContent = collapsed ? 'configure ad-hoc run' : 'hide controls';
+    });
+    let initialView = 'overview';
+    try { initialView = sessionStorage.getItem('dr_sims_view') || 'overview'; } catch {}
+    setWorkspaceView(initialView);
+
     // GM token handoff — same regex contract as admin/core.js (must include _-%).
     const TOKEN = (() => {
       try {
@@ -593,8 +837,10 @@
     // EVERY summary row is kept — a run's history is the point, not just
     // its latest result (the old latest-per-combo merge hid all history).
     let RUNS = [];           // { run, char?, ts?, reason?, circle, circles, kills, deaths, trains, grade?, fidelity?, variant? }
+    let LIVE_COUNT = 0;      // authoritative count from loadLive's log liveness check
     let SORT = { k: 'ts', dir: -1 };
     let SELECTED = null;
+    let RUN_VISIBLE = 25;
 
     async function loadRuns() {
       let logs = [];
@@ -619,7 +865,7 @@
         seenLogKeys.add(`${s.guild}:${s.race}`);
         RUNS.push({
           run: `${s.variant || 'adhoc'} · ${s.guild} · ${s.race} [${s.run_id || '—'}]`,
-          logName: `fidelity-${s.guild}${s.variant ? '-' + String(s.variant).replace(/[^a-z0-9]/gi, '') : ''}-${s.race}`,
+          logName: s.logName || `fidelity-${s.guild}${s.variant ? '-' + String(s.variant).replace(/[^a-z0-9]/gi, '') : ''}-${s.race}`,
           runId: s.run_id || null, guild: s.guild, race: s.race,
           char: s.char || null, ts: s.ts ? Date.parse(s.ts) : null,
           reason: s.reason || null, circle: s.circle ?? null,
@@ -635,6 +881,25 @@
           // real early-velocity signal: ms to reach each of the first few ranks
           rankSplits: Array.isArray(s.rankSplits) && s.rankSplits.length ? s.rankSplits : null,
           timeToCircleMs: s.timeToCircleMs ?? null,
+          mode: s.mode || null, concurrency: s.concurrency ?? null,
+          comparisonType: s.comparisonType || null, targetCircle: s.targetCircle ?? null,
+          boost: s.boost ?? null, minutesCap: s.minutesCap ?? null,
+          statPolicy: s.statPolicy || null, statAllocation: s.statAllocation || null,
+          arena: s.arena || null, species: s.species || null,
+          variantConfig: s.variantConfig || null, scriptHash: s.scriptHash || null,
+          scriptSchemaVersion: s.scriptSchemaVersion ?? null,
+          codeRevision: s.codeRevision || null,
+          startingCircle: s.startingCircle ?? null,
+          startingTotalRanks: s.startingTotalRanks ?? null,
+          commandCounts: s.commandCounts || null,
+          completedTarget: s.completedTarget ?? null,
+          closurePerMin: s.closurePerMin ?? null,
+          finalRequirements: s.finalRequirements || null,
+          requirementSplits: s.requirementSplits || null,
+          stateChanges: s.stateChanges || null,
+          milestoneSchemaVersion: s.milestoneSchemaVersion ?? null,
+          milestoneEvents: Array.isArray(s.milestoneEvents) ? s.milestoneEvents : null,
+          finalTdp: s.finalTdp ?? null, finalSilver: s.finalSilver ?? null,
         });
       }
       // 2. Log files with no summary rows at all still appear (raw scripts).
@@ -670,6 +935,9 @@
       const liveOnly = $('only-live').checked;
       let rows = [...RUNS];
       if (liveOnly) rows = rows.filter((r) => isLive(r.ts) || !r.ts); // no summary timestamp → can't tell; keep
+      const q = $('run-search').value.trim().toLowerCase();
+      if (q) rows = rows.filter((r) => [r.run, r.char, r.guild, r.race, r.variant, r.grade]
+        .some((v) => String(v || '').toLowerCase().includes(q)));
       rows.sort((a, b) => {
         const va = a[SORT.k], vb = b[SORT.k];
         if (va == null && vb == null) return 0;
@@ -677,19 +945,25 @@
         if (vb == null) return -1;
         return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * SORT.dir;
       });
-      $('sum').textContent = `${RUNS.length} runs · ${RUNS.filter((r) => isLive(r.ts)).length} recently active`;
+      $('sum').textContent = `${RUNS.length} runs · ${LIVE_COUNT} live now`;
       document.querySelectorAll('#runs th[data-k]').forEach((th) => {
         th.textContent = th.textContent.replace(/ [▲▼]$/, '') + (SORT.k === th.dataset.k ? (SORT.dir > 0 ? ' ▲' : ' ▼') : '');
       });
       if (!rows.length) {
         $('runsBody').innerHTML = '<tr><td colspan="13" class="note">no sim logs in public/live yet — launch one from the dash</td></tr>';
+        $('runs-shown').textContent = '0 matching runs';
+        $('runs-more').hidden = true;
         return;
       }
+      const totalMatching = rows.length;
+      rows = rows.slice(0, RUN_VISIBLE);
+      $('runs-shown').textContent = `showing ${rows.length} of ${totalMatching}`;
+      $('runs-more').hidden = rows.length >= totalMatching;
       $('runsBody').innerHTML = rows.map((r) => {
         const rating = rateRun(r);
         return `
         <tr class="run ${SELECTED === r.run ? 'sel' : ''}" data-run="${esc(r.run)}">
-          <td>${esc(r.run)}</td>
+          <td><b>${esc(r.variant || 'ad-hoc')}</b>${r.runId ? ` <span class="sub">[${esc(r.runId)}]</span>` : ''}</td>
           <td>${esc(r.char || '—')}</td>
           <td>${esc(r.guild || '—')}</td>
           <td>${esc(r.race || '—')}</td>
@@ -752,6 +1026,20 @@
         ['circle reached', `<b>${r.circle ?? '—'}</b> (${r.circles ?? 0} circle-ups)`],
         ['kills / deaths', `${r.kills ?? '—'} / ${r.deaths ?? '—'}`],
         ['train commands', r.trains ?? '—'],
+        ['conditions', r.targetCircle != null
+          ? `target c${r.targetCircle} · boost x${r.boost || 'off'} · ${r.minutesCap}m cap · ${esc(r.mode || '—')} · ${r.concurrency || 1} worker${(r.concurrency || 1) === 1 ? '' : 's'}${r.statPolicy && r.statPolicy !== 'none' ? ` · stats ${esc(r.statPolicy)}${r.statAllocation ? ` (${esc(Object.entries(r.statAllocation).map(([k, v]) => `${k}+${v}`).join(', '))})` : ''}` : ''}`
+          : '<span class="sub">legacy run — conditions not recorded</span>'],
+        ['arena / script', `${esc(r.arena || '—')} · ${r.scriptHash ? esc(r.scriptHash) : '<span class="sub">no hash</span>'}`],
+        ['revision / start', r.codeRevision
+          ? `${esc(r.codeRevision)} · c${r.startingCircle ?? '—'} · ${r.startingTotalRanks ?? '—'} starting ranks`
+          : '<span class="sub">not recorded</span>'],
+        ['command mix', r.commandCounts
+          ? Object.entries(r.commandCounts).map(([k, v]) => `${esc(k)} ${v}`).join(' · ')
+          : '—'],
+        ['closure rate', r.closurePerMin != null ? `${r.closurePerMin} shortfall/min` : '—'],
+        ['final blockers', r.finalRequirements?.missing?.length
+          ? r.finalRequirements.missing.map((m) => `${esc(m.label)} ${m.have}/${m.need}`).join('<br>')
+          : (r.circle >= (r.targetCircle || 2) ? '<span style="color:var(--green)">target complete</span>' : 'not recorded')],
         ['ended', r.reason ? esc(r.reason) : fmtAge(r.ts)],
       ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
 
@@ -964,22 +1252,26 @@
     function renderLeaderboard() {
       const el = $('lb-body');
       const guildFilter = $('lb-guild').value;
-      // Group completed runs by guild×variant (skip variant-less ad-hoc runs).
+      const minEvidence = Number($('lb-evidence').value || 0);
+      const variantQuery = $('lb-search').value.trim().toLowerCase();
+      // Group completed runs by guild×variant×concurrency. A crowded-world
+      // result must not silently outrank a clean one-worker control.
       const groups = new Map();
       for (const r of RUNS) {
         if (!r.variant && !r.run.includes('base')) continue;  // benchmarks only
         const g = r.guild || '?';
         const v = r.variant || 'baseline';
         if (guildFilter && g !== guildFilter) continue;
-        const key = `${g}|${v}`;
+        const concurrency = Number(r.concurrency) > 0 ? Number(r.concurrency) : 1;
+        const key = `${g}|${v}|${concurrency}`;
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push({ ...r, rating: rateRun(r) });
       }
       // Rank variants by MEDIAN rating (robust to one blowout run).
       const med = (a) => { if (!a.length) return null; const s = [...a].sort((x,y)=>x-y);
         return s.length % 2 ? s[Math.floor(s.length/2)] : Math.round((s[s.length-2===-1?0:s.length/2-1] + s[Math.floor(s.length/2)])/2); };
-      const ranked = [...groups.entries()].map(([key, runs]) => {
-        const [guild, variant] = key.split('|');
+      const rankedAll = [...groups.entries()].map(([key, runs]) => {
+        const [guild, variant, concurrency] = key.split('|');
         const vals = runs.map((r) => r.rating.val).sort((a, b) => a - b);
         const medianVal = vals.length % 2 ? vals[Math.floor(vals.length / 2)]
           : Math.round((vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2);
@@ -1001,16 +1293,25 @@
           return s + (m ? Number(m[1]) * 60000 : 600000);
         }, 0);
         const circlesBest = Math.max(0, ...runs.map((r) => r.circle || 0));
-        return { guild, variant, runs, medianVal, avgParts, deaths, wedges,
-          hours: hoursMs / 3600000, circlesBest, tier: RATING.tier(medianVal) };
+        const cohortCount = new Set(runs.map(cohortKey).filter(Boolean)).size;
+        const legacyRuns = runs.filter((r) => !cohortKey(r)).length;
+        return { guild, variant, concurrency: Number(concurrency) || 1, runs, medianVal, avgParts, deaths, wedges,
+          hours: hoursMs / 3600000, circlesBest, tier: RATING.tier(medianVal), cohortCount, legacyRuns };
       }).sort((a, b) => b.medianVal - a.medianVal);
+      const ranked = rankedAll.filter((rv) => rv.runs.length >= minEvidence
+        && (!variantQuery || `${rv.variant} ${rv.guild}`.toLowerCase().includes(variantQuery)));
 
-      // Champion = best median rating AMONG variants with enough evidence.
-      // Crowning a 2-run S-tier (killed runs, inflated pace) is exactly the
-      // "too much variance" trap — require ≥1h total wall-clock AND ≥3 runs;
-      // fall back to the most-tested variant when nothing qualifies.
-      const champEligible = ranked.filter((rv) => rv.hours >= 1 && rv.runs.length >= 3);
-      renderChampion(champEligible[0] || ranked.slice().sort((a, b) => b.hours - a.hours)[0] || null);
+      // Keep the recommendation independent from view filters. "Proven" means
+      // five runs and an hour of runtime; a higher thin-sample result becomes
+      // the next experiment instead of silently displacing the control.
+      const cohortPool = rankedAll.some((rv) => rv.concurrency === 1)
+        ? rankedAll.filter((rv) => rv.concurrency === 1) : rankedAll;
+      const proven = cohortPool.filter((rv) => rv.hours >= 1 && rv.runs.length >= 5);
+      const control = proven[0] || cohortPool.slice().sort((a, b) => b.runs.length - a.runs.length)[0] || null;
+      const challenger = control ? cohortPool.find((rv) => rv.medianVal > control.medianVal
+        && rv !== control && rv.runs.length >= 3) : null;
+      renderChampion(control, challenger);
+      renderKaizen();
 
       // guild filter options once
       const gs = [...new Set(RUNS.map((r) => r.guild).filter(Boolean))].sort();
@@ -1019,24 +1320,34 @@
         + gs.map((g) => `<option${g === cur ? ' selected' : ''}>${esc(g)}</option>`).join('');
 
       $('lb-state').textContent = `${ranked.length} variants · computed from ${[...groups.values()].reduce((s, rs) => s + rs.length, 0)} runs`;
+      const solid = ranked.filter((r) => r.runs.length >= 5).length;
+      const best = ranked[0];
+      const risky = ranked.reduce((s, r) => s + r.deaths + r.wedges, 0);
+      $('lb-overview').innerHTML = `
+        <div class="decision-card"><b>${ranked.length}</b><span>ranked variants</span></div>
+        <div class="decision-card"><b>${solid}</b><span>solid samples</span></div>
+        <div class="decision-card"><b>${best ? esc(best.variant) : '—'}</b><span>highest median${best ? ' · ' + best.medianVal : ''}</span></div>
+        <div class="decision-card"><b style="color:${risky ? 'var(--red)' : 'var(--green)'}">${risky}</b><span>deaths + wedges</span></div>`;
       if (!ranked.length) {
         el.innerHTML = '<div class="note">no benchmark runs yet — launch one above or via <code>race-guild-sweep.mjs --benchmark</code></div>';
         return;
       }
       el.innerHTML = `<table class="tbl"><thead><tr>
-          <th></th><th>Variant</th><th>Guild</th><th>Rating</th><th title="total wall-clock tested — the trust signal">Evidence</th>
+          <th></th><th>Variant</th><th>Guild</th><th>Rating</th><th title="sample-size interpretation">Decision</th><th title="total wall-clock tested — the trust signal">Evidence</th>
           <th title="total across the variant's runs">↑</th><th>Kills</th><th>Deaths</th><th>Wedges</th><th>Trend</th>
         </tr></thead><tbody>${
         ranked.map((rv, i) => {
-          const key = `${rv.guild}|${rv.variant}`;
+          const key = `${rv.guild}|${rv.variant}|${rv.concurrency}`;
           const open = LB_OPEN === key;
           const main = `
           <tr class="run lb-row" data-lb="${esc(key)}">
             <td><span class="rank ${i < 3 ? 'r' + (i + 1) : ''}">${i + 1}</span></td>
-            <td><b style="color:var(--amber)">${esc(rv.variant)}</b></td>
+            <td><b style="color:var(--amber)">${esc(rv.variant)}</b><div class="dsub">${rv.concurrency > 1 ? `crowded ×${rv.concurrency}` : 'controlled ×1'}</div></td>
             <td>${esc(rv.guild)}</td>
             <td>${rateBadgeHtml({ val: rv.medianVal, tier: rv.tier }, `median of ${rv.runs.length} runs`)}</td>
-            <td><span class="hrs ${rv.hours >= 3 ? 'rich' : rv.hours >= 1 ? 'some' : ''}" title="total wall-clock time this variant has been tested — more hours = more trustworthy median">${rv.hours >= 1 ? `<b>${rv.hours.toFixed(1)}h</b>` : '<b>' + Math.round(rv.hours * 60) + 'm</b>'} · ${rv.runs.length} runs</span></td>
+            <td>${decisionBadge(rv, control)}</td>
+            <td><span class="hrs ${rv.hours >= 3 ? 'rich' : rv.hours >= 1 ? 'some' : ''}" title="total wall-clock time this variant has been tested — more hours = more trustworthy median">${rv.hours >= 1 ? `<b>${rv.hours.toFixed(1)}h</b>` : '<b>' + Math.round(rv.hours * 60) + 'm</b>'} · ${rv.runs.length} runs</span>
+              <div class="dsub" style="color:${rv.cohortCount > 1 ? 'var(--red)' : rv.legacyRuns ? 'var(--amber)' : 'var(--green)'}">${rv.cohortCount > 1 ? rv.cohortCount + ' mixed cohorts' : rv.legacyRuns ? rv.legacyRuns + ' legacy/unverified' : 'matched cohort'}</div></td>
             <td>${rv.runs.reduce((s, r) => s + (r.circles || 0), 0)}</td>
             <td>${rv.runs.reduce((s, r) => s + (r.kills || 0), 0)}</td>
             <td>${rv.deaths || '<span class="sub">0</span>'}</td>
@@ -1044,7 +1355,7 @@
             <td>${trendArrow(rv.runs.map((r) => r.rating.val))}</td>
           </tr>`;
           const detail = open ? `
-          <tr class="lb-detail"><td colspan="10">
+          <tr class="lb-detail"><td colspan="11">
             <div class="bd-grid">
               ${['progress', 'velocity', 'survival', 'discipline', 'fidelity'].map((p) => {
                 const v = rv.avgParts[p];
@@ -1082,11 +1393,19 @@
           renderLeaderboard();
         }));
     }
-    // Hero card: the single most evidence-backed variant, answer-first.
-    function renderChampion(rv) {
-      const el = { name: $('ch-name'), meta: $('ch-meta'), tier: $('ch-tier'),
+    function decisionBadge(rv, control) {
+      if (rv === control) return '<span class="badge grade-A">established</span>';
+      if (rv.runs.length >= 5) return '<span class="badge">proven</span>';
+      if (control && rv.medianVal > control.medianVal && rv.runs.length >= 3)
+        return '<span class="badge grade-C">verify next</span>';
+      if (rv.runs.length >= 3) return '<span class="badge">directional</span>';
+      return '<span class="badge grade-D">noise</span>';
+    }
+    // Hero: distinguish the dependable control from the exciting challenger.
+    function renderChampion(rv, challenger) {
+      const el = { eye: $('ch-eyebrow'), name: $('ch-name'), meta: $('ch-meta'), tier: $('ch-tier'),
         val: $('ch-val'), hours: $('ch-hours'), runs: $('ch-runs'),
-        circle: $('ch-circle'), trust: $('ch-trust') };
+        circle: $('ch-circle'), trust: $('ch-trust'), next: $('ch-next') };
       if (!rv) {
         if (el.name) { el.name.textContent = 'No benchmark data yet'; }
         if (el.meta) el.meta.textContent = 'run a sweep (CLI or above) to populate the champion card';
@@ -1095,9 +1414,30 @@
       const hoursTxt = rv.hours >= 1 ? rv.hours.toFixed(1) + 'h' : Math.round(rv.hours * 60) + 'm';
       const n = rv.runs.length;
       const trust = n >= 8 ? 'strong' : n >= 5 ? 'decent' : n >= 3 ? 'thin' : 'noise';
+      const levelingRuns = RUNS.filter((r) => r.guild === 'barbarian' && r.variant);
+      const completions = levelingRuns.filter((r) => (r.circle || 1) >= 2);
+      if (!completions.length) {
+        const eligible = levelingRuns.filter((r) => r.shortfall != null);
+        const best = eligible.slice().sort((a, b) => a.shortfall - b.shortfall)[0];
+        if (el.eye) el.eye.textContent = 'Decision status · promotion gate blocked';
+        if (el.name) el.name.textContent = 'No leveling winner yet';
+        if (el.meta) el.meta.textContent = `0 of ${levelingRuns.length} benchmark runs reached circle 2${best ? ` · closest: ${best.variant}, ${best.shortfall} rank short` : ''}`;
+        if (el.next) el.next.innerHTML = '<b>Next action:</b> run 3 matched diversity2 vs diversity2stack repeats after the route correction. Promote only on circle-2 completion.';
+        if (el.tier) { el.tier.textContent = '0%'; el.tier.style.color = 'var(--red)'; }
+        if (el.val) el.val.textContent = 'completion';
+        if (el.hours) el.hours.textContent = hoursTxt;
+        if (el.runs) el.runs.textContent = String(n);
+        if (el.circle) el.circle.textContent = '1';
+        if (el.trust) { el.trust.textContent = 'blocked'; el.trust.style.color = 'var(--red)'; }
+        return;
+      }
+      if (el.eye) el.eye.textContent = 'Best verified result · scoped to a matched cohort';
       if (el.name) el.name.textContent = `${rv.variant} · ${rv.guild}`;
       if (el.meta) el.meta.textContent =
         `median rating ${rv.medianVal}/100 across ${n} runs · ${rv.deaths} total deaths · ${rv.wedges} wedges`;
+      if (el.next) el.next.innerHTML = challenger
+        ? `<b>Verify next:</b> ${esc(challenger.variant)} scores ${challenger.medianVal}, +${challenger.medianVal - rv.medianVal} over the control, but only has ${challenger.runs.length} runs. Add ${Math.max(0, 5 - challenger.runs.length)} matching run${5 - challenger.runs.length === 1 ? '' : 's'} before promoting it.`
+        : '<b>No unproven challenger is ahead.</b> Focus the next experiment on a new single-knob variant.';
       if (el.tier) { el.tier.textContent = rv.tier; el.tier.style.color = ''; }
       if (el.val) el.val.textContent = `${rv.medianVal}`;
       if (el.hours) el.hours.textContent = hoursTxt;
@@ -1119,13 +1459,104 @@
       return '<span class="sub">≈ flat</span>';
     }
 
+    let KI_OPEN = null;
+    function renderKaizenInvestigation() {
+      const body = $('ki-body');
+      if (!body) return;
+      const rows = RUNS.filter((r) => r.guild === 'barbarian' && r.variant);
+      const byVariant = new Map();
+      for (const r of rows) {
+        const v = r.variant || 'baseline';
+        if (!byVariant.has(v)) byVariant.set(v, []);
+        byVariant.get(v).push(r);
+      }
+      const variants = [...byVariant.entries()].map(([variant, rs]) => {
+        const complete = rs.filter((r) => (r.circle || 1) >= 2).length;
+        const shortfalls = rs.map((r) => Number(r.shortfall)).filter(Number.isFinite);
+        const medShort = shortfalls.length ? shortfalls.sort((a, b) => a - b)[Math.floor(shortfalls.length / 2)] : null;
+        const deaths = rs.reduce((n, r) => n + (r.deaths || 0), 0);
+        const refusals = rs.reduce((n, r) => n + (r.refusals || 0), 0);
+        const infos = rs.reduce((n, r) => n + (r.commandCounts?.info || 0), 0);
+        return { variant, rs, complete, medShort, deaths, refusals, infos };
+      }).sort((a, b) => (b.complete / b.rs.length) - (a.complete / a.rs.length) || (a.medShort ?? Infinity) - (b.medShort ?? Infinity));
+      const sides = variants.filter((v) => v.rs.length >= 1);
+      const best = sides[0];
+      const checks = [
+        ['matched evidence', rows.length ? `${new Set(rows.map(cohortKey).filter(Boolean)).size} cohort(s)` : 'none', rows.length && new Set(rows.map(cohortKey).filter(Boolean)).size === 1 ? 'ki-pass' : 'ki-warn'],
+        ['completion signal', best ? `${best.complete}/${best.rs.length} · ${best.variant}` : 'no data', best?.complete ? 'ki-pass' : 'ki-fail'],
+        ['shortfall telemetry', best?.medShort != null ? `${best.medShort} median ranks` : 'not recorded', best?.medShort != null ? 'ki-pass' : 'ki-warn'],
+        ['noise budget', best ? `${best.refusals} refusals · ${best.infos} info` : 'no data', best && best.refusals < 50 ? 'ki-pass' : 'ki-warn'],
+      ];
+      const status = !rows.length ? 'no Barbarian variant runs yet' : sides.length < 2 ? 'need control + candidate evidence' : best.complete / best.rs.length >= 2 / 3 ? 'candidate is passing the completion screen' : 'candidate is not passing the completion screen';
+      $('ki-state').textContent = status;
+      body.innerHTML = `<div class="ki-grid">${checks.map(([label, value, cls]) => `<div class="ki-check ${cls}"><b>${esc(value)}</b><span>${esc(label)}</span></div>`).join('')}</div>
+        ${!sides.length ? '<div class="note">Run matched control/candidate repeats to populate the investigation.</div>' : `<div style="overflow-x:auto"><table class="ki-table"><thead><tr><th>variant</th><th>runs</th><th>circle-2</th><th>median shortfall</th><th>deaths</th><th>refusals</th><th>info probes</th></tr></thead><tbody>${sides.map((v) => {
+          const key = v.variant;
+          const open = KI_OPEN === key;
+          return `<tr data-ki="${esc(key)}"><td><b>${esc(v.variant)}</b></td><td>${v.rs.length}</td><td>${v.complete}/${v.rs.length}</td><td>${v.medShort ?? '—'}</td><td>${v.deaths}</td><td>${v.refusals}</td><td>${v.infos}</td></tr>${open ? `<tr class="ki-detail"><td colspan="7"><b>Check:</b> ${v.complete ? `${Math.round(100 * v.complete / v.rs.length)}% completed circle 2` : 'no circle-2 completions yet'}; ${v.medShort == null ? 'shortfall telemetry unavailable' : `${v.medShort} median ranks short`}. This is diagnostic evidence only; promotion still requires matched repeats and no worse deaths.</td></tr>` : ''}`;
+        }).join('')}</tbody></table></div>`}`;
+      body.querySelectorAll('tr[data-ki]').forEach((tr) => tr.addEventListener('click', () => {
+        KI_OPEN = KI_OPEN === tr.dataset.ki ? null : tr.dataset.ki;
+        renderKaizenInvestigation();
+      }));
+    }
+
+    function renderKaizen() {
+      const body = $('kaizen-body');
+
+      if (!body) return;
+      const rows = RUNS.filter((r) => r.guild === 'barbarian' && r.variant);
+      const completions = rows.filter((r) => (r.circles || 0) > 0 || (r.circle || 1) >= 2);
+      const median = (xs) => {
+        const s = xs.filter(Number.isFinite).sort((a, b) => a - b);
+        if (!s.length) return null;
+        return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+      };
+      const byVariant = new Map();
+      for (const r of rows) {
+        if (!byVariant.has(r.variant)) byVariant.set(r.variant, []);
+        byVariant.get(r.variant).push(r);
+      }
+      const closure = [...byVariant.entries()].map(([variant, rs]) => ({
+        variant, runs: rs.length, shortfall: median(rs.map((r) => r.shortfall)),
+        deaths: rs.reduce((n, r) => n + (r.deaths || 0), 0),
+      })).filter((x) => x.runs >= 3 && x.shortfall != null)
+        .sort((a, b) => a.shortfall - b.shortfall)[0];
+      const stackN = byVariant.get('diversity2stack')?.length || 0;
+      const latest = rows.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+      const latestInfo = latest?.commandCounts?.info ?? null;
+      const latestRefusals = latest?.refusals ?? null;
+      body.innerHTML = `<div class="k-flow">
+        <div class="k-step"><span class="k-num">1 · outcome</span><b>Reach circle 2</b>
+          <p>Primary metric is completion rate, then time-to-circle. Activity, kills and total ranks are diagnostics—not promotion criteria.</p></div>
+        <div class="k-step"><span class="k-num">2 · bottleneck</span><b>${closure ? esc(closure.variant) + ' closes to ' + closure.shortfall + ' rank' + (closure.shortfall === 1 ? '' : 's') : 'Need shortfall telemetry'}</b>
+          <p>${closure ? `${closure.runs} runs · ${closure.deaths} deaths. Recent logs isolate 1st armor at 4–5/6 while unrelated skills keep overtraining.` : 'Run a telemetry-enabled control before choosing a lever.'}</p></div>
+        <div class="k-step"><span class="k-num">3 · handoff fix</span><b>Leave the arena at shortfall 0</b>
+          <p>Readiness now merges the authoritative exp sheet with mindstate, so “requirements met” triggers the hall trip instead of farming forever in the arena.</p></div>
+        <div class="k-step"><span class="k-num">4 · noise budget</span><b>Cut repeated info probes</b>
+          <p>${latestInfo == null ? 'New runs will record exp/tdp/info/skills/look probes.' : `Latest run: ${latestInfo} info probes and ${latestRefusals ?? '—'} refusals.`} The generated scan alternates exp checks while the supervisor watches readiness.</p></div>
+        <div class="k-step"><span class="k-num">5 · decision rule</span><b>3 matched repeats per side</b>
+          <p>Same race, cap and boost. Promote only if ≥2/3 reach circle 2 with no worse deaths; break ties on median time-to-circle, then lower info probes/refusals.</p></div>
+      </div>
+      <div class="k-gate"><b>Promotion gate: ${completions.length}/${rows.length} completed benchmark runs reached circle 2.</b>
+        No variant is proven for leveling yet. Existing armorStack evidence is ${stackN}/3 repeats and predates the route correction; rerun both sides before judging the knob.</div>`;
+    }
+
     /* ================= variant head-to-head ================= */
     // Medians only, and every row shows the runs behind each side. With N=3
     // runs per variant (the common case today), a delta is direction-hinting
     // at best — the confidence chip says so instead of letting a 12% median
     // gap masquerade as signal.
     const CMP_METRICS = [
+      { k: 'complete', label: 'reached circle 2 (%)', higher: true, avg: true,
+        fmt: (v) => v == null ? null : Math.round(v * 100) + '%',
+        tip: 'primary Barbarian leveling outcome; unlike activity scores, this is the promotion gate',
+        val: (r) => r.circle == null ? null : (r.circle >= 2 ? 1 : 0) },
       { k: 'rating',   label: 'rating (composite)', higher: true,  val: (r) => rateRun(r).val },
+      { k: 'shortfall', label: 'final requirement shortfall', higher: false,
+        tip: 'sum of ranks still needed for the next circle', val: (r) => r.shortfall ?? null },
+      { k: 'closure', label: 'shortfall closed / min', higher: true,
+        tip: 'normalizes progress for early stops and different actual durations', val: (r) => r.closurePerMin ?? null },
       { k: 't15',      label: 'time→15th rank (min)', higher: false, fmt: (v) => v == null ? null : (v / 60000).toFixed(1),
         tip: 'early-pace; rankSplits stop at rank 15 so this window is minutes 0–~5 of the run',
         val: (r) => r.rankSplits?.find((s) => s.ranks === 15)?.ms ?? null },
@@ -1134,8 +1565,8 @@
         tip: 'a run that never spends TDPs is circling-blind even if it looks busy' },
       { k: 'refusals', label: 'refusals / run', higher: false, val: (r) => r.refusals ?? null,
         tip: 'game-refused commands; high counts mean the script is guessing' },
-      { k: 'shortfall',label: 'end-of-run shortfall (ranks to next circle)', higher: false, val: (r) => r.shortfall ?? null,
-        tip: 'only runs on the new gap-telemetry driver carry this — absent sides show n/a' },
+      { k: 'info', label: 'info probes / run', higher: false, val: (r) => r.commandCounts?.info ?? null,
+        tip: 'exp/tdp/info/skills/look commands; lower is better when progression and readiness stay equal' },
       { k: 'deaths',   label: 'deaths (total)', higher: false, sum: true, val: (r) => r.deaths ?? 0 },
       { k: 'circles',  label: 'circle-ups (total)', higher: true, sum: true, val: (r) => r.circles ?? 0 },
     ];
@@ -1164,7 +1595,11 @@
       // pane answers on arrival instead of waiting for two picks.
       if (!$('cmp-a').value && !$('cmp-b').dataset.touched) {
         if (vs.includes('baseline')) $('cmp-a').value = 'baseline';
-        const other = vs.find((v) => v !== 'baseline');
+        const other = vs.filter((v) => v !== 'baseline')
+          .map((v) => {
+            const vals = RUNS.filter((r) => r.guild === g && r.variant === v).map((r) => rateRun(r).val);
+            return { v, n: vals.length, score: cmpMedian(vals) ?? -1 };
+          }).filter((x) => x.n >= 3).sort((a, b) => b.score - a.score)[0]?.v;
         if (other) $('cmp-b').value = other;
       }
     }
@@ -1176,20 +1611,45 @@
       return `<span class="conf ${cls}" title="${minN == null ? 'no sample on one side'
         : minN + ' runs behind the sparser side — medians under 5 are noise-prone'}">${txt}</span>`;
     }
+    function cohortKey(r) {
+      const vals = [r.race, r.targetCircle, r.boost, r.minutesCap, r.mode, r.concurrency || 1, r.arena,
+        r.scriptSchemaVersion, r.codeRevision, r.startingCircle, r.startingTotalRanks];
+      return vals.some((v) => v == null || v === '') ? null : vals.join('|');
+    }
+    function compatibleCohort(a, b) {
+      const count = (rs) => rs.reduce((m, r) => {
+        const k = cohortKey(r); if (k) m.set(k, (m.get(k) || 0) + 1); return m;
+      }, new Map());
+      const ca = count(a), cb = count(b);
+      const shared = [...ca.keys()].filter((k) => cb.has(k))
+        .sort((x, y) => Math.min(ca.get(y), cb.get(y)) - Math.min(ca.get(x), cb.get(x)))[0];
+      if (!shared) return { a, b, key: null, verified: false };
+      return { a: a.filter((r) => cohortKey(r) === shared), b: b.filter((r) => cohortKey(r) === shared),
+        key: shared, verified: true };
+    }
     function renderCompare() {
       const body = $('cmp-body');
       const g = $('cmp-guild').value, va = $('cmp-a').value, vb = $('cmp-b').value;
       if (!g || !va || !vb || va === vb) return;
-      const ra = RUNS.filter((r) => r.guild === g && r.variant === va);
-      const rb = RUNS.filter((r) => r.guild === g && r.variant === vb);
-      body.innerHTML = `<table class="tbl"><thead><tr>
+      const rawA = RUNS.filter((r) => r.guild === g && r.variant === va);
+      const rawB = RUNS.filter((r) => r.guild === g && r.variant === vb);
+      const cohort = compatibleCohort(rawA, rawB);
+      const ra = cohort.a, rb = cohort.b;
+      const cohortNote = cohort.verified
+        ? `<div class="note" style="margin-bottom:8px;color:var(--green)">✓ Matched cohort: ${esc(cohort.key.replaceAll('|', ' · '))}. Excluded ${rawA.length + rawB.length - ra.length - rb.length} incompatible runs.</div>`
+        : '<div class="note" style="margin-bottom:8px;color:var(--red)">⚠ Cohort unverified: these legacy rows do not record every condition (race · target · boost · cap · mode · arena · script schema · code revision · starting state). Directional only; do not promote from this comparison.</div>';
+      body.innerHTML = cohortNote + `<table class="tbl"><thead><tr>
         <th>Metric</th><th>${esc(va)} <span class="sub">(med · n=${ra.length})</span></th>
         <th>${esc(vb)} <span class="sub">(med · n=${rb.length})</span></th><th>Δ</th><th>Trust</th>
       </tr></thead><tbody>` +
         CMP_METRICS.map((m) => {
           const A = ra.map(m.val), B = rb.map(m.val);
-          const ma = m.sum ? A.reduce((s, x) => s + (x || 0), 0) : cmpMedian(A);
-          const mb = m.sum ? B.reduce((s, x) => s + (x || 0), 0) : cmpMedian(B);
+          const ma = m.sum ? A.reduce((s, x) => s + (x || 0), 0)
+            : m.avg ? (A.filter((x) => x != null).reduce((s, x) => s + x, 0) / Math.max(1, A.filter((x) => x != null).length))
+            : cmpMedian(A);
+          const mb = m.sum ? B.reduce((s, x) => s + (x || 0), 0)
+            : m.avg ? (B.filter((x) => x != null).reduce((s, x) => s + x, 0) / Math.max(1, B.filter((x) => x != null).length))
+            : cmpMedian(B);
           let delta;
           if (ma != null && mb != null && mb !== 0) {
             delta = Math.round(100 * (ma - mb) / Math.abs(mb));
@@ -1363,6 +1823,8 @@
     /* ================= wiring ================= */
     $('refresh-runs').addEventListener('click', loadRuns);
     $('only-live').addEventListener('change', renderRuns);
+    $('run-search').addEventListener('input', () => { RUN_VISIBLE = 25; renderRuns(); });
+    $('runs-more').addEventListener('click', () => { RUN_VISIBLE += 25; renderRuns(); });
     document.querySelectorAll('th[data-k]').forEach((th) => th.addEventListener('click', () => {
       const k = th.dataset.k;
       SORT = { k, dir: SORT.k === k ? -SORT.dir : -1 };
@@ -1388,20 +1850,151 @@
       loadRunsPromise = loadRuns();
       await loadRunsPromise;
       renderLeaderboard();
+      renderKaizenInvestigation();
     }
     // ---- experiment board: leg-by-leg status of the in-flight A/B ----
     // A "leg" = one summary row (finished run) carrying a run_id. Benchmark
-    // launches plan legs as variant×repeats; we infer the plan from the most
-    // recent 6h of summary rows sharing one run_id, and mark elapsed-vs-cap.
+    // launches plan legs as variant×repeats. New runs publish an explicit
+    // manifest; older runs fall back to inference from recent summary rows.
     const LEG_CAP_MIN = 30;
-    function renderExperimentBoard() {
+    function renderActiveHeader(m) {
+      if (!m || m.status !== 'running') return;
+      const running = (m.plan || []).find((p) => p.status === 'running');
+      const queued = (m.plan || []).find((p) => p.status === 'queued');
+      const eye = $('ch-eyebrow'), name = $('ch-name'), meta = $('ch-meta'), next = $('ch-next');
+      if (eye) eye.textContent = 'Kaizen in flight · live experiment';
+      if (name) name.textContent = `${m.guild || 'sim'} · ${m.targetCircle ? `Circle ${m.targetCircle} gate` : 'benchmark'}`;
+      if (meta) meta.textContent = `${m.runId} · ${m.race || running?.race || 'matched race'} · ${m.concurrency > 1 ? `crowded ×${m.concurrency}` : 'controlled ×1'} · boost ×${m.boost ?? 0}`;
+      if (next) next.innerHTML = `<b>Now:</b> ${running ? `leg ${running.index}/${m.totalLegs} · ${esc(running.variant)}` : 'preparing next leg'}${queued ? ` · next ${esc(queued.variant)}` : ''}. Results will be compared against the matching historical best when complete.`;
+    }
+    const EXP_LIVE_OPEN = new Set();
+    const EXP_TABLE_OPEN = new Set();
+    function renderRunningModels() {
+      const active = (LIVE_ACTIVE || []).map((logName) => {
+        const text = liveTexts[logName] || '';
+        const char = liveChars[logName] || '';
+        const card = liveCards[logName];
+        if (!card) return '';
+        const source = card.el;
+        const copy = source.cloneNode(true);
+        copy.className = `live-card exp-live-card${EXP_LIVE_OPEN.has(logName) ? '' : ' collapsed'}`;
+        copy.dataset.liveLog = logName;
+        copy.removeAttribute('id');
+        copy.querySelectorAll('[data-role="watch"]').forEach((a) => {
+          a.addEventListener('click', (e) => e.stopPropagation());
+        });
+        copy.querySelectorAll('[data-role="toggle"]').forEach((toggle) => {
+          toggle.setAttribute('title', 'click to expand/collapse this live EXP board');
+        });
+        const head = /^=== sweep run \S+ \S+(?: \[([^\]]+)\])? \(([^)]+)\)/m.exec(text);
+        const variant = head?.[1] || 'ad-hoc';
+        const identity = head?.[2] || 'identity pending';
+        const title = copy.querySelector('.ln');
+        if (title) title.textContent = `${variant} · ${identity} · ${char || logName}`;
+        const log = copy.querySelector('[data-role="log"]');
+        if (log) log.textContent = source.querySelector('[data-role="log"]')?.textContent || '';
+        const toggle = copy.querySelector('[data-role="toggle"]');
+        if (toggle) toggle.setAttribute('aria-expanded', String(EXP_LIVE_OPEN.has(logName)));
+        return copy.outerHTML;
+      }).join('');
+      return active ? `<div class="exp-live-board"><div class="exp-live-title">Live EXP boards · click a model to expand</div>${active}</div>` : '';
+    }
+    function renderExperimentModels(manifest) {
+      const plans = Array.isArray(manifest?.plan) ? manifest.plan : [];
+      const byVariant = new Map();
+      for (const p of plans) {
+        const key = p.variant || 'baseline';
+        const row = byVariant.get(key) || { name: key, total: 0, done: 0, running: [], queued: 0 };
+        row.total++;
+        if (p.status === 'complete') row.done++;
+        else if (p.status === 'running') row.running.push(p);
+        else row.queued++;
+        byVariant.set(key, row);
+      }
+      if (!byVariant.size) return '';
+      return `<div class="exp-models" aria-label="Models in this experiment">${[...byVariant.values()].map((v) => {
+        const live = v.running.length > 0;
+        const workers = v.running.map((p) => p.char || `leg ${p.index}`).join(', ');
+        const state = live ? `running · ${v.running.length} worker${v.running.length === 1 ? '' : 's'}`
+          : v.done === v.total ? 'complete' : `${v.queued} queued`;
+        return `<div class="exp-model${live ? ' live' : ''}">
+          <div class="exp-model-head"><span class="exp-model-name">${live ? '● ' : ''}${esc(v.name)}</span><span class="exp-model-meta">${esc(state)}</span></div>
+          <div class="exp-model-facts"><span class="badge">${v.done}/${v.total} legs</span><span class="badge">${esc(manifest.comparisonType || 'benchmark')}</span><span class="badge">target c${esc(manifest.targetCircle ?? '?')}</span></div>
+          <div class="sub">${live ? `active: ${esc(workers)} · ${esc(manifest.minutesPerLeg ?? '?')}m cap` : `${v.queued} waiting · ${v.done} landed`}</div>
+        </div>`;
+      }).join('')}</div>`;
+    }
+    async function renderExperimentBoard() {
       const el = $('exp-legs'), stateEl = $('exp-state');
       if (!el) return;
+      try {
+        // Separate sweep processes may target different ports/DBs while
+        // sharing this public directory. Prefer the per-run manifest index so
+        // one process cannot hide another behind the legacy current pointer.
+        let m = null;
+        const ix = await fetch('/live/experiment-index.json?t=' + Date.now(), { cache: 'no-store' });
+        if (ix.ok) {
+          const entries = await ix.json();
+          const docs = await Promise.all((Array.isArray(entries) ? entries : []).slice(-12).map(async (e) => {
+            try { const r = await fetch((e.path || `/live/experiment-${e.runId}.json`) + '?t=' + Date.now(), { cache: 'no-store' }); return r.ok ? r.json() : null; } catch { return null; }
+          }));
+          m = docs.filter(Boolean).sort((a, b) => {
+            const active = (x) => x.status === 'running' && Date.now() - Date.parse(x.updatedAt || 0) < 5 * 60000;
+            return Number(active(b)) - Number(active(a)) || Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0);
+          })[0] || null;
+        }
+        if (!m) {
+          const res = await fetch('/live/experiment-current.json?t=' + Date.now(), { cache: 'no-store' });
+          if (res.ok) m = await res.json();
+        }
+        if (m) {
+          const ageMs = Date.now() - Date.parse(m.updatedAt || 0);
+          if (m?.runId && (m.status === 'complete' || ageMs < 5 * 60000)) {
+            renderActiveHeader(m);
+            const variants = [...new Set((m.plan || []).map((p) => p.variant))];
+            const candidate = variants[1] || variants[0] || 'candidate';
+            const control = variants[0] || 'control';
+            const remaining = Math.max(0, Number(m.estimatedRemainingMinutes) || 0);
+            const fmtClock = (mins) => mins >= 60
+              ? `${Math.floor(mins / 60)}h ${Math.round(mins % 60)}m`
+              : `${Math.round(mins)}m`;
+            const progress = m.totalLegs ? Math.round((m.completedLegs || 0) / m.totalLegs * 100) : 0;
+            const planRows = (m.plan || []).map((p) => {
+              const marker = p.status === 'running' ? 'NOW' : p.status === 'complete' ? 'DONE'
+                : p.index === Number(m.currentLeg || 0) + 1 ? 'NEXT' : 'QUEUED';
+              return `<div class="leg">
+                <span class="pill ${p.status === 'running' ? 'pill-run' : ''}">${p.status === 'running' ? '● ' : p.status === 'complete' ? '✓ ' : '◌ '}${marker}</span>
+                <span class="lg-var">${esc(p.variant)}</span>
+                <span class="sub">leg ${p.index}/${m.totalLegs} · repeat ${p.repeat} · ${esc(p.race)} · ${m.minutesPerLeg}m max</span>
+                ${p.status === 'running' ? `<div class="lp2"><i style="width:45%"></i></div>` : ''}
+                <span class="sub">${p.status === 'queued' ? 'waits for prior leg' : esc(p.char || '')}</span>
+              </div>`;
+            }).join('');
+            el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-bottom:10px">
+                <div class="note"><span class="sub">QUESTION</span><br><b>Does ${esc(candidate)} beat ${esc(control)}?</b></div>
+                <div class="note"><span class="sub">SUCCESS RULE</span><br><b>${esc(m.decisionRule || 'Use repeated, matched results.')}</b></div>
+                <div class="note"><span class="sub">PROGRESS</span><br><b>${m.completedLegs || 0}/${m.totalLegs} done · ${m.status === 'complete' ? 'complete' : '~' + fmtClock(remaining) + ' left'}</b></div>
+              </div>
+              <div class="lp2" style="max-width:none;margin-bottom:8px"><i style="width:${progress}%"></i></div>
+              ${renderRunningModels()}${renderExperimentModels(m)}
+              <div style="margin-top:10px">${planRows}</div>
+              <div class="sub" style="margin-top:8px">run-id ${esc(m.runId)} · circle ${m.targetCircle} target · boost ×${m.boost} · stats ${esc(m.statPolicy || 'legacy')} · ${m.concurrency > 1 ? `${m.concurrency} concurrent sims · crowded-world measurement` : 'controlled one-sim pacing'}</div>`;
+            const activeCount = (m.plan || []).filter((p) => p.status === 'running').length;
+            stateEl.textContent = m.status === 'complete'
+              ? `${m.totalLegs}/${m.totalLegs} legs complete`
+              : m.concurrency > 1
+                ? `running ${activeCount || m.concurrency} workers · ${m.completedLegs || 0}/${m.totalLegs} landed`
+                : `running leg ${m.currentLeg || (m.completedLegs + 1)} of ${m.totalLegs} · ${m.completedLegs || 0} results landed`;
+            return;
+          }
+        }
+      } catch {}
       const cutoff = Date.now() - 6 * 3600000; // last 6h window
       const recent = RUNS.filter((r) => r.ts && r.ts >= cutoff && r.runId);
       if (!recent.length) {
-        stateEl.textContent = 'no recent runs';
-        return; // keep the placeholder text
+        stateEl.textContent = LIVE_ACTIVE?.length ? `${LIVE_ACTIVE.length} model${LIVE_ACTIVE.length === 1 ? '' : 's'} running` : 'no recent runs';
+        el.innerHTML = renderRunningModels() || '<div class="note">no experiment detected — launch a benchmark or check back after the next run lands</div>';
+        return;
       }
       // Group by run_id (one benchmark invocation); newest invocation wins.
       const groups = new Map();
@@ -1416,7 +2009,15 @@
         .sort((a, b) => b.lastAt - a.lastAt);
       const cur = invocations[0];
       if (!cur || !cur.rows.some((r) => r.variant)) {
-        stateEl.textContent = 'recent runs are ad-hoc — no variant experiment in flight';
+        // Ad-hoc runs (sweeps without --benchmark) never carry variants. Live
+        // agents are still real work worth watching — render the live cards
+        // instead of dead-ending here (a fresh batch has no summary rows yet,
+        // so this used to blank the board for the whole first leg).
+        stateEl.textContent = LIVE_ACTIVE?.length
+          ? `ad-hoc run · ${LIVE_ACTIVE.length} model${LIVE_ACTIVE.length === 1 ? '' : 's'} running`
+          : 'recent runs are ad-hoc — no variant experiment in flight';
+        el.innerHTML = renderRunningModels()
+          || '<div class="note">recent runs are ad-hoc — no variant experiment in flight</div>';
         return;
       }
       // Sort legs chronologically (summary rows arrive in finish order).
@@ -1448,7 +2049,8 @@
       // planned − elapsed, floor 0.
       const startedMin = (Date.now() - Math.min(...cur.rows.map((r) => r.ts), cur.startedAt)) / 60000;
       const plannedMin = (plannedTotal || 1) * legCapMin;
-      const remainingMin = Math.max(0, plannedMin - startedMin);
+      const allRecorded = doneN >= plannedTotal && runningNames.length === 0;
+      const remainingMin = allRecorded ? 0 : Math.max(0, plannedMin - startedMin);
       const fmtClock = (m) => m >= 60
         ? `${Math.floor(m / 60)}h ${Math.round(m % 60)}m`
         : `${Math.round(m)}m`;
@@ -1476,7 +2078,7 @@
       const clock = `<div class="sub" style="margin-bottom:6px;display:flex;gap:14px;flex-wrap:wrap">
         <span title="planned: ${plannedTotal} legs × ${legCapMin}m cap">⏱ total <b>${fmtClock(plannedMin)}</b></span>
         <span title="from first leg start to now">▸ elapsed <b>${fmtClock(startedMin)}</b></span>
-        <span title="planned total minus elapsed — early circle finishes shorten it">◻ remaining <b style="color:${remainingMin > 0 ? 'var(--amber)' : 'var(--green)'}">${remainingMin > 0 ? '~' + fmtClock(remainingMin) : 'wrapping up'}</b></span>
+        <span title="planned total minus elapsed — early circle finishes shorten it">◻ remaining <b style="color:${remainingMin > 0 ? 'var(--amber)' : 'var(--green)'}">${remainingMin > 0 ? '~' + fmtClock(remainingMin) : allRecorded ? 'done' : 'wrapping up'}</b></span>
         <span class="sub">run-id ${esc(cur.rid)} · ${doneN}/${plannedTotal || '?'} legs · cap ${legCapMin}m/leg · early stop at target circle</span>
       </div>`;
       // In-flight legs have no summary row yet (a row appears only when a run
@@ -1494,9 +2096,44 @@
         return;
       }
       el.innerHTML = clock + html;
-      stateEl.textContent = `leg ${Math.min(doneN + 1, plannedTotal)} of ${plannedTotal} · ~${fmtClock(remainingMin)} remaining`;
+      stateEl.textContent = allRecorded ? `${plannedTotal}/${plannedTotal} legs complete`
+        : `leg ${Math.min(doneN + 1, plannedTotal)} of ${plannedTotal} · ~${fmtClock(remainingMin)} remaining`;
     }
+    $('experiment').addEventListener('click', (e) => {
+      const tableToggle = e.target.closest('.exp-live-card [data-role="exp-table-toggle"]');
+      if (tableToggle) {
+        e.stopPropagation();
+        const card = tableToggle.closest('.exp-live-card');
+        const key = card?.dataset.liveLog || '';
+        const open = !EXP_TABLE_OPEN.has(key);
+        if (open) EXP_TABLE_OPEN.add(key); else EXP_TABLE_OPEN.delete(key);
+        const reqs = card?.querySelector('[data-role="reqs"]');
+        if (reqs) {
+          reqs.classList.toggle('exp-table-collapsed', !open);
+          tableToggle.setAttribute('aria-expanded', String(open));
+          tableToggle.textContent = `${open ? '▾' : '▸'} ${tableToggle.textContent.slice(2)}`;
+        }
+        return;
+      }
+      const toggle = e.target.closest('.exp-live-card [data-role="toggle"]');
+      if (!toggle) return;
+      const card = toggle.closest('.exp-live-card');
+      if (!card) return;
+      e.stopPropagation();
+      const collapsed = card.classList.toggle('collapsed');
+      if (card.dataset.liveLog) {
+        if (collapsed) EXP_LIVE_OPEN.delete(card.dataset.liveLog);
+        else EXP_LIVE_OPEN.add(card.dataset.liveLog);
+      }
+      toggle.setAttribute('aria-expanded', String(!collapsed));
+      if (!collapsed) {
+        const log = card.querySelector('.lg');
+        if (log) log.scrollTop = log.scrollHeight;
+      }
+    });
     $('lb-guild').addEventListener('change', renderLeaderboard);
+    $('lb-evidence').addEventListener('change', renderLeaderboard);
+    $('lb-search').addEventListener('input', renderLeaderboard);
     // head-to-head wiring
     $('cmp-guild').addEventListener('change', renderCompareVariants);
     $('cmp-go').addEventListener('click', renderCompare);
@@ -1505,7 +2142,7 @@
     loadRuns();          // runs table immediately (existing behavior)
     bootRuns();          // leaderboard after RUNS land
     loadLeaderboard().then(() => { renderCompareOptions(); renderCompare(); });
-    setInterval(() => { loadRuns().then(renderLeaderboard); }, 15000);
+    setInterval(() => { loadRuns().then(() => { renderLeaderboard(); renderKaizenInvestigation(); }); }, 15000);
     bootRuns().then(renderExperimentBoard); // board needs RUNS; first paint after load
     setInterval(renderExperimentBoard, 30000);  // experiment board refresh
     // deep link: /sims.html?char=Name
@@ -1517,6 +2154,33 @@
     // Module execution is deferred, so wait for it before binding the form.
     function bindSims(SIMS) {
       SIMS.initAgentForm();
+
+      // Keep an always-visible emergency stop for the sims launched from
+      // this page. The CLI sweep cards are intentionally read-only: they are
+      // separate node processes and must be stopped from their terminal.
+      const browserStop = $('live-stop-browser');
+      const syncBrowserStop = () => {
+        if (!browserStop) return;
+        const live = SIMS.agents.filter((a) => a.ws && !a.stopping);
+        browserStop.disabled = live.length === 0;
+        browserStop.textContent = live.length
+          ? `⏸ Stop ${live.length} browser sim${live.length === 1 ? '' : 's'}`
+          : '⏸ Stop browser sims';
+        browserStop.title = live.length
+          ? `Stop ${live.length} sim${live.length === 1 ? '' : 's'} launched from this page`
+          : 'No browser-launched sims are running';
+      };
+      syncBrowserStop();
+      browserStop?.addEventListener('click', () => {
+        const live = SIMS.agents.filter((a) => a.ws && !a.stopping);
+        if (!live.length) { syncBrowserStop(); toast('No browser-launched sims are running.'); return; }
+        for (const a of live) SIMS.stopAgent(a, 'stopped by GM');
+        syncBrowserStop();
+        toast(`Stopped ${live.length} browser sim${live.length === 1 ? '' : 's'}.`);
+      });
+      // Covers the short interval between socket events and the next roster
+      // render, and keeps the button correct while a login is in progress.
+      setInterval(syncBrowserStop, 1000);
 
       function launchFromForm() {
         let name = $('ag-name').value.trim();
@@ -1614,6 +2278,7 @@
       // agRenderState fires this after each render (prompts move HP bars
       // often); re-pin the open panel under its agent's row.
       SIMS.onRendered = () => {
+        syncBrowserStop();
         if (!openPanelFor) return;
         if (rosterEl.querySelector('.agpanel')) return;
         const row = rosterEl.querySelector(`.row[data-ag="${CSS.escape(openPanelFor)}"]`);
@@ -1855,16 +2520,215 @@
     const LIVE = '/live/';
     let liveTimer = null;
     let liveCards = {}; // name -> { el, lastSize }
+    let liveSizes = {}; // name -> last seen byte size (ghost-run detection)
     let LIVE_ACTIVE = [];  // names confirmed actively appending (loadLive sets it)
+    let liveTexts = {};    // latest full log per active name (also feeds speedrun splits)
+    let liveRunKeys = {};  // log filename -> current appended run id
+    let liveChars = {};    // log filename -> current character name
+    let LIVE_CAP_MIN = 30; // overridden by the active experiment manifest
+    let LIVE_TARGET_CIRCLE = 2; // overridden by the active experiment manifest
+
+    function liveTimeLabel(iso, fallbackMin) {
+      if (iso) {
+        const d = new Date(iso);
+        if (!Number.isNaN(d.getTime())) return new Intl.DateTimeFormat('en-US', { timeZone:'America/New_York', hour:'numeric', minute:'2-digit', second:'2-digit' }).format(d) + ' ET';
+      }
+      return fallbackMin == null ? 'not yet' : `at ${fallbackMin}m`;
+    }
+
+    function liveSummary(name, text, identity) {
+      const progress = [...text.matchAll(/\[progress\]\s+(\d+)m\s+circle\s+(\d+)\s+hp\s+(\d+)\/(\d+)\s+kills\s+(\d+)[^\n]*?deaths\s+(\d+)/g)];
+      const latest = progress.at(-1);
+      const firstKill = progress.find((m) => Number(m[5]) > 0);
+      const firstDeath = progress.find((m) => Number(m[6]) > 0);
+      const killEvent = [...text.matchAll(/^\[milestone\]\s+first_kill\s+(\S+)/gm)].at(0)?.[1] || null;
+      const expEvent = [...text.matchAll(/^\[milestone\]\s+first_exp\s+(\S+)/gm)].at(0)?.[1] || null;
+      const circleEvents = [...text.matchAll(/^\[milestone\]\s+circle_up\s+(\S+)[^\n]*?circle\s+(\d+)/gm)];
+      // A circle-up event also contains "-> circle N"; only treat an
+      // explicit runner target (or the active experiment manifest) as max.
+      const target = /Starting[^\n]*?->\s*circle\s+(\d+)/i.exec(text)?.[1] || LIVE_TARGET_CIRCLE;
+      const parts = name.split('-');
+      let guild = '', race = '', script = '';
+      if (parts[0] === 'fidelity') {
+        guild = parts[1] || ''; script = parts[2] || ''; race = parts[3] || '';
+      } else {
+        const idParts = String(identity || '').split(/\s+/);
+        race = idParts[0] || ''; guild = idParts[1] || ''; script = guild || name;
+      }
+      const gaps = [...text.matchAll(/\[gaps\][^\n]*\branks:(\d+)/g)];
+      return {
+        guildRaceScript: [guild, race, script].filter(Boolean).join(' · ') || name,
+        runtime: latest ? `${latest[1]}m` : '—',
+        maxCircle: `c${target}`,
+        kills: latest ? latest[5] : '0',
+        deaths: latest ? latest[6] : '0',
+        exp: gaps.at(-1)?.[1] ? `Σ ${gaps.at(-1)[1]}` : '—',
+        firstKill: killEvent ? liveTimeLabel(killEvent, null) : firstKill ? liveTimeLabel(null, firstKill[1]) : 'not yet',
+        firstDeath: firstDeath ? liveTimeLabel(null, firstDeath[1]) : 'none',
+        firstCircle: circleEvents.at(0) ? liveTimeLabel(circleEvents[0][1], null) : 'not yet',
+        firstExp: expEvent ? liveTimeLabel(expEvent, null) : 'not yet',
+      };
+    }
+
+    function renderLiveSummary(card, summary) {
+      const fields = {
+        identity: [summary.guildRaceScript, 'guild · race · script'],
+        runtime: [summary.runtime, 'elapsed runtime'],
+        maxcircle: [summary.maxCircle, `first circle ${summary.firstCircle}`],
+        kills: [summary.kills, `first kill ${summary.firstKill}`],
+        deaths: [summary.deaths, `first death ${summary.firstDeath}`],
+        exp: [summary.exp, `first EXP ${summary.firstExp}`],
+      };
+      for (const [key, [value, sub]] of Object.entries(fields)) {
+        const el = card.el.querySelector(`[data-metric="${key}"]`);
+        if (!el) continue;
+        el.querySelector('.lm-value').textContent = value;
+        el.querySelector('.lm-sub').textContent = sub;
+      }
+    }
+
+    function renderLiveRequirements(card, text) {
+      const samples = [...text.matchAll(/^(?:\[[^\]]+\]\s+)?\[reqs\]\s+(\d+)m\s+c(\d+)(?:\s+ts:(\S+))?\s+\|\s+(.+)$/gm)].map((m) => ({
+        min: Number(m[1]), circle: Number(m[2]), ts: m[3] || null,
+        rows: m[4].split(', ').map((cell) => { const x = /^(.+?)\s+(\d+)\/(\d+)$/.exec(cell); return x ? { label:x[1], have:Number(x[2]), need:Number(x[3]) } : null; }).filter(Boolean),
+      }));
+      const latest = samples.at(-1);
+      const reqs = card.el.querySelector('[data-role="reqs"]');
+      if (!reqs || !latest) {
+        if (reqs) reqs.innerHTML = '';
+        const gate = card.el.querySelector('[data-role="exp-gate"]');
+        if (gate) { gate.dataset.empty = 'true'; gate.querySelector('b').textContent = '—'; gate.querySelector('.lexp-segments').innerHTML = ''; }
+        return;
+      }
+      const firstMet = {};
+      for (const sample of samples) for (const row of sample.rows) {
+        if (row.have >= row.need && !firstMet[row.label]) firstMet[row.label] = liveTimeLabel(sample.ts, sample.min);
+      }
+      const label = (id) => window.DRReqTable?.prettyLabel?.(id) || id;
+      const color = (row) => row.have >= row.need ? 'var(--green)' : row.need - row.have <= 2 ? 'var(--amber)' : 'var(--red)';
+      const tableOpen = EXP_TABLE_OPEN.has(card.el.dataset.liveName || card.el.dataset.liveLog || '');
+      reqs.classList.toggle('exp-table-collapsed', !tableOpen);
+      const met = latest.rows.filter((row) => row.have >= row.need).length;
+      const near = latest.rows.filter((row) => row.have < row.need && row.need - row.have === 1).length;
+      const far = latest.rows.length - met - near;
+      const gate = card.el.querySelector('[data-role="exp-gate"]');
+      if (gate) {
+        gate.dataset.empty = 'false';
+        gate.title = `Circle ${latest.circle} gate: ${met} met · ${near} near · ${far} blocked`;
+        gate.querySelector('b').textContent = `${met}/${latest.rows.length}`;
+        gate.querySelector('.lexp-segments').innerHTML = latest.rows.map((row) => `<i class="lexp-segment ${row.have >= row.need ? 'met' : row.need - row.have <= 2 ? 'near' : ''}" title="${esc(label(row.label))}: ${row.have}/${row.need}"></i>`).join('');
+      }
+      reqs.innerHTML = `<div class="lreq-caption"><button type="button" class="exp-table-toggle" data-role="exp-table-toggle" aria-expanded="${tableOpen}">${tableOpen ? '▾' : '▸'} Circle ${latest.circle} requirements · have / need · first met</button></div><div class="reqgrid">${latest.rows.map((row) => `<div class="reqitem" title="${esc(row.label)} — need rank ${row.need}"><div class="req-label">${esc(label(row.label))}</div><div class="req-have" style="color:${color(row)}">${row.have}/${row.need}</div><span class="req-first">${esc(firstMet[row.label] || 'not met')}</span></div>`).join('')}</div>`;
+    }
+
+    // Milestones are outcome-shaped gates. A run can kill a lot of creatures
+    // and still fail circle 2, so activity is never allowed to masquerade as
+    // progression. The final two gates deliberately separate engine coverage
+    // from playable-world coverage.
+    const SPEED_SPLITS = [
+      { phase: 'M0 · integrity', label: 'World entry', detail: 'fresh character entered with telemetry alive', test: (t) => /\[milestone\] world_entry\b/i.test(t) },
+      { phase: 'M0 · integrity', label: 'Scripts live', detail: 'hunt, circle, and mega scripts uploaded', test: (t) => /\[milestone\] scripts_ready\b/i.test(t) },
+      { phase: 'M1 · foundation', label: 'Kit online', detail: 'starter weapon + armor equipped', test: (t) => /\[milestone\] kit_online\b/i.test(t) },
+      { phase: 'M1 · foundation', label: 'First blood', detail: 'first creature defeated', test: (t) => /\[milestone\] first_kill\b/i.test(t) },
+      { phase: 'M1 · foundation', label: 'First EXP', detail: 'first authoritative rank gain observed', test: (t) => /\[milestone\] first_exp\b/i.test(t) },
+      { phase: 'M1 · foundation', label: 'Training loop', detail: 'TDPs are being spent on blockers', test: (t) => /\[milestone\] training_loop\b/i.test(t) },
+      { phase: 'M2 · coverage', label: 'Weapon coverage', detail: 'more than one weapon lane is trained', test: (t) => /\[milestone\] weapon_coverage\b/i.test(t) },
+      { phase: 'M2 · coverage', label: 'Economy loop', detail: 'loot is converted into usable funds', test: (t) => /\[milestone\] economy_loop\b/i.test(t) },
+      { phase: 'M3 · circle-2 gate', label: 'All circle-2 requirements', detail: 'all 19 rows reach need (shortfall 0)', test: (t) => /\[milestone\] requirements_met\b[^\n]*circle-2/i.test(t) || /\[gaps\][^\n]*shortfall:0\b/i.test(t) },
+      { phase: 'M3 · circle-2 gate', label: 'Circle 2 certified', detail: 'the character advances, not just approaches', test: (t) => /\[milestone\] circle_up\b[^\n]*circle 2\b/i.test(t) || /\*\*\* CIRCLE-UP -> circle 2\b/i.test(t) },
+      { phase: 'M4 · regression', label: 'Circle 3', detail: 'the loop survives the first promotion', test: (t) => /\[milestone\] circle_up\b[^\n]*circle 3\b/i.test(t) || /\*\*\* CIRCLE-UP -> circle 3\b/i.test(t) },
+      { phase: 'M5 · regression', label: 'Circle 5', detail: 'midgame pacing holds', test: (t) => /\[milestone\] circle_up\b[^\n]*circle 5\b/i.test(t) || /\*\*\* CIRCLE-UP -> circle 5\b/i.test(t) },
+      { phase: 'M6 · regression', label: 'Circle 10', detail: 'full leveling route is stable', test: (t) => /\[milestone\] circle_up\b[^\n]*circle 10\b/i.test(t) || /\*\*\* CIRCLE-UP -> circle 10\b/i.test(t) },
+      { phase: 'M7 · engine', label: 'Circle-20 engine gate', detail: 'requirements engine supports c20; live world content still pending', locked: true, test: () => false },
+      { phase: 'M8 · world', label: 'Circle-20 playable world', detail: 'c20 hunting, gear, and hall route verified end-to-end', locked: true, test: () => false },
+    ];
+
+    function renderSpeedrunBoard() {
+      const board = $('split-board'), state = $('split-state');
+      if (!board || !state) return;
+      const workers = LIVE_ACTIVE.slice(0, 8).map((logName) => ({ logName, name: liveChars[logName] || logName, text: liveTexts[logName] || '' })).filter((w) => w.text);
+      if (!workers.length) {
+        state.textContent = 'no active split clock';
+        board.innerHTML = '<div class="note">No active run. The next release gate is <b>all circle-2 requirements</b>, then a confirmed circle-2 advance.</div>';
+        const ledger = $('split-reqs');
+        if (ledger) ledger.innerHTML = '';
+        return;
+      }
+      const laneHtml = workers.map((worker) => {
+        const progress = [...worker.text.matchAll(/\[progress\][^\n]*circle\s+(\d+)\b/g)].at(-1);
+        const circle = progress ? Number(progress[1]) : 1;
+        const done = SPEED_SPLITS.map((s) => s.test(worker.text));
+        const next = done.findIndex((v) => !v);
+        const nextLabel = next >= 0 ? SPEED_SPLITS[next].label : 'route complete';
+        return `<div class="split-lane"><div class="split-lane-head"><b>${esc(worker.name)}</b><span class="sub">c${circle} · next: ${esc(nextLabel)}</span></div><div class="split-board">${SPEED_SPLITS.map((s, i) => {
+          const hit = done[i], isNext = i === next;
+          return `<div class="split ${hit ? 'done' : isNext ? 'next' : ''} ${s.locked ? 'locked' : ''}"><span class="phase">${esc(s.phase)} <span class="mark">${hit ? '✓' : isNext ? 'NOW' : s.locked ? 'LOCKED' : '—'}</span></span><span class="label">${esc(s.label)}</span><div class="detail">${esc(s.detail)}</div></div>`;
+        }).join('')}</div></div>`;
+      }).join('');
+      const lead = workers[0];
+      const name = lead.name;
+      const text = lead.text;
+      const progress = [...text.matchAll(/\[progress\][^\n]*circle\s+(\d+)\b/g)].at(-1);
+      const circle = progress ? Number(progress[1]) : 1;
+      const gap = [...text.matchAll(/\[gaps\][^\n]*shortfall:(\d+)[^\n]*/g)].at(-1);
+      const blocker = [...text.matchAll(/\[circle-blocked\]([^\n]+)/g)].at(-1)?.[1]?.trim();
+      const reqSamples = [...text.matchAll(/^\[reqs\]\s+(\d+)m\s+c(\d+)(?:\s+ts:(\S+))?\s+\|\s+(.+)$/gm)].map((m) => ({
+        min: Number(m[1]), circle: Number(m[2]), ts: m[3] || null,
+        rows: m[4].split(', ').map((cell) => { const x = /^(.+?)\s+(\d+)\/(\d+)$/.exec(cell); return x ? { label: x[1], have: Number(x[2]), need: Number(x[3]) } : null; }).filter(Boolean),
+      }));
+      const reqLatest = reqSamples.at(-1);
+      const reqCross = {};
+      for (const sample of reqSamples) for (const row of sample.rows) {
+        if (row.have >= row.need && !reqCross[row.label]) reqCross[row.label] = sample.ts || `${sample.min}m elapsed`;
+      }
+      const leadDone = SPEED_SPLITS.map((s) => s.test(text));
+      const leadNext = leadDone.findIndex((v) => !v);
+      const leadNextLabel = leadNext >= 0 ? SPEED_SPLITS[leadNext].label : 'route complete';
+      state.textContent = `${workers.length} worker${workers.length === 1 ? '' : 's'} live · lead ${name} · circle ${circle} · next: ${leadNextLabel}`;
+      board.innerHTML = `<div class="split-lanes">${laneHtml}</div>`;
+      const ledger = $('split-reqs');
+      if (ledger && reqLatest) {
+        const eastern = (ts) => {
+          if (!ts) return '—';
+          const d = new Date(ts);
+          if (Number.isNaN(d.getTime())) return esc(ts);
+          return new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(d) + ' ET';
+        };
+        ledger.innerHTML = `<div class="sub" style="margin-bottom:4px">Lead worker: ${esc(name)} · Circle-${reqLatest.circle} requirement ledger · latest sample ${reqLatest.min}m · first met timestamps in Eastern Time</div><table><thead><tr><th>Requirement</th><th>Have / need</th><th>First met</th></tr></thead><tbody>${reqLatest.rows.map((r) => {
+          const state = r.have >= r.need ? 'req-met' : r.need - r.have <= 2 ? 'req-near' : 'req-far';
+          return `<tr><td>${esc(r.label)}</td><td class="${state}"><b>${r.have}/${r.need}</b></td><td class="req-time">${r.have >= r.need ? eastern(reqCross[r.label]) : 'not met'}</td></tr>`;
+        }).join('')}</tbody></table>`;
+      } else if (ledger) ledger.innerHTML = '';
+    }
 
     async function loadLive() {
+      try {
+        let manifest = null;
+        const ix = await fetch('/live/experiment-index.json?t=' + Date.now(), { cache: 'no-store' });
+        if (ix.ok) {
+          const entries = await ix.json();
+          const docs = await Promise.all((Array.isArray(entries) ? entries : []).slice(-12).map(async (e) => {
+            try { const r = await fetch((e.path || `/live/experiment-${e.runId}.json`) + '?t=' + Date.now(), { cache: 'no-store' }); return r.ok ? r.json() : null; } catch { return null; }
+          }));
+          manifest = docs.filter(Boolean).sort((a, b) => {
+            const active = (x) => x.status === 'running' && Date.now() - Date.parse(x.updatedAt || 0) < 5 * 60000;
+            return Number(active(b)) - Number(active(a)) || Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0);
+          })[0] || null;
+        }
+        if (!manifest) manifest = await fetch('/live/experiment-current.json?t=' + Date.now(), { cache: 'no-store' }).then((r) => r.json());
+        if (Number.isFinite(Number(manifest.minutesPerLeg))) LIVE_CAP_MIN = Number(manifest.minutesPerLeg);
+        if (Number.isFinite(Number(manifest.targetCircle))) LIVE_TARGET_CIRCLE = Number(manifest.targetCircle);
+      } catch {}
       let logs = [];
       try {
         const txt = await fetch(LIVE + 'index.json', { cache: 'no-store' }).then((r) => r.text());
         logs = JSON.parse(txt);
       } catch {}
-      const liveList = $('liveList');
-      const liveState = $('liveState');
+      // The live cards are now rendered into the Experiment board. Keep a
+      // detached staging host so the existing telemetry/card updater remains
+      // the single source of truth without restoring the old bottom board.
+      const liveList = document.createElement('div');
+      const liveState = $('exp-state');
       // Running indicator now lives in the page header (tab UI has no dot slot).
       const navDot = $('sims-live-flag');
 
@@ -1876,27 +2740,52 @@
           const text = await r.text();
           const lines = text.split('\n').filter(Boolean);
           const last = lines[lines.length - 1] || '';
+          // A finished log ends with its final progress/result lines, not
+          // necessarily the FINISHED/VERDICT console line. Scope terminal
+          // detection to the newest run segment so completed concurrent
+          // workers disappear from LIVE on the next poll.
+          const runStart = text.lastIndexOf('=== sweep run ');
+          const currentRun = runStart >= 0 ? text.slice(runStart) : text;
           // Running if: no FINISHED/VERDICT terminal line AND file has content
           // A log counts as "running" only when it is BOTH unfinished AND
           // actively appending (modified in the last 2 min) — killed runs'
           // logs freeze mid-run and would otherwise live forever.
           const lastMod = Date.parse(r.headers.get('last-modified') || 0);
           const fresh = Number.isFinite(lastMod) && (Date.now() - lastMod) < 120000;
-          if (fresh && !/FINISHED|VERDICT|wedged — no progress/.test(last) && lines.length > 2) {
+          // Ghost-run guard: a killed sim (pkill) freezes its log with no
+          // terminal line, so a fresh mtime alone looks "running" for up to
+          // 2 min. Require ACTIVE APPEND — the file must have grown since the
+          // last poll, OR still be within the fresh window AND not terminal.
+          // Alive sims append every ~30s (sweep PROGRESS / bot [progress]),
+          // so a frozen file drops off on the very next poll. KAIZEN 2026-08-28.
+          const len = Number(r.headers.get('content-length')) || text.length;
+          const prev = liveSizes[name];
+          liveSizes[name] = len;
+          // grew only counts on a SECOND sighting — on first poll we have no
+          // baseline, so a stale log must prove liveness via mtime, not size.
+          const grew = prev !== undefined && len > prev;
+          const terminal = /=== Results|FINISHED|VERDICT|wedged — no progress/.test(currentRun);
+          if ((fresh || grew) && !terminal && lines.length > 2) {
             running.push(name);
           }
         } catch {}
       }
 
       if (!running.length) {
-        liveList.innerHTML = '<div class="live-empty">no sims running — launch one above, or a benchmark from the CLI</div>';
+        LIVE_COUNT = 0;
+        $('sum').textContent = `${RUNS.length} runs · 0 live now`;
+        liveList.innerHTML = '';
         liveState.textContent = 'idle';
         navDot.hidden = true;
         liveCards = {};
+        LIVE_ACTIVE = [];
+        renderSpeedrunBoard();
         return;
       }
 
       navDot.hidden = false;
+      LIVE_COUNT = running.length;
+      $('sum').textContent = `${RUNS.length} runs · ${LIVE_COUNT} live now`;
       liveState.textContent = running.length + ' running';
       LIVE_ACTIVE = running.slice(); // for the experiment board's liveness read
       // A stale "no sims running" empty-note must not linger beside real
@@ -1911,9 +2800,21 @@
         if (!liveCards[name]) {
           const el = document.createElement('div');
           el.className = 'live-card collapsed';
-          el.innerHTML = `<div class="lh" data-role="toggle" title="click to expand/collapse the run's log tail"><span class="lchev">▸</span><span class="ln">${esc(name)}</span><span class="ls" data-role="state">…</span>
-            <span class="lrate" data-role="rate" title="provisional rating from this run's live progress">—</span></div>
-            <div class="lpwrap"><div class="lp"><i data-role="prog" style="width:0%"></i></div><span class="lp-label sub" data-role="proglab">elapsed 0m / cap 30m</span></div>
+          el.dataset.liveLog = name;
+          el.innerHTML = `<div class="lh" data-role="toggle" title="click to expand/collapse the run's log tail"><span class="lchev">▸</span><span class="ln">${esc(name)}</span><span class="lidentity" data-role="identity">race/guild…</span><span class="ls" data-role="state">…</span>
+            <span class="lrate" data-role="rate" title="provisional rating from this run's live progress">—</span>
+            <span class="lexp-gate" data-role="exp-gate" data-empty="true" title="circle requirement progress"><b>—</b><span class="lexp-segments"></span></span>
+            <a class="lwatch" data-role="watch" href="#" target="_blank" rel="opener" aria-disabled="true" title="Open this sim's read-only game stream in a new tab"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg> Watch live ↗</a></div>
+            <div class="lmeta" data-role="meta"></div>
+            <div class="live-summary" aria-label="run summary">
+              <div class="live-metric" data-metric="identity"><span class="lm-label">Guild · Race · Script</span><span class="lm-value">—</span><span class="lm-sub">run identity</span></div>
+              <div class="live-metric" data-metric="runtime"><span class="lm-label">Total runtime</span><span class="lm-value">—</span><span class="lm-sub">elapsed runtime</span></div>
+              <div class="live-metric" data-metric="maxcircle"><span class="lm-label">Max circle</span><span class="lm-value">—</span><span class="lm-sub">target / max circle</span></div>
+              <div class="live-metric" data-metric="kills"><span class="lm-label">Total kills</span><span class="lm-value">—</span><span class="lm-sub">first kill —</span></div>
+              <div class="live-metric" data-metric="deaths"><span class="lm-label">Total deaths</span><span class="lm-value">—</span><span class="lm-sub">first death —</span></div>
+              <div class="live-metric" data-metric="exp"><span class="lm-label">EXP total</span><span class="lm-value">—</span><span class="lm-sub">first circle —</span></div>
+            </div>
+            <div class="lpwrap"><div class="lp"><i data-role="prog" style="width:0%"></i></div><span class="lp-label sub" data-role="proglab">elapsed 0m / cap ${LIVE_CAP_MIN}m</span></div>
             <div class="lreqs" data-role="reqs" title="circle requirements — have/need per skill (green met · amber within 2 · red farther)"></div>
             <div class="lg" data-role="log"></div>`;
           // Toggle: clicking the header flips collapse state.
@@ -1922,6 +2823,15 @@
             if (!c) { // expanding: scroll to freshest lines
               const lg = el.querySelector('.lg');
               lg.scrollTop = lg.scrollHeight;
+            }
+          });
+          // This is an action inside the otherwise-clickable header; do not
+          // also expand/collapse the analytics card when opening the monitor.
+          el.querySelector('[data-role="watch"]').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!TOKEN) {
+              e.preventDefault();
+              toast('Watch live needs the GM token — open Sims from the Admin dashboard, then try again.');
             }
           });
           liveList.appendChild(el);
@@ -1942,24 +2852,55 @@
         try {
           const r = await fetch(LIVE + name + '.log', { cache: 'no-store' });
           const text = await r.text();
-          parseMilestones(name, text);
-          renderMilestones();
+          // Logs are append-only across benchmark repeats. The split clock
+          // must never inherit a prior character's first kill or circle.
+          const runStart = text.lastIndexOf('=== sweep run ');
+          const runText = runStart >= 0 ? text.slice(runStart) : text;
+          liveTexts[name] = runText;
+          const runKey = /^=== sweep run (\S+)/.exec(runText)?.[1] || '';
+          if (runKey && liveRunKeys[name] !== runKey) {
+            liveRunKeys[name] = runKey;
+            msSeen[name] = {};
+          }
+          const charMatches = [...text.matchAll(/^=== sweep run \S+ (\S+) /gm)];
+          const liveChar = charMatches.at(-1)?.[1] || '';
+          const identity = [...runText.matchAll(/^=== sweep run \S+ \S+.*?\(([^)]+)\)/gm)].at(-1)?.[1] || '';
+          const identityEl = card.el.querySelector('[data-role="identity"]');
+          if (identityEl && identity) identityEl.textContent = identity;
+          if (liveChar) liveChars[name] = liveChar;
+          const watch = card.el.querySelector('[data-role="watch"]');
+          if (liveChar) {
+            watch.href = '/?spectate=' + encodeURIComponent(liveChar)
+              + (TOKEN ? '#gm=' + encodeURIComponent(TOKEN) : '');
+            watch.setAttribute('aria-disabled', 'false');
+            watch.title = TOKEN ? `Watch ${liveChar}'s game stream in a new tab`
+              : 'GM token needed — open Sims from the Admin dashboard first';
+          }
           const lines = text.split('\n').filter(Boolean);
           const last = lines[lines.length - 1] || '';
           const state = card.el.querySelector('[data-role="state"]');
           const log = card.el.querySelector('[data-role="log"]');
           const prog = card.el.querySelector('[data-role="prog"]');
+          const summary = liveSummary(name, runText, identity);
+          renderLiveSummary(card, summary);
+          renderLiveRequirements(card, runText);
 
           // Rate the run from its most recent [progress] line, not just the
           // file tail — scripts interleave commands between progress ticks.
           const rateEl = card.el.querySelector('[data-role="rate"]');
-          const lastProg = [...text.matchAll(/\[progress\]\s+(\d+)m\s+circle\s+(\d+)\s+hp\s+(\d+)\/(\d+)\s+kills\s+(\d+)/g)].pop();
+          const lastProg = [...runText.matchAll(/\[progress\]\s+(\d+)m\s+circle\s+(\d+)\s+hp\s+(\d+)\/(\d+)\s+kills\s+(\d+)/g)].pop();
           const progMatch = /\[progress\]\s+(\d+)m\s+circle\s+(\d+)\s+hp\s+(\d+)\/(\d+)\s+kills\s+(\d+)/.exec(last);
           if (progMatch || lastProg) {
             const pm = progMatch || lastProg;
             const min = +pm[1];
             const kills = +pm[5];
-            state.textContent = `${min}m · circle ${pm[2]} · ${kills} kills · hp ${pm[3]}/${pm[4]}`;
+            const tdpNow = [...runText.matchAll(/\[progress\][^\n]*\btdp\s+(\d+)/g)].at(-1)?.[1];
+            const silverNow = [...runText.matchAll(/\[progress\][^\n]*\bsilver\s+(\d+)/g)].at(-1)?.[1];
+            const roomNow = [...runText.matchAll(/\[progress\][^\n]*\[room\s+([^\]]+)\]/g)].at(-1)?.[1];
+            state.textContent = `${min}m · circle ${pm[2]} · ${kills} kills · hp ${pm[3]}/${pm[4]} · TDP ${tdpNow ?? '—'}`;
+            const meta = card.el.querySelector('[data-role="meta"]');
+            const lastChange = [...runText.matchAll(/^\[change\]\s+(\S+)\s+(\w+)\s+(.+)$/gm)].at(-1);
+            if (meta) meta.innerHTML = `race/guild <b>${esc(identity || '—')}</b> · room <b>${esc(roomNow || '—')}</b> · TDP <b>${esc(tdpNow ?? '—')}</b> · silver <b>${esc(silverNow ?? '—')}</b>${lastChange ? ` · last ${esc(lastChange[2])}: ${esc(lastChange[3])} <span title="exact wall-clock timestamp">(${new Date(lastChange[1]).toLocaleTimeString('en-US', { timeZone:'America/New_York', hour:'numeric', minute:'2-digit', second:'2-digit' })} ET)</span>` : ''}`;
             // EXP ALL chips — the operator's "total learning" read:
             //   Σ ranks = every skill's rank summed (the [gaps] ranks:N,
             //     authoritative exp-sheet count when src:exp)
@@ -1967,7 +2908,7 @@
             //   Δ = change since the previous [gaps] sample (movement)
             // The line also carries "expall:top10Sum/totalRanks | skill r,"
             // per-skill leaders; parse it so top-10 detail rides along.
-            const lastGapsLine = [...text.matchAll(/\[gaps\][^\n]*/g)].pop()?.[0] || '';
+            const lastGapsLine = [...runText.matchAll(/\[gaps\][^\n]*/g)].pop()?.[0] || '';
             const expAll = /expall:(\d+)\/(\d+)/.exec(lastGapsLine);
             const leaders = expAll
               ? (lastGapsLine.split('|').pop() || '').trim().split(', ').slice(0, 3)
@@ -1979,15 +2920,25 @@
             // Progress bar = elapsed vs the LEG CAP (30m), with the numbers
             // printed next to it so it's self-explanatory:
             // "elapsed 12m / cap 30m — stops early at target circle".
-            const progPct = Math.min(100, Math.round(min / LEG_CAP_MIN * 100));
+            // Older sweeps predate per-run manifests and may be paired with
+            // the newest shared `experiment-current` cap. If the observed
+            // elapsed time already exceeds that cap, do not render a false
+            // 100% bar (for example, `53m / cap 2m` on a legacy 600m run).
+            const capMismatch = Number.isFinite(LIVE_CAP_MIN)
+              && LIVE_CAP_MIN > 0 && min > LIVE_CAP_MIN + 1;
+            const progPct = capMismatch ? 12 : Math.min(100, Math.round(min / LIVE_CAP_MIN * 100));
             prog.style.width = progPct + '%';
             const progLab = card.el.querySelector('[data-role="proglab"]');
-            if (progLab) progLab.textContent = `elapsed ${min}m / cap ${LEG_CAP_MIN}m — stops early at target circle`;
-            prog.title = `leg progress: ${min}m elapsed of ${LEG_CAP_MIN}m cap · stops early at target circle`;
+            if (progLab) progLab.textContent = capMismatch
+              ? `elapsed ${min}m · cap metadata unavailable (legacy run)`
+              : `elapsed ${min}m / cap ${LIVE_CAP_MIN}m — stops early at target circle`;
+            prog.title = capMismatch
+              ? `legacy run: ${min}m elapsed; per-run cap metadata was not recorded`
+              : `leg progress: ${min}m elapsed of ${LIVE_CAP_MIN}m cap · stops early at target circle`;
             // Gap telemetry: [gaps] lines land every ~60s from the driver's
             // minute timer — parse ALL of them (a card may sit through many)
             // and show shortfall trend, not a stale single value.
-            const gaps = [...text.matchAll(
+            const gaps = [...runText.matchAll(
               /\[gaps\]\s+(\d+)m\s+circle\s+\d+->\d+\s+blocked:(\d+)\s+shortfall:(\d+)\s+ranks:(\d+)\s+src:(exp|mindstate)/g)];
             let gapsNote = '';
             if (gaps.length) {
@@ -2006,14 +2957,6 @@
               lh.insertBefore(gapsEl, card.el.querySelector('.lrate'));
             }
             gapsEl.innerHTML = gapsNote;
-            // Olwydd-style requirement table (expanded-card view): latest
-            // [reqs] line → have/need cells colored met/near/far. Graceful
-            // no-op on logs predating the field.
-            const reqsEl = card.el.querySelector('[data-role="reqs"]');
-            if (reqsEl && window.DRReqTable) {
-              const lastReqs = [...text.matchAll(/\[reqs\][^\n]*/g)].pop()?.[0];
-              reqsEl.innerHTML = window.DRReqTable.renderTable(window.DRReqTable.parseReqLine(lastReqs)) || '';
-            }
             // EXP ALL chip: Σ ranks + top-10 sum + per-skill leaders. Shows
             // total learning at a glance; hover reveals the leaders.
             let expEl = card.el.querySelector('[data-role="expall"]');
@@ -2030,13 +2973,16 @@
               const firstRanks = +gaps[0][4];
               const dRanks = totalRanks - firstRanks;
               const dCol = dRanks > 0 ? 'var(--green)' : 'var(--dim)';
+              const gateShort = gaps.length ? Number(gaps[gaps.length - 1][3]) : null;
+              const gateCol = gateShort == null ? 'var(--dim)' : gateShort === 0 ? 'var(--green)' : 'var(--red)';
               expEl.innerHTML =
-                `<span title="EXP ALL: every skill's rank summed (src:${gL[5]})${lastGapsLine.includes('UNDERSTATED') ? '' : ''}">`
-                + `Σ <b>${totalRanks}</b> <span style="color:${dCol}">${dRanks > 0 ? '+' : ''}${dRanks}</span></span>`
+                `<span title="EXP ALL: every skill's rank summed; red means the next circle still has unmet requirements (src:${gL[5]})">`
+                + `Σ <b style="color:${gateCol}">${totalRanks}</b> <span style="color:${dCol}">${dRanks > 0 ? '+' : ''}${dRanks}</span></span>`
                 + `<span title="EXP ALL-10: sum of the top 10 skills' ranks — depth vs breadth of training" style="margin-left:8px">top10 <b>${expAll[1]}</b>${leaders.length ? ` · ${esc(leaders.join(', '))}` : ''}</span>`;
             } else if (gaps.length) {
               const gL = gaps[gaps.length - 1];
-              expEl.innerHTML = `<span title="total ranks from [gaps] (driver predates expall field)">Σ <b>${gL[4]}</b></span>`;
+              const gateCol = Number(gL[3]) === 0 ? 'var(--green)' : 'var(--red)';
+              expEl.innerHTML = `<span title="total ranks from [gaps]; red means the next circle still has unmet requirements">Σ <b style="color:${gateCol}">${gL[4]}</b></span>`;
             }
             // Provisional velocity prefers the authoritative [gaps] rank
             // counter (src:exp) over the kills×2.2 proxy; it degrades
@@ -2089,6 +3035,10 @@
           log.scrollTop = log.scrollHeight;
         } catch {}
       }
+      renderSpeedrunBoard();
+      // The experiment board consumes the same live telemetry, so refresh it
+      // immediately instead of waiting for its slower 30s manifest interval.
+      void renderExperimentBoard();
     }
 
     // ---- single-page layout: no tabs, one scroll ----
@@ -2173,7 +3123,6 @@
         det.innerHTML = `<div class="ms-title">Milestones this run</div><div style="display:flex;flex-wrap:wrap;gap:2px 0">${parts}</div>`;
       }
     }
-    renderMilestones();
   </script>
 </body>
 </html>
