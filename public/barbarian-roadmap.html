@@ -32,68 +32,98 @@
   .next  { background: var(--red);   color: #fbeaea; }
   .metric-good { color: #8fbf7f; } .metric-warn { color: #d9b95c; }
   ul { margin: .4rem 0; padding-left: 1.3rem; } li { margin: .25rem 0; }
+  .callout { background: rgba(176,138,46,.08); border:1px solid var(--edge); border-left:3px solid var(--amber);
+             border-radius:6px; padding:.7rem .9rem; margin:1rem 0; font-size:.92em; }
 </style>
 </head>
 <body>
 <h1>&#128009; Barbarian Scripting Roadmap</h1>
 <p class="sub">Kaizen status of the barbarian progression sim — where we are, what's measured, what's next.
-Companion page: <a href="/sim-architecture.html">Sim architecture</a> · Sims dashboard at <a href="/sims.html">/sims.html</a>.
-Last updated 2026-08-27.</p>
+Companion pages: <a href="/sim-architecture.html">Sim architecture</a> · Sims dashboard at <a href="/sims.html">/sims.html</a> · <a href="/warmage-roadmap.html">Warmage roadmap</a> · <a href="/ROADMAP.html">full roadmap</a>.
+Last updated 2026-08-29.</p>
+
+<div class="callout">
+  <b>What changed this arc:</b> the circling kaizen is <b>built and verified to engage</b> — in the
+  <code>zrmn</code> run (6 agents · 15 min · boost ×20) <code>barbarian/human</code> drained 22 skills /
+  186 total ranks at the hall and fired the <code>analyze-expertise</code> fidelity check. The old
+  "bank TDPs, walk home" failure mode is gone. <b>But circle 2 still did not land</b>: kill rate was only
+  ~24/h and 3 of 6 agents wedged at the bazaar. The circling <em>logic</em> is no longer the wall —
+  <b>kill rate / spawn availability and navigation are</b>.
+</div>
 
 <h2>Current status</h2>
 <p>
-The full barbarian identity chain now works end-to-end: hall learning, signature
-roar landing in its one valid slot, augmentation ranks accruing for the first
-time, honest rank tracking from <code>exp</code> output, and zero wedges in
-recent runs. Circle 2 itself has not yet been reached — that remains the goal
-metric — but the shortfall curve is finally bending instead of flatlining.
+The identity chain works end-to-end (hall learning, roar in its one valid slot, augmentation accruing,
+honest <code>exp</code> parsing, zero wedges in healthy runs). The circling kaizen (<code>buildCircleScript</code>
+re-attempts <code>circle</code> immediately after one TDP-curriculum drain) now closes the
+505-banked-TDP / shortfall-35 failure mode. What it cannot fix on its own is <strong>the rate at which
+exp-ranks accrue</strong> — circle 2 needs the exp-category ranks (weapon / armor / parry / evasion /
+survival) reached by <em>kill rate</em>, and the <code>zrmn</code> run only managed 24 kills/hour.
 </p>
 <table>
-  <tr><th>Metric (best measured)</th><th class="num">Prior best</th><th class="num">Current</th><th></th></tr>
-  <tr><td>Shortfall @ end of run</td><td class="num">44 @ 7m</td><td class="num">33 @ 15m</td><td><span class="pill done">improving</span></td></tr>
-  <tr><td>Total ranks at finish</td><td class="num">67</td><td class="num">182</td><td><span class="pill done">~2.7x</span></td></tr>
-  <tr><td>Kills/hour</td><td class="num">15–20</td><td class="num">36</td><td><span class="metric-good">recovering</span></td></tr>
-  <tr><td>Wedges</td><td class="num">most runs</td><td class="num">0</td><td><span class="pill done">fixed</span></td></tr>
+  <tr><th>Metric (best measured)</th><th class="num">Prior best</th><th class="num">Current (zrmn)</th><th></th></tr>
   <tr><td>Circle-ups</td><td class="num">0</td><td class="num">0</td><td><span class="pill next">the wall</span></td></tr>
+  <tr><td>Best circle-up ever</td><td class="num">32.9m (diversity2)</td><td class="num">— unchanged</td><td><span class="pill now">pre-kaizen</span></td></tr>
+  <tr><td>Total ranks at finish (healthy agent)</td><td class="num">182</td><td class="num">186</td><td><span class="metric-good">kaizen engaging</span></td></tr>
+  <tr><td>Kills/hour (healthy agent)</td><td class="num">36</td><td class="num">24</td><td><span class="metric-warn">spawn-starved</span></td></tr>
+  <tr><td>Agents wedged at bazaar</td><td class="num">most runs</td><td class="num">3 of 6</td><td><span class="pill next">nav regressed</span></td></tr>
+  <tr><td>Circling kaizen (drain + re-attempt)</td><td class="num">not built</td><td class="num">engaged</td><td><span class="pill done">verified</span></td></tr>
 </table>
 <p>
-Best characters to date: <code>SwBar-base-iiii-owkm</code> (147 ranks) and the
-rotation-era runs (~118+ ranks at 10–15 minutes). Both sit at
-<strong>9 blocked requirements, ~13–14 shortfall ranks</strong> from circle 2 —
-the gap is no longer structural, just grind-rate.
+In <code>zrmn</code>: <code>barbarian/human</code> was healthy (6 kills, 24/h, 186 ranks) and visibly draining
+at the hall; <code>barbarian/giantman</code> was slow (0 kills, 15 ranks); <code>barbarian/halfling</code>
+wedged at the bazaar (28 ranks). The drain loop fired — the gate just never closed because the ranks
+weren't there yet.
 </p>
 
-<h2>The four remaining blocker buckets</h2>
+<h2>The remaining blocker buckets</h2>
 <table>
   <tr><th>Bucket</th><th>Gap to circle 2</th><th>Root cause</th></tr>
-  <tr><td>Weapon slot diversity</td><td>2nd weapon 3→8; slots 3/4 behind</td><td>Curriculum rotation only recently fixed; kill rate still low so weapon exp accrues slowly.</td></tr>
-  <tr><td>Armor</td><td>1st armor 3→6, 2nd 0→2</td><td>Only trains at hall; needs more silver for armor pieces + wear-time.</td></tr>
-  <tr><td>Supernatural</td><td>augmentation 0→2</td><td>Roar fires once per fight but rage lasts 12 ticks vs ~2-tick fights — see roarSmart variant.</td></tr>
-  <tr><td>Lore</td><td>2nd lore 0→2</td><td>Scholarship never trained yet; appraisal barely. Rotation should reach it.</td></tr>
+  <tr><td><b>Kill rate / spawn availability</b></td><td>exp-ranks accrue only from kills; ~24/h leaves the gate unmet in 15m</td><td>Creatures respawn every 25s but an anti-camp throttle pushes respawns to +120s once a room sees ≥14 respawns in 5 min. Six concurrent agents sharing a few arenas starves spawns; <code>DR_SPAWN_MULT</code> scales both density and the threshold for sweep windows.</td></tr>
+  <tr><td><b>Navigation (bazaar stall)</b></td><td>agents park at <code>room bazaar</code> for the whole run, 0 progress</td><td>Town-strand breaker fires but agents re-drift back. Origin-gated arrival routes and the bazaar <code>ife</code> guard are insufficient — need a real escape + regen that holds.</td></tr>
+  <tr><td>Circling loop (kaizen)</td><td>built — drain + re-attempt <code>circle</code> in one hall visit</td><td>Verified engaging (186 ranks / analyze-expertise in zrmn). Not yet producing a circle-up because the two buckets above starve it.</td></tr>
+  <tr><td>Readiness gate</td><td>still timer-driven (mindstate), not expRanks</td><td>The kaizen's drain-on-shortfall covers most of this, but the gate itself never reads <code>expRanks</code>, so hall trips are timer-driven, not intelligence-driven.</td></tr>
 </table>
+
+<h2>Spawn availability — the now-dominant wall</h2>
+<p>
+This is the lever that actually gates circle-2 time. The mechanism, measured in <code>server/game.js</code>:
+</p>
+<ul>
+  <li>Respawn tick every <code>25s</code>; a dead creature returns in 25s normally.</li>
+  <li><strong>Anti-camp throttle:</strong> a room with <strong>≥14 respawns in a 5-min rolling window</strong> pushes the next respawn to <strong>+120s</strong> and emits "the hunting here has grown thin".</li>
+  <li>Quiet world has plenty (a probe saw a rat + silverfish present every look for 2 min). Starvation only appears when many agents share few rooms — exactly the crowded-world mode.</li>
+  <li>The throttle bites even a <em>lone fast</em> hunter: boost ×20 kills faster than 1/21s, so camping one room self-throttles.</li>
+</ul>
+<p>
+<strong>Implication:</strong> in a clean one-agent-per-arena run, spawn availability is <em>not</em> the
+limiter — kill rate is. The <code>zrmn</code> run kept agents in distinct arenas yet still hit 24/h, which
+means the bound is the per-agent hunt cadence + how many creatures a room holds, not contention. The fix
+is arena spread (already done) plus raising per-room creature density for sweeps (<code>DR_SPAWN_MULT</code>).
+</p>
 
 <h2>Long-term goals</h2>
 <h3>Near term — first circle-up <span class="pill now">active focus</span></h3>
 <ul>
-  <li><strong>Reach circle 2.</strong> The one true goal metric. Every run that ends short is graded by shortfall-closure rate so variants stay comparable without it.</li>
-  <li>Get the readiness gate to fire from <code>expRanks</code> instead of mindstate (mindstate hides fully-converted skills — it has never once triggered a circle attempt).</li>
-  <li>Validate the <code>roarSmart</code> variant A/B (fewer refused roars, cleaner logs, zero exp cost).</li>
+  <li><strong>Land circle 2 with the kaizen.</strong> Logic is built and engaging; the remaining work is upstream — kill rate and nav. Every run graded by shortfall-closure rate so variants stay comparable without the event.</li>
+  <li><strong>Kill-rate to 50/h:</strong> arena spread (done) + <code>DR_SPAWN_MULT</code> density for sweep windows + tighter RT idle in the fight loop.</li>
+  <li><strong>Kill the bazaar stall:</strong> make the origin-gated arrival + bazaar guard actually hold — agents must not re-drift once re-pathed.</li>
+  <li>Get the readiness gate to read <code>expRanks</code> so hall trips are intelligence-driven, not timer-driven.</li>
 </ul>
 
 <h3>Mid term — efficient circling machine</h3>
 <ul>
-  <li><strong>Kill rate to 50/h:</strong> shorten bazaar errand legs, cut per-trip learn/scan overhead, tighten RT idle in the fight loop.</li>
-  <li><strong>Variance collapse:</strong> median run within ~20% of best — kill regressions and wedges for good via sweeps.db trend tracking.</li>
-  <li><strong>Circle 3–5 without redesign:</strong> script regeneration already retargets curricula; verify slot counts, ability unlocks, and wider creature bands keep up unattended.</li>
-  <li><strong>Variant graduation rule:</strong> a variant replaces baseline when it wins on shortfall-closure rate across ≥6 runs; losing variants are dropped per the "no strength" rule.</li>
+  <li><strong>Variance collapse:</strong> median run within ~20% of best; kill regressions + nav wedges caught via sweeps.db trend tracking.</li>
+  <li><strong>Circle 3–5 without redesign:</strong> script regeneration already retargets curricula; verify slot counts, ability unlocks, wider creature bands keep up unattended.</li>
+  <li><strong>Variant graduation rule:</strong> a variant replaces baseline when it wins on shortfall-closure rate across ≥6 runs; losing variants dropped per the "no strength" rule.</li>
 </ul>
 
 <h3>Long term — generalizes to every guild</h3>
 <ul>
   <li><strong>Circle 10 barbarian</strong> — full weapon ladder (club → short sword → cavalry sabre), armor progression, all four ability classes.</li>
-  <li><strong>Per-guild kaizen kits</strong>: each guild gets its own signature-slot rules, train sets, and fidelity checks like barbarian's. plumbing (<code>signatureAfter</code>, <code>abilitySlots</code>, <code>trainSets</code>) is guild-agnostic already.</li>
-  <li><strong>Fidelity ledger as acceptance criteria</strong> for all ten remaining guilds: no guild ships without its identity verbs provably firing in live runs.</li>
-  <li><strong>Continuous benchmarking</strong>: scheduled baseline runs flag pacing regressions before they compound into measurement drift.</li>
+  <li><strong>Per-guild kaizen kits</strong>: each guild gets its own signature-slot rules, train sets, fidelity checks. The circling kaizen is already guild-agnostic (it lives in <code>buildCircleScript</code>), so warmage inherits it once it can hunt — see the <a href="/warmage-roadmap.html">Warmage roadmap</a>.</li>
+  <li><strong>Fidelity ledger as acceptance criteria</strong> for all ten remaining guilds.</li>
+  <li><strong>Continuous benchmarking</strong>: scheduled baseline runs flag pacing regressions before they compound.</li>
 </ul>
 
 <h2>Iteration log — what each kaizen change bought</h2>
@@ -105,26 +135,27 @@ the gap is no longer structural, just grind-rate.
   <tr><td><code>4db577c</code> exp parser hoist</td><td>Parser nested in circle-blocked branch — never ran on per-kill exp output.</td><td class="metric-good">src:exp; honest gaps</td></tr>
   <tr><td><code>024b4c4</code> no-send breaker</td><td>Runner parks silently when prompts stop; all rescues gated off.</td><td class="metric-good">0 wedges since</td></tr>
   <tr><td><code>024b4c4</code> TDP curriculum rotation</td><td>Same first-N skills every trip; set-fillers starved at rank 0.</td><td class="metric-good">curricula cycle per trip</td></tr>
-  <tr><td><code>f7af3ab</code> hall paths from real room</td><td>Stale arena paths → 16 refusals/run ("move up" from rooms with no up).</td><td class="metric-good">navigation refusal near zero</td></tr>
-  <tr><td><code>f7af3ab</code> learn to slot count</td><td>25 learn attempts for 1 slot across 5 trips.</td><td class="metric-good">1 attempt per trip</td></tr>
-  <tr><td><code>roarSmart</code> variant</td><td>Skip roar while raging: 12-tick rage vs ~2-tick fights → refusals + noise.</td><td class="metric-good">KEPT — closure rate won 2/2 in clean rerun</td></tr>
-  <tr><td><code>diversity</code> variant <code>(461b4b0)</code></td><td>Ground-truth weapon rotation (%wsp) + exact Nth-slot TDP targeting.</td><td class="metric-good">blocked 6→3 in first run; kjvh: 315 ranks/40m</td></tr>
-  <tr><td><code>diversity2</code> <code>(5d83423)</code></td><td>TDP floor 8→4 (cheapest tdptrain is 4+3·rank, so 8 blocked useful trips at 4 TDPs) + errand-stop helm retry (first-visit gate needs 120s but club+knives+armor drain the 150s purse — helm literally never bought).</td><td class="metric-good">A/B won big: blocked 8→1, shortfall 19→2, ranks 209→372, deaths 1→0 (DB-verified vs <code>iiij</code>). 1st armor 2→4/6, 2nd survival closed. Remaining: 3rd weapon 2/4. Helm still unbought — loot income never reached 130s at an errand stop.</td></tr>
-  <tr><td><code>armorStack</code> variant <code>(a33338f)</code></td><td>Server-side verdict on "naked-tank": armor exp fires per LANDED BLOW per WORN piece (<code>circle·3 + armor/8</code>, server/combat.js), independent of damage soaked — armor never deflects a blow, so removing armor trains NOTHING and a cheaper piece trains nothing extra. Only lever is pieces worn: stack leather sleeves/boots/leggings (all light_armor) on torso+helm, purse-gated with hall-trip retry.</td><td>A/B vs diversity2 (2×40m, giantman, x20, niae pair, both healthy): stack leg 487 ranks / 19 kills / 0 deaths vs baseline 428 / 15 / 1. Neither circled — single blocker MOVED in both legs (baseline: 3rd weapon 3/4 shortfall 1; stack: 2nd weapon 5/8 shortfall 3, 1st armor exactly 6/6). 1st armor is no longer the program blocker; weapon-Nth diversity is. Verdict: knob works mechanically, no clear win — hold at one trial, don't thrash.</td></tr>
+  <tr><td><code>f7af3ab</code> hall paths from real room</td><td>Stale arena paths → 16 refusals/run.</td><td class="metric-good">navigation refusal near zero</td></tr>
+  <tr><td><code>diversity</code> variant</td><td>Ground-truth weapon rotation + exact Nth-slot TDP targeting.</td><td class="metric-good">blocked 6→3; kjvh: 315 ranks/40m</td></tr>
+  <tr><td><code>diversity2</code></td><td>TDP floor 8→4 + errand-stop helm retry.</td><td class="metric-good">A/B won: blocked 8→1, shortfall 19→2, ranks 209→372, deaths 1→0</td></tr>
+  <tr><td><code>armorStack</code> variant</td><td>Stack light armor to train armor exp (server fires per worn piece).</td><td>A/B: both healthy, neither circled; 1st armor no longer the blocker; weapon-Nth diversity is. Hold at one trial.</td></tr>
+  <tr><td>Nav fixes (parallel session, this arc)</td><td>Hub-gated ladder legs, origin-gated arrival (<code>fromHereOrigin</code>), bazaar guard (<code>ife room bazaar</code>), arrival regen <code>onDone</code>, town-strand breaker (45s idle → re-path).</td><td class="metric-warn">breaker fires, but 3/6 agents still wedged at bazaar in zrmn — insufficient, needs to hold</td></tr>
+  <tr><td><b>Circling kaizen (this arc)</b></td><td><code>buildCircleScript</code>: after draining the TDP curriculum once, <code>goto CIRCLE_AGAIN</code> re-attempts <code>circle</code> immediately — closes the 505-banked-TDP / shortfall-35 failure mode.</td><td class="metric-good">VERIFIED engaging: barb/human zrmn drained 186 ranks at hall, analyze-expertise fired. Not yet a circle-up — upstream kill-rate + nav walls.</td></tr>
+  <tr><td><code>zrmn</code> run</td><td>6 agents · 15 min · boost ×20 · arena spread. First measurement of the kaizen in a group.</td><td class="metric-warn">0 circle-ups. barb/human only healthy (24/h); 3/6 wedged at bazaar. Confirms kill-rate + nav are the walls, not the circling logic.</td></tr>
 </table>
 
 <h2>Open risks &amp; honest caveats</h2>
 <ul>
-  <li><strong>No circle-up has ever happened</strong> — the grade ladder and all pacing projections remain unvalidated against the actual event.</li>
-  <li><strong>The readiness gate is still blind</strong>: it reads mindstate which hides fully-converted skills. Until it reads expRanks, every hall trip is timer-driven, not intelligence-driven.</li>
-  <li><strong>Run variance is wide</strong> (kills/hour spread ~2x) with few repeats; medians are thin. Kaizen A/Bs use one-variable changes for exactly this reason.</li>
-  <li><strong>Measurement has repeatedly lied to us</strong> — truncated fidelity logs, mindstate omissions, latched wedge detectors. The DB + harness probes are ground truth; grep counts alone are not. Eight such traps are catalogued in <a href="/sim-architecture.html">sim architecture §7</a>.</li>
+  <li><strong>No circle-up has ever happened</strong> — the grade ladder and all pacing projections remain unvalidated against the actual event. Best recorded circle-2 is still the pre-kaizen 32.9 min.</li>
+  <li><strong>Navigation still regresses:</strong> the town-strand breaker + bazaar guard fire but don't hold — half the agents end wedged at the bazaar. This is now the dominant non-spawn blocker.</li>
+  <li><strong>Kill rate is the ceiling:</strong> boost ×20 already maxes per-kill exp; 24/h in zrmn means the exp-rank gate can't close in a 15-min window. Per-room creature density (<code>DR_SPAWN_MULT</code>) is the only lever left.</li>
+  <li><strong>Run variance is wide</strong> (kills/hour spread ~2×) with few repeats; medians are thin. Kaizen A/Bs use one-variable changes for exactly this reason.</li>
+  <li><strong>Measurement has repeatedly lied to us</strong> — truncated fidelity logs, mindstate omissions, latched wedge detectors. The DB + harness probes are ground truth; grep counts alone are not. Catalogued in <a href="/sim-architecture.html">sim architecture §7</a>.</li>
 </ul>
 
 <footer style="margin-top:3rem;color:var(--dim);font-size:.85em">
-Barbarian scripting roadmap · commits referenced are in <code>scripts/race-guild-sweep.mjs</code>, <code>scripts/lib/script-gen.mjs</code>, <code>data/guild-scripts.js</code>, <code>server/combat.js</code> · companion pages: <a href="/sim-architecture.html">sim architecture</a>, <a href="/sims.html">sims dashboard</a>, <a href="/ROADMAP.html">full roadmap</a>
+Barbarian scripting roadmap · commits referenced are in <code>scripts/race-guild-sweep.mjs</code>, <code>scripts/lib/script-gen.mjs</code>, <code>data/guild-scripts.js</code>, <code>server/game.js</code> · companion pages: <a href="/sim-architecture.html">sim architecture</a>, <a href="/sims.html">sims dashboard</a>, <a href="/warmage-roadmap.html">warmage roadmap</a>, <a href="/ROADMAP.html">full roadmap</a>
 </footer>
-
 
 </body>
 </html>

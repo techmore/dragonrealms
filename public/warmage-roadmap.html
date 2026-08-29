@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dragon Realms — Warrior Mage Scripting Roadmap</title>
+<style>
+  :root {
+    --bg: #14100e; --panel: #1d1815; --edge: #332a24; --text: #e8ddd0;
+    --dim: #9c8c7a; --accent: #5a7fb5; --green: #4a7a3a; --amber: #b08a2e; --red: #8a3a3a;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Segoe UI", sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  a { color: #88b4d9; text-decoration: none; } a:hover { text-decoration: underline; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.15rem; margin: 2.2rem 0 .6rem; padding-bottom: .3rem; border-bottom: 1px solid var(--edge); }
+  h3 { font-size: 1rem; margin: 1.2rem 0 .4rem; color: var(--accent); }
+  code { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 0 4px; font-size: .87em; }
+  table { border-collapse: collapse; width: 100%; margin: .75rem 0; font-size: .9em; }
+  th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--edge); }
+  th { color: var(--dim); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .sub { color: var(--dim); margin: 0 0 1.5rem; }
+  .pill { display: inline-block; border-radius: 10px; padding: 0 8px; font-size: .72rem; font-weight: 700;
+          letter-spacing: .04em; text-transform: uppercase; vertical-align: middle; }
+  .done  { background: var(--green); color: #eaf2e6; }
+  .now   { background: var(--amber); color: #fff8e6; }
+  .next  { background: var(--red);   color: #fbeaea; }
+  .metric-good { color: #8fbf7f; } .metric-warn { color: #d9b95c; }
+  ul { margin: .4rem 0; padding-left: 1.3rem; } li { margin: .25rem 0; }
+  .callout { background: rgba(90,127,181,.08); border:1px solid var(--edge); border-left:3px solid var(--accent);
+             border-radius:6px; padding:.7rem .9rem; margin:1rem 0; font-size:.92em; }
+</style>
+</head>
+<body>
+<h1>&#9889; Warrior Mage Scripting Roadmap</h1>
+<p class="sub">Kaizen status of the warrior mage progression sim — where we are, what's measured, what's next.
+Companion pages: <a href="/sim-architecture.html">Sim architecture</a> · Sims dashboard at <a href="/sims.html">/sims.html</a> · <a href="/barbarian-roadmap.html">Barbarian roadmap</a> · <a href="/ROADMAP.html">full roadmap</a>.
+Last updated 2026-08-29.</p>
+
+<div class="callout">
+  <b>State of the guild:</b> Warrior Mage has <b>never reached circle 2</b> in any recorded run (0 circle-ups
+  across 31 warmage lab runs). In the <code>zrmn</code> kaizen run (6 agents · 15 min · boost ×20), 2 of 3
+  warmages <b>wedged at the bazaar</b> with 0 ranks and 0 kills; the third was slow (0 kills, 15 ranks).
+  Warmage cannot yet <em>hunt reliably</em> — the bazaar stall is the #1 wall, ahead of the circling logic.
+</div>
+
+<h2>Current status</h2>
+<p>
+Warmage's identity chain is implemented (familiars, four elemental attunements, Summon Weapon, Impede,
+the 89-slot spell tree pending), but the progression sim can't exercise it: agents drift to the bazaar
+and park. The circling kaizen (<code>buildCircleScript</code>'s drain + re-attempt) is
+<strong>guild-agnostic</strong> — it lives in the shared script generator — so warmage
+<em>inherits</em> it the moment it can hunt. What warmage needs first is the same two upstream fixes
+barbarian is waiting on: <strong>navigation that holds</strong> and <strong>kill/cast rate</strong>.
+</p>
+<table>
+  <tr><th>Metric (best measured)</th><th class="num">Value</th><th></th></tr>
+  <tr><td>Circle-ups (all time)</td><td class="num">0</td><td><span class="pill next">never circled</span></td></tr>
+  <tr><td>zrmn — agents wedged at bazaar</td><td class="num">2 of 3</td><td><span class="pill next">nav stall</span></td></tr>
+  <tr><td>zrmn — total ranks (best agent)</td><td class="num">15 (slow)</td><td><span class="metric-warn">no hunt</span></td></tr>
+  <tr><td>Circling kaizen available</td><td class="num">yes (shared)</td><td><span class="pill now">unmeasured</span></td></tr>
+  <tr><td>Leaderboard champion</td><td class="num">none</td><td><span class="pill next">no data</span></td></tr>
+</table>
+<p>
+Unlike barbarian (which has a rich variant history: baseline, diversity, diversity2, armorStack…),
+<strong>warmage has no kaizen variants at all</strong> — its leaderboard entry doesn't exist. The work
+ahead is foundational: get an agent that reliably fights and casts, <em>then</em> optimize.
+</p>
+
+<h2>Circle-2 requirement shape (warmage)</h2>
+<p>
+From the live circle band table (cumulative ranks at circle 10 = band × 10; circle 2 is roughly a fifth
+of this). Warmage is <strong>mana-gated</strong>: most of the gate is magic ranks earned by <em>casting</em>,
+not kills.
+</p>
+<table>
+  <tr><th>Requirement</th><th class="num">Circle-10 rank</th><th>How it's earned</th></tr>
+  <tr><td>1st / 2nd / 3rd magic</td><td class="num">40 / 40 / 30</td><td>casting spells (mana)</td></tr>
+  <tr><td>targeted_magic</td><td class="num">40</td><td>offensive casts</td></tr>
+  <tr><td>summoning</td><td class="num">30</td><td>familiar / summon casts</td></tr>
+  <tr><td>parry</td><td class="num">20</td><td>combat (kills)</td></tr>
+  <tr><td>1st weapon</td><td class="num">30</td><td>combat (kills)</td></tr>
+  <tr><td>1st armor / defending</td><td class="num">20 / 10</td><td>worn + combat</td></tr>
+  <tr><td>1st / 2nd / 3rd lore</td><td class="num">20 / 20 / 10</td><td>scholarship / appraisal</td></tr>
+  <tr><td>1st–4th survival</td><td class="num">10 each</td><td>wilds use</td></tr>
+</table>
+<p>
+<strong>Key difference from barbarian:</strong> barbarian's gate is almost entirely combat-exp ranks
+(weapon/armor/parry/evasion/survival). Warmage's is dominated by <em>magic</em> ranks, so the exp path is
+a casting loop gated by <strong>mana regen cadence</strong> — a second pacing dimension barbarian doesn't have.
+The circling kaizen handles TDP conversion identically, but the exp-<em>rank</em> gate closes slower unless
+a casting loop sustains.
+</p>
+
+<h2>The remaining blocker buckets</h2>
+<table>
+  <tr><th>Bucket</th><th>Gap to circle 2</th><th>Root cause</th></tr>
+  <tr><td><b>Navigation (bazaar stall)</b></td><td>agents park at <code>room bazaar</code>, 0 progress for the whole run</td><td>The dominant warmage wall. Town-strand breaker fires but agents re-drift; origin-gated arrival + bazaar <code>ife</code> guard insufficient. Warmages are the ones that stall hardest.</td></tr>
+  <tr><td><b>Magic-rank accrual</b></td><td>1st magic / 2nd magic / targeted_magic / summoning all 0</td><td>No sustained casting loop yet — needs a spell rotation that regens mana between casts and actually lands hits. Mana is the second pacing dimension.</td></tr>
+  <tr><td>Kill rate / spawn availability</td><td>parry / 1st weapon / armor ranks come from kills</td><td>Same as barbarian: 25s respawns, anti-camp throttle at ≥14/5min/room → +120s, <code>DR_SPAWN_MULT</code> for sweep density. Arena spread already done.</td></tr>
+  <tr><td>Circling loop (kaizen, shared)</td><td>built — drain + re-attempt <code>circle</code> in one hall visit</td><td>Guild-agnostic; verified engaging on barbarian in zrmn (186 ranks). Unmeasured on warmage — will apply automatically once an agent reaches the hall with a near-closed gate.</td></tr>
+</table>
+
+<h2>Spawn availability — shared wall</h2>
+<ul>
+  <li>Respawn tick every <code>25s</code>; anti-camp throttle pushes respawns to <code>+120s</code> past ≥14 respawns in 5 min per room ("the hunting here has grown thin").</li>
+  <li>Quiet world has plenty; starvation only under crowd contention. For warmage the immediate limit is the <em>cast</em> cadence, not creatures — but once it hunts, the same density lever (<code>DR_SPAWN_MULT</code>) applies.</li>
+</ul>
+
+<h2>Long-term goals</h2>
+<h3>Near term — first reliable hunt <span class="pill now">active focus</span></h3>
+<ul>
+  <li><strong>Kill the bazaar stall for warmage.</strong> Make the origin-gated arrival + bazaar guard hold — warmage is the guild that wedges hardest. Until an agent fights, nothing else can be measured.</li>
+  <li><strong>Stand up a casting loop.</strong> A spell rotation that regens mana between casts and lands damage — this is what accrues the magic ranks that are most of the circle-2 gate.</li>
+  <li><strong>Reuse the circling kaizen.</strong> It's shared; once warmage reaches a near-closed gate at the hall, drain + re-attempt should fire without new work. Confirm with a real run.</li>
+</ul>
+
+<h3>Mid term — efficient circling machine</h3>
+<ul>
+  <li><strong>Establish a warmage baseline variant</strong> (none exists) — the first thing the leaderboard can rank.</li>
+  <li><strong>Cast-rate tuning:</strong> shorten mana idle, widen the spell rotation, verify targeted_magic / summoning accrue without wedging.</li>
+  <li><strong>Variance collapse</strong> across ≥6 repeats, same discipline as barbarian.</li>
+</ul>
+
+<h3>Long term — generalizes to every guild</h3>
+<ul>
+  <li><strong>Circle 10 warrior mage</strong> — full 89-slot spell tree, Aethereal Pathways, talisman familiars.</li>
+  <li><strong>Per-guild kaizen kits</strong>: warmage gets its own signature-slot rules + fidelity checks (familiars, attunements, Summon Weapon). Plumbing is guild-agnostic already.</li>
+  <li><strong>Fidelity ledger as acceptance criteria</strong> for all ten remaining guilds; <strong>continuous benchmarking</strong> to flag pacing regressions.</li>
+</ul>
+
+<h2>Iteration log — what each change bought</h2>
+<table>
+  <tr><th>Change</th><th>Fix / hypothesis</th><th>Measured result</th></tr>
+  <tr><td>Nav fixes (parallel session, this arc)</td><td>Hub-gated ladder legs, origin-gated arrival, bazaar guard, arrival regen, town-strand breaker (45s idle → re-path).</td><td class="metric-warn">breaker fires, but warmage/human + warmage/halfling still wedged at bazaar in zrmn (0 ranks). Insufficient for warmage.</td></tr>
+  <tr><td><b>Circling kaizen (this arc, shared)</b></td><td><code>buildCircleScript</code> re-attempts <code>circle</code> after one TDP-curriculum drain — guild-agnostic.</td><td class="metric-good">verified engaging on barbarian (zrmn, 186 ranks). Inherited by warmage; unmeasured until it hunts.</td></tr>
+  <tr><td><code>zrmn</code> run</td><td>First warmage data point post nav-fixes: 3 warmages · 15 min · boost ×20.</td><td class="metric-warn">0 circle-ups. 2/3 wedged at bazaar, 1/3 slow (0 kills, 15 ranks). Confirms nav + cast-loop are the walls.</td></tr>
+</table>
+
+<h2>Open risks &amp; honest caveats</h2>
+<ul>
+  <li><strong>Warmage has no circle data at all</strong> — no baseline, no champion, no variant. Every projection for it is pre-measurement.</li>
+  <li><strong>Navigation still regresses hardest here:</strong> warmage is the guild that wedges at the bazaar. This must be solved before any other metric means anything.</li>
+  <li><strong>Two pacing dimensions:</strong> barbarian's gate is combat-exp; warmage's is mostly <em>mana-gated magic</em> ranks. Even with perfect nav, circle-2 time depends on cast cadence, which is untested.</li>
+  <li><strong>Measurement has repeatedly lied to us</strong> — grep counts and truncated logs are not ground truth; the DB + harness probes are. See <a href="/sim-architecture.html">sim architecture §7</a>.</li>
+</ul>
+
+<footer style="margin-top:3rem;color:var(--dim);font-size:.85em">
+Warrior Mage scripting roadmap · referenced in <code>scripts/race-guild-sweep.mjs</code>, <code>scripts/lib/script-gen.mjs</code>, <code>data/guild-scripts.js</code>, <code>server/game.js</code> · companion pages: <a href="/sim-architecture.html">sim architecture</a>, <a href="/sims.html">sims dashboard</a>, <a href="/barbarian-roadmap.html">barbarian roadmap</a>, <a href="/ROADMAP.html">full roadmap</a>
+</footer>
+
+</body>
+</html>
