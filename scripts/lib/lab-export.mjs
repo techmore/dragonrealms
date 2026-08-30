@@ -45,6 +45,7 @@ export function buildLabData() {
         firstExpSec: (pick('firstExpMs') && r[pick('firstExpMs')])
           ? Math.round(r.firstExpMs / 1000) : null,
         rankSplits: parse('rankSplits'),
+        expRateSamples: parse('expRateSamples'),
         circleTimes: parse('circleTimes'),
         stallVerdict: r.stallVerdict || null,
         stallReason: r.stallReason || null,

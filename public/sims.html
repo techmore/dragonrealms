@@ -430,7 +430,7 @@
         <label for="ag-guild" class="sub">guild</label>
         <select id="ag-guild"></select>
         <label for="ag-minutes" class="sub">minutes</label>
-        <input id="ag-minutes" type="number" min="1" max="720" value="10" style="width:64px">
+        <input id="ag-minutes" type="number" min="1" max="720" value="30" style="width:64px">
         <label for="ag-circle" class="sub" title="sim stops itself when this circle is reached">target circle</label>
         <input id="ag-circle" type="number" min="1" max="20" value="2" style="width:56px">
         <label for="ag-boost" class="sub" title="test-only server boost: multiplies skill exp, rank conversion, and rest recovery">exp boost <span class="sub">(test-only)</span></label>
@@ -884,6 +884,7 @@
           refusals: s.refusals ?? null,
           // real early-velocity signal: ms to reach each of the first few ranks
           rankSplits: Array.isArray(s.rankSplits) && s.rankSplits.length ? s.rankSplits : null,
+          expRateSamples: Array.isArray(s.expRateSamples) ? s.expRateSamples : null,
           timeToCircleMs: s.timeToCircleMs ?? null,
           mode: s.mode || null, concurrency: s.concurrency ?? null,
           comparisonType: s.comparisonType || null, targetCircle: s.targetCircle ?? null,

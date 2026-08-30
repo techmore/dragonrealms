@@ -22,7 +22,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { openSweepsDb, insertSweep } from './lib/sweeps-db.mjs';
 import { classifyStall, verdictLabel } from './lib/stall-detect.mjs';
 import { pad, median, fmtMin, fmtMs } from './lib/report-utils.mjs';
-import { circleRequirements } from '../data/guilds.js';
+import { circleRequirements, circleRequirementNeeds } from '../data/guilds.js';
 // Display-name -> skill-id map for parsing `exp` output. showExp() prints the
 // human label ("Parry Ability", "Melee Mastery"), not the id.
 const { SKILLS } = await import('../data/skills.js');
@@ -35,7 +35,7 @@ const flag = (name, dflt) => {
   const i = ARGS.indexOf('--' + name);
   return i >= 0 ? ARGS[i + 1] : dflt;
 };
-// Run length: default depends on mode (10m ad-hoc/sweep, 20m per benchmark
+// Run length: default depends on mode (10m ad-hoc/sweep, 30m per benchmark
 // variant) — resolved after plan parsing below.
 let MINUTES = Number(flag('minutes', NaN));
 // Leveling-lab target: benchmark mode defaults to the full 1->10 climb;
@@ -43,6 +43,8 @@ let MINUTES = Number(flag('minutes', NaN));
 // parsing below so `--circle` still overrides either.
 let CIRCLE_TARGET = Number(flag('circle', NaN));
 const BOOST = Number(flag('boost', 20)); // agent speed multiplier (0/1 = off)
+const FAST = ARGS.includes('--fast');
+const DEFAULT_BENCH_MINUTES = 30;
 const PASS = 'SweepRun1!';
 // Per-invocation run id: 4 random lowercase letters appended to every
 // character name AND to the account username so concurrent sweeps never
@@ -108,10 +110,12 @@ if (ARGS.includes('--all')) {
   // live agent at a time) to avoid spawn contention skewing the timings.
   const g = BENCH_GUILD;
   if (!ALL_GUILDS.includes(g)) { console.error(`unknown guild "${g}" — have: ${ALL_GUILDS.join(', ')}`); process.exit(1); }
-  if (!Number.isFinite(MINUTES)) MINUTES = 20;
+  if (!Number.isFinite(MINUTES)) MINUTES = DEFAULT_BENCH_MINUTES;
   // --variants v1,v2 subsets the matrix; default runs every defined variant.
   const names = (flag('variants', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const pick = names.length ? names : Object.keys(VARIANTS);
+  const pick = names.length ? names : FAST
+    ? ['baseline', 'edgedBowAware', 'edgedSkinAware']
+    : Object.keys(VARIANTS);
   for (const vn of pick) {
     if (!VARIANTS[vn]) { console.error(`unknown variant "${vn}" — have: ${Object.keys(VARIANTS).join(', ')}`); process.exit(1); }
   }
@@ -245,6 +249,8 @@ class SweepAgent {
     this.RANK_SPLITS = [5, 10, 15];
     // Circle-gap closure telemetry ([gaps] samples; shortfallFirst/Last).
     this.gapsSamples = [];
+    this.expRateSamples = [];
+    this.expRatePrevious = null;
     this.shortfallFirst = null;
     // Flat-progress tracking (drives the flat-progress breaker below):
     // kills+exp-ranks+room sampled each minute against this key/timer.
@@ -1173,6 +1179,39 @@ class SweepAgent {
     return sample;
   }
 
+  // Per-interval EXP telemetry: total-rank deltas expose where a script is
+  // converting learning into ranks, while `over` flags high-ranked skills
+  // outside the next-circle requirement set.
+  expRateLine(sample) {
+    const v = this.session.vitals;
+    const previous = this.expRatePrevious;
+    const elapsedMin = previous ? Math.max(1, sample.m - previous.m) : 1;
+    const delta = previous && sample.ranks != null && previous.ranks != null
+      ? sample.ranks - previous.ranks : 0;
+    const rate = delta / elapsedMin;
+    const skills = { ...(v.skills || {}), ...(this.expRanks || {}) };
+    const shaped = Object.fromEntries(Object.entries(skills).map(([id, rank]) => [id, { rank }]));
+    let needed = new Set();
+    try {
+      needed = new Set(circleRequirementNeeds({ id: this.guild }, shaped, (v.circle || 1) + 1)
+        .map((entry) => entry.skill));
+    } catch {}
+    const over = Object.entries(skills)
+      .filter(([id, rank]) => Number(rank) >= 8 && !needed.has(id))
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([id, rank]) => `${id}=${rank}`);
+    const record = {
+      m: sample.m, totalRanks: sample.ranks, delta,
+      ranksPerMin: Math.round(rate * 100) / 100,
+      shortfall: sample.shortfall, blocked: sample.blocked,
+      overtrained: over,
+    };
+    this.expRateSamples.push(record);
+    this.expRatePrevious = sample;
+    return `[exp-rate] ${sample.m}m totalRanks:${sample.ranks} delta:${delta} rate:${record.ranksPerMin}/min shortfall:${sample.shortfall} blocked:${sample.blocked} over:${over.join(',') || '-'}`;
+  }
+
   async finish(reason) {
     if (this.done) return;
     this.done = true;
@@ -1240,6 +1279,7 @@ class SweepAgent {
       shortfallFirst: this.shortfallFirst ?? null,
       shortfallLast: gapTelemetry.shortfall,
       gapsSamples: this.gapsSamples,
+      expRateSamples: this.expRateSamples,
       fidelity: this.fidelity, fidelityScore: `${checksPassed}/${checksTotal}`,
       grade,
     };
@@ -1300,6 +1340,7 @@ class SweepAgent {
         circleTimes: this.circleTimes,
         char: this.char,
         totalRanks: this.totalRanksAtFinish ?? null,
+        expRateSamples: summary.expRateSamples,
       });
       // Leveling-lab columns (guarded migration keeps older DBs working).
       try {
@@ -1382,6 +1423,7 @@ class SweepAgent {
       this.appendLog(line);
       const s = this.sampleGaps(line);
       if (s) {
+        this.appendLog(this.expRateLine(s));
         // Liveness vs progress: `exp`/`look` SENDS refresh lastSendAt, so the
         // 90s-silence breaker cannot catch a starving agent that keeps talking.
         // Measured wedge (runs 2/3 of A/B ab30b): post-death respawn in a

@@ -57,6 +57,9 @@ const EXTRA_COLUMNS = {
   // waiting (possibly forever) for an actual circle-up.
   shortfall: 'INTEGER',
   blocked: 'INTEGER',
+  // Per-minute total-rank deltas/rates and high-ranked skills outside the
+  // next-circle requirement set.
+  expRateSamples: 'TEXT',
 };
 
 function migrateSweepsColumns(db) {
@@ -78,7 +81,8 @@ export function insertSweep(db, r) {
     if (r[col] === undefined) continue;
     cols.push(col);
     // circleTimes is stored as its JSON encoding; everything else passes through.
-    vals.push(col === 'circleTimes' ? JSON.stringify(r[col]) : (r[col] ?? null));
+    vals.push((col === 'circleTimes' || col === 'expRateSamples')
+      ? JSON.stringify(r[col]) : (r[col] ?? null));
   }
   const placeholders = cols.map(() => '?').join(', ');
   db.prepare(`INSERT INTO sweeps (${cols.join(', ')}) VALUES (${placeholders})`).run(...vals);
