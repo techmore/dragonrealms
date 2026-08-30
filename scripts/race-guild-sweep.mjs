@@ -14,7 +14,7 @@
 //   4. Fidelity events (spell casts, khri, enchantes, circle-ups...) are
 //      parsed from player-facing prose and appended to
 //      public/live/fidelity-<guild>.log plus a JSON summary line.
-import { mkdirSync, appendFileSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
@@ -22,6 +22,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { openSweepsDb, insertSweep } from './lib/sweeps-db.mjs';
 import { classifyStall, verdictLabel } from './lib/stall-detect.mjs';
 import { pad, median, fmtMin, fmtMs } from './lib/report-utils.mjs';
+import { refreshLiveIndex } from './lib/live-index.mjs';
 import { circleRequirements, circleRequirementNeeds } from '../data/guilds.js';
 // Display-name -> skill-id map for parsing `exp` output. showExp() prints the
 // human label ("Parry Ability", "Melee Mastery"), not the id.
@@ -268,12 +269,8 @@ class SweepAgent {
 
   appendLog(line) {
     try { appendFileSync(this.logPath, line + '\n'); } catch {}
-    // Update index.json so the /sims.html live panel discovers this log
-    try {
-      const names = readdirSync(LIVE_DIR).filter((f) => f.endsWith('.log'))
-        .map((f) => f.replace(/\.log$/, '')).sort();
-      writeFileSync(join(LIVE_DIR, 'index.json'), JSON.stringify(names));
-    } catch {}
+    // Avoid rescanning and sorting every historical log after every line.
+    try { refreshLiveIndex(LIVE_DIR); } catch {}
   }
 
   diskAdj() { return (id) => Object.entries(ROOMS[id]?.exits || {}).map(([dir, to]) => ({ dir, to })); }
