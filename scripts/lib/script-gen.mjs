@@ -577,6 +577,36 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
   // prose will ever match — an untimed matchwait wedges here until the
   // external watchdog restarts the whole cycle ~90s later.
   L.push('  matchwait 8');
+  // IDLE-SCAN SCHEDULE (muse-d follow-up): event-placed verbs (post-kill and
+  // chained-kill forage) measured 0 sends across 26 kills — populated arenas
+  // never present those moments. But the matchwait-timeout fall-through below
+  // provably executes on every empty scan, so hang a 3-cycle rotation here:
+  // every 3rd empty scan fires one training verb, alternating forage/hunt.
+  // Both are legal in every sweep arena (sewers IS a wild zone) and each use
+  // grants exp unconditionally (foraging 3-8, perception 3-6) — the two
+  // survival-Nth inputs sitting at 0 while combat over-gains skinning.
+  L.push('SCAN_IDLE_1:');
+  L.push('  if_3 goto SCAN_IDLE_2');
+  L.push('  setvariable 3 1');
+  L.push('  goto SCAN_AFTER_IDLE');
+  L.push('SCAN_IDLE_2:');
+  L.push('  if_4 goto SCAN_IDLE_3');
+  L.push('  setvariable 4 1');
+  L.push('  setvariable 3');
+  L.push('  goto SCAN_AFTER_IDLE');
+  L.push('SCAN_IDLE_3:');
+  L.push('  setvariable 4');
+  L.push('  setvariable 3');
+  L.push('  if_6 goto SCAN_IDLE_HUNT');
+  L.push('  setvariable 6 1');
+  L.push('  put forage');
+  L.push('  wait');
+  L.push('  goto SCAN_AFTER_IDLE');
+  L.push('SCAN_IDLE_HUNT:');
+  L.push('  setvariable 6');
+  L.push('  put hunt');
+  L.push('  wait');
+  L.push('SCAN_AFTER_IDLE:');
   if (cap.sharedFight) {
     for (const sp of species) {
       const key = sp.replace(/\W/g, '_');
