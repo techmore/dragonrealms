@@ -3,12 +3,15 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   auth, db, createCharacter, loadPlayer, Game, handleCommand, fakeWs, game,
-  setupGame, teardownGame, MAX_CHARS,
+  setupGame, teardownGame, MAX_CHARS, reviveRoomSpawns,
 } from './helpers.mjs';
 // Walk a player along the derived grid path between rooms (layout-agnostic).
+// Revives the destination room's spawns — C1 makes kills deplete rooms, and
+// the suite teleports without waiting for restock.
 import { findPath } from '../data/grid.js';
 function walk(game, p, to) {
   for (const step of findPath(p.room, to)) game.move(p, step);
+  reviveRoomSpawns(game, p.room);
 }
 
 
@@ -231,7 +234,7 @@ test('deletechar removes another character but not yourself', async () => {
   game.removePlayer(p);
 });
 
-test('TDPs: earned from rank-ups, spent on stats and any skill', async () => {
+test('TDPs: earned from rank-ups and spent on stats', async () => {
   const { gainSkillExp, skillRank, pulseExp, applyExpToSkill } = await import('../server/player.js');
   const { expToNextRank } = await import('../data/skills.js');
   const acc = await auth.registerAccount('Tdptest', 's3cretword');
@@ -278,11 +281,12 @@ test('TDPs: earned from rank-ups, spent on stats and any skill', async () => {
   handleCommand(game, p, 'train wis');
   assert.equal(p.stats.wis, wisBefore + 1, 'second train commits the raise');
 
-  // Train a non-guild skill with TDPs.
-  const tdpTrainCost = (await import('../server/player.js')).tdpTrainCost(0);
-  p.tdp += tdpTrainCost;
-  handleCommand(game, p, 'tdptrain holy_magic'); // warmage does not train holy_magic
-  assert.ok(skillRank(p, 'holy_magic') === 1, 'tdptrain works on any skill');
+  // TDPs are not a skill-experience shortcut.
+  const holyBefore = skillRank(p, 'holy_magic');
+  const tdpBeforeReject = p.tdp;
+  handleCommand(game, p, 'tdptrain holy_magic');
+  assert.equal(skillRank(p, 'holy_magic'), holyBefore, 'TDP training cannot raise skills');
+  assert.equal(p.tdp, tdpBeforeReject, 'rejected TDP skill training spends nothing');
 
   game.removePlayer(p);
 });

@@ -27,7 +27,7 @@ const SUPERNATURAL = ['augmentation', 'debilitation', 'targeted_magic', 'utility
 
 async function barb(name) {
   const acc = await auth.registerAccount(name + 'Acct', 's3cretword');
-  const charId = createCharacter(acc.accountId, { name, race: 'giantman', guild: 'barbarian' });
+  const charId = createCharacter(acc.accountId, { name, race: 'gortog', guild: 'barbarian' });
   const p = loadPlayer(charId);
   p.ws = fakeWs();
   game.addPlayer(p);

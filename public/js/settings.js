@@ -7,7 +7,7 @@ const SETTINGS_KEY = 'dr_settings';
 export const settings = Object.assign({
   theme: 'dark', font: 14, dpad: true, colors: {},
   fontFamily: 'mono', lineHeight: 1.45, autoscroll: true, condensed: true,
-  statusstrip: null, haptics: true, macrobar: true, exits: true,
+  statusstrip: null, haptics: true, macrobar: true, exits: true, expblips: true,
   timestamps: false,
   soundAlerts: false,
   scrollback: 2000,
@@ -64,6 +64,7 @@ export function applySettings() {
   $('set-haptics').checked = settings.haptics;
   $('set-autoscroll').checked = settings.autoscroll;
   $('set-condensed').checked = settings.condensed;
+  $('set-expblips').checked = settings.expblips;
   $('set-macrobar').checked = settings.macrobar;
   $('set-statusstrip').checked = stripEffective();
   $('set-exits').checked = settings.exits;
@@ -98,6 +99,7 @@ bind('set-dpad', 'dpad');
 bind('set-haptics', 'haptics');
 bind('set-autoscroll', 'autoscroll');
 bind('set-condensed', 'condensed');
+bind('set-expblips', 'expblips');
 bind('set-macrobar', 'macrobar');
 bind('set-statusstrip', 'statusstrip');
 bind('set-exits', 'exits');

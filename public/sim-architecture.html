@@ -176,8 +176,9 @@ SCAN_DONE:       wait ; pause 3
   <h2>3 · Variants — the knobs we A/B</h2>
   <p>
     A variant is a named parameter set applied to the generated scripts and the
-    supervisor interlocks. Benchmark mode runs each variant N times, strictly
-    sequentially, so concurrent agents never contend for spawns and skew timings.
+    supervisor interlocks. Benchmark mode uses a canonical race and paired
+    chargen allocation. It is sequential by default for clean pacing; use
+    <code>--concurrency N</code> for an explicitly crowded-world cohort.
   </p>
   <table>
     <tr>
@@ -478,20 +479,28 @@ augmentation 0 / warding 0          <span class="bad">← roar was refused 417/4
 
 <section id="running">
   <h2>8 · Running it</h2>
-  <pre><span class="dim"># single guild, one variant, long enough to actually circle</span>
+  <pre><span class="dim"># canonical barbarian benchmark: Gor'Tog + paired 30-point allocation</span>
 node scripts/race-guild-sweep.mjs --benchmark barbarian \
-  --variants baseline --races giantman --repeats 1 --minutes 30
+  --variants baseline --repeats 1 --minutes 30
 
-<span class="dim"># A/B two variants, 3 repeats each</span>
+<span class="dim"># A/B two variants, 3 paired repeats (same stat build per repeat)</span>
 node scripts/race-guild-sweep.mjs --benchmark barbarian \
-  --variants baseline,baseline_v2 --races giantman --repeats 3 --minutes 25
+  --variants baseline,baseline_v2 --repeats 3 --minutes 25
+
+<span class="dim"># optional seeded stat variation; every variant shares each repeat's roll</span>
+node scripts/race-guild-sweep.mjs --benchmark barbarian \
+  --variants baseline,diversity2 --stat-policy paired-random-v1 --repeats 3 --minutes 25
+
+<span class="dim"># explicit race robustness cohort (kept separate from the canonical leaderboard)</span>
+node scripts/race-guild-sweep.mjs --benchmark barbarian --race-matrix \
+  --variants baseline --repeats 1 --minutes 25
 
 <span class="dim"># read history back as a table</span>
 node scripts/race-guild-sweep.mjs --report
 
 <span class="dim"># watch a run live</span>
-tail -f public/live/fidelity-barbarian-baseline-giantman.log
-grep -E '\[gaps\]' public/live/fidelity-barbarian-baseline-giantman.log</pre>
+tail -f public/live/fidelity-barbarian-baseline-gortog.log
+grep -E '\[gaps\]' public/live/fidelity-barbarian-baseline-gortog.log</pre>
   <h3>Pre-flight checklist</h3>
   <ul>
     <li>World up on :3000 and freshly restarted if server code changed.</li>

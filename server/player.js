@@ -4,6 +4,7 @@ import { raceById } from '../data/races.js';
 import { guildById, spellsFor } from '../data/guilds.js';
 import { SKILLS, expToNextRank, pulseGroupFor, mentalStatBonus } from '../data/skills.js';
 import { itemById, itemWeight } from '../data/items.js';
+import { ROOMS } from '../data/world.js';
 
 export const BASE_STAT = 35;
 export const STAT_POOL = 30;
@@ -158,7 +159,13 @@ export function createCharacter(accountId, { name, race, guild, city = 'crossing
   const statsObj = { ...stats, unspent: STAT_POOL };
   const maxHp = 40 + stats.con * 2 + stats.str;
   const startMana = g.magic ? Math.floor(20 + stats.wis * 2 + stats.int + stats.dis) : 0;
-  const startRoom = CITIES[city] || CITIES.crossing;
+  let startRoom = CITIES[city] || CITIES.crossing;
+  // Rangers are wilderness hunters: they begin on the pine-needle path by the
+  // Ranger Guildhall (a wilds room next to the woods hunting grounds) rather
+  // than the town square. The room is reachable from the bazaar/town graph and
+  // lets the guild's `track` signature fire in-zone during the sweep. Home city
+  // stays Crossing so `home`/bank recall still resolve.
+  if (g?.id === 'ranger' && ROOMS.pine_needle_path) startRoom = 'pine_needle_path';
   const homeCity = Object.keys(CITIES).find((k) => CITIES[k] === startRoom) || 'crossing';
   const info = db.prepare(`
     INSERT INTO characters
@@ -297,7 +304,15 @@ export function loadPlayer(charId) {
     const item = itemById(inv.item_id);
     if (!item) continue;
     if (isStackableItem(item)) {
-      player.inventory.push({ id: inv.id, item, qty: inv.qty, ...(inv.bundle ? { bundle: JSON.parse(inv.bundle) } : {}) });
+      // A corrupted bundle value must not brick the character's load: degrade
+      // to an unbundled stack, the same shape a missing bundle produces.
+      let bundle = null;
+      try {
+        bundle = inv.bundle ? JSON.parse(inv.bundle) : null;
+      } catch {
+        bundle = null;
+      }
+      player.inventory.push({ id: inv.id, item, qty: inv.qty, ...(bundle ? { bundle } : {}) });
       continue;
     }
 
@@ -377,14 +392,37 @@ export function netBurden(p) {
   return Math.max(0, totalBurden(p) - carryAllowance(p));
 }
 
-export function savePlayer(p) {
-  db.prepare(`
+let saveStmts;
+function playerSaveStatements() {
+  if (saveStmts) return saveStmts;
+  saveStmts = {
+    character: db.prepare(`
     UPDATE characters SET
       circle=?, str=?, con=?, ref=?, agi=?, cha=?, dis=?, wis=?, int=?,
       unspent_stat=?, mana=?, tdp=?, tdp_pool=?, stance=?, pvp_stance=?, rexp=?,
       stamina=?, soul=?, empathic_stain=?, devotion=?, exp_pools=?, home_city=?, silver=?, bank=?, room=?, hp=?, max_hp=?, warrant=?, patron=?, element=?, caravan=?, link=?, achievements=?, techniques=?, persistent_state=?
     WHERE id=?
-  `).run(
+  `),
+    skill: db.prepare(`
+      INSERT INTO skills (character_id, skill_id, rank, exp) VALUES (?,?,?,?)
+      ON CONFLICT(character_id, skill_id) DO UPDATE SET rank=excluded.rank, exp=excluded.exp
+    `),
+    equipment: db.prepare('UPDATE equipment SET condition=?, quality=?, maker=? WHERE character_id=? AND slot=?'),
+    inventory: db.prepare('UPDATE inventory SET condition=?, quality=?, maker=? WHERE id=? AND character_id=?'),
+    quest: db.prepare(`
+      INSERT INTO character_quest (character_id, creature_id, count, done, state) VALUES (?,?,?,?,?)
+      ON CONFLICT(character_id) DO UPDATE SET creature_id=excluded.creature_id, count=excluded.count, done=excluded.done, state=excluded.state
+    `),
+    deleteQuest: db.prepare('DELETE FROM character_quest WHERE character_id=?'),
+  };
+  return saveStmts;
+}
+
+export function savePlayer(p) {
+  const stmts = playerSaveStatements();
+  db.exec('BEGIN');
+  try {
+    stmts.character.run(
     p.circle, p.stats.str, p.stats.con, p.stats.ref, p.stats.agi, p.stats.cha,
     p.stats.dis, p.stats.wis, p.stats.int, p.unspentStat, p.mana, p.tdp || 0,
     p.tdpPool || 0, p.stance || 'balanced', p.pvpStance || 'guarded', p.rexp || 0,
@@ -395,33 +433,31 @@ export function savePlayer(p) {
     p.empathLink ? JSON.stringify(p.empathLink) : null,
     JSON.stringify(p.achievements || []), JSON.stringify(p.techniques || []),
     JSON.stringify(persistentStateFor(p)), p.charId
-  );
-  const ins = db.prepare(`
-    INSERT INTO skills (character_id, skill_id, rank, exp) VALUES (?,?,?,?)
-    ON CONFLICT(character_id, skill_id) DO UPDATE SET rank=excluded.rank, exp=excluded.exp
-  `);
-  for (const [skillId, s] of Object.entries(p.skills)) ins.run(p.charId, skillId, s.rank, s.exp);
+    );
+    for (const [skillId, s] of Object.entries(p.skills)) {
+      stmts.skill.run(p.charId, skillId, s.rank, s.exp);
+    }
 
-  // Persist equipment condition (durability) alongside everything else.
-  for (const [slot, item] of Object.entries(p.equipment || {})) {
-    const metadata = instanceMetadata(item);
-    db.prepare('UPDATE equipment SET condition=?, quality=?, maker=? WHERE character_id=? AND slot=?')
-      .run(metadata.condition, metadata.quality, metadata.maker, p.charId, slot);
-  }
-  for (const entry of p.inventory || []) {
-    if (isStackableItem(entry.item)) continue;
-    const metadata = instanceMetadata(entry);
-    db.prepare('UPDATE inventory SET condition=?, quality=?, maker=? WHERE id=? AND character_id=?')
-      .run(metadata.condition, metadata.quality, metadata.maker, entry.id, p.charId);
-  }
+    // Persist equipment condition (durability) alongside everything else.
+    for (const [slot, item] of Object.entries(p.equipment || {})) {
+      const metadata = instanceMetadata(item);
+      stmts.equipment.run(metadata.condition, metadata.quality, metadata.maker, p.charId, slot);
+    }
+    for (const entry of p.inventory || []) {
+      if (isStackableItem(entry.item)) continue;
+      const metadata = instanceMetadata(entry);
+      stmts.inventory.run(metadata.condition, metadata.quality, metadata.maker, entry.id, p.charId);
+    }
 
-  if (p.quest) {
-    db.prepare(`
-      INSERT INTO character_quest (character_id, creature_id, count, done, state) VALUES (?,?,?,?,?)
-      ON CONFLICT(character_id) DO UPDATE SET creature_id=excluded.creature_id, count=excluded.count, done=excluded.done, state=excluded.state
-    `).run(p.charId, p.quest.creatureId || '', p.quest.count || 0, p.quest.done ? 1 : 0, JSON.stringify(p.quest));
-  } else {
-    db.prepare('DELETE FROM character_quest WHERE character_id=?').run(p.charId);
+    if (p.quest) {
+      stmts.quest.run(p.charId, p.quest.creatureId || '', p.quest.count || 0, p.quest.done ? 1 : 0, JSON.stringify(p.quest));
+    } else {
+      stmts.deleteQuest.run(p.charId);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch {}
+    throw error;
   }
 }
 
@@ -694,7 +730,10 @@ export function removeAlias(p, name) {
 
 // ---- Per-character DR scripts (client automation, server-persisted) ----
 const SCRIPT_NAME_RE = /^[a-z0-9_]{1,24}$/;
-const SCRIPT_MAX_BODY = 8000;
+// Generated benchmark hunt scripts can contain a broad empty-room ladder and
+// defensive weapon/armor checks. Keep this below the WS 64 KiB frame budget
+// while leaving room for those human-readable scripts.
+const SCRIPT_MAX_BODY = 16000;
 const SCRIPT_MAX_COUNT = 50;
 
 function writeScriptsNow(p) {
@@ -900,9 +939,4 @@ export function tdpAwardFor(circle) {
 // TDP cost to raise a stat by one point.
 export function statRaiseCost(current) {
   return Math.max(10, Math.floor(current * 0.6));
-}
-
-// TDP cost to bank one rank's worth of experience in a skill.
-export function tdpTrainCost(rank) {
-  return 4 + rank * 3;
 }

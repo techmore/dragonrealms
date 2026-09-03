@@ -7,8 +7,8 @@
 // drives the actual server over the wire protocol — register/login, chargen,
 // {t:'input'} commands, full message stream — exactly like a human client,
 // so it exercises auth, sessions, rate limiting, command dispatch, and the
-// combat tickers. No ?bot=1 flag: the characters are indistinguishable from
-// ordinary players in every status surface.
+// combat tickers. The connection self-identifies via ?bot=1 (roster tagging
+// for dashboards); it plays through the identical protocol stack.
 //
 // Progress appends to public/live/sim-<guild>.log (the admin jobs tailer
 // picks these up), and the characters are online, so GM Watch renders their
@@ -419,13 +419,11 @@ class LiveSim {
     if (this.mode === 'hallwait') return; // circle response inbound
 
     if (this.mode === 'training') {
-      if (this.room !== 'hall_' + this.guild) return this.setMode('goHall');
-      const q = this.trainQueue[0];
-      if (!q) {
-        this.setMode('hallwait');
-        return this.cmd('circle'); // requirements may be met now
-      }
-      return this.cmd(`tdptrain ${q.skill}`);
+      // TDPs train attributes only. Skill requirements must be earned through
+      // actual combat, field work, or guild training, so do not issue a
+      // non-canonical tdptrain command here.
+      this.setMode('hallwait');
+      return this.cmd('circle');
     }
 
     // hunt mode: walk spawn routes; every few kills, visit the hall to

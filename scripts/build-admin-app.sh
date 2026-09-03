@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP=bin/admin/dragonrealms-admin
+APP=bin/admin/dragonrealms-admin.app
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 swiftc -O admin/main.swift -o "$APP/Contents/MacOS/dradmin"

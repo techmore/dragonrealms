@@ -55,38 +55,24 @@ test('%tdp is readable after a balance print (var substitution)', () => {
   assert.ok(r.__seen.some((l) => l === 'HAVE_12'), `echo should substitute the balance, saw: ${JSON.stringify(r.__seen)}`);
 });
 
-test('generated circle script probes tdp, gates each train, labels BACK', () => {
+test('generated circle script probes tdp and does not use it as skill experience', () => {
   const src = buildCircleScript({
     cap: { guild: 'barbarian', race: 'human', char: 'Test', scriptBase: 'tb' },
     fromArena: { hall: [{ dir: 'n', to: 'hall_barbarian' }], back: [{ dir: 's', to: 'square' }] },
   });
   assert.match(src, /^  put tdp$/m, 'probes the balance on arrival');
-  assert.match(src, /iflt tdp 8 goto BACK/, 'gates on the floor');
   assert.match(src, /^BACK:$/m, 'has the broke-exit label');
-  const gateCount = (src.match(/iflt tdp 8 goto BACK/g) || []).length;
-  const trainCount = (src.match(/put tdptrain /g) || []).length;
-  assert.ok(gateCount >= trainCount, `every train is followed by an afford gate (${gateCount} gates vs ${trainCount} trains)`);
-  const backIdx = src.search(/^BACK:$/m);
-  const firstGate = src.indexOf('iflt tdp');
-  assert.ok(firstGate >= 0 && firstGate < backIdx, 'pre-train gate fires before any training');
+  assert.doesNotMatch(src, /tdptrain/, 'TDPs cannot train skill experience');
 });
 
-test('barbarian curriculum orders guild-taught skills before off-guild fillers', () => {
+test('barbarian circle script never uses TDPs as skill experience', () => {
   const src = buildCircleScript({
-    cap: { guild: 'barbarian', race: 'human', char: 'Test', scriptBase: 'tb' },
+    cap: { guild: 'barbarian', race: 'human', char: 'Test', scriptBase: 'tb',
+      trainList: ['large_edged', 'scholarship', 'tactics', 'perception'] },
     fromArena: { hall: [{ dir: 'n', to: 'hall_barbarian' }], back: [] },
   });
-  const lines = src.split('\n').filter((l) => l.includes('put tdptrain '))
-    .map((l) => l.trim().replace('put tdptrain ', ''));
-  assert.ok(lines.length > 5, 'curriculum has entries');
-  const taught = new Set(['large_edged', 'twohanded_edged', 'twohanded_blunt', 'light_armor',
-    'fitness', 'evasion', 'blunt', 'large_blunt', 'thrown', 'perception', 'foraging', 'expertise']);
-  const firstUntaught = lines.findIndex((sk) => !taught.has(sk));
-  if (firstUntaught >= 0) {
-    for (const sk of lines.slice(firstUntaught)) {
-      assert.ok(!taught.has(sk), `untaught skill "${lines[firstUntaught]}" must not be followed by taught skill "${sk}"`);
-    }
-  }
+  assert.doesNotMatch(src, /tdptrain/);
+  assert.match(src, /put train /);
 });
 
 test('barbarian fight loop relies on engine WAIT semantics (no hand pauses)', () => {
@@ -206,7 +192,16 @@ test('town errands leg: sells loot at the bazaar, bundles leftovers, walks home'
   assert.match(seg, /put sell rat_pelt/, 'sells the pelt');
   assert.match(seg, /matchre ERRAND_DONE/, 'bails out when nothing is left to sell');
   assert.match(seg, /put bundle rat_pelt/, 'bundles leftovers so burden never blocks moves');
-  assert.match(seg, /ERRAND_DONE:\n  move w/, 'resumes homeward path after errands');
+  // ROOM GATE (qvgp fix): sell/bundle only fire standing AT the bazaar —
+  // fallback hall trips generated from the wrong origin used to dump the
+  // whole loot list into the sewers with no shopkeeper.
+  assert.match(seg, /ifne room bazaar goto ERRAND_SKIPPED/, 'gates errands on actually being at the bazaar');
+  assert.match(seg, /no shopkeeper/, 'sell matcher bails on no-shopkeeper rooms');
+  assert.match(seg, /ERRAND_DONE:\nERRAND_SKIPPED:\n  move w/, 'resumes homeward path after errands');
+  assert.doesNotMatch(seg, /ERRAND_DONE:[\s\S]*move w\n  move s\n  move s\n  exit/,
+    'does not append the hall-to-arena back leg after bazaar-to-arena already returned');
+  assert.equal((seg.match(/  move s/g) || []).length, 1,
+    'return route reaches the arena exactly once');
 });
 
 test('no errands config -> circle script unchanged (backward compatible)', () => {
@@ -236,14 +231,15 @@ test('targetNth picks the exact Nth-ranked blocking pool member per set line', (
   const list = trainListFromMissing(raw, 'barbarian', { targetNth: true, ranks: RANKS });
   // Weapon pool ranked desc: blunt15, thrown10, then zeros.
   // 2nd weapon = thrown (10) — ALREADY satisfied, must NOT be trained.
-  // 3rd weapon = first zero member (large_edged by pool order); 4th = next zero.
+  // 3rd weapon = first zero member (small_edged by the authoritative pool
+  // order); 4th = next zero.
   assert.equal(list.filter((s) => s === 'thrown').length, 0,
     'a satisfied slot is not retrained');
-  assert.ok(list.includes('large_edged'), `3rd-weapon blocker targeted (${list.join(',')})`);
-  assert.ok(list.includes('twohanded_edged'), `4th-weapon blocker targeted (${list.join(',')})`);
-  // Armor pool desc: light_armor9, then stable ties by pool order
-  // (brigandine before chain_armor) -> 2nd-armor blocker = first tie.
-  const armors = ['light_armor', 'brigandine', 'chain_armor', 'shield_usage'];
+  assert.ok(list.includes('small_edged'), `3rd-weapon blocker targeted (${list.join(',')})`);
+  assert.ok(list.includes('medium_edged'), `4th-weapon blocker targeted (${list.join(',')})`);
+  // Armor pool desc: light_armor9, then stable ties by authoritative pool
+  // order (chain_armor before brigandine) -> 2nd-armor blocker = first tie.
+  const armors = ['light_armor', 'chain_armor', 'brigandine', 'shield_usage'];
   assert.ok(armors.includes(list[2]), `3rd entry is the armor blocker (${list.join(',')})`);
   assert.notEqual(list[2], 'light_armor', '1st-armor rank (satisfied) is not retrained');
 });

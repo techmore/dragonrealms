@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dragon Realms — Speedruns: Run &amp; Edit Guide</title>
+<style>
+  :root {
+    --bg:#0c0c0a; --panel:#151510; --line:#2c2c1e;
+    --text:#ddd8b8; --dim:#7c7660; --amber:#e0b34c; --green:#7ac47a;
+    --red:#e05a5a; --blue:#7ab8e0; --purple:#b89ae0;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:ui-monospace, Menlo, Consolas, monospace; font-size:14px;
+    line-height:1.55;
+  }
+  header {
+    position:sticky; top:0; z-index:5; background:var(--panel);
+    border-bottom:1px solid var(--line); padding:14px 20px;
+  }
+  h1 { margin:0 0 4px; font-size:20px; color:var(--amber); letter-spacing:1px; }
+  .sub { color:var(--dim); font-size:12px; }
+  nav { margin-top:8px; font-size:12px; }
+  nav a { color:var(--blue); text-decoration:none; margin-right:14px; }
+  nav a:hover { text-decoration:underline; }
+  main { padding:20px; max-width:1180px; }
+  section { margin-bottom:34px; }
+  h2 {
+    font-size:15px; color:var(--amber); margin:0 0 10px;
+    border-bottom:1px solid var(--line); padding-bottom:6px; letter-spacing:.5px;
+  }
+  h3 { font-size:13px; color:var(--text); margin:18px 0 6px; }
+  p { margin:8px 0; }
+  code {
+    background:#1a1a12; border:1px solid var(--line); border-radius:3px;
+    padding:1px 5px; font-size:12px; color:var(--green);
+  }
+  pre {
+    background:#111109; border:1px solid var(--line); border-radius:4px;
+    padding:11px 13px; overflow-x:auto; font-size:12px; color:var(--dim);
+    margin:8px 0;
+  }
+  pre b { color:var(--text); font-weight:normal; }
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:12px; }
+  th, td {
+    border:1px solid var(--line); padding:5px 9px; text-align:left;
+    vertical-align:top;
+  }
+  th { color:var(--amber); font-weight:normal; background:rgba(224,179,76,.05); }
+  .warn { color:var(--red); }
+  .ok { color:var(--green); }
+  .kaizen { border-left:3px solid var(--amber); padding:6px 12px; margin:10px 0; background:rgba(224,179,76,.04); }
+</style>
+</head>
+<body>
+<header>
+  <h1>SPEEDRUNS — RUN &amp; EDIT GUIDE</h1>
+  <div class="sub">How to launch agent sweeps, read the results, and edit the kaizen stack. Zero dependencies, no build step.</div>
+  <nav>
+    <a href="/sims.html">&larr; Sims board</a>
+    <a href="/admin.html">Admin dash</a>
+    <a href="/sim-architecture.html">Sim architecture</a>
+    <a href="/barbarian-roadmap.html">Barbarian roadmap</a>
+  </nav>
+</header>
+<main>
+
+<section>
+  <h2>1 · Quick start</h2>
+  <p>The world server must be running first (single-instance guarded — a second
+  instance refuses rather than double-binding):</p>
+  <pre>npm start                <b># world on :3000 (curl http://localhost:3000/ → 200)</b></pre>
+  <p>Then launch a sweep. This is the standard 15-minute kaizen pass:</p>
+  <pre>node scripts/race-guild-sweep.mjs <b>--guilds barbarian --races human,gortog,halfling --minutes 15 --boost 20</b></pre>
+  <p>Watch it live: open <a href="/sims.html">/sims.html</a> → <b>03 · Evidence</b> —
+  the live cards sit above the runs table (guild icon + race + script in the
+  title, EXP bar, <code>watch</code> link, expandable metrics). Every agent also
+  streams to <code>?spectate=&lt;char&gt;</code>.</p>
+</section>
+
+<section>
+  <h2>2 · Sweep CLI</h2>
+  <table>
+    <tr><th>Flag</th><th>Meaning</th></tr>
+    <tr><td><code>--guilds a,b,c</code></td><td>Guilds to run. Only guilds with a <code>GUILD_SCRIPTS</code> entry in <code>data/guild-scripts.js</code> are targetable. Comma list, or omit with <code>--all</code>.</td></tr>
+    <tr><td><code>--races a,b,c</code></td><td>Races to cross with each guild. Must exist in <code>data/races.js</code>. Omit with <code>--all</code> to use the curated per-guild <code>RACE_MATRIX</code> (fit / mid / poor stat fits).</td></tr>
+    <tr><td><code>--minutes N</code></td><td>Per-agent wall-clock cap. 15 is the standard kaizen window; verdicts compare against per-guild baselines (~50/h barbarian, ~45/h warmage, ~42/h paladin, ~45/h thief, ~33/h necromancer).</td></tr>
+    <tr><td><code>--boost N</code></td><td><span class="warn">Test-only</span> exp multiplier (1–100). Shows as <code>[BOOST xN]</code> in the prompt. Use 20 for kaizen passes.</td></tr>
+    <tr><td><code>--all</code></td><td>The curated race × guild matrix (concurrent-safe: each run gets a random run-id suffix so characters never collide).</td></tr>
+    <tr><td><code>--benchmark</code></td><td>Multi-leg experiment mode (legs compared against historical best; writes <code>experiment-index.json</code>).</td></tr>
+    <tr><td><code>--report</code></td><td>Render the sweeps history (<code>public/live/sweeps.db</code>) as a guild × race fidelity table.</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>3 · Run lifecycle &amp; artifacts</h2>
+  <p>Each agent: HTTP login → chargen (race/guild stat spread) → bazaar arm
+  (club, knives, armor ladder) → walk to the nearest legal arena →
+  <code>SCAN → FIGHT → REST</code> loop → periodic guild-hall trips (every ~4
+  kills or 4 minutes; readiness-gated) → verdict at the time cap.</p>
+  <table>
+    <tr><th>Artifact</th><th>What it is</th></tr>
+    <tr><td><code>public/live/fidelity-&lt;guild&gt;-&lt;race&gt;.log</code></td><td>Per-agent stream: milestones, every <code>script&gt;</code> command, <code>[progress]</code> ticks, <code>[gaps]</code>/<code>[reqs]</code> gate samples, verdict. <b>Append-only</b> — the last <code>=== sweep run &lt;id&gt;</code> segment is the live one.</td></tr>
+    <tr><td><code>public/live/fidelity-summary.jsonl</code></td><td>One JSON row per finished agent (what the sims.html runs table reads).</td></tr>
+    <tr><td><code>public/live/sweeps.db</code></td><td>SQLite history — every run appends a row (<code>--report</code> reads it). Sim artifact, not game state.</td></tr>
+    <tr><td><code>public/live/index.json</code></td><td>Live-log discovery list (what the live panel polls).</td></tr>
+  </table>
+  <p class="sub">Verdict vocabulary: <span class="ok">healthy</span> (≥ baseline
+  kill rate, moving) · slow (below baseline) · <span class="warn">wedged</span>
+  (no kills/circles/trains/moves progress — the log names the room).
+  Timestamps in logs are <b>UTC</b>; file mtimes are local.</p>
+</section>
+
+<section>
+  <h2>4 · The kaizen stack — what to edit</h2>
+  <table>
+    <tr><th>File</th><th>Controls</th><th>Watch out</th></tr>
+    <tr><td><code>data/guild-scripts.js</code></td><td>Per-guild scripting caps: <code>fight</code>/<code>fallbackFight</code> verbs, <code>signature</code> probe, <code>spellsByCircle</code>, <code>trainSets</code>/<code>defaultTrain</code> (what the hunt trains), <code>fidelityChecks</code>, and <code>RACE_MATRIX</code>.</td><td>Only guilds with an entry are sweep-targetable. Every skill id referenced must exist in <code>data/skills.js</code>.</td></tr>
+    <tr><td><code>scripts/lib/script-gen.mjs</code></td><td>The generated scripts: <code>buildHuntScript</code> (arm ladder → PICK ladder → SCAN/FIGHT → WANDER → CIRCLE_READY), <code>buildCircleScript</code> (hall trip + training), <code>buildMegaScript</code> (<code>putrun</code> hunt→circle cycle).</td><td><code>moves()</code> expects <code>{dir}</code> objects (as <code>bfsPath</code>/<code>pureDiskPath</code> return) — feeding plain strings emits <code>move undefined</code>.</td></tr>
+    <tr><td><code>scripts/lib/wire-session.mjs</code></td><td>The harness heartbeat (<code>injectState</code>): the synthetic prompt tokens the DSL branches on, plus observed-exit BFS navigation.</td><td><b>Always emit counters</b> (<code>[PLAYERS:n]</code> even when 0). Conditional emission froze occupancy at a stale nonzero value — the "ghost crowd" that made every room look occupied.</td></tr>
+    <tr><td><code>public/js/script-engine.js</code></td><td>The script DSL interpreter: verbs, <code>%var</code> substitution, RT park semantics, matchers. Pure and unit-tested.</td><td><code>ife/ifne room</code> falls back to <code>io.roomNow()</code> when the token hasn't landed. RT parking: a verb fired during roundtime is retried at the deadline, not lost.</td></tr>
+    <tr><td><code>scripts/race-guild-sweep.mjs</code></td><td>The supervisor: breakers (town-strand, silence, flat-progress), hall-trip alternation + TDP/readiness gates, <code>pureDiskPath</code>, <code>candidateRooms</code>, verdict classification.</td><td>Breakers call <code>regenerateScripts()</code> — regenerated scripts must carry a real walk leg (see <code>pureDiskPath</code>), or agents strand where they stand.</td></tr>
+    <tr><td><code>data/guilds.js</code></td><td><code>CIRCLE_TABLES</code> (per-circle requirements incl. Nth-sets), <code>NTH_POOLS</code> (which skills count toward "1st/2nd/3rd weapon/survival/lore"), spells, <code>circleRequirements()</code>.</td><td>Nth-sets score your <em>Nth-best</em> skill in the pool — over-training one lane doesn't fill the 3rd slot.</td></tr>
+    <tr><td><code>data/races.js</code></td><td>Chargen races + stat spreads. <b>DragonRealms' eleven</b>: human, dwarf, elf, elothean, gnome, gortog, halfling, kaldar, prydaen, rakash, skra.</td><td><code>giantman</code> was removed — GemStone IV race that leaked in; DR's heavy frames are Kaldar/Gor'Tog.</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>5 · Script DSL cheat sheet</h2>
+  <pre><b>Verbs</b>
+  put &lt;command&gt;        <b># send to the game (parks on roundtime, retries at the deadline)</b>
+  move &lt;dir&gt;           <b># walk (bare dirs n/s/e/w/ne/nw/se/sw/up/down/out are sent as-is)</b>
+  wait | pause &lt;secs&gt;  <b># wait for a prompt / wait N seconds</b>
+  waitfor &lt;text&gt; | waitforre &lt;/re/&i&gt;
+  matchre &lt;label&gt; &lt;re&gt; | matchwait [secs]   <b># register matcher, wait for any hit or timeout</b>
+  iflt/ifge/ifgt &lt;var&gt; &lt;n&gt; [goto] &lt;label&gt;   <b># numeric branch on live state</b>
+  ife/ifne &lt;var&gt; &lt;value&gt; [goto] &lt;label&gt;     <b># string branch (%room has a roomNow fallback)</b>
+  setvariable &lt;name&gt; [value] | goto &lt;label&gt; | echo &lt;text&gt; | exit
+  putrun &lt;script&gt;      <b># nest another library script (mega = putrun hunt + putrun circle)</b>
+
+<b>Live %vars</b>
+  %hp %maxhp %mana %maxmana %circle %rt %silver %tdp %combat %rage %bleed
+  %room %pcount %wsp (wielded weapon skill) %target (fight-loop substitution)
+  %wsr_&lt;skill&gt; (rank of any WEAPON-pool skill)</pre>
+</section>
+
+<section>
+  <h2>6 · The kaizen loop</h2>
+  <div class="kaizen">
+    <p style="margin:4px 0"><b>Observe</b> — read the verdicts, the final
+    <code>[reqs]</code>/<code>[gaps]</code> per agent, and the kaizen counters
+    (forages, circle attempts, circle-ups). <b>Choose</b> — one defect or one
+    starved exp pool, highest leverage. <b>Act</b> — the smallest script-gen /
+    engine / harness change targeting it. <b>Verify</b> — re-run the sweep and
+    compare kills/hour and gate shortfall against the previous run.
+    <b>Keep</b> only changes that improved the numbers.</p>
+  </div>
+  <p>Known lessons baked into the code (regressions here are the usual suspects):</p>
+  <ul>
+    <li><b>Stale counters:</b> never emit a state token conditionally — an absent <code>[PLAYERS:n]</code> left a nonzero crowd frozen in <code>%pcount</code> and agents patrolled empty rooms for 14 minutes.</li>
+    <li><b>Hall trips need a walk leg:</b> any regenerated script must carry a real route from where the agent stands (<code>pureDiskPath</code>), or it strands mid-map.</li>
+    <li><b>Gate-ready ≠ circling:</b> the CIRCLE_READY hall trip reads the <code>hallPath</code> parameter — a <code>cap.hallPath</code> typo once made every "ready" agent keep farming (fleet-wide 0 circle-ups).</li>
+    <li><b>Over-gain:</b> combat pours ranks into evasion/parry/1st-weapon regardless; idle time (respawn waits) is the place to train starved pools — hence <code>put forage</code> in WANDER.</li>
+    <li><b>Guild-skill pools</b> (conviction, empathy, thanatology, summoning) train at the hall, not in the field — they are the last blockers to circle-2, not navigation.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>7 · Before you commit</h2>
+  <pre>node --check &lt;every .js/.mjs you touched&gt;
+npm test                <b># domain + api + static suites (sims.html logic: test/scripts.test.mjs)</b>
+node --test test/scripts.test.mjs test/script-ownership.test.mjs   <b># engine + generator units</b></pre>
+  <p class="warn">Parallel sessions edit this repo. Check <code>git status</code>
+  and file mtimes before restructuring shared files (<code>guild-scripts.js</code>,
+  <code>script-gen.mjs</code>), stage only your files, and never
+  <code>git add -A</code> during a fidelity pass.</p>
+</section>
+
+</main>
+</body>
+</html>

@@ -24,6 +24,19 @@ export function fakeWs() {
 
 export let game;
 
+// C1 makes kills genuinely deplete room spawns (respawn clocked, camp throttle
+// armed). Tests teleport between rooms with no wait, so revive the destination
+// room's spawns — the suite's stand-in for a room having time to restock.
+export function reviveRoomSpawns(g, roomId) {
+  const insts = g.roomCreatures.get(roomId);
+  if (!insts) return;
+  for (const c of insts) {
+    c.alive = true;
+    c.hp = c.maxHp;
+    c.respawnAt = 0;
+  }
+}
+
 export function setupGame() {
   migrate();
   game = new Game();

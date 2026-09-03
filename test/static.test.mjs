@@ -95,3 +95,25 @@ test('failed read never writes headers twice', async () => {
   assert.equal(heads.length, 1, 'exactly one writeHead call');
   assert.equal(heads[0][1], 404);
 });
+
+// S4 regression: a sibling directory sharing the root's name as a string
+// prefix ("/tmp/x/public" vs "/tmp/x/publicity") must NOT be served. The old
+// startsWith(publicDir) check passed exactly this shape (probe-verified in
+// the audit); containment is now resolve + separator-bounded.
+test('sibling-prefix directory escape is contained', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const base = mkdtempSync(join(tmpdir(), 'dr-static-s4-'));
+  try {
+    mkdirSync(join(base, 'public'));
+    mkdirSync(join(base, 'publicity'));
+    writeFileSync(join(base, 'publicity', 'secret.txt'), 'sibling contents');
+    const h = createStaticHandler(join(base, 'public'));
+    const res = fakeRes();
+    h(req('/..%2fpublicity%2fsecret.txt'), res);
+    await settle(res);
+    assert.equal(res.calls[0][1], 404, 'sibling-prefix file must not be served');
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});

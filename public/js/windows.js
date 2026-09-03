@@ -104,7 +104,10 @@ export function toggleCollapse(id) {
 export function renderWindowsMenu() {
   const menu = $('windows-menu');
   if (!menu) return;
-  menu.innerHTML = WINDOWS.map((w) => {
+  menu.innerHTML = `<a class="wmenu-sims" href="/sims.html" target="_blank" rel="opener">
+    <span class="wmenu-sims-icon" aria-hidden="true">▦</span>
+    <span><b>Sims</b><small>condensed EXP monitor</small></span>
+  </a>` + WINDOWS.map((w) => {
     const on = isWindowVisible(w.id) || Boolean(w.rail && (state.force && state.force[w.id]));
     const col = isWindowCollapsed(w.id);
     return `<label class="wmenu-row" data-w="${w.id}">

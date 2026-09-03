@@ -2,7 +2,12 @@
 // players, and (via the existing WS spectate relay) a live read-only stream
 // of any individual player. Mutating changes belong to /api/debug; this page
 // only ever queries.
-import { $ } from './util.js';
+//
+// S1: every server-derived value (player names, room text, DB cells, error
+// strings) is HTML-escaped before touching innerHTML. DB cells hold arbitrary
+// player-authored text (aliases, script bodies), so unescaped rendering was a
+// stored-XSS path into the privileged GM origin and its localStorage token.
+import { $, escapeHtml as esc } from './util.js';
 import { harvestGmTokenFromFragment } from './gm-token.js';
 
 const API = '/api/gm';
@@ -48,8 +53,8 @@ function renderOnline(online) {
   const list = $('gm-online');
   if (!list) return;
   list.innerHTML = online.map((p) => `
-    <button class="gm-pip" data-name="${p.name}">
-      ${p.name} <span class="gm-dim">(${p.guild}·${p.circle}) ${p.room}${p.inCombat ? ' ⚔' : ''}</span>
+    <button class="gm-pip" data-name="${esc(p.name)}">
+      ${esc(p.name)} <span class="gm-dim">(${esc(p.guild)}·${esc(p.circle)}) ${esc(p.room)}${p.inCombat ? ' ⚔' : ''}</span>
     </button>
   `).join('') || '<div class="gm-dim">no players online</div>';
   list.querySelectorAll('[data-name]').forEach((b) => {
@@ -63,9 +68,9 @@ async function loadWorld() {
   if (!w.ok || !el) return;
   el.innerHTML = w.zones.map((z) => `
     <div class="gm-zone">
-      <div class="gm-zone-name">${z.name} <span class="gm-dim">(${z.rooms.length})</span></div>
+      <div class="gm-zone-name">${esc(z.name)} <span class="gm-dim">(${z.rooms.length})</span></div>
       <div class="gm-rooms">${z.rooms.map((r) => `
-        <button class="gm-room" data-id="${r.id}" title="${r.address || r.id}">${r.name}</button>
+        <button class="gm-room" data-id="${esc(r.id)}" title="${esc(r.address || r.id)}">${esc(r.name)}</button>
       `).join('')}</div>
     </div>
   `).join('');
@@ -77,13 +82,13 @@ async function loadRoom(id) {
   const r = await api('/room/' + encodeURIComponent(id));
   if (!r.ok || !el) return;
   el.innerHTML = `
-    <div class="gm-t">[[${r.room.name}, ${r.zone.name}]]</div>
-    <div class="gm-desc">${r.room.desc}</div>
-    <div class="gm-meta">address: ${r.room.address || r.room.id}</div>
-    <div class="gm-meta">exits: ${Object.keys(r.room.exits || {}).join(', ') || 'none'}</div>
-    <div class="gm-meta">creatures: ${r.creatures.length ? r.creatures.map((c) => `${c.name} (${c.hp}/${c.maxHp})`).join(', ') : 'none'}</div>
-    <div class="gm-meta">players: ${r.players.length ? r.players.join(', ') : 'none'}</div>
-    <div class="gm-meta">ground: ${r.floor.length ? r.floor.join(', ') : 'none'}</div>
+    <div class="gm-t">[[${esc(r.room.name)}, ${esc(r.zone.name)}]]</div>
+    <div class="gm-desc">${esc(r.room.desc)}</div>
+    <div class="gm-meta">address: ${esc(r.room.address || r.room.id)}</div>
+    <div class="gm-meta">exits: ${esc(Object.keys(r.room.exits || {}).join(', ')) || 'none'}</div>
+    <div class="gm-meta">creatures: ${r.creatures.length ? esc(r.creatures.map((c) => `${c.name} (${c.hp}/${c.maxHp})`).join(', ')) : 'none'}</div>
+    <div class="gm-meta">players: ${r.players.length ? esc(r.players.join(', ')) : 'none'}</div>
+    <div class="gm-meta">ground: ${r.floor.length ? esc(r.floor.join(', ')) : 'none'}</div>
   `;
 }
 
@@ -92,7 +97,7 @@ async function loadCharacters() {
   const c = await api('/characters');
   if (!c.ok || !el) return;
   el.innerHTML = c.characters.map((ch) => `
-    <button class="gm-ch" data-name="${ch.name}">${ch.name}</button>
+    <button class="gm-ch" data-name="${esc(ch.name)}">${esc(ch.name)}</button>
   `).join('') || '<div class="gm-dim">no characters</div>';
   el.querySelectorAll('[data-name]').forEach((b) => b.addEventListener('click', () => { selectedPlayer = b.dataset.name; loadPlayerView(); }));
 }
@@ -105,13 +110,13 @@ async function loadPlayerView() {
   const pl = p.player;
   const skills = Object.entries(p.skills).slice(0, 15).map(([id, s]) => `${id}:${s.rank}`).join(' · ');
   detail.innerHTML = `
-    <div class="gm-t">${pl.name} <span class="gm-dim">(${pl.race} ${pl.guild}, circle ${pl.circle}${p.offline ? ' — OFFLINE' : ''})</span></div>
-    <div class="gm-meta">hp ${pl.hp}/${pl.maxHp} · mana ${pl.mana||0}/${pl.maxMana||0} · stamina ${pl.stamina||0}/${pl.maxStamina||0}</div>
-    <div class="gm-meta">silver ${pl.silver} · bank ${pl.bank} · tdp ${pl.tdp} (pool ${pl.tdpPool})</div>
-    <div class="gm-meta">room: ${pl.room} · stance ${pl.stance} · hidden ${!!pl.hidden} · resting ${!!pl.resting}</div>
-    <div class="gm-meta">abilities: ${(pl.abilities||[]).join(', ')||'none'} ${pl.combat ? '· ⚔ in combat' : ''}</div>
-    <div class="gm-meta">weapon: ${(p.equipment.hand||'fists')}</div>
-    <div class="gm-skills">${skills || 'no skills'}</div>
+    <div class="gm-t">${esc(pl.name)} <span class="gm-dim">(${esc(pl.race)} ${esc(pl.guild)}, circle ${esc(pl.circle)}${p.offline ? ' — OFFLINE' : ''})</span></div>
+    <div class="gm-meta">hp ${esc(pl.hp)}/${esc(pl.maxHp)} · mana ${esc(pl.mana||0)}/${esc(pl.maxMana||0)} · stamina ${esc(pl.stamina||0)}/${esc(pl.maxStamina||0)}</div>
+    <div class="gm-meta">silver ${esc(pl.silver)} · bank ${esc(pl.bank)} · tdp ${esc(pl.tdp)} (pool ${esc(pl.tdpPool)})</div>
+    <div class="gm-meta">room: ${esc(pl.room)} · stance ${esc(pl.stance)} · hidden ${!!pl.hidden} · resting ${!!pl.resting}</div>
+    <div class="gm-meta">abilities: ${esc((pl.abilities||[]).join(', '))||'none'} ${pl.combat ? '· ⚔ in combat' : ''}</div>
+    <div class="gm-meta">weapon: ${esc(p.equipment.hand||'fists')}</div>
+    <div class="gm-skills">${esc(skills || 'no skills')}</div>
   `;
   if (stream) {
     if (!p.offline && stream.dataset.watching !== selectedPlayer) {
@@ -123,10 +128,16 @@ async function loadPlayerView() {
 
 function watchLive(name) {
   const out = $('gm-player-stream');
-  out.innerHTML = `<div class="gm-dim">— live stream: ${name} —</div>`;
+  out.innerHTML = `<div class="gm-dim">— live stream: ${esc(name)} —</div>`;
+  // O13: close the previous spectator socket before opening another — rapid
+  // player switching used to stack live streams (server load + interleaved
+  // output from stale sessions).
+  if (watchLive.ws) { try { watchLive.ws.close(); } catch {} }
   const ws = new WebSocket((location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws');
-  ws.onopen = () => ws.send(JSON.stringify({ t: 'spectate', name, gmToken: token() }));
+  watchLive.ws = ws;
+  ws.onopen = () => { if (watchLive.ws === ws) ws.send(JSON.stringify({ t: 'spectate', name, gmToken: token() })); };
   ws.onmessage = (ev) => {
+    if (watchLive.ws !== ws) return; // stale socket — ignore entirely
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m.t === 'command') { appendStream(`> ${m.line}`, 'gm-cmd'); return; }
     if (['room','msg','combat','notice','error','hands','targets'].includes(m.t)) {
@@ -134,7 +145,7 @@ function watchLive(name) {
       appendStream(txt, 'gm-' + m.t);
     }
   };
-  ws.onclose = () => appendStream('— stream closed —', 'gm-dim');
+  ws.onclose = () => { if (watchLive.ws === ws) { watchLive.ws = null; appendStream('— stream closed —', 'gm-dim'); } };
 }
 
 // GM world feed: every online player's messages, tagged by source.
@@ -179,28 +190,35 @@ async function loadDb() {
   try {
     const d = await api('/db');
     if (!d.ok || !tablesEl) return;
-    tablesEl.innerHTML = d.tables.map((t) => `<button class="gm-ch" data-tbl="${t}">${t}</button>`).join('');
+    tablesEl.innerHTML = d.tables.map((t) => `<button class="gm-ch" data-tbl="${esc(t)}">${esc(t)}</button>`).join('');
     tablesEl.querySelectorAll('[data-tbl]').forEach((b) => b.addEventListener('click', async () => {
       const r = await api('/db/' + b.dataset.tbl);
       renderDbRows(out, r);
     }));
+    // O13: bind the query listener ONCE (a dataset guard) — every refresh
+    // used to stack another Enter listener, multiplying DB queries per press.
     const q = $('gm-db-q');
-    q.addEventListener('keydown', async (e) => {
-      if (e.key !== 'Enter') return;
-      const r = await api('/db?q=' + encodeURIComponent(q.value.trim()));
-      renderDbRows(out, r);
-    });
-  } catch (e) { if (out) out.innerHTML = '<div class="gm-dim">' + e.message + '</div>'; }
+    if (q && !q.dataset.dbBound) {
+      q.dataset.dbBound = '1';
+      q.addEventListener('keydown', async (e) => {
+        if (e.key !== 'Enter') return;
+        const r = await api('/db?q=' + encodeURIComponent(q.value.trim()));
+        renderDbRows(out, r);
+      });
+    }
+  } catch (e) { if (out) out.innerHTML = '<div class="gm-dim">' + esc(e.message) + '</div>'; }
 }
 
 function renderDbRows(out, r) {
   if (!out) return;
-  if (!r.ok) { out.innerHTML = '<div class="gm-dim">' + (r.error || 'error') + '</div>'; return; }
+  if (!r.ok) { out.innerHTML = '<div class="gm-dim">' + esc(r.error || 'error') + '</div>'; return; }
   const rows = r.rows || [];
   if (!rows.length) { out.innerHTML = '<div class="gm-dim">0 rows</div>'; return; }
   const cols = Object.keys(rows[0]);
-  const html = `<table class="gm-table"><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>` +
-    rows.map((row) => `<tr>${cols.map((c) => `<td>${JSON.stringify(row[c]) ?? ''}</td>`).join('')}</tr>`).join('') + '</table>';
+  // S1 core fix: DB cells carry arbitrary player-authored text (aliases,
+  // script bodies, names). Nothing from the database reaches innerHTML raw.
+  const html = `<table class="gm-table"><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr>` +
+    rows.map((row) => `<tr>${cols.map((c) => `<td>${esc(JSON.stringify(row[c]) ?? '')}</td>`).join('')}</tr>`).join('') + '</table>';
   out.innerHTML = html;
 }
 

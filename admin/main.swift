@@ -1,10 +1,11 @@
 // Dragon Realms — menu-bar admin app (native Swift + AppKit).
 // A status item in the menu bar; right-click (or click) opens a menu with the
-// admin dash, GM console, play, roadmap, Start/Stop World, Reload, and Quit.
+// admin dash, GM console, play, Sims EXP monitor, roadmap, Start/Stop World,
+// Reload, and Quit.
 // Manages the live Node world server as a child process.
 //
-// Build: swiftc -O admin/main.swift -o bins/dradmin
-// Run:   bins/dradmin  (or bundle into a .app for a Dock + menu presence)
+// Build: ./scripts/build-admin-app.sh
+// Run:   open bin/admin/dragonrealms-admin.app
 //
 // Health-check design (why it's async):
 // The world server shares its event loop with game ticks and grind sims, so a
@@ -30,7 +31,21 @@ func configuredOrRandomGMToken() -> String {
     return bytes.map { String(format: "%02x", $0) }.joined()
 }
 
-let ROOT = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).path
+// LaunchServices does not guarantee the current directory when opening the
+// menu-bar app. Resolve the project root from the bundle location so live
+// experiment files are found whether the app is launched by Finder, `open`,
+// or directly from a terminal.
+let ROOT: String = {
+    let bundle = Bundle.main.bundleURL
+    let project = bundle
+        .deletingLastPathComponent() // admin/
+        .deletingLastPathComponent() // bin/
+        .deletingLastPathComponent() // project/
+    if FileManager.default.fileExists(atPath: project.appendingPathComponent("public/live").path) {
+        return project.path
+    }
+    return FileManager.default.currentDirectoryPath
+}()
 let PORT = 3000
 let BASE = "http://127.0.0.1:\(PORT)"
 let LOG_PATH = "/tmp/dr-world.log"
@@ -110,6 +125,7 @@ enum Action: String, CaseIterable {
     case gm = "GM Console"
     case copyToken = "Copy GM Token"
     case play = "Play"
+    case sims = "Sims — Condensed EXP"
     case roadmap = "Roadmap"
     case start = "Start World"
     case stop = "Stop World"
@@ -133,11 +149,14 @@ final class World {
         var env = ProcessInfo.processInfo.environment
         env["DR_ENABLE_API"] = "1"
         env["DR_GM_TOKEN"] = GMTOKEN
-        // Mapper/bot audit harness needs the debug fixtures (teleport,
-        // clearCombat) and a stable secret. Configurable via env; the mapper
-        // agent reads the same value from DR_MAPPER_DEBUG.
-        env["DR_ENABLE_DEBUG_API"] = "1"
-        env["DR_DEBUG_TOKEN"] = ProcessInfo.processInfo.environment["DR_DEBUG_TOKEN"] ?? "mapper-debug-1"
+        // Debug fixtures (teleport, clearCombat, setSkills...) stay OFF by
+        // default — they are state-mutating test surfaces. The operator opts
+        // in explicitly via DR_ENABLE_DEBUG_API=1 plus a DR_DEBUG_TOKEN they
+        // chose (mapper-agent reads the same value from DR_MAPPER_DEBUG).
+        if let dbg = ProcessInfo.processInfo.environment["DR_DEBUG_TOKEN"], !dbg.isEmpty {
+            env["DR_ENABLE_DEBUG_API"] = "1"
+            env["DR_DEBUG_TOKEN"] = dbg
+        }
         t.environment = env
         t.currentDirectoryURL = URL(fileURLWithPath: ROOT)
         // pipe output to a log file
@@ -198,6 +217,38 @@ final class World {
         }
         task.resume()
     }
+}
+
+final class CompactSimsView: NSView {
+    init(variant: String, colors: [NSColor]) {
+        super.init(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
+        let icon = NSImageView(image: NSImage(systemSymbolName: "sword", accessibilityDescription: "Barbarian guild") ?? NSImage(systemSymbolName: "figure.fencing", accessibilityDescription: "Barbarian guild")!)
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.contentTintColor = .systemRed
+        let label = NSTextField(labelWithString: variant)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.lineBreakMode = .byTruncatingTail
+        let blips = NSStackView()
+        blips.translatesAutoresizingMaskIntoConstraints = false
+        blips.orientation = .horizontal
+        blips.spacing = 2
+        for color in colors {
+            let b = NSView()
+            b.translatesAutoresizingMaskIntoConstraints = false
+            b.wantsLayer = true
+            b.layer?.backgroundColor = color.cgColor
+            b.layer?.cornerRadius = 2
+            blips.addArrangedSubview(b)
+            NSLayoutConstraint.activate([b.widthAnchor.constraint(equalToConstant: 7), b.heightAnchor.constraint(equalToConstant: 11)])
+        }
+        addSubview(icon); addSubview(label); addSubview(blips)
+        NSLayoutConstraint.activate([
+            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8), icon.centerYAnchor.constraint(equalTo: centerYAnchor), icon.widthAnchor.constraint(equalToConstant: 16), icon.heightAnchor.constraint(equalToConstant: 16),
+            label.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6), label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            blips.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 8), blips.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8), blips.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSUserNotificationCenterDelegate {
@@ -265,7 +316,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSUser
         m.addItem(state)
         m.addItem(.separator())
 
-        for a in [Action.admin, .gm, .copyToken, .play, .roadmap] {
+        for a in [Action.admin, .gm, .copyToken, .play, .sims, .roadmap] {
             m.addItem(NSMenuItem(title: a.rawValue, action: #selector(runAction(_:)), keyEquivalent: "").then {
                 $0.target = self; $0.representedObject = a.rawValue
             })
@@ -297,9 +348,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSUser
             $0.target = self; $0.representedObject = Action.reload.rawValue
         })
         m.addItem(.separator())
+        for item in compactSimsItems() { m.addItem(item) }
+        m.addItem(.separator())
         m.addItem(NSMenuItem(title: Action.quit.rawValue, action: #selector(runAction(_:)), keyEquivalent: "q").then {
             $0.target = self; $0.representedObject = Action.quit.rawValue
         })
+    }
+
+    private func compactSimsItems() -> [NSMenuItem] {
+        guard let data = FileManager.default.contents(atPath: "\(ROOT)/public/live/experiment-current.json"),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let plan = obj["plan"] as? [[String: Any]] else {
+            return [compactSimsItem(title: "Sims  ·  EXP unavailable")]
+        }
+        let runID = obj["runId"] as? String ?? ""
+        let capMinutes = (obj["minutesPerLeg"] as? NSNumber)?.doubleValue ?? 20
+        let startedAt = (obj["startedAt"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) }
+        let remaining = startedAt.map { max(0, Int(ceil(capMinutes * 60 - Date().timeIntervalSince($0)))) }
+        let running = plan.filter { ($0["status"] as? String) == "running" }
+        if running.isEmpty { return [compactSimsItem(title: "Sims  ·  no active workers")] }
+        return running.map { worker in
+            let variant = worker["variant"] as? String ?? "unknown"
+            let char = worker["char"] as? String ?? ""
+            return compactSimsItem(variant: variant, runID: runID, char: char, remainingSeconds: remaining)
+        }
+    }
+
+    private func compactSimsItem(title: String? = nil, variant: String? = nil, runID: String = "", char: String = "", remainingSeconds: Int? = nil) -> NSMenuItem {
+        let item = NSMenuItem(title: title ?? "Sims  ·  \(variant ?? "unknown")", action: #selector(openSims(_:)), keyEquivalent: "")
+        item.target = self
+        guard let variant else { return item }
+        var colors = Array(repeating: NSColor.systemRed, count: 16)
+        let liveDir = "\(ROOT)/public/live"
+        if let files = try? FileManager.default.contentsOfDirectory(atPath: liveDir),
+           let name = files.filter({ $0.contains(variant) && $0.contains(runID) && $0.hasSuffix(".log") }).sorted().last,
+           let text = try? String(contentsOfFile: "\(liveDir)/\(name)", encoding: .utf8),
+           let line = text.split(separator: "\n").last(where: { $0.contains("[reqs]") }) {
+            let lineString = String(line)
+            let pairRegex = try? NSRegularExpression(pattern: "([0-9]+)\\/([0-9]+)")
+            let range = NSRange(lineString.startIndex..<lineString.endIndex, in: lineString)
+            for (i, match) in (pairRegex?.matches(in: lineString, options: [], range: range) ?? []).prefix(16).enumerated() {
+                if let haveRange = Range(match.range(at: 1), in: lineString),
+                   let needRange = Range(match.range(at: 2), in: lineString),
+                   let have = Int(lineString[haveRange]), let need = Int(lineString[needRange]) {
+                    colors[i] = have >= need + 4 ? NSColor.systemPurple : have >= need ? NSColor.systemGreen : have + 2 >= need ? NSColor.systemOrange : NSColor.systemRed
+                }
+            }
+        }
+        let remainingText = remainingSeconds.map { " · \($0 / 60)m \($0 % 60)s left" } ?? ""
+        item.view = CompactSimsView(variant: variant + remainingText, colors: colors)
+        item.toolTip = "Condensed EXP: green met · orange within 2 · red unmet · purple overtrained"
+        return item
+    }
+
+    @objc private func openSims(_ sender: NSMenuItem) {
+        NSWorkspace.shared.open(URL(string: "\(BASE)/sims.html#exp")!)
     }
 
     @objc private func quickPlay(_ sender: NSMenuItem) {
@@ -324,6 +427,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSUser
             n.informativeText = "GM token copied to the clipboard."
             NSUserNotificationCenter.default.deliver(n)
         case .play: NSWorkspace.shared.open(URL(string: "\(BASE)/")!)
+        case .sims: NSWorkspace.shared.open(URL(string: "\(BASE)/sims.html#exp")!)
         case .roadmap: NSWorkspace.shared.open(URL(string: "\(BASE)/ROADMAP.html")!)
         case .start: World.shared.start()
         case .stop: World.shared.stop()

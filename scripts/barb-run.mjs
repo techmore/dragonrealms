@@ -30,6 +30,7 @@ const { ROOMS } = await import('../data/world.js');
 const { creatureById } = await import('../data/creatures.js');
 const { SKILLS } = await import('../data/skills.js');
 const { createRunner } = await import('../public/js/script-engine.js');
+const { buildHuntScript, buildCircleScript: buildGeneratedCircleScript } = await import('./lib/script-gen.mjs');
 import WebSocket from 'ws';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -126,10 +127,10 @@ const nounOf = (spawnId) => (creatureById(spawnId)?.name || spawnId).replace(/^(
 
 // ---------------- script generation ----------------
 // One full cycle: orient -> arm -> travel -> hunt (scans + fights + rest) ->
-// guild hall (circle attempt + TDP curriculum) -> exit. The driver restarts
+// guild hall (circle attempt + ordinary skill curriculum) -> exit. The driver restarts
 // the cycle until the circle target is met. Conditional loops always contain
 // a pause so advance() yields to the heartbeat instead of spinning forever.
-function buildScript({ fromRoom, arena }) {
+function buildLegacyScript({ fromRoom, arena }) {
   const L = [];
   const moves = (path) => path.map((e) => `  move ${e.dir}`);
   const toArena0 = bfsPath(fromRoom, arena.id);
@@ -219,7 +220,7 @@ function buildScript({ fromRoom, arena }) {
 }
 
 // Second script in the character's account library: guild-hall trip —
-// circle attempt, TDP curriculum on failure, walk back to the arena.
+// circle attempt, ordinary guild curriculum on failure, walk back to the arena.
 // Barbarian candidate pools for "Nth weapon/armor/survival/lore" circle
 // requirements — the script TDP-trains every candidate so the Nth-highest
 // rank climbs no matter which slots are short.
@@ -237,10 +238,8 @@ const DEFAULT_TRAIN = ['expertise', 'parry', 'evasion', 'light_armor', 'blunt',
 // Circle-failure prose looks like:
 //   expertise at least rank 8 (you have 5)
 //   2nd weapon at least rank 8 (your 2nd is 0)
-// Parse it into a targeted tdptrain list. Skills whose LIVE rank already
-// meets the need are dropped, and set candidates train cheapest-first —
-// otherwise a rank-61 blunt burns 187 TDPs re-satisfying the 1st-weapon
-// slot while the 2nd weapon sits at 1.
+// Parse it into a targeted skill-training list. TDPs are not used for skills;
+// the list is consumed by the guild's ordinary silver/skill training path.
 const NAME_TO_ID = new Map(Object.values(SKILLS).map((s) => [s.name.toLowerCase(), s.id]));
 function trainListFromMissing(raw, ranks = {}) {
   const wanted = []; // {id, need}
@@ -277,7 +276,7 @@ function parseRanks(expText) {
   return ranks;
 }
 
-function buildCircleScript({ fromRoom, arena, train }) {
+function buildLegacyCircleScript({ fromRoom, arena, train }) {
   const L = [];
   const moves = (path) => path.map((e) => `  move ${e.dir}`);
   const hall = bfsPath(fromRoom, 'hall_barbarian') || bfsPath(arena.id, 'hall_barbarian') || [];
@@ -294,7 +293,7 @@ function buildCircleScript({ fromRoom, arena, train }) {
   L.push('  exit');
   L.push('TRAIN:');
   for (const sk of (train && train.length ? train : DEFAULT_TRAIN)) {
-    L.push(`  put tdptrain ${sk}`);
+    L.push(`  put train ${sk}`);
     L.push('  wait');
     L.push('  pause 1');
   }
@@ -342,13 +341,32 @@ function injectState() {
 function refreshCycleScripts() {
   if (!state.room || !state.arena) return;
   const arena = { id: state.arena };
-  state.huntSrc = buildScript({ fromRoom: state.room, arena });
+  const bazaarPath = bfsPath(state.room, 'bazaar') || [];
+  const fromHere = bfsPath(state.room, arena.id) || [];
+  const fromArmed = bfsPath('bazaar', arena.id) || fromHere;
+  const cap = {
+    guild: 'barbarian', race: 'human', char: CHAR_NAME, circle: state.circle,
+    scriptBase: SCRIPT_NAME, bazaarPath, closeNth: true, weaponAware: true,
+    cheapWeaponKit: true, weaponReserve: true, weaponReserveV2: true,
+    weaponReserveV3: true, armorStack: true, helmRetry: true,
+    economyFallback: true, restPct: 50, trainList: state.lastTrainList || null,
+  };
+  state.huntSrc = buildHuntScript({
+    cap,
+    hallPath: bfsPath(arena.id, 'hall_barbarian') || [],
+    arena: { id: arena.id, fromArmed, fromHere, fromHereOrigin: state.room },
+    candidates: [],
+  });
   // Keep any circle-failure-retargeted curriculum; falling back to the
   // default here would undo the retarget and the dedupe would block it
   // from ever being applied again.
   const train = Array.isArray(state.lastTrainList) && state.lastTrainList.length
     ? state.lastTrainList : undefined;
-  state.circleSrc = buildCircleScript({ fromRoom: state.room, arena, train });
+  state.circleSrc = buildGeneratedCircleScript({
+    cap: { ...cap, trainList: train },
+    fromArena: arena.id,
+    errands: null,
+  });
   send({ t: 'scripts_put', name: SCRIPT_NAME, body: state.huntSrc });
   send({ t: 'scripts_put', name: SCRIPT_NAME + 'circle', body: state.circleSrc });
 }
@@ -518,9 +536,8 @@ async function main() {
             state.lastMissingRaw = null;
             if (parsed.length && parsed.join() !== (state.lastTrainList || []).join()) {
               state.lastTrainList = parsed;
-              state.circleSrc = buildCircleScript({
-                fromRoom: state.room, arena: { id: state.arena }, train: parsed,
-              });
+              state.lastTrainList = parsed;
+              refreshCycleScripts();
               send({ t: 'scripts_put', name: SCRIPT_NAME + 'circle', body: state.circleSrc });
               log(`circle blocked — retargeted (${parsed.length} skills, cheapest-first): ${parsed.slice(0, 8).join(', ')}${parsed.length > 8 ? ` +${parsed.length - 8}` : ''}`);
             }
@@ -575,8 +592,7 @@ async function main() {
       return finish('no arena');
     }
     state.arena = arena.id;
-    state.huntSrc = buildScript({ fromRoom: state.room, arena });
-    state.circleSrc = buildCircleScript({ fromRoom: state.room, arena });
+    refreshCycleScripts();
     log(`hunting grounds: ${ROOMS[arena.id].name} (${arena.id}) — species: ${[...new Set(ROOMS[arena.id].spawns)].map(nounOf).join(', ')}`);
     send({ t: 'scripts_put', name: SCRIPT_NAME, body: state.huntSrc });
     log(`saved "${SCRIPT_NAME}" to ${CHAR_NAME}'s account (${state.huntSrc.split('\n').length} lines)`);

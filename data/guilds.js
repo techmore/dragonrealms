@@ -534,6 +534,14 @@ export function circleRequirementNeeds(guild, skills, targetCircle) {
   return out;
 }
 
+// Return the authoritative eligible pool used to rank an Nth-set circle
+// requirement. Scripted progression may have a broader training curriculum,
+// but only this pool counts toward the guild-leader gate.
+export function circleRequirementCandidates(guild, set) {
+  const table = CIRCLE_TABLES[guild.id] || [];
+  return nthCandidates(guild.id, table, set);
+}
+
 // Spell difficulty tiers (DR): a spell's circle gate maps to how many ranks
 // of its skill you must command before it obeys. Intro spells come freely;
 // the high circles demand real mastery. Gates stay at or below the highest

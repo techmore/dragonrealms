@@ -10,6 +10,15 @@ export const CREATURES = {
     armor: 2, defense: 5,
     loot: ['rat_pelt'], lootTags: ['skins'], exp: 30, aggressive: false,
   },
+  shade: {
+    id: 'shade', name: 'a restless shade', plural: 'restless shades', circle: 1, kinds: ['undead', 'spirit'],
+    desc: 'A cold wisp of half-formed shadow, the lingering trace of one who never found rest. It drifts and reaches with smoky hands.',
+    teaches: [0, 6],
+    stats: { str: 6, con: 6, ref: 9, agi: 9 },
+    weapon: { skill: 'offensive_magic', dmg: [2, 5], speed: 4 },
+    armor: 4, defense: 8,
+    loot: [], lootTags: [], exp: 35, aggressive: false,
+  },
   mud_crab: {
     id: 'mud_crab', name: 'a mud crab', plural: 'mud crabs', circle: 1, kinds: ['beast'],
     desc: 'A broad green-brown crab the size of a buckler, claws raised in slow menace.',

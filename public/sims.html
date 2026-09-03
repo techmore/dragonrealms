@@ -14,6 +14,16 @@
     a { color: var(--cyan); text-decoration: none; }
     header.pagehead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
     header.pagehead .spacer { flex: 1; }
+    .page-links { position:relative; display:flex; align-items:center; gap:8px; margin-left:auto; }
+    .page-links summary { color:var(--dim); cursor:pointer; font-size:11px; list-style:none; }
+    .page-links summary::-webkit-details-marker { display:none; }
+    .page-links summary::after { content:' ▾'; color:var(--muted); }
+    .page-links[open] summary { color:var(--amber); }
+    .page-links .link-list { position:absolute; right:0; top:calc(100% + 8px); z-index:20;
+      display:flex; flex-wrap:wrap; gap:8px 12px; width:max-content; max-width:min(500px, calc(100vw - 40px));
+      padding:8px 10px; background:var(--panel-raised); border:1px solid var(--line); border-radius:7px; }
+    section > h2 .right { min-width:0; }
+    section > h2 .right > .sub { min-width:0; white-space:normal; }
     section {
       background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
       padding: 14px 16px; margin-top: 16px;
@@ -45,6 +55,20 @@
     .evidence-key i { width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:4px; }
     @media (max-width: 700px) { .decision-grid { grid-template-columns:1fr 1fr; } }
 
+    /* ---- run cohort plot ---- */
+    #run-plot { padding: 10px 12px; margin: 12px 0 14px; background: var(--panel-inset); }
+    #run-plot > h3 { margin: 0; display: flex; align-items: center; gap: 8px; color: var(--dim);
+      font-size: 11px; font-weight: normal; letter-spacing: .1em; text-transform: uppercase; }
+    #run-plot > h3 .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    #run-plot.collapsed .run-plot-body { display: none; }
+    #run-plot-toggle { min-width: 28px; padding: 3px 7px; }
+    #run-plot-canvas { width: 100%; height: 250px; display: block; margin-top: 8px; }
+    #run-plot-legend { display: flex; gap: 10px 16px; flex-wrap: wrap; margin-top: 7px; }
+    #run-plot-legend span { color: var(--dim); font-size: 10px; }
+    #run-plot-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+    #run-plot.collapsed { padding-bottom: 9px; }
+    #run-plot.collapsed > h3 { color:var(--muted); }
+
     .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
     .tbl th, .tbl td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
     .tbl th { color: var(--dim); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: .05em; cursor: pointer; user-select: none; }
@@ -53,6 +77,7 @@
     .tbl tbody tr.run:hover td { background: var(--panel-inset); }
     .tbl tbody tr.sel td { background: var(--panel-inset); }
     td.wrap { white-space: normal; }
+    .table-wrap { border-top:1px solid var(--line); }
 
     .badge {
       background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 4px;
@@ -99,6 +124,17 @@
     #logstate.live { color: var(--green); }
     .legend { font-size: 11px; }
     .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 10px; vertical-align: -1px; }
+    .gicon svg { width: 16px; height: 16px; vertical-align: -3px; }
+    .glegend { font-size: 11px; color: var(--dim); margin: 8px 0 2px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .glegend .gi { display: inline-flex; align-items: center; gap: 5px; }
+    .glegend .gi svg { width: 15px; height: 15px; }
+    .glegend .sub { color: var(--dim); }
+    .glegend { font-size:10px; gap:10px; opacity:.85; }
+    .seg { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-left: 8px; }
+    .seg button { font-size: 12px; padding: 3px 9px; }
+    .seg button.on { background: var(--amber); color: #111; border-color: var(--amber); }
+    .tbl tr.grp td { background: var(--panel-inset); color: var(--amber); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: 11px; border-top: 1px solid var(--line); padding-top: 7px; padding-bottom: 7px; }
+    .tbl tr.grp .gicon svg { width: 14px; height: 14px; vertical-align: -2px; }
 
     /* ---- character tracker ---- */
     .skilltbl { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -148,6 +184,8 @@
     /* Phone: larger tap targets so the workspace nav is thumb-friendly. */
     @media (max-width: 560px) {
       .sims-nav a, .sims-nav button { padding: 9px 13px; font-size: 12px; }
+      .page-links { width:auto; margin-left:0; }
+      .page-links .link-list { width:calc(100vw - 40px); box-sizing:border-box; }
     }
 
     /* ---- live sims ---- */
@@ -155,7 +193,11 @@
       background: var(--panel-inset); border: 1px solid var(--line); border-radius: 10px;
       padding: 12px 14px; margin-bottom: 10px;
     }
-    .live-card .lh { display:flex; align-items:center; justify-content:flex-end; gap:8px; min-height:20px; margin-bottom:5px; }
+    /* Keep the EXP gate blip and Watch action anchored at the right edge.
+       The old flex row let variable-width header content move the blip;
+       keeping the gate's auto margin makes it sit directly beside Watch. */
+    .live-card .lh { display:flex; align-items:center; justify-content:flex-start;
+      gap:6px; min-height:20px; margin-bottom:5px; }
     /* The summary below is now the source of truth; keep only the action in
        the old header so the card does not repeat identity/state text. */
     .live-card .ln, .live-card .ls, .live-card .lidentity, .live-card .lrate,
@@ -167,7 +209,10 @@
     .live-metric .lm-label { display:block; color:var(--dim); font-size:9px; line-height:1.15; text-transform:uppercase; letter-spacing:.06em; }
     .live-metric .lm-value { display:block; color:var(--text); font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
     .live-metric .lm-sub { display:block; color:var(--muted); font-size:9px; line-height:1.2; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .live-card .lwatch { margin-left:auto; display:inline-flex; align-items:center; gap:5px;
+    /* The identity tile already includes guild, race, and script in its
+       value; do not repeat the script in the smaller subtitle. */
+    .live-metric[data-metric="identity"] .lm-sub { display:none; }
+    .live-card .lwatch { margin-left:0; display:inline-flex; align-items:center; gap:5px;
       padding:5px 9px; border:1px solid var(--cyan); border-radius:6px;
       color:var(--cyan); background:rgba(86,190,205,.08); text-decoration:none;
       font-size:11px; font-weight:700; white-space:nowrap; }
@@ -175,12 +220,24 @@
     .live-card .lwatch[aria-disabled="true"] { opacity:.45; pointer-events:none; }
     .live-card .lwatch svg { width:15px; height:15px; flex:none; }
     .live-card .lwatch { vertical-align:middle; }
+    .live-card .gicon svg, .live-metric .gicon svg { width:14px; height:14px; vertical-align:-2px; }
     .live-card .lexp-gate { display:inline-flex; align-items:center; gap:5px; color:var(--dim); font-size:10px; white-space:nowrap; }
+    .live-card .lexp-gate { margin-left:auto; margin-right:12px; }
+    .live-card .lbleed { display:none; color:var(--red); width:18px; height:18px; align-items:center; justify-content:center; margin-right:6px; }
+    .live-card .lbleed.active { display:inline-flex; }
+    .live-card .lbleed svg { width:18px; height:18px; }
+    .live-card .lcombat { display:none; color:var(--red); width:18px; height:18px; align-items:center; justify-content:center; margin-right:2px; }
+    .live-card .lcombat.active { display:inline-flex; }
+    .live-card .lcombat svg { width:18px; height:18px; }
+    .live-card .lexp-alert { display:none; color:var(--red); width:18px; height:18px; align-items:center; justify-content:center; margin-right:2px; }
+    .live-card .lexp-alert.active { display:inline-flex; }
+    .live-card .lexp-alert svg { width:18px; height:18px; }
     .live-card .lexp-gate b { color:var(--text); font-size:11px; }
     .live-card .lexp-segments { display:inline-flex; gap:2px; align-items:center; }
     .live-card .lexp-segment { width:7px; height:10px; border-radius:2px; background:var(--red); }
     .live-card .lexp-segment.near { background:var(--amber); }
     .live-card .lexp-segment.met { background:var(--green); }
+    .live-card .lexp-segment.over { background:var(--magenta); box-shadow:0 0 3px color-mix(in srgb, var(--magenta) 65%, transparent); }
     .live-card .lexp-gate[data-empty="true"] { opacity:.55; }
     #experiment .exp-live-card .lexp-gate { margin-left:auto; }
     @media (max-width:560px) { .live-card .lexp-segment { width:5px; } }
@@ -228,18 +285,24 @@
       <span id="sims-live-flag" class="badge live" hidden>&#9679; sims running</span>
       <span id="sum" class="sub"></span>
       <span class="spacer"></span>
-      <a href="/sim-architecture.html">Sim architecture &rarr;</a>
-      <a href="/sim-chart.html">Live chart &rarr;</a>
-      <a href="/barbarian-roadmap.html">Barbarian roadmap &rarr;</a>
-      <a href="/warmage-roadmap.html">Warmage roadmap &rarr;</a>
-      <a href="/admin.html">&larr; Admin dash</a>
+      <details class="page-links">
+        <summary>Related pages</summary>
+        <span class="link-list">
+          <a href="/sim-architecture.html">Sim architecture &rarr;</a>
+      <a href="/speedruns.html">Speedruns guide &rarr;</a>
+          <a href="/sim-chart.html">Live chart &rarr;</a>
+          <a href="/barbarian-roadmap.html">Barbarian roadmap &rarr;</a>
+          <a href="/warmage-roadmap.html">Warmage roadmap &rarr;</a>
+          <a href="/admin.html">&larr; Admin dash</a>
+        </span>
+      </details>
     </header>
     <nav class="sims-nav" aria-label="Simulation workspace">
-      <button data-view="overview" aria-selected="true">01 · Monitor</button>
-      <button data-view="decide" aria-selected="false">02 · Decide</button>
-      <button data-view="evidence" aria-selected="false">03 · Evidence</button>
-      <button data-view="deep" aria-selected="false">04 · Investigate</button>
-      <button data-view="roadmaps" aria-selected="false">05 · Roadmaps</button>
+      <button data-view="overview" aria-selected="true">Monitor</button>
+      <button data-view="decide" aria-selected="false">Decide</button>
+      <button data-view="evidence" aria-selected="false">Evidence</button>
+      <button data-view="deep" aria-selected="false">Investigate</button>
+      <button data-view="roadmaps" aria-selected="false">Roadmaps</button>
       <span class="nav-spacer"></span>
       <span id="view-context" class="sub">live state and next action</span>
     </nav>
@@ -325,6 +388,10 @@
           <b style="color:#88b4d9">&#9889; Warrior Mage</b>
           <span>Never circled (0 circle-ups recorded). 2 of 3 warmages wedged at the bazaar in zrmn — nav stall is the #1 wall ahead of the shared circling kaizen.</span>
         </a>
+        <a class="decision-card" href="/sep-roadmap.html" style="text-decoration:none;color:inherit">
+          <b style="color:#7ab8e0">🧭 SEP / AI engineering</b>
+          <span>Local Pi profiles, deterministic validation, training corpus, and a measured LoRA path for script and map builders.</span>
+        </a>
       </div>
       <p class="note">These are the human-written companions to this dashboard. The <a href="/ROADMAP.html">full roadmap tracker</a> covers feature parity to circle 10 across all guilds; <a href="/sim-architecture.html">Sim architecture</a> explains the harness and the measurement traps we've hit.</p>
       <style>
@@ -345,13 +412,10 @@
         </span>
       </h2>
       <div id="exp-legs" class="note">no experiment detected — launch a benchmark or check back after the next run lands</div>
-      <div class="explan" id="explan">
-        <b>How to read a benchmark:</b> an A/B is a set of matched runs by guild, race, boost,
-        target circle, and code revision. The default is one worker at a time for clean pacing;
-        <code>--concurrency N</code> is a deliberate crowded-world test.
-        Compare medians and the promotion gate only within the same concurrency setting.
-        Median-of-repeats beats any single run; legs with &lt;2 completions are noise-prone.
-      </div>
+      <details class="explan" id="explan">
+        <summary><b>How to read a benchmark</b><span>matched runs, medians, and promotion gates</span></summary>
+        <div class="explan-body">An A/B is a set of matched runs by guild, race, boost, target circle, and code revision. The default is one worker at a time for clean pacing; <code>--concurrency N</code> is a deliberate crowded-world test. Compare medians and the promotion gate only within the same concurrency setting. Median-of-repeats beats any single run; legs with &lt;2 completions are noise-prone.</div>
+      </details>
       <style>
         #experiment .leg { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
           padding:6px 4px; border-top:1px dashed var(--line); font-size:12px; }
@@ -363,6 +427,13 @@
         #experiment .lp2 i { display:block; height:100%; background:var(--cyan); transition:width .5s; }
         #experiment .explan { font-size:11px; color:var(--dim); margin-top:8px;
           padding:7px 10px; background:var(--panel-inset); border-radius:6px; line-height:1.5; }
+        #experiment .explan summary { cursor:pointer; color:var(--muted); list-style:none; }
+        #experiment .explan summary::-webkit-details-marker { display:none; }
+        #experiment .explan summary::before { content:'▸'; display:inline-block; width:14px; color:var(--amber); }
+        #experiment .explan[open] summary::before { content:'▾'; }
+        #experiment .explan summary span { margin-left:8px; color:var(--dim); }
+        #experiment .explan-body { margin:7px 0 1px 14px; }
+        #experiment #exp-legs > div:first-child > .sub { min-width:0; overflow-wrap:anywhere; }
         #experiment .res-row td { padding:3px 8px; }
         #experiment .exp-models { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px; }
         #experiment .exp-model { border:1px solid var(--line); border-radius:8px; padding:9px 10px; background:var(--panel-inset); }
@@ -379,8 +450,26 @@
         #experiment .exp-live-card .ln { display:inline; color:var(--amber); font-weight:600; font-size:13px; }
         #experiment .exp-live-card .lchev { display:inline-block; }
         #experiment .exp-live-card .live-summary { display:grid; }
+        /* The vertical experiment card already names the script in its
+           heading; omit the repeated identity tile to keep the stack dense. */
+        #experiment .exp-live-card .live-metric[data-metric="identity"] { display:none; }
         #experiment .exp-live-card .lg { max-height:220px; }
-        @media (max-width:600px) { #experiment .exp-models { grid-template-columns:1fr; } }
+        #experiment .exp-live-card .lh { flex-wrap:wrap; }
+        #experiment .exp-live-card .ls,
+        #experiment .exp-live-card .lidentity { display:inline; }
+        #experiment .exp-live-card .lidentity { color:var(--dim); font-size:10px; }
+        #experiment .exp-live-card .ls { color:var(--muted); font-size:10px; max-width:270px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        #experiment .exp-live-card .ln .gicon svg { width:14px; height:14px; vertical-align:-2px; }
+        /* Collapsed = title row only: hide the metric tiles (runtime / max
+           circle / kills / deaths / exp), the requirements grid and the
+           progress bar so the running list stays dense. */
+        #experiment .exp-live-card.collapsed .live-summary,
+        #experiment .exp-live-card.collapsed .lreqs,
+        #experiment .exp-live-card.collapsed .lpwrap { display:none; }
+        @media (max-width:600px) {
+          #experiment .exp-models { grid-template-columns:1fr; }
+          #experiment .leg .lp2 { flex-basis:100%; max-width:none; min-width:0; }
+        }
       </style>
     </section>
 
@@ -495,9 +584,32 @@
       </h2>
       <div class="controls">
         <input id="run-search" type="text" placeholder="filter run, character, guild, race…" style="min-width:280px">
+        <span id="runs-guilds" class="seg"></span>
         <span id="runs-shown" class="sub"></span>
         <button class="btn" id="runs-more" hidden>show 25 more</button>
       </div>
+      <p class="glegend" id="guild-legend"></p>
+      <section id="run-plot" aria-labelledby="run-plot-title">
+        <h3 id="run-plot-title">
+          <button class="btn" id="run-plot-toggle" type="button" aria-expanded="true" title="Collapse run plot">▾</button>
+          <span>Time → next-circle EXP matched</span>
+          <span class="right">
+            <label class="sub" for="run-plot-metric">plot</label>
+            <select id="run-plot-metric" aria-label="Run plot metric">
+              <option value="requirements">next-circle requirements</option>
+              <option value="totalRanks">total ranks</option>
+              <option value="circle">circle reached</option>
+              <option value="kills">kills</option>
+              <option value="deaths">deaths</option>
+              <option value="closurePerMin">closure / min</option>
+            </select>
+          </span>
+        </h3>
+        <div class="run-plot-body">
+          <canvas id="run-plot-canvas" width="900" height="250" role="img" aria-label="Run metric plot"></canvas>
+          <div id="run-plot-legend" aria-live="polite"></div>
+        </div>
+      </section>
       <div class="table-wrap"><table class="tbl">
         <thead><tr>
           <th data-k="run">Experiment</th><th data-k="char">Character</th><th data-k="guild">Guild</th><th data-k="race">Race</th>
@@ -589,10 +701,22 @@
         /* live provisional rating chip on Live cards */
         .live-card .lrate { margin-left: auto; font-size: 11px; color: var(--dim); }
         .live-card .lrate b { color: var(--amber); font-size: 13px; }
+        #build-badges .badge-card { min-width:210px; background:var(--panel-inset); border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+        #build-badges .badge-card.gold { border-color:var(--amber); box-shadow:0 0 0 1px rgba(224,179,76,.15); }
+        #build-badges .badge-icon { color:var(--amber); font-size:20px; vertical-align:-3px; margin-right:6px; }
+        #build-badges .badge-title { color:var(--dim); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+        #build-badges .badge-winner { display:block; color:var(--text); font-size:14px; font-weight:700; margin-top:5px; }
+        #build-badges .badge-detail { display:block; color:var(--muted); font-size:10px; margin-top:4px; }
       </style>
     </section>
 
     <!-- ===================== VARIANT HEAD-TO-HEAD ===================== -->
+    <section id="build-badges">
+      <h2>Build badges <span class="right sub" id="badge-state">derived from completed comparable runs</span></h2>
+      <div id="badge-body" class="decision-grid"></div>
+      <p class="note">Gold shields are scoped by guild, race, target circle, boost, stat policy, and concurrency. Absolute records compare valid builds; build records compare repeated runs of the same variant.</p>
+    </section>
+
     <!-- Kaizen discipline: a variant only means something against its
          baseline, one knob at a time. This view diffs medians per metric and
          says plainly how much to trust the delta (runs behind each side). -->
@@ -746,6 +870,11 @@
     // window.DRSims; the launch wiring below waits for it before binding.
     const $ = (id) => document.getElementById(id);
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    // Skip-if-unchanged DOM write: even an identical innerHTML assignment
+    // detaches + rebuilds the subtree, which reads as a visible flash on a
+    // poll. Most polls produce byte-identical markup — a cheap string
+    // compare prevents the repaint entirely.
+    const setHTML = (el, html) => { if (el && el.innerHTML !== html) el.innerHTML = html; };
     const stripAnsi = (s) => String(s ?? '').replace(/\x1b\[\d+m/g, '');
 
     // Put decisions before raw evidence. The source sections stay independent,
@@ -758,7 +887,7 @@
     const VIEW_SECTIONS = {
       overview: ['champion', 'experiment', 'launch', 'roadmaps'],
       decide: ['kaizen', 'compare', 'leaderboard'],
-      evidence: ['runs'],
+      evidence: ['experiment', 'runs'],
       deep: ['tracker', 'lab', 'scripts-section', 'kaizen-investigation'],
       roadmaps: ['roadmaps'],
     };
@@ -790,9 +919,29 @@
       $('launch-toggle').setAttribute('aria-expanded', String(!collapsed));
       $('launch-toggle').textContent = collapsed ? 'configure ad-hoc run' : 'hide controls';
     });
+    // Keep the evidence table as the first scan target; the plot remains one
+    // click away for trend inspection.
     let initialView = 'overview';
-    try { initialView = sessionStorage.getItem('dr_sims_view') || 'overview'; } catch {}
+    try {
+      // one-time migration: clear any stale pre-Evidence-default view choice
+      if (sessionStorage.getItem('dr_sims_rev') !== '1') {
+        sessionStorage.removeItem('dr_sims_view');
+        sessionStorage.setItem('dr_sims_rev', '1');
+      }
+      initialView = sessionStorage.getItem('dr_sims_view') || 'evidence';
+    } catch {}
     setWorkspaceView(initialView);
+    // Native macOS menu-bar shortcut: open the compact EXP-focused view
+    // without adding a second live-data implementation.
+    if (location.hash === '#exp') {
+      setWorkspaceView('evidence');
+      requestAnimationFrame(() => $('experiment')?.scrollIntoView({ block: 'start' }));
+    }
+
+    // Keep the investigative tools in the same order as the workspace nav.
+    $('tracker').after($('lab'));
+    $('lab').after($('scripts-section'));
+    $('scripts-section').after($('kaizen-investigation'));
 
     // GM token handoff — same regex contract as admin/core.js (must include _-%).
     const TOKEN = (() => {
@@ -877,14 +1026,15 @@
           deaths: s.deaths ?? null, trains: s.trains ?? null,
           grade: s.grade || null, score: s.fidelityScore || null, fidelity: s.fidelity || null,
           variant: s.variant || null, stallVerdict: s.stallVerdict || null,
+          weaponPolicy: s.weaponPolicy || null,
           durationMs: s.durationMs ?? null, totalRanks: s.totalRanks ?? null,
+          expRateSamples: Array.isArray(s.expRateSamples) ? s.expRateSamples : null,
           // gap telemetry (only the newest driver emits these — absent ≠ zero)
           shortfall: Number.isFinite(s.shortfall) ? s.shortfall : null,
           blocked: Number.isFinite(s.blocked) ? s.blocked : null,
           refusals: s.refusals ?? null,
           // real early-velocity signal: ms to reach each of the first few ranks
           rankSplits: Array.isArray(s.rankSplits) && s.rankSplits.length ? s.rankSplits : null,
-          expRateSamples: Array.isArray(s.expRateSamples) ? s.expRateSamples : null,
           timeToCircleMs: s.timeToCircleMs ?? null,
           mode: s.mode || null, concurrency: s.concurrency ?? null,
           comparisonType: s.comparisonType || null, targetCircle: s.targetCircle ?? null,
@@ -936,13 +1086,157 @@
 
     function isLive(ts) { return ts && (Date.now() - ts) < 15000; }
 
+    // ---- guild icons: sword = barbarian, wand = warmage ----
+    const SWORD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sword-icon lucide-sword"><path d="m11 19-6-6"/><path d="m5 21-2-2"/><path d="m8 16-4 4"/><path d="M9.5 17.5 20.414 6.586A2 2 0 0021 5.172V3h-2.172a2 2 0 00-1.414.586L6.5 14.5"/></svg>';
+    const WAND_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wand-icon lucide-wand"><path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="M17.8 11.8 19 13"/><path d="M15 9h.01"/><path d="M17.8 6.2 19 5"/><path d="m3 21 9-9"/><path d="M12.2 6.2 11 5"/></svg>';
+    const PALADIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-plus-icon lucide-shield-plus"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>';
+    const RANGER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tent-tree-icon lucide-tent-tree"><circle cx="4" cy="4" r="2"/><path d="m14 5 3-3 3 3"/><path d="m14 10 3-3 3 3"/><path d="M17 14V2"/><path d="M17 14H7l-5 8h20Z"/><path d="M8 14v8"/><path d="m9 14 5 8"/></svg>';
+    const THIEF_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sport-shoe-icon lucide-sport-shoe"><path d="m15 10.42 4.8-5.07"/><path d="M19 18h3"/><path d="M9.5 22 21.414 9.415A2 2 0 0 0 21.2 6.4l-5.61-4.208A1 1 0 0 0 14 3v2a2 2 0 0 1-1.394 1.906L8.677 8.053A1 1 0 0 0 8 9c-.155 6.393-2.082 9-4 9a2 2 0 0 0 0 4h14"/></svg>';
+    const EMPATH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-heart-plus-icon lucide-heart-plus"><path d="m14.479 19.374-.971.939a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5a5.2 5.2 0 0 1-.219 1.49"/><path d="M15 15h6"/><path d="M18 12v6"/></svg>';
+    const NECRO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-skull-icon lucide-skull"><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/></svg>';
+    const GUILD_ICONS = { barbarian: SWORD_SVG, warmage: WAND_SVG, paladin: PALADIN_SVG, ranger: RANGER_SVG, thief: THIEF_SVG, empath: EMPATH_SVG, necromancer: NECRO_SVG };
+    let RUNS_GUILD = '';
+    function guildIcon(guild, { text = true } = {}) {
+      const g = String(guild || '').toLowerCase();
+      const svg = GUILD_ICONS[g];
+      if (!svg) return esc(guild || '—');
+      return `<span class="gicon" title="${esc(guild)}">${svg}${text ? ` <span class="sub">${esc(guild)}</span>` : ''}</span>`;
+    }
+    function renderGuildFilter() {
+      const gs = [...new Set(RUNS.map((r) => r.guild).filter(Boolean))].sort();
+      const host = $('runs-guilds');
+      if (host) {
+        host.innerHTML = `<button class="btn ${RUNS_GUILD === '' ? 'on' : ''}" data-g="">all</button>` +
+          gs.map((g) => `<button class="btn ${RUNS_GUILD === g ? 'on' : ''}" data-g="${esc(g)}" title="${esc(g)}">${guildIcon(g, { text: true })}</button>`).join('');
+        host.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+          RUNS_GUILD = b.dataset.g || '';
+          renderRuns();
+        }));
+      }
+      const legend = $('guild-legend');
+      if (legend) legend.innerHTML = `<span class="gi" title="Barbarian">${SWORD_SVG} Barbarian</span>` +
+        `<span class="gi" title="Warmage">${WAND_SVG} Warmage</span>` +
+        `<span class="gi" title="Paladin">${PALADIN_SVG} Paladin</span>` +
+        `<span class="gi" title="Ranger">${RANGER_SVG} Ranger</span>` +
+        `<span class="gi" title="Thief">${THIEF_SVG} Thief</span>` +
+        `<span class="gi" title="Empath">${EMPATH_SVG} Empath</span>` +
+        `<span class="gi" title="Necromancer">${NECRO_SVG} Necromancer</span>` +
+        `<span class="sub">guild shown as an icon where one exists</span>`;
+    }
+
+    function runRowHtml(r) {
+      const rating = rateRun(r);
+      return `
+        <tr class="run ${SELECTED === r.run ? 'sel' : ''}" data-run="${esc(r.run)}">
+          <td><b>${esc(r.variant || 'ad-hoc')}</b>${r.runId ? ` <span class="sub">[${esc(r.runId)}]</span>` : ''}</td>
+          <td>${esc(r.char || '—')}</td>
+          <td>${guildIcon(r.guild, { text: false })}</td>
+          <td>${esc(r.race || '—')}</td>
+          <td title="${r.ts ? new Date(r.ts).toLocaleString() : ''}">${isLive(r.ts) ? '<span class="badge live">● LIVE</span> ' : ''}${fmtAge(r.ts)}</td>
+          <td><b>${r.circle ?? '—'}</b></td>
+          <td>${r.circles ?? '—'}</td>
+          <td>${r.kills ?? '—'}</td>
+          <td>${r.deaths ? `<span class="badge death">${r.deaths}</span>` : '0'}</td>
+          <td>${r.trains ?? '—'}</td>
+          <td>${rateBadgeHtml(rating, r.variant ? `· ${esc(r.variant)}` : '')}</td>
+          <td>${r.grade ? `<span class="badge grade-${esc(String(r.grade)[0])}" title="fidelity ${esc(r.score || '')}">${esc(r.grade)}</span>` : (r.score ? esc(r.score) : '—')}</td>
+          <td><button class="btn" data-open="${esc(r.run)}">open &#8594;</button>
+              ${r.guild && r.race && r.char ? `<button class="btn" data-rerun="${esc(r.run)}" title="prefill the dash launch form with this run's params">&#9654; rerun</button>` : ''}</td>
+        </tr>`;
+    }
+
+    function renderRunPlot() {
+      const cv = $('run-plot-canvas');
+      const legend = $('run-plot-legend');
+      if (!cv || !legend) return;
+      const metric = $('run-plot-metric')?.value || 'requirements';
+      const labels = {
+        requirements: 'next-circle requirements matched', totalRanks: 'total ranks', circle: 'circle reached', kills: 'kills',
+        deaths: 'deaths', closurePerMin: 'closure / min',
+      };
+      const matching = RUNS.filter((r) => {
+        if ($('only-live')?.checked && !isLive(r.ts) && r.ts) return false;
+        if (RUNS_GUILD && String(r.guild || '').toLowerCase() !== RUNS_GUILD.toLowerCase()) return false;
+        const q = $('run-search')?.value.trim().toLowerCase();
+        return !q || [r.run, r.char, r.guild, r.race, r.variant, r.grade]
+          .some((v) => String(v || '').toLowerCase().includes(q));
+      }).filter((r) => metric === 'requirements'
+        ? r.requirementSplits && Object.keys(r.requirementSplits).length
+        : metric === 'totalRanks'
+          ? r.rankSplits?.length || Number.isFinite(Number(r.totalRanks))
+          : Number.isFinite(Number(r[metric])));
+      const ctx = cv.getContext('2d');
+      const W = cv.width, H = cv.height;
+      ctx.clearRect(0, 0, W, H);
+      const css = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+      const dim = css('--dim', '#89909a'), line = css('--line', '#30343b');
+      if (!matching.length) {
+        ctx.fillStyle = dim; ctx.font = '13px monospace';
+        ctx.fillText(`no matching runs with ${labels[metric]} data`, 16, 30);
+        legend.innerHTML = '<span>Adjust the run filters or wait for requirement telemetry to land.</span>';
+        return;
+      }
+      const ordered = [...matching].sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      const palette = [css('--amber', '#f5b642'), css('--cyan', '#6cc'), css('--green', '#6f6'), '#c6f', '#f66', '#8ad'];
+      const weaponLabel = (r) => r.weaponPolicy
+        || (r.variantConfig?.edgedKit ? 'edged kit' : r.variantConfig?.shieldKit ? 'shield kit' : 'adaptive kit');
+      const series = [];
+      const names = new Map();
+      for (const r of ordered.slice(-60)) {
+        const name = `${r.variant || 'ad-hoc'} · ${weaponLabel(r)}`;
+        if (!names.has(name)) names.set(name, names.size);
+        const color = palette[names.get(name) % palette.length];
+        if (metric === 'requirements') {
+          const splits = Object.values(r.requirementSplits).filter((s) => Number.isFinite(Number(s.ms)))
+            .sort((a, b) => a.ms - b.ms);
+          const missing = Array.isArray(r.finalRequirements?.missing) ? r.finalRequirements.missing.length : 0;
+          const total = Math.max(1, splits.length + missing);
+          series.push({ name, color, points: [{ x: 0, y: 0 }, ...splits.map((s, i) => ({ x: s.ms / 60000, y: (i + 1) / total * 100 }))] });
+        } else if (metric === 'totalRanks' && r.rankSplits?.length) {
+          series.push({ name, color, points: r.rankSplits.filter((s) => Number.isFinite(Number(s.ms)))
+            .map((s) => ({ x: s.ms / 60000, y: Number(s.ranks) })) });
+        } else {
+          series.push({ name, color, points: [{ x: series.length, y: Number(r[metric]) }] });
+        }
+      }
+      const maxY = Math.max(1, ...series.flatMap((s) => s.points.map((p) => p.y)));
+      const maxX = Math.max(1, ...series.flatMap((s) => s.points.map((p) => p.x)));
+      const pad = { l: 44, r: 16, t: 16, b: 30 };
+      const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+      const x = (n) => pad.l + (n / maxX) * plotW;
+      const y = (v) => H - pad.b - (v / maxY) * plotH;
+      ctx.font = '10px monospace'; ctx.strokeStyle = line; ctx.lineWidth = 1;
+      const ticks = 4;
+      for (let i = 0; i <= ticks; i++) {
+        const value = maxY * i / ticks, yy = y(value);
+        ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(W - pad.r, yy); ctx.stroke();
+        ctx.fillStyle = dim; ctx.fillText(Number.isInteger(value) ? String(value) : value.toFixed(1), 4, yy + 3);
+      }
+      ctx.fillStyle = dim;
+      const xLabel = metric === 'requirements' || metric === 'totalRanks' ? 'minutes elapsed' : 'run order (older → newer)';
+      ctx.fillText(`${Math.min(60, ordered.length)} matching runs · ${labels[metric]}`, pad.l, H - 8);
+      ctx.fillText(xLabel, W - 150, H - 18);
+      series.forEach(({ color, points }) => {
+        ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        points.forEach((p, j) => j ? ctx.lineTo(x(p.x), y(p.y)) : ctx.moveTo(x(p.x), y(p.y)));
+        ctx.stroke();
+        for (const p of points) { ctx.beginPath(); ctx.arc(x(p.x), y(p.y), 3, 0, Math.PI * 2); ctx.fill(); }
+      });
+      legend.innerHTML = [...names.entries()].map(([name, i]) =>
+        `<span><i style="background:${palette[i % palette.length]}"></i>${esc(name)}</span>`).join('');
+      cv.setAttribute('aria-label', `${labels[metric]} across ${Math.min(60, ordered.length)} matching runs`);
+    }
+
     function renderRuns() {
+      renderRunPlot();
       const liveOnly = $('only-live').checked;
       let rows = [...RUNS];
       if (liveOnly) rows = rows.filter((r) => isLive(r.ts) || !r.ts); // no summary timestamp → can't tell; keep
       const q = $('run-search').value.trim().toLowerCase();
       if (q) rows = rows.filter((r) => [r.run, r.char, r.guild, r.race, r.variant, r.grade]
         .some((v) => String(v || '').toLowerCase().includes(q)));
+      if (RUNS_GUILD) rows = rows.filter((r) => String(r.guild || '').toLowerCase() === RUNS_GUILD.toLowerCase());
       rows.sort((a, b) => {
         const va = a[SORT.k], vb = b[SORT.k];
         if (va == null && vb == null) return 0;
@@ -961,29 +1255,35 @@
         return;
       }
       const totalMatching = rows.length;
-      rows = rows.slice(0, RUN_VISIBLE);
-      $('runs-shown').textContent = `showing ${rows.length} of ${totalMatching}`;
-      $('runs-more').hidden = rows.length >= totalMatching;
-      $('runsBody').innerHTML = rows.map((r) => {
-        const rating = rateRun(r);
-        return `
-        <tr class="run ${SELECTED === r.run ? 'sel' : ''}" data-run="${esc(r.run)}">
-          <td><b>${esc(r.variant || 'ad-hoc')}</b>${r.runId ? ` <span class="sub">[${esc(r.runId)}]</span>` : ''}</td>
-          <td>${esc(r.char || '—')}</td>
-          <td>${esc(r.guild || '—')}</td>
-          <td>${esc(r.race || '—')}</td>
-          <td title="${r.ts ? new Date(r.ts).toLocaleString() : ''}">${isLive(r.ts) ? '<span class="badge live">● LIVE</span> ' : ''}${fmtAge(r.ts)}</td>
-          <td><b>${r.circle ?? '—'}</b></td>
-          <td>${r.circles ?? '—'}</td>
-          <td>${r.kills ?? '—'}</td>
-          <td>${r.deaths ? `<span class="badge death">${r.deaths}</span>` : '0'}</td>
-          <td>${r.trains ?? '—'}</td>
-          <td>${rateBadgeHtml(rating, r.variant ? `· ${esc(r.variant)}` : '')}</td>
-          <td>${r.grade ? `<span class="badge grade-${esc(String(r.grade)[0])}" title="fidelity ${esc(r.score || '')}">${esc(r.grade)}</span>` : (r.score ? esc(r.score) : '—')}</td>
-          <td><button class="btn" data-open="${esc(r.run)}">open &#8594;</button>
-              ${r.guild && r.race && r.char ? `<button class="btn" data-rerun="${esc(r.run)}" title="prefill the dash launch form with this run's params">&#9654; rerun</button>` : ''}</td>
-        </tr>`;
-      }).join('');
+      // break the live view into guild types: group rows under a per-guild header
+      let shown = 0;
+      const parts = [];
+      if (RUNS_GUILD) {
+        for (const r of rows) {
+          if (shown >= RUN_VISIBLE) break;
+          parts.push(runRowHtml(r));
+          shown++;
+        }
+      } else {
+        const groups = {};
+        for (const r of rows) (groups[r.guild || '?'] ||= []).push(r);
+        // Stable, deterministic group order (alphabetical). Sorting by
+        // recency re-ordered whole sections whenever a new run landed —
+        // rows visibly jumped around the board mid-read.
+        const guildOrder = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+        for (const g of guildOrder) {
+          const gRows = groups[g];
+          parts.push(`<tr class="grp"><td colspan="13">${guildIcon(g, { text: true })} <span class="sub">${gRows.length} run${gRows.length === 1 ? '' : 's'}</span></td></tr>`);
+          for (const r of gRows) {
+            if (shown >= RUN_VISIBLE) break;
+            parts.push(runRowHtml(r));
+            shown++;
+          }
+        }
+      }
+      $('runs-shown').textContent = `showing ${shown} of ${totalMatching}`;
+      $('runs-more').hidden = shown >= totalMatching;
+      setHTML($('runsBody'), parts.join(''));
       $('runsBody').querySelectorAll('tr.run').forEach((tr) =>
         tr.addEventListener('click', () => openRun(tr.dataset.run)));
       $('runsBody').querySelectorAll('[data-open]').forEach((b) =>
@@ -1015,6 +1315,7 @@
       const cur = pick.value;
       pick.innerHTML = '<option value="">recent runs…</option>' +
         chars.map((c) => `<option ${c === cur ? 'selected' : ''}>${esc(c)}</option>`).join('');
+      renderGuildFilter();
     }
 
     /* ================= run detail ================= */
@@ -1254,9 +1555,26 @@
       await loadRunsPromise;   // RUNS is fresh by now
       renderLeaderboard();
     }
+    function renderBuildBadges() {
+      const el = $('badge-body'), state = $('badge-state');
+      if (!el) return;
+      const rows = RUNS.filter((r) => r.variant && Number.isFinite(r.durationMs) && r.durationMs > 0);
+      if (!rows.length) { el.innerHTML = '<div class="note">badges unlock after a completed benchmark run</div>'; return; }
+      const eligible = rows.filter((r) => !['stalled', 'wedged'].includes(r.stallVerdict));
+      const speed = eligible.filter((r) => r.timeToCircleMs != null).sort((a,b) => a.timeToCircleMs - b.timeToCircleMs)[0];
+      const volume = eligible.slice().sort((a,b) => (b.circle || 1) - (a.circle || 1) || (b.circles || 0) - (a.circles || 0))[0];
+      const efficiency = eligible.slice().sort((a,b) => ((b.circle || 1) / b.durationMs) - ((a.circle || 1) / a.durationMs))[0];
+      const fmt = (ms) => ms == null ? '—' : `${(ms / 60000).toFixed(1)}m`;
+      const card = (icon, title, r, detail) => r ? `<div class="badge-card gold"><span class="badge-icon">${icon}</span><span class="badge-title">${title}</span><span class="badge-winner">${esc(r.variant)}</span><span class="badge-detail">${esc(r.guild || '?')} · ${esc(r.race || '?')} · ${detail}</span></div>` : '';
+      el.innerHTML = card('🛡', 'Fastest to target', speed, fmt(speed.timeToCircleMs))
+        + card('🏆', 'Most circles', volume, `circle ${volume.circle || 1}`)
+        + card('⚡', 'Best circles / minute', efficiency, `${(((efficiency.circle || 1) / efficiency.durationMs) * 60000).toFixed(2)} c/min`);
+      if (state) state.textContent = `${eligible.length}/${rows.length} eligible completed runs · build = guild × race × variant`;
+    }
     function renderLeaderboard() {
       const el = $('lb-body');
       const guildFilter = $('lb-guild').value;
+      renderBuildBadges();
       const minEvidence = Number($('lb-evidence').value || 0);
       const variantQuery = $('lb-search').value.trim().toLowerCase();
       // Group completed runs by guild×variant×concurrency. A crowded-world
@@ -1348,7 +1666,7 @@
           <tr class="run lb-row" data-lb="${esc(key)}">
             <td><span class="rank ${i < 3 ? 'r' + (i + 1) : ''}">${i + 1}</span></td>
             <td><b style="color:var(--amber)">${esc(rv.variant)}</b><div class="dsub">${rv.concurrency > 1 ? `crowded ×${rv.concurrency}` : 'controlled ×1'}</div></td>
-            <td>${esc(rv.guild)}</td>
+            <td>${guildIcon(rv.guild, { text: false })}</td>
             <td>${rateBadgeHtml({ val: rv.medianVal, tier: rv.tier }, `median of ${rv.runs.length} runs`)}</td>
             <td>${decisionBadge(rv, control)}</td>
             <td><span class="hrs ${rv.hours >= 3 ? 'rich' : rv.hours >= 1 ? 'some' : ''}" title="total wall-clock time this variant has been tested — more hours = more trustworthy median">${rv.hours >= 1 ? `<b>${rv.hours.toFixed(1)}h</b>` : '<b>' + Math.round(rv.hours * 60) + 'm</b>'} · ${rv.runs.length} runs</span>
@@ -1826,6 +2144,29 @@
     }
 
     /* ================= wiring ================= */
+    const runPlot = $('run-plot');
+    const runPlotToggle = $('run-plot-toggle');
+    if (runPlot && runPlotToggle) {
+      // The table is the primary evidence surface. First-time visitors get
+      // the trend plot collapsed, while an existing preference wins.
+      let plotCollapsed = true;
+      try {
+        const stored = localStorage.getItem('dr-sims-run-plot-collapsed');
+        if (stored !== null) plotCollapsed = stored === '1';
+      } catch {}
+      runPlot.classList.toggle('collapsed', plotCollapsed);
+      runPlotToggle.setAttribute('aria-expanded', String(!plotCollapsed));
+      runPlotToggle.title = plotCollapsed ? 'Expand run plot' : 'Collapse run plot';
+      runPlotToggle.textContent = plotCollapsed ? '▸' : '▾';
+      runPlotToggle.addEventListener('click', () => {
+        const collapsed = runPlot.classList.toggle('collapsed');
+        runPlotToggle.setAttribute('aria-expanded', String(!collapsed));
+        runPlotToggle.title = collapsed ? 'Expand run plot' : 'Collapse run plot';
+        runPlotToggle.textContent = collapsed ? '▸' : '▾';
+        try { localStorage.setItem('dr-sims-run-plot-collapsed', collapsed ? '1' : '0'); } catch {}
+      });
+    }
+    $('run-plot-metric').addEventListener('change', renderRunPlot);
     $('refresh-runs').addEventListener('click', loadRuns);
     $('only-live').addEventListener('change', renderRuns);
     $('run-search').addEventListener('input', () => { RUN_VISIBLE = 25; renderRuns(); });
@@ -1879,11 +2220,20 @@
         const text = liveTexts[logName] || '';
         const char = liveChars[logName] || '';
         const card = liveCards[logName];
-        if (!card) return '';
+        if (!card) {
+          // A live log can be discovered while the detailed card is still
+          // being assembled by loadLive(). Keep the run visible instead of
+          // reporting "live now" with an empty experiment board.
+          return `<div class="live-card exp-live-card"><div class="lh"><span class="ln">● ${esc(logName)}</span><span class="ls">live telemetry is appending</span></div></div>`;
+        }
         const source = card.el;
         const copy = source.cloneNode(true);
         copy.className = `live-card exp-live-card${EXP_LIVE_OPEN.has(logName) ? '' : ' collapsed'}`;
         copy.dataset.liveLog = logName;
+        // The vertical watch card already names the variant in its heading;
+        // remove the cloned identity metric as well as hiding it in CSS so a
+        // variant cannot appear twice when this DOM copy is rendered.
+        copy.querySelector('[data-metric="identity"]')?.remove();
         copy.removeAttribute('id');
         copy.querySelectorAll('[data-role="watch"]').forEach((a) => {
           a.addEventListener('click', (e) => e.stopPropagation());
@@ -1894,8 +2244,21 @@
         const head = /^=== sweep run \S+ \S+(?: \[([^\]]+)\])? \(([^)]+)\)/m.exec(text);
         const variant = head?.[1] || 'ad-hoc';
         const identity = head?.[2] || 'identity pending';
+        // Dense title: race, guild icon, script (the legend maps glyphs back
+        // to guild names). fidelity log names are
+        // fidelity-<guild>-<script>-<race>-<runid>-<variant>.
+        const np = String(logName).split('-');
+        const idw = String(identity).trim().split(/\s+/);
+        const race = (np[0] === 'fidelity' ? np[3] : idw[0]) || '';
+        const guild = (np[0] === 'fidelity' ? np[1] : idw[1]) || '';
+        const script = np[0] === 'fidelity' ? (np[2] || '') : '';
         const title = copy.querySelector('.ln');
-        if (title) title.textContent = `${variant} · ${identity} · ${char || logName}`;
+        if (title) title.innerHTML = [guild ? guildIcon(guild, { text: false }) : '', race && esc(race), script && esc(script)].filter(Boolean).join(' ') || esc(identity);
+        const ident = copy.querySelector('[data-role="identity"]');
+        // The variant/script is already in the bold card title; keep the
+        // smaller identity line for the character only so names such as
+        // "shieldLadder" do not appear twice.
+        if (ident) ident.innerHTML = esc(char || logName);
         const log = copy.querySelector('[data-role="log"]');
         if (log) log.textContent = source.querySelector('[data-role="log"]')?.textContent || '';
         const toggle = copy.querySelector('[data-role="toggle"]');
@@ -1903,6 +2266,11 @@
         return copy.outerHTML;
       }).join('');
       return active ? `<div class="exp-live-board"><div class="exp-live-title">Live EXP boards · click a model to expand</div>${active}</div>` : '';
+    }
+    function renderLiveFallback() {
+      if (!LIVE_COUNT) return '';
+      const names = (LIVE_ACTIVE || []).map((n) => esc(n)).join(', ');
+      return `<div class="exp-live-board"><div class="exp-live-title">Live EXP boards</div><div class="live-card exp-live-card"><div class="lh"><span class="ln">● ${LIVE_COUNT} sim${LIVE_COUNT === 1 ? '' : 's'} running</span><span class="ls">${names || 'live telemetry is appending'}</span></div></div></div>`;
     }
     function renderExperimentModels(manifest) {
       const plans = Array.isArray(manifest?.plan) ? manifest.plan : [];
@@ -1930,6 +2298,7 @@
       }).join('')}</div>`;
     }
     async function renderExperimentBoard() {
+      const refreshSeq = ++liveBoardRefreshSeq;
       const el = $('exp-legs'), stateEl = $('exp-state');
       if (!el) return;
       try {
@@ -1937,9 +2306,8 @@
         // sharing this public directory. Prefer the per-run manifest index so
         // one process cannot hide another behind the legacy current pointer.
         let m = null;
-        const ix = await fetch('/live/experiment-index.json?t=' + Date.now(), { cache: 'no-store' });
-        if (ix.ok) {
-          const entries = await ix.json();
+        try {
+          const entries = await liveJson('/live/experiment-index.json');
           const docs = await Promise.all((Array.isArray(entries) ? entries : []).slice(-12).map(async (e) => {
             try { const r = await fetch((e.path || `/live/experiment-${e.runId}.json`) + '?t=' + Date.now(), { cache: 'no-store' }); return r.ok ? r.json() : null; } catch { return null; }
           }));
@@ -1947,12 +2315,12 @@
             const active = (x) => x.status === 'running' && Date.now() - Date.parse(x.updatedAt || 0) < 5 * 60000;
             return Number(active(b)) - Number(active(a)) || Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0);
           })[0] || null;
-        }
+        } catch {}
         if (!m) {
-          const res = await fetch('/live/experiment-current.json?t=' + Date.now(), { cache: 'no-store' });
-          if (res.ok) m = await res.json();
+          try { m = await liveJson('/live/experiment-current.json'); } catch {}
         }
         if (m) {
+          if (refreshSeq !== liveBoardRefreshSeq) return;
           const ageMs = Date.now() - Date.parse(m.updatedAt || 0);
           if (m?.runId && (m.status === 'complete' || ageMs < 5 * 60000)) {
             renderActiveHeader(m);
@@ -1981,7 +2349,7 @@
                 <div class="note"><span class="sub">PROGRESS</span><br><b>${m.completedLegs || 0}/${m.totalLegs} done · ${m.status === 'complete' ? 'complete' : '~' + fmtClock(remaining) + ' left'}</b></div>
               </div>
               <div class="lp2" style="max-width:none;margin-bottom:8px"><i style="width:${progress}%"></i></div>
-              ${renderRunningModels()}${renderExperimentModels(m)}
+              ${renderRunningModels() || renderLiveFallback()}${renderExperimentModels(m)}
               <div style="margin-top:10px">${planRows}</div>
               <div class="sub" style="margin-top:8px">run-id ${esc(m.runId)} · circle ${m.targetCircle} target · boost ×${m.boost} · stats ${esc(m.statPolicy || 'legacy')} · ${m.concurrency > 1 ? `${m.concurrency} concurrent sims · crowded-world measurement` : 'controlled one-sim pacing'}</div>`;
             const activeCount = (m.plan || []).filter((p) => p.status === 'running').length;
@@ -1998,7 +2366,7 @@
       const recent = RUNS.filter((r) => r.ts && r.ts >= cutoff && r.runId);
       if (!recent.length) {
         stateEl.textContent = LIVE_ACTIVE?.length ? `${LIVE_ACTIVE.length} model${LIVE_ACTIVE.length === 1 ? '' : 's'} running` : 'no recent runs';
-        el.innerHTML = renderRunningModels() || '<div class="note">no experiment detected — launch a benchmark or check back after the next run lands</div>';
+        setHTML(el, renderRunningModels() || renderLiveFallback() || '<div class="note">no experiment detected — launch a benchmark or check back after the next run lands</div>');
         return;
       }
       // Group by run_id (one benchmark invocation); newest invocation wins.
@@ -2021,8 +2389,8 @@
         stateEl.textContent = LIVE_ACTIVE?.length
           ? `ad-hoc run · ${LIVE_ACTIVE.length} model${LIVE_ACTIVE.length === 1 ? '' : 's'} running`
           : 'recent runs are ad-hoc — no variant experiment in flight';
-        el.innerHTML = renderRunningModels()
-          || '<div class="note">recent runs are ad-hoc — no variant experiment in flight</div>';
+        setHTML(el, renderRunningModels() || renderLiveFallback()
+          || '<div class="note">recent runs are ad-hoc — no variant experiment in flight</div>');
         return;
       }
       // Sort legs chronologically (summary rows arrive in finish order).
@@ -2090,6 +2458,17 @@
       // FINISHES). Show live agents as the active leg so the board reflects
       // reality during the potentially-long first leg.
       if (runningNames.length && cur.lastAt < Date.now() - 2 * 60000) {
+        // A stale manifest (last leg recorded long ago) must not hijack the
+        // board while agents are LIVE: an Aug-28 benchmark matched today's
+        // ad-hoc run by guild and showed "in-flight leg" stubs instead of the
+        // 21 running agents. Live cards win the board when present; the stub
+        // only renders when there is genuinely nothing live to show.
+        const liveBoard = renderRunningModels();
+        if (liveBoard) {
+          stateEl.textContent = `${LIVE_ACTIVE?.length ?? runningNames.length} agent${(LIVE_ACTIVE?.length ?? runningNames.length) === 1 ? '' : 's'} live`;
+          setHTML(el, liveBoard);
+          return;
+        }
         html += `<div class="leg">
           <span class="pill pill-run">● running</span>
           <span class="lg-var">in flight</span>
@@ -2097,7 +2476,7 @@
           <div class="lp2"><i style="width:50%"></i></div>
         </div>`;
         stateEl.textContent = `in-flight leg (no results yet) · ${doneN}/${plannedTotal || '?'} legs recorded · ~${fmtClock(remainingMin)} remaining`;
-        el.innerHTML = clock + html;
+        setHTML(el, clock + html);
         return;
       }
       el.innerHTML = clock + html;
@@ -2147,7 +2526,7 @@
     loadRuns();          // runs table immediately (existing behavior)
     bootRuns();          // leaderboard after RUNS land
     loadLeaderboard().then(() => { renderCompareOptions(); renderCompare(); });
-    setInterval(() => { loadRuns().then(() => { renderLeaderboard(); renderKaizenInvestigation(); }); }, 15000);
+    setInterval(() => { loadRuns().then(() => { renderLeaderboard(); renderKaizenInvestigation(); }); }, 30000);
     bootRuns().then(renderExperimentBoard); // board needs RUNS; first paint after load
     setInterval(renderExperimentBoard, 30000);  // experiment board refresh
     // deep link: /sims.html?char=Name
@@ -2526,12 +2905,42 @@
     let liveTimer = null;
     let liveCards = {}; // name -> { el, lastSize }
     let liveSizes = {}; // name -> last seen byte size (ghost-run detection)
+    let liveExpPulse = {}; // name -> { key, lastAt } for EXP ALL freshness
     let LIVE_ACTIVE = [];  // names confirmed actively appending (loadLive sets it)
     let liveTexts = {};    // latest full log per active name (also feeds speedrun splits)
     let liveRunKeys = {};  // log filename -> current appended run id
     let liveChars = {};    // log filename -> current character name
     let LIVE_CAP_MIN = 30; // overridden by the active experiment manifest
     let LIVE_TARGET_CIRCLE = 2; // overridden by the active experiment manifest
+    let LIVE_EXP_STALE_MS = 120000; // normal samples are minute-level
+    const LIVE_CACHE_TTL = 30000;
+    const liveJsonCache = new Map();
+    let liveBoardRefreshSeq = 0;
+    async function liveJson(path) {
+      // Active-run discovery must never be hidden by the session cache: a
+      // freshly launched sweep writes a new log/index immediately, and a
+      // page refresh should show its blips on the first poll.
+      const liveControl = /\/live\/(?:index|experiment-index|experiment-current)\.json$/.test(path);
+      const now = Date.now();
+      const memory = liveControl ? null : liveJsonCache.get(path);
+      if (memory && now - memory.at < LIVE_CACHE_TTL) return memory.value;
+      const storageKey = `dr_live_cache:${path}`;
+      try {
+        if (liveControl) throw new Error('live control data is uncached');
+        const stored = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
+        if (stored && now - stored.at < LIVE_CACHE_TTL) {
+          liveJsonCache.set(path, stored);
+          return stored.value;
+        }
+      } catch {}
+      const value = await fetch(path, { cache: 'no-store' }).then((r) => r.json());
+      const entry = { at: now, value };
+      if (!liveControl) {
+        liveJsonCache.set(path, entry);
+        try { sessionStorage.setItem(storageKey, JSON.stringify(entry)); } catch {}
+      }
+      return value;
+    }
 
     function liveTimeLabel(iso, fallbackMin) {
       if (iso) {
@@ -2552,6 +2961,7 @@
       // A circle-up event also contains "-> circle N"; only treat an
       // explicit runner target (or the active experiment manifest) as max.
       const target = /Starting[^\n]*?->\s*circle\s+(\d+)/i.exec(text)?.[1] || LIVE_TARGET_CIRCLE;
+      const weaponPolicy = text.match(/^\[weapon-policy\]\s+([^\n]+)/m)?.[1] || '';
       const parts = name.split('-');
       let guild = '', race = '', script = '';
       if (parts[0] === 'fidelity') {
@@ -2562,7 +2972,9 @@
       }
       const gaps = [...text.matchAll(/\[gaps\][^\n]*\branks:(\d+)/g)];
       return {
+        guild, race, script,
         guildRaceScript: [guild, race, script].filter(Boolean).join(' · ') || name,
+        weaponPolicy,
         runtime: latest ? `${latest[1]}m` : '—',
         maxCircle: `c${target}`,
         kills: latest ? latest[5] : '0',
@@ -2577,7 +2989,7 @@
 
     function renderLiveSummary(card, summary) {
       const fields = {
-        identity: [summary.guildRaceScript, 'guild · race · script'],
+        identity: [summary.guildRaceScript, summary.weaponPolicy ? `weapon ${summary.weaponPolicy}` : ''],
         runtime: [summary.runtime, 'elapsed runtime'],
         maxcircle: [summary.maxCircle, `first circle ${summary.firstCircle}`],
         kills: [summary.kills, `first kill ${summary.firstKill}`],
@@ -2587,12 +2999,51 @@
       for (const [key, [value, sub]] of Object.entries(fields)) {
         const el = card.el.querySelector(`[data-metric="${key}"]`);
         if (!el) continue;
-        el.querySelector('.lm-value').textContent = value;
+        const valEl = el.querySelector('.lm-value');
+        if (key === 'identity') {
+          // Guild word -> its icon glyph (the legend maps it back); race and
+          // script stay as text — density without losing meaning.
+          const icon = summary.guild ? guildIcon(summary.guild, { text: false }) : '';
+          valEl.innerHTML = [icon, esc(summary.race), esc(summary.script)].filter(Boolean).join(' · ') || esc(value);
+        } else {
+          valEl.textContent = value;
+        }
         el.querySelector('.lm-sub').textContent = sub;
       }
     }
 
     function renderLiveRequirements(card, text) {
+      const combat = card.el.querySelector('[data-role="combat"]');
+      if (combat) {
+        // The wire-level combat flag is not persisted in fidelity logs. The
+        // generated fight sequence is observable: attack starts the exchange,
+        // and skin/flee/escape ends it. Keep this separate from bleeding so a
+        // healthy agent still gets a clear combat indicator.
+        const lastAttack = text.lastIndexOf('script> attack ');
+        const lastEnd = Math.max(
+          text.lastIndexOf('script> skin '),
+          text.lastIndexOf('script> flee'),
+          text.lastIndexOf('script> retreat'),
+          text.lastIndexOf('[escape]'),
+          text.lastIndexOf('FINISHED'),
+        );
+        const active = lastAttack > lastEnd;
+        combat.classList.toggle('active', active);
+        combat.title = active ? 'In combat' : '';
+        combat.setAttribute('aria-hidden', String(!active));
+      }
+      const bleeding = card.el.querySelector('[data-role="bleeding"]');
+      if (bleeding) {
+        // Interlock lines are emitted only while a wound is active. Compare
+        // them with the newest progress sample so an old wound marker does
+        // not keep the icon lit after the sim has recovered.
+        const lastBleed = text.lastIndexOf('[interlock] bleeding');
+        const lastProgress = text.lastIndexOf('[progress]');
+        const active = lastBleed > lastProgress;
+        bleeding.classList.toggle('active', active);
+        bleeding.title = active ? 'Bleeding detected — sim is tending' : '';
+        bleeding.setAttribute('aria-hidden', String(!active));
+      }
       const samples = [...text.matchAll(/^(?:\[[^\]]+\]\s+)?\[reqs\]\s+(\d+)m\s+c(\d+)(?:\s+ts:(\S+))?\s+\|\s+(.+)$/gm)].map((m) => ({
         min: Number(m[1]), circle: Number(m[2]), ts: m[3] || null,
         rows: m[4].split(', ').map((cell) => { const x = /^(.+?)\s+(\d+)\/(\d+)$/.exec(cell); return x ? { label:x[1], have:Number(x[2]), need:Number(x[3]) } : null; }).filter(Boolean),
@@ -2610,7 +3061,7 @@
         if (row.have >= row.need && !firstMet[row.label]) firstMet[row.label] = liveTimeLabel(sample.ts, sample.min);
       }
       const label = (id) => window.DRReqTable?.prettyLabel?.(id) || id;
-      const color = (row) => row.have >= row.need ? 'var(--green)' : row.need - row.have <= 2 ? 'var(--amber)' : 'var(--red)';
+      const color = (row) => row.have >= row.need + 4 ? 'var(--magenta)' : row.have >= row.need ? 'var(--green)' : row.need - row.have <= 2 ? 'var(--amber)' : 'var(--red)';
       const tableOpen = EXP_TABLE_OPEN.has(card.el.dataset.liveName || card.el.dataset.liveLog || '');
       reqs.classList.toggle('exp-table-collapsed', !tableOpen);
       const met = latest.rows.filter((row) => row.have >= row.need).length;
@@ -2621,7 +3072,7 @@
         gate.dataset.empty = 'false';
         gate.title = `Circle ${latest.circle} gate: ${met} met · ${near} near · ${far} blocked`;
         gate.querySelector('b').textContent = `${met}/${latest.rows.length}`;
-        gate.querySelector('.lexp-segments').innerHTML = latest.rows.map((row) => `<i class="lexp-segment ${row.have >= row.need ? 'met' : row.need - row.have <= 2 ? 'near' : ''}" title="${esc(label(row.label))}: ${row.have}/${row.need}"></i>`).join('');
+        gate.querySelector('.lexp-segments').innerHTML = latest.rows.map((row) => `<i class="lexp-segment ${row.have >= row.need + 4 ? 'over' : row.have >= row.need ? 'met' : row.need - row.have <= 2 ? 'near' : ''}" title="${esc(label(row.label))}: ${row.have}/${row.need}${row.have >= row.need + 4 ? ' · 4+ over next-circle need' : ''}"></i>`).join('');
       }
       reqs.innerHTML = `<div class="lreq-caption"><button type="button" class="exp-table-toggle" data-role="exp-table-toggle" aria-expanded="${tableOpen}">${tableOpen ? '▾' : '▸'} Circle ${latest.circle} requirements · have / need · first met</button></div><div class="reqgrid">${latest.rows.map((row) => `<div class="reqitem" title="${esc(row.label)} — need rank ${row.need}"><div class="req-label">${esc(label(row.label))}</div><div class="req-have" style="color:${color(row)}">${row.have}/${row.need}</div><span class="req-first">${esc(firstMet[row.label] || 'not met')}</span></div>`).join('')}</div>`;
     }
@@ -2707,28 +3158,34 @@
     }
 
     async function loadLive() {
+      let manifest = null;
       try {
-        let manifest = null;
-        const ix = await fetch('/live/experiment-index.json?t=' + Date.now(), { cache: 'no-store' });
-        if (ix.ok) {
-          const entries = await ix.json();
+        try {
+          const entries = await liveJson('/live/experiment-index.json');
           const docs = await Promise.all((Array.isArray(entries) ? entries : []).slice(-12).map(async (e) => {
-            try { const r = await fetch((e.path || `/live/experiment-${e.runId}.json`) + '?t=' + Date.now(), { cache: 'no-store' }); return r.ok ? r.json() : null; } catch { return null; }
+            try { return await liveJson(e.path || `/live/experiment-${e.runId}.json`); } catch { return null; }
           }));
           manifest = docs.filter(Boolean).sort((a, b) => {
             const active = (x) => x.status === 'running' && Date.now() - Date.parse(x.updatedAt || 0) < 5 * 60000;
             return Number(active(b)) - Number(active(a)) || Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0);
           })[0] || null;
-        }
-        if (!manifest) manifest = await fetch('/live/experiment-current.json?t=' + Date.now(), { cache: 'no-store' }).then((r) => r.json());
+        } catch {}
+        if (!manifest) manifest = await liveJson('/live/experiment-current.json');
         if (Number.isFinite(Number(manifest.minutesPerLeg))) LIVE_CAP_MIN = Number(manifest.minutesPerLeg);
         if (Number.isFinite(Number(manifest.targetCircle))) LIVE_TARGET_CIRCLE = Number(manifest.targetCircle);
+        LIVE_EXP_STALE_MS = Number(manifest.expIntervalSeconds) === 30 ? 60000 : 120000;
       } catch {}
       let logs = [];
+      let logMetadata = null;
       try {
-        const txt = await fetch(LIVE + 'index.json', { cache: 'no-store' }).then((r) => r.text());
-        logs = JSON.parse(txt);
-      } catch {}
+        const index = await liveJson(LIVE + 'index-meta.json');
+        if (Array.isArray(index?.logs)) {
+          logMetadata = index.logs;
+          logs = index.logs.map((entry) => entry.name).filter(Boolean);
+        }
+      } catch {
+        try { logs = await liveJson(LIVE + 'index.json'); } catch {}
+      }
       // The live cards are now rendered into the Experiment board. Keep a
       // detached staging host so the existing telemetry/card updater remains
       // the single source of truth without restoring the old bottom board.
@@ -2737,12 +3194,36 @@
       // Running indicator now lives in the page header (tab UI has no dot slot).
       const navDot = $('sims-live-flag');
 
-      // Detect running sims by file growth + completion markers
-      const running = [];
-      for (const name of logs) {
+      // Detect running sims by file growth + completion markers. Fetch all
+      // candidate logs concurrently; the old serial loop made first paint
+      // wait on every historical log, especially over Tailscale/mobile.
+      const initialLogText = {};
+      const headers = logMetadata ? logMetadata.map((entry) => {
+        const name = entry.name;
+        const len = Number(entry.size) || 0;
+        const prev = liveSizes[name];
+        liveSizes[name] = len;
+        return { name, lastMod: Number(entry.modifiedAt), len, prev, ok: true };
+      }) : await Promise.all(logs.map(async (name) => {
+        try {
+          const r = await fetch(LIVE + name + '.log', { method: 'HEAD', cache: 'no-store' });
+          const lastMod = Date.parse(r.headers.get('last-modified') || 0);
+          const len = Number(r.headers.get('content-length')) || 0;
+          const prev = liveSizes[name];
+          liveSizes[name] = len;
+          return { name, lastMod, len, prev, ok: r.ok };
+        } catch { return { name, ok: false }; }
+      }));
+      const activeCandidates = headers.filter(({ lastMod, len, prev, ok }) => {
+        const fresh = ok && Number.isFinite(lastMod) && (Date.now() - lastMod) < 120000;
+        const grew = prev !== undefined && len > prev;
+        return fresh || grew;
+      });
+      const detected = await Promise.all(activeCandidates.map(async ({ name }) => {
         try {
           const r = await fetch(LIVE + name + '.log', { cache: 'no-store' });
           const text = await r.text();
+          initialLogText[name] = text;
           const lines = text.split('\n').filter(Boolean);
           const last = lines[lines.length - 1] || '';
           // A finished log ends with its final progress/result lines, not
@@ -2763,18 +3244,11 @@
           // last poll, OR still be within the fresh window AND not terminal.
           // Alive sims append every ~30s (sweep PROGRESS / bot [progress]),
           // so a frozen file drops off on the very next poll. KAIZEN 2026-08-28.
-          const len = Number(r.headers.get('content-length')) || text.length;
-          const prev = liveSizes[name];
-          liveSizes[name] = len;
-          // grew only counts on a SECOND sighting — on first poll we have no
-          // baseline, so a stale log must prove liveness via mtime, not size.
-          const grew = prev !== undefined && len > prev;
           const terminal = /=== Results|FINISHED|VERDICT|wedged — no progress/.test(currentRun);
-          if ((fresh || grew) && !terminal && lines.length > 2) {
-            running.push(name);
-          }
-        } catch {}
-      }
+          return !terminal && lines.length > 2 ? name : null;
+        } catch { return null; }
+      }));
+      const running = detected.filter(Boolean);
 
       if (!running.length) {
         LIVE_COUNT = 0;
@@ -2808,8 +3282,11 @@
           el.dataset.liveLog = name;
           el.innerHTML = `<div class="lh" data-role="toggle" title="click to expand/collapse the run's log tail"><span class="lchev">▸</span><span class="ln">${esc(name)}</span><span class="lidentity" data-role="identity">race/guild…</span><span class="ls" data-role="state">…</span>
             <span class="lrate" data-role="rate" title="provisional rating from this run's live progress">—</span>
+            <span class="lcombat" data-role="combat" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-swords-icon lucide-swords"><path d="m13 19 6-6"/><path d="M14.5 17.5 3.586 6.586A2 2 0 013 5.172V3h2.172a2 2 0 011.414.586L17.5 14.5"/><path d="m14.828 6.172 2.586-2.586A2 2 0 0118.828 3H21v2.172a2 2 0 01-.586 1.414l-2.586 2.586"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m5 14 4 4"/><path d="m5 21-2-2"/><path d="M7.5 16.5 4 20"/></svg></span>
+            <span class="lbleed" data-role="bleeding" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-droplet-icon lucide-droplet"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg></span>
+            <span class="lexp-alert" data-role="exp-alert" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert-icon lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
             <span class="lexp-gate" data-role="exp-gate" data-empty="true" title="circle requirement progress"><b>—</b><span class="lexp-segments"></span></span>
-            <a class="lwatch" data-role="watch" href="#" target="_blank" rel="opener" aria-disabled="true" title="Open this sim's read-only game stream in a new tab"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg> Watch live ↗</a></div>
+            <a class="lwatch" data-role="watch" href="#" target="_blank" rel="opener" aria-disabled="true" title="Open this sim's read-only game stream in a new tab"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg> watch</a></div>
             <div class="lmeta" data-role="meta"></div>
             <div class="live-summary" aria-label="run summary">
               <div class="live-metric" data-metric="identity"><span class="lm-label">Guild · Race · Script</span><span class="lm-value">—</span><span class="lm-sub">run identity</span></div>
@@ -2848,6 +3325,7 @@
         if (!running.includes(name)) {
           liveCards[name].el.remove();
           delete liveCards[name];
+          delete liveExpPulse[name];
         }
       }
 
@@ -2855,8 +3333,9 @@
       for (const name of running) {
         const card = liveCards[name];
         try {
-          const r = await fetch(LIVE + name + '.log', { cache: 'no-store' });
-          const text = await r.text();
+          // Reuse the liveness response for the first paint instead of
+          // fetching the same log a second time.
+          const text = initialLogText[name] ?? await fetch(LIVE + name + '.log', { cache: 'no-store' }).then((r) => r.text());
           // Logs are append-only across benchmark repeats. The split clock
           // must never inherit a prior character's first kill or circle.
           const runStart = text.lastIndexOf('=== sweep run ');
@@ -2867,18 +3346,34 @@
             liveRunKeys[name] = runKey;
             msSeen[name] = {};
           }
+          // Milestone chips are intentionally disabled while EXP blips are
+          // being tuned; keep the parser available for a later re-enable.
+          // parseMilestones(name, runText);
           const charMatches = [...text.matchAll(/^=== sweep run \S+ (\S+) /gm)];
           const liveChar = charMatches.at(-1)?.[1] || '';
           const identity = [...runText.matchAll(/^=== sweep run \S+ \S+.*?\(([^)]+)\)/gm)].at(-1)?.[1] || '';
           const identityEl = card.el.querySelector('[data-role="identity"]');
-          if (identityEl && identity) identityEl.textContent = identity;
+          if (identityEl && identity) {
+            // identity is "<race> <guild>" — swap the guild word for its icon
+            const idParts = identity.split(/\s+/).filter(Boolean);
+            const ir = idParts[0] || '';
+            const ig = idParts[1] || '';
+            identityEl.innerHTML = [ir ? esc(ir) : '', ig ? guildIcon(ig, { text: false }) : ''].filter(Boolean).join(' ') || esc(identity);
+          }
           if (liveChar) liveChars[name] = liveChar;
           const watch = card.el.querySelector('[data-role="watch"]');
           if (liveChar) {
-            watch.href = '/?spectate=' + encodeURIComponent(liveChar)
-              + (TOKEN ? '#gm=' + encodeURIComponent(TOKEN) : '');
+            // A sweep may be attached to an isolated world on another port.
+            // Use that world's endpoint and credential so Watch does not fall
+            // through to the main world's login screen.
+            const watchPort = Number(manifest?.worldPort) || Number(location.port || 3000);
+            const watchToken = manifest?.watchToken || TOKEN;
+            const watchOrigin = watchPort !== Number(location.port || 3000)
+              ? `${location.protocol}//${location.hostname}:${watchPort}` : '';
+            watch.href = watchOrigin + '/?spectate=' + encodeURIComponent(liveChar)
+              + (watchToken ? '#gm=' + encodeURIComponent(watchToken) : '');
             watch.setAttribute('aria-disabled', 'false');
-            watch.title = TOKEN ? `Watch ${liveChar}'s game stream in a new tab`
+            watch.title = watchToken ? `Watch ${liveChar}'s game stream in a new tab`
               : 'GM token needed — open Sims from the Admin dashboard first';
           }
           const lines = text.split('\n').filter(Boolean);
@@ -2915,6 +3410,21 @@
             // per-skill leaders; parse it so top-10 detail rides along.
             const lastGapsLine = [...runText.matchAll(/\[gaps\][^\n]*/g)].pop()?.[0] || '';
             const expAll = /expall:(\d+)\/(\d+)/.exec(lastGapsLine);
+            const pulse = liveExpPulse[name] ||= { key: null, lastAt: Date.now() };
+            // The timestamped line identifies a fresh sample even when the
+            // total rank count is unchanged during a legitimate interval.
+            const expKey = expAll ? lastGapsLine : null;
+            if (expKey && expKey !== pulse.key) {
+              pulse.key = expKey;
+              pulse.lastAt = Date.now();
+            }
+            const expAlert = card.el.querySelector('[data-role="exp-alert"]');
+            if (expAlert) {
+              const stale = Date.now() - pulse.lastAt > LIVE_EXP_STALE_MS;
+              expAlert.classList.toggle('active', stale);
+              expAlert.title = stale ? 'EXP ALL has not updated in ' + (LIVE_EXP_STALE_MS / 1000) + ' seconds' : '';
+              expAlert.setAttribute('aria-hidden', String(!stale));
+            }
             const leaders = expAll
               ? (lastGapsLine.split('|').pop() || '').trim().split(', ').slice(0, 3)
               : [];
@@ -3040,6 +3550,8 @@
           log.scrollTop = log.scrollHeight;
         } catch {}
       }
+      // Milestone display intentionally disabled; EXP telemetry remains live.
+      // renderMilestones();
       renderSpeedrunBoard();
       // The experiment board consumes the same live telemetry, so refresh it
       // immediately instead of waiting for its slower 30s manifest interval.
@@ -3053,7 +3565,7 @@
     void gotoPane;
 
     loadLive();
-    liveTimer = setInterval(loadLive, 2000);
+    liveTimer = setInterval(loadLive, 30000);
 
     /* ================= milestone tracker ================= */
     // Milestones parse a run's fidelity log to show which progression
@@ -3061,10 +3573,10 @@
     const MILESTONES = [
       { id: 'first_kill',  ico: '⚔️', nm: 'First Kill',      re: /kills\s+1\b/ },
       { id: 'ten_kills',   ico: '🗡️', nm: '10 Kills',         re: /kills\s+(\d+)/, fn: m => +m[1] >= 10 },
-      { id: 'first_exp',   ico: '✨', nm: 'First EXP',        re: /FIRST-EXP at (\d+)s/, stat: 's' },
-      { id: 'split_5',     ico: '📈', nm: '+5 Ranks',         re: /RANK-SPLIT \+5 ranks at (\d+)s/, stat: 's' },
-      { id: 'split_10',    ico: '📊', nm: '+10 Ranks',        re: /RANK-SPLIT \+10 ranks at (\d+)s/, stat: 's' },
-      { id: 'split_15',    ico: '🎯', nm: '+15 Ranks',        re: /RANK-SPLIT \+15 ranks at (\d+)s/, stat: 's' },
+      { id: 'first_exp',   ico: '✨', nm: 'First EXP',        re: /FIRST-EXP at (\d+)s/, structured: 'first_exp', stat: 's' },
+      { id: 'split_5',     ico: '📈', nm: '+5 Ranks',         re: /RANK-SPLIT \+5 ranks at (\d+)s/, structured: 'rank_5', stat: 's' },
+      { id: 'split_10',    ico: '📊', nm: '+10 Ranks',        re: /RANK-SPLIT \+10 ranks at (\d+)s/, structured: 'rank_10', stat: 's' },
+      { id: 'split_15',    ico: '🎯', nm: '+15 Ranks',        re: /RANK-SPLIT \+15 ranks at (\d+)s/, structured: 'rank_15', stat: 's' },
       { id: 'buy_club',    ico: '🪵', nm: 'Buy Club',         re: /buy club/i },
       { id: 'buy_sword',   ico: '🗡️', nm: 'Buy Short Sword',  re: /buy short sword/i },
       { id: 'buy_sabre',   ico: '⚔️', nm: 'Buy Cavalry Sabre', re: /buy sabre/i },
@@ -3090,6 +3602,18 @@
         const m = ms.re.exec(text);
         if (m && !seen[ms.id]) {
           seen[ms.id] = m[1] || true;
+          continue;
+        }
+        if (!seen[ms.id] && ms.structured) {
+          const sm = new RegExp(`^\\[milestone\\]\\s+${ms.structured}\\s+(\\S+)`, 'm').exec(text);
+          if (sm) {
+            const entered = /^=== sweep run \S+ \S+.*?entered (\S+)/m.exec(text)?.[1];
+            const eventMs = Date.parse(sm[1]);
+            const startMs = entered ? Date.parse(entered) : NaN;
+            seen[ms.id] = ms.stat === 's' && Number.isFinite(eventMs) && Number.isFinite(startMs)
+              ? String(Math.max(0, Math.round((eventMs - startMs) / 1000)))
+              : true;
+          }
         }
       }
     }
@@ -3107,7 +3631,9 @@
           chip = document.createElement('span');
           chip.dataset.role = 'ms';
           chip.className = 'chip milestone-chip';
-          card.el.querySelector('.lh').appendChild(chip);
+          // Keep milestone blips before the watch action so the EXP gate and
+          // Watch stay grouped at the right edge.
+          card.el.querySelector('.lh').insertBefore(chip, card.el.querySelector('[data-role="watch"]'));
         }
         chip.textContent = `✓ ${hitCount}/${MILESTONES.length}`;
         chip.title = 'milestones hit this run — expand the card to see which';

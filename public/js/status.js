@@ -811,10 +811,23 @@ export function renderQuest(msg) {
 }
 
 // FE tracker (DR field-experience pane): skills currently learning.
+export function renderExpBlips(reqs) {
+  const blips = $('fe-blips');
+  if (!blips) return;
+  blips.hidden = !settings.expblips || !reqs?.rows?.length;
+  if (blips.hidden) return;
+  blips.innerHTML = `<span class="fe-blips-label">C${reqs.circle}</span>` + reqs.rows.map((r) => {
+    const over = r.have >= r.need + 4;
+    const state = over ? 'over' : r.have >= r.need ? 'met' : r.need - r.have <= 2 ? 'near' : 'behind';
+    return `<i class="fe-blip ${state}" title="${r.label}: ${r.have}/${r.need}${over ? ' · 4+ over' : ''}"></i>`;
+  }).join('');
+}
+
 export function renderFe(msg) {
   const row = $('fe-row');
   if (!row) return;
   const skills = (msg && msg.skills) || [];
+  renderExpBlips(msg && msg.requirements);
   row.innerHTML = '';
   const count = $('fe-count');
   if (count) {

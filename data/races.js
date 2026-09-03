@@ -33,11 +33,10 @@ export const RACES = {
     stats: { str: 12, con: 10, ref: -6, agi: -6, cha: -5, dis: 4, wis: -3, int: -6 },
     height: 'enormous', weight: 'a colossal frame', lifespan: 'a century',
   },
-  giantman: {
-    id: 'giantman', name: 'Giantman', desc: 'Towering children of the northern wastes, giants among men in strength and stature.',
-    stats: { str: 10, con: 8, ref: -4, agi: -6, cha: -3, dis: 3, wis: -2, int: -4 },
-    height: 'immense', weight: 'a giantman frame', lifespan: 'a century and a half',
-  },
+  // NOTE: 'giantman' was removed — it is a GemStone IV race, not DragonRealms.
+  // DR's eleven races: human, dwarf, elf, elothean, gnome, gortog, halfling,
+  // kaldar, prydaen, rakash, skra. DR's big-and-burly analogue is the Kaldar
+  // (with the Gor'Tog even larger); Kaldar carries the heavy-str role here.
   halfling: {
     id: 'halfling', name: 'Halfling', desc: 'Cheerful and quick, halflings are natural survivors with light feet.',
     stats: { str: -6, con: 2, ref: 7, agi: 9, cha: 5, dis: 2, wis: 2, int: 0 },

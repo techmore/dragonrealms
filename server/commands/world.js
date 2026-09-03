@@ -32,7 +32,7 @@ const HELP = `
   Death:     die in battle and you awaken at the temple — your gear lies with your corpse; search <corpse>, get <item> from corpse
   Shops:     list  |  buy <item> [qty]  |  sell <item> [qty]  |  deposit/withdraw <silvers>  |  vault/store/retrieve  |  pit  |  heal  |  auction offer/buy  (Auction Hall, north of the pit)
   Training:  train <skill>  (pay silvers to advance guild skills)  |  train <stat> twice (Fane of Training, south of Temple Row)  |  circle
-  TDPs:      tdp  |  raise <stat>  |  tdptrain <skill>
+  TDPs:      tdp  |  raise <stat>  (INFO attributes only, at the Fane)
   Quests:    quest  |  claim  |  deliver  |  ask <leader> task
   Stances:   stance aggressive | defensive | guarded | balanced  (costs stance points)
   PvP:       duel <player> [blood|blow|pain] [reason] | accept/decline <player> | surrender | assault <player> (OPEN targets only) | recall warrant | pvp stance open|guarded|closed  (duels wilds only)

@@ -6,7 +6,7 @@ import { roomById } from '../../data/world.js';
 import { db } from '../db.js';
 import {
   skillRank, gainSkillExp, applyExpToSkill, weaponOf, totalArmor, STAT_NAMES, MAX_STAT,
-  statRaiseCost, tdpTrainCost, tdpAwardFor, baseStatsFor, ACHIEVEMENTS, unlockAchievement, poolCap,
+  statRaiseCost, tdpAwardFor, baseStatsFor, ACHIEVEMENTS, unlockAchievement, poolCap,
 } from '../player.js';
 import { pad, matchSkill, recalcDerived, rankExp, SLOT_RATES, STAT_FULL } from './util.js';
 
@@ -64,7 +64,7 @@ export const commands = {
   tdp(ctx) {
     const { p, say } = ctx;
     const pool = p.tdpPool || 0;
-    say(`\n\x1b[1mTraining Points (TDPs)\x1b[0m: ${p.tdp}  (pool ${pool}/200 toward the next)\nEarn TDPs as your skills rise in rank and from circling. Spend them on:\n  raise <stat>      permanently raise a stat\n  tdptrain <skill>  train any skill directly`);
+    say(`\n\x1b[1mTraining Points (TDPs)\x1b[0m: ${p.tdp}  (pool ${pool}/200 toward the next)\nEarn TDPs as your skills rise in rank and from circling. Spend them on:\n  raise <stat>      permanently raise an INFO attribute at the Fane`);
   },
 
   raise(ctx) {
@@ -85,16 +85,8 @@ export const commands = {
   },
 
   tdptrain(ctx) {
-    const { p, arg1, emit } = ctx;
-    if (!arg1) return emit('Usage: tdptrain <skill> — spends TDPs to train any skill.');
-    const skillId = matchSkill(arg1);
-    if (!skillId) return emit('I do not know that skill. See "skills".');
-    const rank = skillRank(p, skillId);
-    const cost = tdpTrainCost(rank);
-    if (p.tdp < cost) return emit(`Training ${SKILLS[skillId].name} costs ${cost} TDPs; you have ${p.tdp}.`);
-    p.tdp -= cost;
-    applyExpToSkill(p, p.skills[skillId], expToNextRank(rank));
-    emit(`You invest ${cost} TDPs in ${SKILLS[skillId].name} — it now sits at rank ${skillRank(p, skillId)}.`);
+    const { emit } = ctx;
+    return emit('TDPs cannot be spent on skill experience. Use combat, field work, or guild training to advance skills; use raise <stat> at the Fane for attributes.');
   },
 
   circle(ctx) { circleUp(ctx); },

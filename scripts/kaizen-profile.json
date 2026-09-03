@@ -1,0 +1,9 @@
+{
+  "guild": "barbarian",
+  "variants": ["baseline", "edgedSkinReserveSafe", "survivalFocus"],
+  "concurrency": 3,
+  "minutes": 20,
+  "circle": 5,
+  "boost": 20,
+  "statPolicy": "paired-fixed-v1"
+}

@@ -45,6 +45,9 @@ export const RT_BLOCK = new Set([
   'repair', 'use', 'drink', 'eat', 'khri', 'predict', 'harness', 'perceive', 'charge', 'invoke',
   'focus', 'animate', 'ritual', 'beseech', 'enchante', 'glyph', 'summon', 'sacrifice',
   'advance', 'retreat', 'flee',
+  // Alias spellings of gated verbs (C4): kill -> attack; bash/shield-bash/
+  // disarm/trip are the combat maneuvers. appr already sits beside appraise.
+  'kill', 'disarm', 'trip', 'bash', 'shield-bash',
 ]);
 
 export function handleCommand(game, p, input, depth = 0, opts = {}) {

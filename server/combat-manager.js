@@ -20,7 +20,7 @@ export class CombatManager {
     this.timer = null;
   }
 
-  start(player, creatureDefs) {
+  start(player, creatureDefs, instances = null) {
     if (this.combats.has(player.charId)) return { ok: false, error: 'You are already in combat!' };
     if (player.hp <= 0) return { ok: false, error: 'You cannot fight in your condition.' };
     const enemies = creatureDefs.map((def, i) => ({
@@ -32,6 +32,10 @@ export class CombatManager {
       timer: def.weapon.speed,
       range: initialRange(roomById(player.room)?.zone),
       dead: false,
+      // The live world spawn this enemy represents (Game.enterRoom passes it).
+      // Combat death marks it dead in Game (respawn clocked, camp throttle
+      // armed); test/planned combats without an instance stay self-contained.
+      instance: instances?.[i] || null,
     }));
     const combat = new Combat(`combat_${player.charId}_${Date.now()}`, player, enemies, {
       onEnd: (c, result) => this.end(player, c, result),
@@ -184,12 +188,28 @@ say(other, `${player.name} vanished from the fight. You stand alone.`, 'combat')
   }
 
   handleDeath(player) {
-    // Exp penalty: shave a little rank-progress across skills. The TDP pool
-    // shares the loss (authentic DR: death reduces rank-points toward TDPs).
+    // This game's death penalty removes progress from skill EXP and trims the
+    // shared TDP pool proportionally. It does not currently decay whole skill
+    // ranks, so this is intentionally a project rule rather than the
+    // rank-loss-based DR memory-decay rule.
+    const before = {
+      expPools: { ...(player.expPools || {}) },
+      skillExp: Object.fromEntries(Object.entries(player.skills).map(([id, s]) => [id, s.exp || 0])),
+      tdpPool: player.tdpPool || 0,
+    };
     for (const s of Object.values(player.skills)) {
       if (s.exp > 0) s.exp = Math.max(0, s.exp - Math.floor(s.exp * 0.25));
     }
     if (player.tdpPool > 0) player.tdpPool = Math.floor(player.tdpPool * 0.75);
+    const after = {
+      expPools: { ...(player.expPools || {}) },
+      skillExp: Object.fromEntries(Object.entries(player.skills).map(([id, s]) => [id, s.exp || 0])),
+      tdpPool: player.tdpPool || 0,
+    };
+    sayRaw(player, { t: 'death_penalty', before, after,
+      expPoolLost: Object.values(before.expPools).reduce((a, n) => a + n, 0)
+        - Object.values(after.expPools).reduce((a, n) => a + n, 0),
+      tdpPoolLost: before.tdpPool - after.tdpPool });
     const deathRoom = player.room;
     const corpse = this.game.dropCorpse(player);
     player.hp = Math.floor(player.maxHp * 0.5);
@@ -219,7 +239,10 @@ say(player, fleeTo ? 'You stagger back through the gate, breathing hard.' : 'You
   startTicker() {
     if (this.timer) return;
     this.timer = setInterval(() => {
-      for (const combat of [...this.combats.values()]) {
+      // Dedupe by object identity: duels/assaults store one Combat under BOTH
+      // participants' charIds, so Map.values() listed each shared fight twice
+      // and every PvP combat ticked (and narrated) at double speed.
+      for (const combat of new Set(this.combats.values())) {
         try { combat.tick(); } catch (e) { console.error('combat tick error', e); }
       }
     }, TICK_MS);

@@ -661,7 +661,17 @@ export const ROOMS = {
   hall_necromancer: {
     id: 'hall_necromancer', zone: 'town', name: 'Necromancer Guildhall', npcs: ['leader_necromancer'], APPROXIMATE: true,
     desc: 'A cold, quiet hall of dark marble. Candle flames burn with an odd, steady stillness.',
-    exits: { w: 'dens_hall_cleric_hall_necromancer_1' },
+    exits: { w: 'dens_hall_cleric_hall_necromancer_1', d: 'graveyard' },
+  },
+  // Necromancer-native hunting ground: a crypt beneath the guildhall. Reachable
+  // directly from hall_necromancer (down) and back (up), so an agent that
+  // enters the world and walks to its hall can drop straight into a
+  // low-circle undead spawn without the long cleric->ranger detour. Spawns a
+  // circle-1 shade, safe for a fresh necromancer (bone_spear / WEAKSWING).
+  graveyard: {
+    id: 'graveyard', zone: 'town', name: 'Guildhouse Crypt', spawns: ['shade'], APPROXIMATE: true,
+    desc: 'Beneath the necromancer guildhall, a vaulted crypt of bone-dust and cold air. Pale shapes drift between the sarcophagi, and the dark is patient.',
+    exits: { up: 'hall_necromancer' },
   },
   // The Thieves' Guild is intentionally hidden in DR (urchin guides omit it);
   // we place an unmarked door off the far-west quarter. APPROXIMATE position.

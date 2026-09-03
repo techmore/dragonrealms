@@ -24,6 +24,7 @@
 import { WebSocket } from 'ws';
 import { appendFileSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { resolveDebugToken } from './lib/debug-token.mjs';
 const ARGS = process.argv.slice(2);
 const flag = (name, dflt) => {
   const i = ARGS.indexOf('--' + name);
@@ -46,7 +47,7 @@ if (!ROUTES_FILE || !existsSync(ROUTES_FILE)) {
   process.exit(1);
 }
 const ROUTES = JSON.parse(readFileSync(ROUTES_FILE, 'utf8'));
-const DEBUG_TOKEN = flag('debug', process.env.DR_MAPPER_DEBUG || '');
+const DEBUG_TOKEN = flag('debug', process.env.DR_MAPPER_DEBUG || resolveDebugToken());
 
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const REPORT = new URL(`../public/live/mapper-${RUN_ID}.log`, import.meta.url);

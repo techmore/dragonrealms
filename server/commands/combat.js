@@ -103,7 +103,7 @@ function ambush(ctx) {
   if (!combat || !uid) {
     const creature = targetName ? game.findCreature(p.room, targetName) : null;
     if (creature) {
-      game.startCombat(p, [creature.def]);
+      game.startCombat(p, [creature.def], [creature]);
       combat = game.combat.getFor(p);
       uid = combat.playerTarget;
     } else {
@@ -125,7 +125,7 @@ function snipe(ctx) {
   if (!combat) {
     const creature = arg1 ? game.findCreature(p.room, arg1) : null;
     if (creature) {
-      game.startCombat(p, [creature.def]);
+      game.startCombat(p, [creature.def], [creature]);
       combat = game.combat.getFor(p);
       uid = combat.playerTarget;
     } else {
@@ -200,7 +200,7 @@ function attack(ctx) {
       }
     }
   } else {
-    game.startCombat(p, [creature.def]);
+    game.startCombat(p, [creature.def], [creature]);
     const c2 = game.combat.getFor(p);
     if (c2) {
       const enemy = c2.aliveEnemies.find((e) => e.uid === c2.playerTarget);
@@ -269,7 +269,7 @@ function maneuver(ctx, kind) {
   if (!combat) {
     const creature = arg1 ? game.findCreature(p.room, arg1) : null;
     if (creature) {
-      game.startCombat(p, [creature.def]);
+      game.startCombat(p, [creature.def], [creature]);
       combat = game.combat.getFor(p);
       uid = combat.playerTarget;
     } else {
@@ -466,7 +466,7 @@ function smite(ctx) {
   if (!combat) {
     const creature = arg1 ? game.findCreature(p.room, arg1) : null;
     if (creature) {
-      game.startCombat(p, [creature.def]);
+      game.startCombat(p, [creature.def], [creature]);
       combat = game.combat.getFor(p);
       uid = combat.playerTarget;
     } else {
@@ -504,7 +504,7 @@ function impede(ctx) {
   if (!combat) {
     const creature = arg1 ? game.findCreature(p.room, arg1) : null;
     if (creature) {
-      game.startCombat(p, [creature.def]);
+      game.startCombat(p, [creature.def], [creature]);
       combat = game.combat.getFor(p);
       uid = combat.playerTarget;
     } else {

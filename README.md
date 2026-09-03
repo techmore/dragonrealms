@@ -40,8 +40,9 @@ testing and analysis — see `docs/api.md`.
   every new character starts with 600, circling grants 50 (+circle) below
   circle 10 (100 above), and every rank-up feeds a shared hidden pool that
   converts each 200 points into a TDP. Spend at the **Fane of Training** with
-  `train <stat>` twice (DR's designated stat rooms); `tdptrain <skill>`
-  spends TDPs on any skill; death shaves the pool.
+  `train <stat>` twice (DR's designated stat room). TDPs never substitute for
+  skill experience; death currently applies the project's proportional pool
+  penalty rather than rank-based memory decay.
 - **Skills messaging** — `skills` reports the DR 16-tier ladder (Novice →
   Avatar, with degree modifiers); `exp` shows the mindstate ladder.
 - **PvP & justice v1** — `duel <name> [blood|blow|pain]` with end conditions,
@@ -213,7 +214,7 @@ Items:     get/drop <item> | get <item> from corpse | inventory | wear/wield <it
 Death:     die -> temple; gear stays on your corpse (search <corpse>, get <item> from corpse)
 Shops:     list | buy <item> [qty] | sell <item> [qty] | deposit/withdraw <silvers> | pit (commodities) | heal
 Training:  train <skill> (silvers, at your guild hall) | train <stat> twice (Fane of Training) | circle
-TDPs:      tdp | raise <stat> | tdptrain <skill>
+TDPs:      tdp | raise <stat> | train <stat> twice at the Fane
 Quests:    quest | claim | ask <leader> task
 Crafting:  craft <recipe> (Tilted Retort) | forge <recipe> (Ember Forge)
 Wilds:     forage | hunt | track | ladder | hide | ambush <creature> | rest | wake | study | perform/sing | appraise <item>

@@ -67,19 +67,8 @@ export class Game {
   weatherLabel() { return weather.label(this); }
 
   init() {
-    for (const [roomId, room] of Object.entries(ROOMS)) {
-      const spawns = [];
-      for (const defId of room.spawns || []) {
-        // Spawn-density multiplier (sweep windows): repeat each entry N times.
-        for (let i = 0; i < SPAWN_MULT; i++) {
-          const base = creatureById(defId);
-          if (!base) continue;
-          const rare = RARES[room.zone];
-          const def = rare && Math.random() < 0.08 ? rare : base;
-          spawns.push(this.makeCreature(def));
-        }
-      }
-      this.roomCreatures.set(roomId, spawns);
+    this.stockCreatures();
+    for (const [roomId] of Object.entries(ROOMS)) {
       this.floorItems.set(roomId, []);
     }
     this.combat.startTicker();
@@ -88,6 +77,9 @@ export class Game {
     this.manaTicker.unref();
     this.weatherTicker = setInterval(() => this.rollWeather(), 60 * 1000);
     this.weatherTicker.unref();
+    // Shopkeepers restock slowly (D1): purchases deplete real stock now.
+    this.restockTicker = setInterval(() => economy.restockTick(), 60 * 1000);
+    this.restockTicker.unref();
     this.autosaveTicker = setInterval(() => {
       for (const p of this.players.values()) {
         try { savePlayer(p); } catch (e) { console.error('autosave error', e); }
@@ -114,7 +106,7 @@ export class Game {
   // new recurring subsystem is added.
   stop() {
     this.combat.stopTicker();
-    for (const key of ['respawnTicker', 'manaTicker', 'weatherTicker', 'autosaveTicker', 'pulseTicker']) {
+    for (const key of ['respawnTicker', 'manaTicker', 'weatherTicker', 'restockTicker', 'autosaveTicker', 'pulseTicker']) {
       if (this[key]) clearInterval(this[key]);
       this[key] = null;
     }
@@ -151,6 +143,45 @@ export class Game {
   makeCreature(def) {
     const maxHp = def.circle * 14 + def.stats.con * 3 + 20;
     return { uid: creatureUid(), def, hp: maxHp, maxHp, alive: true, respawnAt: 0 };
+  }
+
+  // Stock every room from the world data (init and GM reload share this).
+  // Uses the full makeCreature shape — uid + respawnAt included — and honors
+  // the DR_SPAWN_MULT density window.
+  stockCreatures() {
+    for (const [roomId, room] of Object.entries(ROOMS)) {
+      const spawns = [];
+      for (const defId of room.spawns || []) {
+        // Spawn-density multiplier (sweep windows): repeat each entry N times.
+        for (let i = 0; i < SPAWN_MULT; i++) {
+          const base = creatureById(defId);
+          if (!base) continue;
+          const rare = RARES[room.zone];
+          const def = rare && Math.random() < 0.08 ? rare : base;
+          spawns.push(this.makeCreature(def));
+        }
+      }
+      this.roomCreatures.set(roomId, spawns);
+    }
+  }
+
+  // GM world reload: rebuild every room's spawn list at full health. In-flight
+  // combats finish against their own clones (self-contained snapshots); their
+  // killCreature calls would mark orphaned instances harmlessly.
+  reloadCreatures() {
+    this.stockCreatures();
+    return this.roomCreatures.size;
+  }
+
+  // Combat hook (server/combat.js killCreature): a slain enemy's world spawn
+  // dies here — off the creature list, respawn clocked — so kills actually
+  // deplete rooms, feed the respawn ticker, and arm the camp throttle.
+  // Idempotent via the alive flag (already-dead instances are no-ops).
+  markCreatureKilled(instance) {
+    if (!instance || !instance.alive) return;
+    instance.alive = false;
+    instance.hp = 0;
+    instance.respawnAt = Date.now() + RESPAWN_MS;
   }
 
   respawnTick() {
@@ -333,16 +364,17 @@ export class Game {
 
   enterRoom(p) {
     this.look(p);
-    // Aggressive creatures attack on sight.
+    // Aggressive creatures attack on sight — as live instances, so killing
+    // them depletes the room rather than a phantom clone.
     const aggressive = this.creaturesIn(p.room).filter((c) => c.def.aggressive);
     if (aggressive.length && !p.combatId) {
-      this.startCombat(p, aggressive.map((c) => c.def));
+      this.startCombat(p, aggressive.map((c) => c.def), aggressive);
     }
   }
 
-  startCombat(p, defs) {
+  startCombat(p, defs, instances = null) {
     this.stopRest(p);
-    const res = this.combat.start(p, defs);
+    const res = this.combat.start(p, defs, instances);
     if (res.ok) {
       res.combat.say(`\n${res.combat.enemies.map((e) => cap(e.def.name)).join(' and ')} turn${res.combat.enemies.length > 1 ? '' : 's'} to face you!\n`);
       res.combat.startAttack();

@@ -16,6 +16,11 @@
     "simulate": "node scripts/simulate-progression.mjs",
     "bot": "node scripts/barbarian-bot.mjs",
     "verify-docs": "node scripts/verify-roadmap.mjs",
+    "sep-validate": "node scripts/sep-validate.mjs",
+    "sep-corpus": "node scripts/sep-corpus.mjs",
+    "sep-split": "node scripts/sep-split.mjs",
+    "sep-model-check": "node scripts/sep-model-check.mjs",
+    "sep-curate": "node scripts/sep-curate.mjs",
     "docs": "node scripts/build-roadmap.mjs && node scripts/build-skills-doc.mjs && node scripts/verify-roadmap.mjs"
   },
   "engines": {

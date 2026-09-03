@@ -308,6 +308,11 @@ export class WireSession {
         // rotation branches on via %wsp (see script-engine.js [WEAPON:]).
         // A player sees the same thing on their hands bar; no side channel.
         v.wsp = m.handSkill || '';
+        // Server-truth armor check: any worn piece matching armor materials.
+        // The sweep used to mark armor "online" when the wear was SENT — a
+        // refused/lost wear then starved the 1st-armor gate silently.
+        v.armorWorn = Object.values(m.slots || {})
+          .some((list) => (list || []).some((i) => /padded|leather|studded|chain|brigandine|plate/i.test(i.name)));
         break;
       }
       case 'msg': case 'combat': case 'notice': {
@@ -341,6 +346,7 @@ export class WireSession {
         break;
       }
       case 'scripts': this.handlers.onScripts?.(m); break;
+      case 'death_penalty': this.handlers.onDeathPenalty?.(m); break;
       case 'error':
         this.handlers.onError?.(stripAnsi(m.msg));
         if (/UNIQUE constraint failed: characters\.name/i.test(String(m.msg))) {
@@ -404,7 +410,7 @@ export class WireSession {
       .filter(([, rank]) => rank > 0)
       .map(([id, rank]) => `[WSRANK:${id}:${rank}]`)
       .join('');
-    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}${v.rage ? ' [Raging]' : ''}${(v.bleeding || []).length ? ' [bleeding: ' + v.bleeding.join('; ') + ']' : ''}${v.wsp ? ` [WEAPON:${v.wsp}]` : ''}${v.room ? ` [ROOM:${v.room}]` : ''}${v.players?.length ? ` [PLAYERS:${v.players.length}]` : ''}${wsrankTokens}`, 'inject');
+    runner.feed(`HP: ${v.hp}/${v.maxhp}  Mana: ${v.mana}/${v.maxmana}  RT: ${v.rt}  Circle ${v.circle}${v.silver != null ? `  ${v.silver} silvers` : ''}${v.tdp != null ? `  TDPs: ${v.tdp}` : ''}${v.inCombat ? ' [COMBAT]' : ''}${v.rage ? ' [Raging]' : ''}${(v.bleeding || []).length ? ' [bleeding: ' + v.bleeding.join('; ') + ']' : ''}${v.wsp ? ` [WEAPON:${v.wsp}]` : ''}${v.room ? ` [ROOM:${v.room}]` : ''} [PLAYERS:${v.players?.length || 0}]${wsrankTokens}`, 'inject');
   }
 }
 

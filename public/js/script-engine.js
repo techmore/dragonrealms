@@ -22,6 +22,7 @@ export function createRunner(src, args = [], io = {}) {
   // ends the whole run — like DR's nested script calls.
   const getScript = io.getScript || (() => null);
   const onRefusedMove = io.onRefusedMove;
+  const onDone = io.onDone;
   const frames = [parseScript(src)];
   frames[0].pc = 0;
   const cur = () => frames[frames.length - 1];
@@ -120,18 +121,24 @@ export function createRunner(src, args = [], io = {}) {
       case 'putrun': {
         // Nested script call: resolve <name> through io.getScript (the client
         // library / account storage), push a frame, keep running inline.
-        const name = rest.split(/\s+/)[0];
+        // Remaining words are DR-style positional arguments (%1..%9). This
+        // lets generated hunt scripts share one fight body across species.
+        const parts = rest.match(/"[^"]*"|'[^']*'|\S+/g)?.map((part) =>
+          part.length >= 2 && ((part.startsWith('"') && part.endsWith('"')) || (part.startsWith("'") && part.endsWith("'")))
+            ? part.slice(1, -1) : part) || [];
+        const name = parts.shift();
         const body = getScript(name);
         if (body == null) { say(`[script] no script named "${name}"`); return true; }
         const parsed = parseScript(body);
         parsed.pc = 0;
+        parts.forEach((v, i) => { vars[i + 1] = v; });
         if (frames.length >= 8) { say('[script] putrun depth limit reached'); return true; }
         frames.push(parsed);
         return true;
       }
       case 'exit': {
         frames.pop();
-        if (!frames.length) { s.done = true; return false; } // top-level exit
+        if (!frames.length) { s.done = true; try { onDone?.(); } catch {} return false; } // top-level exit
         return true; // resume the caller at its next line
       }
       case 'setvariable': {
@@ -140,14 +147,25 @@ export function createRunner(src, args = [], io = {}) {
         return true;
       }
       case 'iflt':
-      case 'ifge': {
-        // iflt/ifge <var> <number> [goto] <label> — numeric branch on live
-        // game state (%hp, %maxhp, %mana, %circle, %rt, ...) or setvariable.
+      case 'ifge':
+      case 'ifgt': {
+        // iflt/ifge/ifgt <var> <number> [goto] <label> — numeric branch on
+        // live game state (%hp, %maxhp, %circle, %rt, %pcount, ...) or
+        // setvariable. ifgt is used by the arena-picking ladder: "ifgt pcount
+        // 0 goto NEXT_ROOM" walks to another hunting ground when the current
+        // room is occupied by other players.
         const sp = rest.split(/\s+/);
-        const val = Number(vars[sp[0]]);
+        // Weapon lanes with no observed rank are untrained, not unknown. The
+        // wire prompt intentionally omits zero-rank WSRANK tokens to keep it
+        // compact, so treating an absent %wsr_* as NaN silently disabled the
+        // first rotation on every fresh character.
+        const raw = vars[sp[0]];
+        const val = raw === undefined && /^wsr_[a-z_]+$/.test(sp[0]) ? 0 : Number(raw);
         const ref = Number(sp[1]);
         const hit = Number.isFinite(val) && Number.isFinite(ref)
-          && (cmd === 'iflt' ? val < ref : val >= ref);
+          && (cmd === 'iflt' ? val < ref
+            : cmd === 'ifge' ? val >= ref
+            : val > ref);
         if (hit) {
           const li = sp[2] === 'goto' ? 3 : 2;
           const name = sp[li];
@@ -165,7 +183,14 @@ export function createRunner(src, args = [], io = {}) {
         // vars: cycle restarts recreate the runner and wipe every variable,
         // so any stored flip is wrong exactly when a new cycle begins.
         const sp = rest.split(/\s+/);
-        const val = String(vars[sp[0]] ?? '');
+        // %room falls back to the harness's ground-truth room callback when
+        // the [ROOM:...] token hasn't been injected yet (inject cadence lags
+        // the script's first room gate) — without this, every room gate
+        // mis-branches on an undefined var and agents strand where they stand
+        // (run4: 21 agents, 0 move commands, all wedged at the bazaar).
+        const val = sp[0] === 'room' && vars.room === undefined && io.roomNow
+          ? String(io.roomNow() ?? '')
+          : String(vars[sp[0]] ?? '');
         const ref = sp[1] || '';
         const hit = cmd === 'ife' ? val === ref : val !== ref;
         if (hit && sp[2] === 'goto') {
@@ -219,6 +244,7 @@ export function createRunner(src, args = [], io = {}) {
       if (!execOne(line)) return;
     }
     s.done = true;
+    try { onDone?.(); } catch {}
   }
 
   function feed(text, isPrompt = false) {
@@ -255,11 +281,23 @@ export function createRunner(src, args = [], io = {}) {
         // second one must arm, not read as an echo of the first).
         if (n === 0) {
           s.lastRtSeen = null;
-          s.rtUntil = Math.min(s.rtUntil, Date.now());
+          // If a verb is parked on roundtime (pendingRtLine set), DO NOT clear
+          // rtUntil to "now" on an RT:0 prompt. A stale RT:0 can arrive right
+          // after the action that armed roundtime (the server prompt is cached
+          // before setRoundtime lands), which would release the parked verb
+          // immediately into an STILL-ACTIVE server roundtime and get it refused
+          // ("You must wait N seconds") — so a signature ability like
+          // `roar everilds_rage` / `cast` silently never lands (fidelity 0/2).
+          // Keep the floor so its timer fires at the true boundary instead.
+          if (!s.pendingRtLine) s.rtUntil = Math.min(s.rtUntil, Date.now());
         } else if (isPrompt !== 'inject'
           && (s.lastRtSeen !== n || Date.now() >= s.rtUntil)) {
           s.lastRtSeen = n;
-          s.rtUntil = Date.now() + n * 1000 + 150;
+          // Floor, not a blind overwrite: a prompt that arrives EARLY or shows a
+          // LOWER RT than the deadline we already hold must NOT shorten it.
+          // Otherwise a parked `put` can be released a beat before the SERVER's
+          // roundtime actually clears and get refused.
+          s.rtUntil = Math.max(s.rtUntil, Date.now() + n * 1000 + 150);
         }
       }
       vars.combat = /\[COMBAT\]/.test(plain) ? '1' : '0';
@@ -280,6 +318,23 @@ export function createRunner(src, args = [], io = {}) {
       // "phase B" branch — measured as 1 knife swap vs 6 club re-wields).
       const wsp = /\[WEAPON:([a-z_]+)\]/.exec(plain);
       if (wsp) vars.wsp = wsp[1];
+      // Current room id ([ROOM:bazaar] — synthetic token injected by the sim
+      // harness from the room message). Generated town-errand blocks gate on
+      // %room so sell/bundle only fire where a shopkeeper actually stands —
+      // a fallback hall trip generated from the wrong origin used to dump
+      // ~190 "sell <loot>" commands into the sewers with nobody to sell to.
+      const rm = /\[ROOM:([a-z_0-9]+)\]/.exec(plain);
+      if (rm) vars.room = rm[1];
+      // Other players present in the current room ([PLAYERS:n] — synthetic
+      // token injected by the sim harness from the room message's
+      // contents.players). Generated hunt scripts gate arena-picking on
+      // %pcount so agents spread across empty hunting grounds instead of
+      // stacking on the nearest room and starving each other for spawns
+      // (the "crowded-world" contention). Node-agnostic: it reads world
+      // state, not in-process memory, so it works across separate sweep
+      // invocations too.
+      const pc = /\[PLAYERS:(\d+)\]/.exec(plain);
+      if (pc) vars.pcount = pc[1];
     }
     // [WSRANK:<skillId>:<rank>] — synthetic token(s) injected alongside
     // [WEAPON:...] by the sim harness for every WEAPON-pool skill the
@@ -389,6 +444,7 @@ export function createRunner(src, args = [], io = {}) {
     if (s.mode === 'room' && text && typeof text === 'string'
       && /cannot go that way/i.test(text) && s.lastMove !== undefined) {
       onRefusedMove?.(s.lastMove);
+      s.moveFails = 0;
       s.skipMoves = true;
       s.lastMove = undefined;
       s.mode = null;

@@ -124,7 +124,9 @@ test('GM creatures/items/guilds/races/skills indexes', async () => {
   const gl = await g('/guilds');
   assert.ok(gl.ok && gl.guilds.length === 11);
   const r = await g('/races');
-  assert.ok(r.ok && r.races.length === 12);
+  // DragonRealms has 11 playable races; Giantman is a GemStone IV race and
+  // must not be exposed by the GM index.
+  assert.ok(r.ok && r.races.length === 11);
   const s = await g('/skills');
   assert.ok(s.ok && s.skills.length >= 80);
 });

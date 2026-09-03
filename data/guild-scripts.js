@@ -24,24 +24,33 @@ export const GUILD_SCRIPTS = {
     // The only slot that works is straight after the FIRST attack: combat now
     // exists, and the roar is parked by the engine until that attack's RT
     // drains, then applied. Index 1 = after fight[0].
+    // NOTE (2026-08-29): the roar's server response ("You roar a battle cry…")
+    // was never observed in the sweep because the engine was leaking the parked
+    // roar out ~during the attack's roundtime ("You must wait N seconds"), so
+    // the fidelity regex /roar a battle cry|blood ablaze|voice is spent/ never
+    // fired (honest 0/2, not a bad regex). Fixed in script-engine.js: rtUntil
+    // is now a floor (Math.max) so an early/low-RT prompt can't shorten the
+    // deadline a parked verb fires on.
     signatureAfter: 1,
     signature: { cmd: 'roar everilds_rage', ok: /roar a battle cry|blood ablaze|voice is spent/i, probe: 'ability' },
     armVerb: 'wield',        // club from the bazaar
     // Synergistic weapon plan — a deliberate 2-then-3 weapon kit, not a
     // random ladder. Circle 2 demands FOUR weapon skills (1st@8, 2nd@8,
     // 3rd@4, 4th@2); hunting with one weapon only ever trains its own
-    // skill, leaving slots 2-4 to TDP-only grind (~130+ TDPs we cannot
-    // afford). The plan pairs trainer-taught categories so every category
+    // skill, leaving slots 2-4 untrained. The plan pairs trainer-taught categories so every category
     // doubles as hall training: barbarian primary = twohanded_blunt /
-    // large_edged, secondary = blunt / thrown.
+    // large_edged, secondary coverage begins with stocked blunt / slings.
     //   1. club (blunt)        112s  — day-one floor, funds itself
-    //   2. throwing_knives (thrown) 30s — SECOND weapon immediately; 1H, no burden
+    //   2. sling (slings)        20s — stocked SECOND weapon immediately; no burden
     //   3. mace (blunt)        206s  — primary upgrade once pelts fund it
     // rotateEvery = kills per weapon swap: each kill then feeds whichever
     // weapon is wielded, so 2nd/3rd weapon ranks accrue from field exp
     // instead of TDPs alone.
+    // Mandated baseline kit: four distinct shop-stocked weapon lanes plus a
+    // shield and two armor categories. Variants may tune rotation/resting,
+    // but must not reopen basic gear decisions below the high-level tier.
     weaponPlan: {
-      weapons: ['club', 'throwing_knives', 'mace'],
+      weapons: ['dagger', 'club', 'broadsword', 'sling'],
       rotateEvery: 4,
     },
     arena: null,             // nearest spawn room (generator picks)
@@ -67,7 +76,10 @@ export const GUILD_SCRIPTS = {
     // learn only what can actually stick. barbarianSlots = 1 + floor(c/2).
     abilitySlots: (circle) => 1 + Math.floor(circle / 2),
     fidelityChecks: [
-      { name: 'analyze-expertise', re: /You analyze|combo|expertise/i },
+      // Match the *analyze* ability's own prose, NOT the `exp` command's
+      // "expertise at least rank N (you have 0)" requirement line — the old
+      // /expertise/ clause false-positived on exp output, inflating the score.
+      { name: 'analyze-expertise', re: /study the flow of battle|finish your \w+ combo/i },
       { name: 'roar-ability', re: /roar a battle cry|blood ablaze|voice is spent/i },
     ],
   },
@@ -121,7 +133,18 @@ export const GUILD_SCRIPTS = {
     magic: true,
     // Caster loop: prepare -> cast at target; mana-gated by the driver script
     // via iflt mana. Weapon swings fill mana-poor rounds.
-    fight: ['put prepare fire_shard', 'put wait', 'put cast %target'],
+    // KAIZEN (2026-08-28): dropped the literal `put wait` from the fight
+    // array. The generator (script-gen.mjs) ALREADY appends a `wait` after
+    // every step, so `'put wait'` became a stray verb sent to the server —
+    // sandwiched between two engine `wait`s. When the engine RT-parks and
+    // retries that stray step, it desynced the engine's rtUntil from the
+    // server's real roundtime, so the following `cast` slipped out ~2s early
+    // and was refused ("You must wait 2 seconds") every cycle → kills stayed 0
+    // → could never circle. The same stray literal was present in bard/cleric/
+    // moonmage/necromancer/paladin too; ALL casters now omit it (2026-08-29)
+    // so the prepare→cast loop is gated purely by the generator's per-step
+    // `wait` plus the engine's RT-park.
+    fight: ['put prepare fire_shard', 'put cast %target'],
     fallbackFight: ['put attack %target'],
     preFight: [],
     signature: { cmd: 'prepare fire_shard', ok: /You begin preparing Fire Shard/i, probe: 'spell' },
@@ -145,7 +168,12 @@ export const GUILD_SCRIPTS = {
 
   bard: {
     magic: true,
-    fight: ['put prepare chime', 'put wait', 'put cast %target'],
+    // No literal `put wait`: the generator (script-gen.mjs) appends a `wait`
+    // after every step, so a stray `put wait` becomes a real verb that desyncs
+    // the engine's rtUntil from the server's roundtime and gets the following
+    // `cast` refused ("You must wait N seconds") every cycle. Same latent
+    // blocker that was fixed for warmage — applied uniformly to all casters.
+    fight: ['put prepare chime', 'put cast %target'],
     fallbackFight: ['put attack %target'],
     // Bardic identity first: start an enchante, then fight under it.
     preFight: ['put enchant war'],
@@ -172,7 +200,8 @@ export const GUILD_SCRIPTS = {
 
   cleric: {
     magic: true,
-    fight: ['put prepare sacred_flame', 'put wait', 'put cast %target'],
+    // No literal `put wait` (see bard note): generator appends `wait` per step.
+    fight: ['put prepare sacred_flame', 'put cast %target'],
     fallbackFight: ['put attack %target'],
     preFight: [],
     signature: { cmd: 'pray', ok: /pray|peace steadies/i, probe: 'theurgy' },
@@ -217,7 +246,8 @@ export const GUILD_SCRIPTS = {
 
   moonmage: {
     magic: true,
-    fight: ['put prepare moon_bolt', 'put wait', 'put cast %target'],
+    // No literal `put wait` (see bard note): generator appends `wait` per step.
+    fight: ['put prepare moon_bolt', 'put cast %target'],
     fallbackFight: ['put attack %target'],
     preFight: [],
     signature: { cmd: 'prepare moon_bolt', ok: /You begin preparing Moon Bolt/i, probe: 'spell' },
@@ -239,7 +269,8 @@ export const GUILD_SCRIPTS = {
 
   necromancer: {
     magic: true,
-    fight: ['put prepare bone_spear', 'put wait', 'put cast %target'],
+    // No literal `put wait` (see bard note): generator appends `wait` per step.
+    fight: ['put prepare bone_spear', 'put cast %target'],
     fallbackFight: ['put attack %target'],
     preFight: [],
     signature: { cmd: 'prepare rot', ok: /You begin preparing Rot|learn Rot at circle/i, probe: 'spell' },
@@ -261,7 +292,8 @@ export const GUILD_SCRIPTS = {
 
   paladin: {
     magic: true,
-    fight: ['put prepare smite', 'put wait', 'put cast %target', 'put attack %target'],
+    // No literal `put wait` (see bard note): generator appends `wait` per step.
+    fight: ['put prepare smite', 'put cast %target', 'put attack %target'],
     fallbackFight: ['put attack %target'],
     preFight: [],            // ward/bulwark learned later; keep level-1 simple
     signature: { cmd: 'prepare smite', ok: /You begin preparing Smite/i, probe: 'spell' },
@@ -291,12 +323,12 @@ export const GUILD_SCRIPTS = {
     trainSets: {
       weapon: ['bow', 'small_edged', 'staff', 'thrown'],
       armor: ['light_armor'],
-      survival: ['scouting', 'hunting', 'tracking', 'foraging', 'perception', 'climbing', 'skinning'],
+      survival: ['scouting', 'hunting', 'tracking', 'foraging', 'perception', 'climbing', 'skinning', 'first_aid'],
       lore: ['attunement', 'scholarship'],
       magic: ['primary_magic', 'scouting'],
     },
     defaultTrain: ['scouting', 'hunting', 'tracking', 'primary_magic',
-      'evasion', 'light_armor', 'small_edged', 'perception', 'foraging', 'skinning'],
+      'evasion', 'light_armor', 'small_edged', 'perception', 'foraging', 'skinning', 'first_aid'],
     fidelityChecks: [
       { name: 'track-wilds', re: /read the signs|No tracks to follow|signs are too faint/i },
     ],
@@ -306,8 +338,11 @@ export const GUILD_SCRIPTS = {
 export const RACE_MATRIX = {
   // Curated race pairs per guild archetype: racial-stat fit / mid / poor,
   // exercising chargen allocation spread without running all 12x11 combos.
-  barbarian: ['giantman', 'human', 'halfling'],
-  thief: ['halfling', 'prydaen', 'giantman'],
+  // DR-faithful races only — giantman was a GemStone IV leak. Gor'Tog is
+  // DR's biggest frame (barbarian fit), Kaldar the bulky mid; halfling stays
+  // the poor-fit pole to exercise chargen spread.
+  barbarian: ['gortog', 'kaldar', 'halfling'],
+  thief: ['halfling', 'prydaen', 'gortog'],
   trader: ['gnome', 'human', 'gortog'],
   warmage: ['elf', 'elothean', 'dwarf'],
   bard: ['elothean', 'human', 'gortog'],
@@ -381,5 +416,144 @@ export const VARIANTS = {
     armorStack: true,
     diff: ['armorStack'],
     hypothesis: 'Close the LAST circle-2 blocker (1st armor 5/6, apaa run) by stacking WORN light_armor pieces. Server-side verdict first (2026-08-27): the armor-exp loop in server/combat.js grants `circle*3 + piece.armor/8` per LANDED BLOW per WORN piece — independent of damage soaked (armor only scales dmg, never deflects a blow), so a "naked-tank" pull trains NOTHING (the loop body is Object.entries(player.equipment)) and a cheaper piece trains nothing extra. The only lever is pieces WORN: the kit had exactly ONE light_armor piece (padded cloth torso) + the chain helm. armorStack buys+wears leather sleeves (45s), leather boots (30s) and leather leggings (55s) at the bazaar (purse-gated; retried at every hall-trip errand stop like helmRetry) — ~4x light_armor exp per landed blow. One variable vs diversity2.',
+  },
+  diversity2stackRot: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true,
+    tdpFloor: 4,
+    helmRetry: true,
+    armorStack: true,
+    rotMargin: 1,
+    diff: ['rotMargin'],
+    hypothesis: 'diversity2stack closes 1st armor but 3rd weapon (staff, circle-2 need 4) flatlines at 3/4 from ~min 50 — the requirement-aware rotation treats blunt/thrown as "done" at need+MARGIN(4)=12 and stops feeding staff, so it starves 1 rank short (TDP can\'t afford it either). rotMargin 1 keeps staff in active rotation until it actually clears its 4-rank need, so the last c2 slot closes and the agent circles. One knob (rotMargin) vs diversity2stack.',
+  },
+  diversity2stackRotHF120: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 120000,
+    closeNth: true,
+    tdpFloor: 4,
+    helmRetry: true,
+    armorStack: true,
+    rotMargin: 1,
+    diff: ['hallFallbackMs'],
+    hypothesis: 'Speed-run lever: the binding c2 requirement is a TDP-trained survival/armor skill (not weapons) that lags because the bot only trains at the hall. Halving hallFallbackMs (240000->120000) makes hall trips twice as frequent, so survival/armor cross sooner and the c2 gate drops. Risk: more hall walks = more travel overhead; measure net c2-gate vs circle-2 reached.',
+  },
+  diversity2stackRotHF60: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 60000,
+    closeNth: true,
+    tdpFloor: 4,
+    helmRetry: true,
+    armorStack: true,
+    rotMargin: 1,
+    diff: ['hallFallbackMs'],
+    hypothesis: 'Speed-run lever extreme: hallFallbackMs 240000->60000 (4x hall frequency). Push the c2 gate as low as possible. Risk: hall walks may dominate the loop and starve field exp; if kills/h collapse the gate may not improve. Compare c2-gate + circle-2 reached vs HF120.',
+  },
+  edgedBow: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true,
+    tdpFloor: 4,
+    helmRetry: true,
+    armorStack: true,
+    edgedKit: true,
+    diff: ['edgedKit'],
+    hypothesis: 'Root-cause fix for the 3rd/4th-weapon starve: the default kit (club+mace+knives+staff) only spans 3 DISTINCT weapon categories (blunt, thrown, staff) because mace==blunt, so the circle-2 ladder (1st/2nd/3rd/4th weapon @ 4/4/2/1) can never all fill from the field. edgedKit = dagger+broadsword+greatsword+hunting_bow = small_edged + large_edged + twohanded_edged + bow = 4 DISTINCT categories, so every Nth-weapon slot trains in parallel with no collision. rotMargin kept at default (4) — if a lane still starves it can be lowered, but the category collision is the real bug. Shield (shield_usage) trains from worn armor being hit and is handled by armorStack independently. One structural change (edgedKit) vs diversity2stack.',
+  },
+  edgedBowAware: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    edgedKit: true, weaponAware: true, rotMargin: 0,
+    diff: ['weaponAware'],
+    hypothesis: 'Weapon-exp-aware edgedBow: keep all four distinct lanes active until each reaches its actual circle-2 Nth-set threshold (1st/2nd 8, 3rd 4, 4th 2), instead of feeding every lane toward the primary 8-rank target and over-training the first lane.',
+  },
+  edgedSkinAware: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    edgedKit: true, weaponAware: true, rotMargin: 0, economyFallback: true,
+    diff: ['economyFallback'],
+    hypothesis: 'Keep the EXP-aware four-lane edged kit, but permit a measured Barbarian fallback town trip every four minutes after a kill so skin proceeds can be sold and missing edged weapons retried. The bazaar retry checks inventory and purse before each purchase, so it funds dagger first, then bow, broadsword, and greatsword as money arrives without duplicate buys.',
+  },
+  shieldLadder: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true,
+    tdpFloor: 4,
+    helmRetry: true,
+    armorStack: true,
+    shieldKit: true,
+    diff: ['shieldKit'],
+    hypothesis: 'Test a shielded four-lane Barbarian kit: keep the diversity2stack light-armor coverage, add a worn wooden shield for shield_usage exp on every landed blow, and rotate distinct blunt / small-edged / large-edged / two-handed-edged weapons. This should close armor coverage without promoting it until matched repeats prove that the extra gear and slower weapon purchases do not hurt circle completion.',
+  },
+  survivalBreadth: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    shieldKit: true, survivalBreadth: true,
+    diff: ['survivalBreadth'],
+    hypothesis: 'Keep the defensive four-lane kit fixed, but rotate forage, track, and hunt during empty-room scans. This should distribute field EXP across foraging, tracking, and perception instead of relying on skinning alone, closing neglected survival Nth slots without more hall trips.',
+  },
+  survivalFocus: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    shieldKit: true, survivalBreadth: true, survivalFocus: true, leaveCombatOnLock: true,
+    diff: ['survivalFocus'],
+    hypothesis: 'Keep the defensive kit and combat rotation fixed, but perform two deliberate forage/track/hunt passes during each empty-room wait. This should convert more field time into neglected survival lanes instead of relying on a single opportunistic pass per respawn cycle.'
+  },
+  shieldLadderFocus: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    shieldKit: true, cheapWeaponKit: true,
+    diff: ['cheapWeaponKit'],
+    hypothesis: 'ShieldLadder stalled on the 2nd/3rd weapon lanes because the shield-first purse gate left only the dagger equipped. Buy a stocked affordable multi-lane starter kit first—dagger, sling, club, staff—then attempt the shield, so field rotation closes 2nd/3rd weapon and survival ranks before expensive upgrades.',
+  },
+  edgedSkinRest50: {
+    restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    edgedKit: true, weaponAware: true, rotMargin: 0, economyFallback: true,
+    diff: ['restPct'],
+    hypothesis: 'Keep the current edged/economy winner unchanged but rest at 50% HP instead of 35%: the prior matched run closed to shortfall 24 with 3 deaths, so earlier recovery should trade some hunting uptime for fewer deaths and a more repeatable closure.',
+  },
+  edgedSkinCheapKit: {
+    restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    cheapWeaponKit: true, weaponAware: true, rotMargin: 0, economyFallback: true,
+    diff: ['cheapWeaponKit'],
+    hypothesis: 'Keep edgedSkinRest50 recovery and training controls, but use four bazaar-stocked affordable lanes (dagger, sling, club, staff), skip already-owned weapons, and retry once 112 silver can fund a missing club/staff. The incomplete hmni cohort proved the old layout requested unsold throwing knives, repeatedly repurchased daggers, and never established a fourth live lane; this should close 3rd/4th weapon before Circle 2 while preserving silver for armor.',
+  },
+  edgedSkinWeaponFirst: {
+    restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    cheapWeaponKit: true, weaponAware: true, rotMargin: 0, economyFallback: true,
+    weaponFirst: true,
+    diff: ['weaponFirst'],
+    hypothesis: 'Keep edgedSkinCheapKit unchanged except purchase order: buy dagger then club before the cheap sling, allowing a 150-silver starter purse to establish two distinct weapon lanes (137s) and preserving later sling/staff retries for hunt proceeds. This tests whether the 4th-weapon stall is purse ordering rather than shop availability or rotation.',
+  },
+  edgedSkinWeaponReserve: {
+    restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    cheapWeaponKit: true, weaponAware: true, rotMargin: 0, economyFallback: true,
+    weaponReserve: true,
+    diff: ['weaponReserve'],
+    hypothesis: 'Keep edgedSkinCheapKit unchanged except defer the 20-silver sling until after the 112-silver staff. This reserves every early coin for the missing staff lane; if the 4th-weapon blocker is acquisition timing, staff should appear before the run spends on the low-cost lane.',
+  },
+  edgedSkinWeaponReserveV2: {
+    restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    cheapWeaponKit: true, weaponAware: true, rotMargin: 0, economyFallback: true,
+    weaponReserve: true, weaponReserveV2: true,
+    diff: ['weaponReserveV2'],
+    hypothesis: 'Keep the reserved dagger/club/staff/sling order, and defer optional armor purchases whenever staff is still absent. The agent must secure the fourth weapon lane before spending on helm or stacked light armor; once staff is owned, normal armor provisioning resumes.',
+  },
+  edgedSkinWeaponReserveV3: {
+    restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    cheapWeaponKit: true, weaponAware: true, rotMargin: 0, economyFallback: true,
+    weaponReserve: true, weaponReserveV2: true, weaponReserveV3: true,
+    diff: ['weaponReserveV3'],
+    hypothesis: 'Keep weaponReserveV2 unchanged, but hard-block the 20-silver sling purchase until staff is confirmed. V2 still fell through to sling when staff was unaffordable, so the 112-silver fourth lane never appeared; this isolates the missing reservation guard.',
+  },
+  edgedSkinReserveSafe: {
+    restPct: 65, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    cheapWeaponKit: true, weaponAware: true, rotMargin: 0, economyFallback: true,
+    weaponReserve: true, weaponReserveV2: true,
+    diff: ['restPct'],
+    hypothesis: 'Keep weaponReserveV2 acquisition and occupancy behavior unchanged, but recover at 65% HP instead of 50%. The prior matched run closed the weapon blockers but suffered 2 deaths; earlier recovery should preserve the weapon gain while reducing death-driven downtime.',
   },
 };

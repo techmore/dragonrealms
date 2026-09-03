@@ -4,12 +4,15 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   auth, createCharacter, loadPlayer, Game, handleCommand, fakeWs, game,
-  setupGame, teardownGame,
+  setupGame, teardownGame, reviveRoomSpawns,
 } from './helpers.mjs';
 // Walk a player along the derived grid path between rooms (layout-agnostic).
+// Revives the destination room's spawns — C1 makes kills deplete rooms, and
+// the suite teleports without waiting for restock.
 import { findPath } from '../data/grid.js';
 function walk(game, pl, to) {
   for (const step of findPath(pl.room, to)) game.move(pl, step);
+  reviveRoomSpawns(game, pl.room);
 }
 
 import { weaponRT, vitalityLabel } from '../server/combat.js';

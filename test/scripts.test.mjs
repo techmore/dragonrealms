@@ -211,6 +211,16 @@ test('putrun nests a sub-script; exit returns to the caller', () => {
   assert.equal(r.running, false);
 });
 
+test('putrun passes positional arguments to the nested script', () => {
+  const out = [];
+  const r = createRunner('putrun hit "sewer rat"\nexit', [], {
+    send: (l) => out.push(l),
+    getScript: (name) => name === 'hit' ? 'put attack %1\nexit' : null,
+  });
+  r.start();
+  assert.deepEqual(out, ['attack sewer rat']);
+});
+
 test('exit inside a nested putrun pops only one frame', () => {
   const out = [];
   const say = [];
@@ -316,4 +326,37 @@ test('putrun mega-script chains hunt + circle libraries end to end', async () =>
   assert.equal(r.running, true); // circle leg still waiting for its prompt
   r.feed('HP: 88/100', true);   // satisfies the circle wait
   assert.equal(r.running, false);
+});
+
+test('ifgt branches on a greater-than comparison of live vars', () => {
+  const out = [];
+  const src = 'wait\nifgt pcount 0 goto OCCUPIED\nput hunt\nexit\nOCCUPIED:\nput relocate\nexit';
+  const r = createRunner(src, [], { send: (l) => out.push(l) });
+  r.start();
+  assert.deepEqual(out, [], 'blocked before prompt');
+  feed(r, 'HP: 50/50  Circle 1  [PLAYERS:2]', 'inject'); // 2 other players
+  assert.deepEqual(out, ['relocate'], 'occupied -> relocate branch');
+  const out2 = [];
+  const empty = createRunner(src, [], { send: (l) => out2.push(l) });
+  empty.start();
+  feed(empty, 'HP: 50/50  Circle 1', 'prompt'); // no players token -> pcount undefined
+  assert.deepEqual(out2, ['hunt'], 'empty (or unset) -> hunt in place');
+});
+
+test('[PLAYERS:n] prompt token mirrors into %pcount', () => {
+  const out = [];
+  const say = [];
+  const r = createRunner('wait\necho PC=%pcount\nexit', [],
+    { send: (l) => out.push(l), say: (t) => say.push(t) });
+  r.start();
+  feed(r, 'HP: 50/50  Circle 1  [PLAYERS:3]', 'inject');
+  assert.deepEqual(say, ['PC=3']);
+  // A room with nobody present emits no token; pcount stays undefined and
+  // the arena-picking ladder treats that as "empty" (safe to hunt).
+  const say2 = [];
+  const r2 = createRunner('wait\necho PC=%pcount\nexit', [],
+    { send: (l) => out.push(l), say: (t) => say2.push(t) });
+  r2.start();
+  feed(r2, 'HP: 50/50  Circle 1', 'prompt');
+  assert.deepEqual(say2, ['PC=%pcount'], 'unset pcount prints literally (branch sees non-number)');
 });

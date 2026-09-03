@@ -37,16 +37,16 @@
   // Parse a "[reqs] 5m c2 | expertise 12/4, 1st weapon 15/4, ..." line into
   // [{ label, have, need }]. Returns null for absent/malformed lines so the
   // caller can fall back gracefully (logs predating the field).
-  const REQS_RE = /^\[reqs\]\s+(\d+)m\s+c(\d+)\s+\|\s+(.+)$/;
+  const REQS_RE = /^\[reqs\]\s+(\d+)m\s+c(\d+)(?:\s+ts:(\S+))?\s+\|\s+(.+)$/;
   function parseReqLine(line) {
     const m = REQS_RE.exec(String(line || '').trim());
     if (!m) return null;
     const rows = [];
-    for (const cell of m[3].split(', ')) {
+    for (const cell of m[4].split(', ')) {
       const cm = /^(.+?)\s+(\d+)\/(\d+)$/.exec(cell.trim());
       if (cm) rows.push({ label: cm[1].trim(), have: Number(cm[2]), need: Number(cm[3]) });
     }
-    return rows.length ? { min: Number(m[1]), circle: Number(m[2]), rows } : null;
+    return rows.length ? { min: Number(m[1]), circle: Number(m[2]), timestamp: m[3] || null, rows } : null;
   }
 
   // Build the compact one-row table HTML: header cells = requirement labels,

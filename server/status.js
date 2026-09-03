@@ -1,7 +1,7 @@
 // Player status presentation: guild trainer lookup, the prompt line, who list.
 import { roomById } from '../data/world.js';
 import { npcById } from '../data/npcs.js';
-import { guildTitle } from '../data/guilds.js';
+import { guildTitle, circleRequirements } from '../data/guilds.js';
 import { SKILLS, mindstate } from '../data/skills.js';
 import { roundtimeLeft, weaponOf, poolCap, sayRaw } from './player.js';
 import { BLEED_LEVELS } from './wounds.js';
@@ -94,10 +94,13 @@ export const status = {
       .filter(([, v]) => v > 0)
       .map(([k, v]) => ({ key: k, name: BUFF_NAMES[k] || k, ticks: v }));
     if (bm > 1) buffs.push({ key: '_boost', name: `Agent Boost x${bm}`, ticks: null, permanent: true });
+    const nextCircle = (p.circle || 1) + 1;
+    const requirementRows = circleRequirements(p.guild, p.skills, nextCircle).rows || [];
     sayRaw(p, {
       t: 'prompt',
       msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${raging}${hidden}${resting}${boost}${prep}${bleedTxt}\n> `,
       buffs,
+      requirements: { circle: nextCircle, rows: requirementRows },
     });
     // FE tracker (DR field-experience pane): push skills currently learning,
     // throttled to ~10s.
@@ -121,7 +124,7 @@ export const status = {
           'enthralled', 'nearly locked', 'mind lock'];
         return order.indexOf(b.mindstate) - order.indexOf(a.mindstate);
       });
-      sayRaw(p, { t: 'mindstate', skills: rows.slice(0, 10) });
+      sayRaw(p, { t: 'mindstate', skills: rows.slice(0, 10), requirements: { circle: nextCircle, rows: requirementRows } });
     }
   },
 

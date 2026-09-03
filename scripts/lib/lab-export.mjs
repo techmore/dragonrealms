@@ -16,7 +16,10 @@ const LIVE = join(ROOT, 'public', 'live');
 export function buildLabData() {
   const runs = [];
   if (existsSync(join(LIVE, 'sweeps.db'))) {
-    const db = new DatabaseSync(join(LIVE, 'sweeps.db'), { readOnly: true });
+    // A concurrent benchmark process can be committing a row while this
+    // export runs. Wait briefly for its writer so a transient lock does not
+    // make the caller skip a valid lab refresh.
+    const db = new DatabaseSync(join(LIVE, 'sweeps.db'), { readOnly: true, timeout: 5000 });
     const cols = db.prepare('PRAGMA table_info(sweeps)').all().map((c) => c.name);
     const pick = (...names) => names.find((n) => cols.includes(n));
     const rows = db.prepare('SELECT * FROM sweeps ORDER BY id').all();

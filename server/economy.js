@@ -1,5 +1,5 @@
 // Economy: shops, banking, healing, commodity pits.
-import { roomById } from '../data/world.js';
+import { roomById, ROOMS } from '../data/world.js';
 import { npcById } from '../data/npcs.js';
 import { ITEMS, itemById } from '../data/items.js';
 import { commodityPrice, commodityById, commodityHoldings } from '../data/commodities.js';
@@ -44,6 +44,23 @@ export const economy = {
     return { ok: true, msg: `\n${blocks.join('\n\n')}\n\nSay "buy <item>" to purchase. Some vendors also buy hides and skins.` };
   },
 
+  // D1 companion: purchases now deplete real stock, so shopkeepers slowly
+  // restock toward their configured levels (one unit per entry per tick).
+  // The configured level is snapshotted on first tick — the live count and
+  // the target would otherwise be the same field.
+  restockTick() {
+    for (const room of Object.values(ROOMS)) {
+      for (const npcId of room.npcs || []) {
+        const shop = npcById(npcId);
+        if (!shop || shop.role !== 'shop') continue;
+        if (!shop.stockWant) shop.stockWant = { ...shop.stock };
+        for (const [id, want] of Object.entries(shop.stockWant)) {
+          if ((shop.stock[id] ?? 0) < want) shop.stock[id] = (shop.stock[id] ?? 0) + 1;
+        }
+      }
+    }
+  },
+
   buy(p, itemName, qty = 1) {
     qty = Math.max(1, Math.min(100, Math.floor(qty) || 1));
     const shops = this.shopNpcsIn(p);
@@ -61,7 +78,10 @@ export const economy = {
     if (p.silver < cost) return { ok: false, msg: `You cannot afford ${cost} silvers.` };
     p.silver -= cost;
     addItem(p, target.item.id, qty);
-    target.q -= qty;
+    // D1 fix: decrement the shop's ACTUAL stock (previously `target.q` was a
+    // copied primitive, so every shop sold infinitely and listShop never
+    // changed).
+    target.shop.stock[target.item.id] = Math.max(0, (target.shop.stock[target.item.id] ?? 0) - qty);
     return { ok: true, msg: `You buy ${qty > 1 ? `${qty}x ` : ''}${target.item.name} for ${cost} silvers.` };
   },
 

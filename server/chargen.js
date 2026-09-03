@@ -42,7 +42,7 @@ function doCharCreate(session, name, race, guild, city = 'crossing') {
   if (session.state !== 'charcreate') return;
   const g = guildById(guild);
   const r = raceById(race);
-  if (!r) return session.send({ t: 'error', msg: 'Unknown race. Try: human, dwarf, elf, elothean, gnome, gortog, giantman, halfling, kaldar, prydaen, rakash, skra.' });
+  if (!r) return session.send({ t: 'error', msg: 'Unknown race. Try: human, dwarf, elf, elothean, gnome, gortog, halfling, kaldar, prydaen, rakash, skra.' });
   if (!g) return session.send({ t: 'error', msg: `Unknown guild. Try: ${Object.keys(GUILDS).join(', ')}` });
 
   let charId;

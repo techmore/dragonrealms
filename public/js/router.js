@@ -111,6 +111,7 @@ export const handlers = {
     // DR clients never echo the raw vitals line into the story window —
     // the gauges in the status strip carry it. Keep parsing, skip printing.
     status.parsePrompt(msg.msg, msg);
+    if (msg.requirements) status.renderExpBlips(msg.requirements);
     return { feedScripts: msg.msg };
   },
   hands(msg) {

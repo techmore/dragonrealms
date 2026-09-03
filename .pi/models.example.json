@@ -1,0 +1,22 @@
+{
+  "providers": {
+    "qwen-local": {
+      "baseUrl": "http://127.0.0.1:1234/v1",
+      "api": "openai-completions",
+      "apiKey": "local",
+      "compat": {
+        "supportsDeveloperRole": false,
+        "supportsReasoningEffort": false
+      },
+      "models": [
+        {
+          "id": "qwen3.8-27b-uncensored-mlx",
+          "name": "Bonsai/Qwen3.8 27B MLX local",
+          "reasoning": false,
+          "contextWindow": 32768,
+          "maxTokens": 8192
+        }
+      ]
+    }
+  }
+}

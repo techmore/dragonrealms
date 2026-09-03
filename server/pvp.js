@@ -117,16 +117,36 @@ export function partyJoin(game, p) {
 export function partyLeave(game, p) {
   if (!p.party) return { ok: false, msg: 'You are not in a party.' };
   const id = p.party.id;
-  const leader = game.players.get(p.party.leader);
-  const members = (leader && leader.party && leader.party.id === id ? leader.party.members : []).filter((m) => m !== p.charId);
-  if (leader && leader.party && leader.party.id === id) {
-    if (members.length <= 1) leader.party = null;
-    else leader.party = { id, leader: leader.charId, members };
-  }
+  const leaderIdBefore = p.party.leader;
+  const wasLeader = leaderIdBefore === p.charId;
+  const oldLeader = game.players.get(leaderIdBefore);
+  // Prefer the live leader's party object; fall back to the leaver's copy
+  // when the leader is offline (previously this nuked the whole roster).
+  const source = oldLeader && oldLeader.party && oldLeader.party.id === id ? oldLeader.party : p.party;
+  const roster = (source.members || []).filter((m) => m !== p.charId);
   p.party = null;
-  for (const mid of members) {
-    const m = game.players.get(mid);
-    if (m) m.party = leader && leader.party ? leader.party : null;
+
+  const disband = () => {
+    for (const mid of roster) {
+      const m = game.players.get(mid);
+      if (m) m.party = null;
+    }
+    if (oldLeader && oldLeader !== p) oldLeader.party = null;
+  };
+
+  // Parties of one (or none) remaining disband, as before.
+  if (roster.length <= 1) {
+    disband();
+  } else {
+    // D10 fix: when the LEADER leaves, promote the first remaining member.
+    // The rebuilt party previously kept the departing charId as `leader`,
+    // orphaning the party (unresolvable leader) for everyone left behind.
+    const newLeaderId = wasLeader ? roster[0] : leaderIdBefore;
+    const party = { id, leader: newLeaderId, members: roster };
+    for (const mid of roster) {
+      const m = game.players.get(mid);
+      if (m) m.party = party;
+    }
   }
   return { ok: true, msg: 'You leave the party.' };
 }

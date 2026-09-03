@@ -34,6 +34,13 @@ test('parseReqLine extracts rows from a driver [reqs] line', () => {
   assert.equal(T.parseReqLine(''), null);
 });
 
+test('parseReqLine preserves wall-clock timestamps for requirement splits', () => {
+  const line = '[reqs] 7m c2 ts:2026-08-27T21:04:05.000Z | parry 8/8, 1st armor 4/6';
+  const parsed = T.parseReqLine(line);
+  assert.equal(parsed.timestamp, '2026-08-27T21:04:05.000Z');
+  assert.deepEqual(parsed.rows.map((r) => `${r.label} ${r.have}/${r.need}`), ['parry 8/8', '1st armor 4/6']);
+});
+
 test('renderTable colors met/near/far and labels Expert(Tactics)/Primary Mastery', () => {
   const html = T.renderTable(T.parseReqLine('[reqs] 5m c2 | expertise 12/4, 1st armor 5/6, parry 1/4'));
   assert.match(html, /Expert\(Tactics\)/);

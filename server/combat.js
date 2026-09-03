@@ -296,6 +296,24 @@ say(t, text, 'combat');
     }
   }
 
+  // Shared defeat routing (C9/C16): lethal blows must branch on whether the
+  // target is a live player (duel/assault defender) or a creature. Previously
+  // cast()/backstab() and the bard enchante splash always used the creature
+  // path — a lethal PvP spell could push a corpse of the living defender and
+  // never resolve the duel, and splash-killed creatures stayed "alive".
+  resolveTargetDefeat(target) {
+    if (target.def.controller) { this.defenderDefeated(); return; }
+    this.killCreature(target);
+    // C16: companions felled by the same blow (enchante splash) resolve too —
+    // they previously lingered at zero HP, leaving the fight unwinnable.
+    for (const o of this.enemies) {
+      if (o !== target && !o.dead && o.hp <= 0) {
+        if (o.def.controller) this.defenderDefeated();
+        else this.killCreature(o);
+      }
+    }
+  }
+
   defenderDefeated() {
     const defender = this.defender;
     if (!defender) return;
@@ -365,6 +383,12 @@ say(t, text, 'combat');
     }
     this.rewardExp(target.def);
     if (this.game && this.game.questKill) this.game.questKill(this.player, target.def.id);
+    // C1 fix: mark the live world spawn dead (respawn clocked) so kills
+    // deplete the room instead of leaving a permanently-rekillable phantom.
+    // Optional-chained: tests construct Combat without a Game reference.
+    if (this.game?.markCreatureKilled && target.instance) {
+      this.game.markCreatureKilled(target.instance);
+    }
 
     if (!this.aliveEnemies.length) this.end(true);
   }
@@ -807,7 +831,9 @@ say(t, text, 'combat');
         return;
     }
     afterCast();
-    if (target.hp <= 0) this.killCreature(target);
+    // C9: lethal blows against a duel/assault defender resolve the PvP defeat
+    // lifecycle; creature kills (and any splash companions) route inside.
+    if (target.hp <= 0) this.resolveTargetDefeat(target);
   }
 
   teleportSpell() {
@@ -1161,7 +1187,9 @@ say(t, text, 'combat');
     if (this.player.guild.guildSkill) gainSkillExp(this.player, this.player.guild.guildSkill, 4);
     target.hp -= dmg;
     this.backstabCooldown = capstoneActive(this.player, 'thief') ? 6 : 12;
-    if (target.hp <= 0) this.killCreature(target);
+    // C9: backstab previously always used the creature path — a lethal
+    // backstab on a duel target ended the fight as a creature kill.
+    if (target.hp <= 0) this.resolveTargetDefeat(target);
   }
 
   // --- Combat ranges (DR): missile -> pole -> melee ---

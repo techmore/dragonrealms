@@ -1,5 +1,5 @@
 // Progression simulator: grinds a fresh character to circle 10 using the real
-// combat/exp/training systems, then reports pacing. Run: node scripts/simulate-progression.mjs [guild]
+// combat/exp/training systems, then reports pacing. Run: node scripts/simulate-progression.mjs [guild] [--boost N]
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,13 +9,17 @@ process.env.DR_DB_PATH = join(tmp, 'sim.db');
 
 const { migrate, closeDb } = await import('../server/db.js');
 const auth = await import('../server/auth.js');
-const { createCharacter, loadPlayer, gainSkillExp, tdpTrainCost, skillRank, pulseExp } = await import('../server/player.js');
+const { createCharacter, loadPlayer, gainSkillExp, skillRank, pulseExp } = await import('../server/player.js');
 const { Game } = await import('../server/game.js');
 const { handleCommand } = await import('../server/commands/index.js');
 const { circleRequirements, circleRequirementNeeds, trainableSkills } = await import('../data/guilds.js');
 const { CREATURES } = await import('../data/creatures.js');
 
-const GUILD = process.argv[2] || 'warmage';
+const SIM_ARGS = process.argv.slice(2);
+const GUILD = SIM_ARGS.find((arg) => !arg.startsWith('--')) || 'warmage';
+const BOOST = Math.min(100, Math.max(1, Math.floor(Number(
+  SIM_ARGS[SIM_ARGS.indexOf('--boost') + 1],
+) || 1)));
 
 // Mirror all output to the /jobs.html live viewer (public/live/sim-<guild>.log).
 const { liveJob } = await import('./live-log.mjs');
@@ -59,6 +63,7 @@ const charId = createCharacter(acc.accountId, { name: 'Simmy', race: 'human', gu
 const p = loadPlayer(charId);
 const sink = { send() {} };
 p.ws = sink;
+p.boostMult = BOOST;
 p.online = true;
 game.addPlayer(p);
 
@@ -169,8 +174,8 @@ function tryCast(combat, tickInFight) {
 }
 
 // These skills receive dependable practice from the simulator's combat and
-// between-hunt actions. Save finite TDPs for gaps such as First Aid,
-// Locksmithing, extra weapons, and otherwise unavailable breadth skills.
+// between-hunt actions. TDPs are reserved for attribute training; they never
+// substitute for skill experience.
 const ORGANIC_SKILLS = new Set([
   'performance', 'scholarship', 'appraisal',
   'evasion', 'athletics', 'perception', 'stealth', 'foraging', 'skinning',
@@ -182,28 +187,8 @@ const ORGANIC_SKILLS = new Set([
 ]);
 
 function tdpBoost() {
-  // Preserve TDPs for requirements the guild trainer cannot teach; normal
-  // guild skills use the silver sink above. EXCEPTION: defensive skills
-  // (parry/defending) rise organically only while under attack — caster
-  // guilds kill too fast to feed them, and the trainer's 40%-per-session
-  // rate makes pure silver-training glacial at high ranks. When a taught
-  // defensive requirement lags, spend TDPs on it rather than stalling.
-  const taught = new Set(trainableSkills(p.guild));
-  const DEFENSIVE = new Set(['parry', 'defending']);
-  // Spell-school skills grow only by casting: organic for magic guilds,
-  // dead weight for martials (barbarian 1st Supernatural, thief Inner
-  // Magic-adjacent breadth). Those must fall through to TDP training.
-  const CAST_ONLY = new Set(['augmentation', 'debilitation', 'targeted_magic', 'utility_magic', 'warding_magic', 'primary_magic']);
-  for (const [skill, need] of requirementNeeds()) {
-    if (ORGANIC_SKILLS.has(skill) && !DEFENSIVE.has(skill) && !(CAST_ONLY.has(skill) && !p.guild.magic)) continue;
-    if (!DEFENSIVE.has(skill) && taught.has(skill)) continue;
-    let rank = (p.skills[skill] || {}).rank || 0;
-    let guard = 0;
-    while (rank < need && p.tdp >= tdpTrainCost(rank) && guard++ < 12) {
-      handleCommand(game, p, `tdptrain ${skill}`);
-      rank = (p.skills[skill] || {}).rank || 0;
-    }
-  }
+  // Deliberately empty: TDPs are for attributes at the Fane. Missing skill
+  // requirements must be fixed by the simulator's real training activities.
 }
 
 function tryCircle() {
@@ -215,7 +200,7 @@ function tryCircle() {
 }
 
 let safety = 0;
-report(`=== Progression sim: ${p.guild.name} (${p.race.name}) -> circle 10 ===`);
+report(`=== Progression sim: ${p.guild.name} (${p.race.name}) -> circle 10${BOOST > 1 ? ` [boost x${BOOST}]` : ''} ===`);
 while (p.circle < 10 && safety++ < 30000) {
   const hunt = huntFor(p.circle);
   if (hunts % 1000 === 0) {
@@ -307,6 +292,7 @@ report(`Circle reached: ${p.circle}`);
 const hours = Math.floor((ticks / 3600) * 10) / 10;
 report(`Simulated time: ${Math.floor(ticks / 60)} minutes (${hours} hours)`);
 report(`Real time: ${Math.round((Date.now() - startReal) / 1000)}s`);
+report(`Experience boost: x${BOOST}`);
 report(`Hunts: ${hunts}, kills: ${kills}, deaths: ${deaths}`);
 report(`Silver earned: ${silverEarned}, on hand: ${p.silver}`);
 report(`TDPs: ${p.tdp}`);

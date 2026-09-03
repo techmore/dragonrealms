@@ -1,6 +1,7 @@
 // Dragon Realms server entry point.
 import { createServer } from 'node:http';
 import net from 'node:net';
+import { randomBytes } from 'node:crypto';
 import { writeFileSync, readFileSync } from 'node:fs';
 import { migrate, closeDb } from './db.js';
 import { Game } from './game.js';
@@ -30,6 +31,16 @@ function resolveGmToken() {
 const GM_TOKEN = resolveGmToken();
 const API_ENABLED = process.env.DR_ENABLE_API !== '0'; // on by default for local play
 const DEBUG_API_ENABLED = process.env.DR_ENABLE_DEBUG_API === '1';
+// Debug API defaults OFF. When the operator enables it without choosing a
+// token, refuse the literal/guessable defaults: the debug surface mutates
+// game state (teleport, setSkills, die), so it demands a real secret.
+const DEBUG_TOKEN = process.env.DR_DEBUG_TOKEN
+  || (DEBUG_API_ENABLED ? 'debug-' + randomBytes(24).toString('hex') : undefined);
+if (DEBUG_API_ENABLED && process.env.DR_DEBUG_TOKEN) {
+  console.log('Dragon Realms: debug API ENABLED (DR_DEBUG_TOKEN configured).');
+} else if (DEBUG_API_ENABLED) {
+  console.log('Dragon Realms: debug API ENABLED with a generated token (set DR_DEBUG_TOKEN to pin it for test tooling).');
+}
 
 // Single-world guard: probe the port BEFORE bootstrapping anything. A second
 // world on :3000 desyncs GM tokens, splits sessions, and logs operators out.
@@ -59,7 +70,7 @@ const server = createServer(createHttpHandler(game, {
   apiEnabled: API_ENABLED,
   debugApiEnabled: DEBUG_API_ENABLED,
   gmToken: GM_TOKEN,
-  debugToken: process.env.DR_DEBUG_TOKEN,
+  debugToken: DEBUG_TOKEN,
 }));
 
 attachWebSocket(server, game, { gmToken: GM_TOKEN });
@@ -73,6 +84,16 @@ server.listen(PORT, () => {
       port: PORT, token: GM_TOKEN, at: Date.now(),
     }), { mode: 0o600 });
   } catch {}
+  // Publish the debug credential too (only when the surface is enabled), so
+  // local tooling (mapper-agent, bots) can discover it without a literal
+  // committed secret. Env-configured tokens win on both sides regardless.
+  if (DEBUG_API_ENABLED) {
+    try {
+      writeFileSync(`/tmp/dr-debug-token-${PORT}.json`, JSON.stringify({
+        port: PORT, token: DEBUG_TOKEN, at: Date.now(),
+      }), { mode: 0o600 });
+    } catch {}
+  }
 });
 
 for (const sig of ['SIGINT', 'SIGTERM']) {

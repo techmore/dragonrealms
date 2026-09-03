@@ -4,6 +4,10 @@
 //
 //   node scripts/race-guild-sweep.mjs --guilds warmage,barbarian --minutes 12
 //   node scripts/race-guild-sweep.mjs --all            # curated race matrix
+//   node scripts/race-guild-sweep.mjs --benchmark barbarian --concurrency 2
+//     # two matched workers at once (crowded-world trial; default is 1)
+//   node scripts/race-guild-sweep.mjs --benchmark barbarian --fast
+//     # 3-worker optimized Circle-5 trial (30-minute iteration cap)
 //
 // Per character:
 //   1. Real account + WS chargen entry (WireSession, no bot flag).
@@ -15,9 +19,10 @@
 //      parsed from player-facing prose and appended to
 //      public/live/fidelity-<guild>.log plus a JSON summary line.
 import { mkdirSync, appendFileSync, readFileSync, writeFileSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { openSweepsDb, insertSweep } from './lib/sweeps-db.mjs';
 import { classifyStall, verdictLabel } from './lib/stall-detect.mjs';
@@ -36,7 +41,7 @@ const flag = (name, dflt) => {
   const i = ARGS.indexOf('--' + name);
   return i >= 0 ? ARGS[i + 1] : dflt;
 };
-// Run length: default depends on mode (10m ad-hoc/sweep, 30m per benchmark
+// Run length: default depends on mode (10m ad-hoc/sweep, 20m per benchmark
 // variant) — resolved after plan parsing below.
 let MINUTES = Number(flag('minutes', NaN));
 // Leveling-lab target: benchmark mode defaults to the full 1->10 climb;
@@ -45,7 +50,10 @@ let MINUTES = Number(flag('minutes', NaN));
 let CIRCLE_TARGET = Number(flag('circle', NaN));
 const BOOST = Number(flag('boost', 20)); // agent speed multiplier (0/1 = off)
 const FAST = ARGS.includes('--fast');
-const DEFAULT_BENCH_MINUTES = 30;
+const DEFAULT_BENCH_MINUTES = 20;
+// Structured EXP/requirement checkpoints are always 30s; `--fast` no longer
+// changes telemetry cadence, so manifests and logs describe one contract.
+const EXP_INTERVAL_MS = 30000;
 const PASS = 'SweepRun1!';
 // Per-invocation run id: 4 random lowercase letters appended to every
 // character name AND to the account username so concurrent sweeps never
@@ -59,28 +67,61 @@ const PASS = 'SweepRun1!';
 // account leaves the overflow runs unable to enter the world at all (hp 0/0,
 // room null) until the stall watchdog kills them.
 const RUN_ID = Array.from(randomBytes(4), (b) => String.fromCharCode(97 + (b % 26))).join('');
+const SCRIPT_SCHEMA_VERSION = 2;
+const MILESTONE_SCHEMA_VERSION = 1;
+const CODE_REVISION = (() => {
+  try {
+    const rev = execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], { encoding: 'utf8' }).trim();
+    const dirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim();
+    return rev + (dirty ? '-dirty' : '');
+  } catch { return 'unknown'; }
+})();
 
 const { GUILDS } = await import('../data/guilds.js');
+const { RACES } = await import('../data/races.js');
 const { ROOMS } = await import('../data/world.js');
 const { creatureById } = await import('../data/creatures.js');
 const { GUILD_SCRIPTS, RACE_MATRIX, VARIANTS } = await import('../data/guild-scripts.js');
-const { nounOf, moves, buildHuntScript, buildCircleScript, buildMegaScript, reversePath, trainListFromMissing } = await import('./lib/script-gen.mjs');
+const { nounOf, moves, buildHuntScript, buildWeaponRotationScript, buildSharedFightScript, buildCircleScript, buildMegaScript, reversePath, trainListFromMissing } = await import('./lib/script-gen.mjs');
 const { WireSession, stripAnsi, trackMove, trackRefusedMove } = await import('./lib/wire-session.mjs');
 const { createRunner } = await import('../public/js/script-engine.js');
 
 const LIVE_DIR = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'public', 'live');
 try { mkdirSync(LIVE_DIR, { recursive: true }); } catch {}
 
+// Process-wide set of hunting rooms currently held by a live sweep agent.
+// MANY agents run in ONE node process (see launchAll's Promise.all), so this
+// lets them spread across distinct rooms instead of all converging on the
+// single nearest spawn room and starving each other for spawns (the
+// "crowded-world" contention the skill docs warn about). Cross-process
+// coordination is out of scope — separate `node` invocations each start a
+// fresh empty set, which matches the historical parallel-launch behaviour.
+const CLAIMED_ARENAS = new Set();
+
 // Loot items a town errand should try to sell at the bazaar: skins-tagged
 // drops (pelts/hides the general store buys) from early-game creatures.
 // Derived from data/creatures.js so new species flow in automatically.
 import { CREATURES } from '../data/creatures.js';
+import { ITEMS } from '../data/items.js';
+import { NPCS } from '../data/npcs.js';
 function errandLootFor(guild) {
+  // Which shopkeepers actually buy, anywhere in the world — an item no
+  // vendor buys is a wasted sell/bundle line (qvgp run: strongbox and
+  // lout_vest spammed 40+ times each, sold zero).
+  const bought = new Set();
+  for (const npc of Object.values(NPCS)) {
+    if (npc.role !== 'shop') continue;
+    for (const id of npc.buys || []) bought.add(id);
+  }
   const loot = new Set();
   for (const def of Object.values(CREATURES)) {
     if ((def.circle || 1) > 4) continue; // early-game errands only
     for (const id of def.loot || []) {
-      if ((def.lootTags || []).includes('skins')) loot.add(id);
+      // Skins-tagged AND actually purchasable AND not already bundled gear:
+      // lootTags can ride along surprise items (strongbox is tagged 'box'
+      // on the same creature; lout_vest is tagged 'skins' but is armor no
+      // vendor buys and nothing bundleable).
+      if ((def.lootTags || []).includes('skins') && bought.has(id) && ITEMS[id]?.type === 'misc') loot.add(id);
     }
   }
   return [...loot];
@@ -88,6 +129,47 @@ function errandLootFor(guild) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+
+const BARBARIAN_STAT_ALLOCATION = Object.freeze({ str: 10, con: 10, agi: 5, ref: 5 });
+const STAT_ALLOCATION_TOTAL = 30;
+
+// Small deterministic PRNG used only for the optional paired-random policy.
+// The seed is derived from race + repeat, never from the variant, so every
+// competing script in a repeat receives the same randomized allocation.
+function seededRandom(seedText) {
+  let h = 2166136261;
+  for (const ch of String(seedText)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => {
+    h += 0x6D2B79F5;
+    let t = h;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function statAllocationFor(guild, race, repeat = 1) {
+  if (STAT_POLICY === 'none' || MODE !== 'benchmark') return null;
+  const fixed = DEFAULT_STAT_ALLOCATION[guild];
+  // The canonical allocation is currently defined only for barbarian. Other
+  // guilds retain their historical chargen behavior until their own policy
+  // is designed and paired-tested.
+  if (!fixed) return null;
+  if (STAT_POLICY === 'paired-fixed-v1') return { ...fixed };
+  // Paired-random keeps the same 30-point physical package but shuffles which
+  // primary stat receives each tranche. This creates repeatable variation
+  // without allowing one variant to get a different character build.
+  const rng = seededRandom(`${guild}|${race}|${repeat}|stat-v1`);
+  const stats = Object.keys(fixed);
+  for (let i = stats.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [stats[i], stats[j]] = [stats[j], stats[i]];
+  }
+  const amounts = Object.values(fixed);
+  return Object.fromEntries(stats.map((s, i) => [s, amounts[i]]));
+}
+
+const DEFAULT_STAT_ALLOCATION = { barbarian: BARBARIAN_STAT_ALLOCATION };
 
 const ALL_GUILDS = Object.keys(GUILDS).filter((g) => GUILD_SCRIPTS[g]);
 
@@ -103,16 +185,33 @@ let wanted = [];            // [{guild, race, variant?}]
 let MODE = 'sweep';         // 'sweep' | 'benchmark' | 'spawn'
 const BENCH_GUILD = flag('benchmark', null);
 const SPAWN_SPEC = flag('spawn', null);
+// Benchmarks default to one worker so time-to-circle remains a clean
+// script-pacing measurement. `--concurrency N` intentionally opts into a
+// crowded-world trial: the MUD supports multiple WS sessions, but agents then
+// share creature spawns and the result measures resilience under load.
+const BENCH_CONCURRENCY = Math.max(1, Math.min(10, Number(flag('concurrency', 3)) || 3));
+// A benchmark compares script behavior, so its default character must be
+// stable too. Gor'Tog is the canonical physical barbarian in this project;
+// the broader race matrix remains available via --race-matrix or --races.
+const DEFAULT_BENCH_RACE = { barbarian: 'gortog' };
+const STAT_POLICY = String(flag('stat-policy', 'paired-fixed-v1')).toLowerCase();
+const VALID_STAT_POLICIES = new Set(['paired-fixed-v1', 'paired-random-v1', 'none']);
+if (!VALID_STAT_POLICIES.has(STAT_POLICY)) {
+  console.error(`unknown --stat-policy "${STAT_POLICY}" — have: ${[...VALID_STAT_POLICIES].join(', ')}`);
+  process.exit(1);
+}
 
 if (ARGS.includes('--all')) {
   wanted = ALL_GUILDS.flatMap((g) => RACE_MATRIX[g].map((race) => ({ guild: g, race })));
 } else if (BENCH_GUILD) {
-  // Benchmark: curated matrix for ONE guild, run strictly sequentially (one
-  // live agent at a time) to avoid spawn contention skewing the timings.
+  // Benchmark: curated matrix for ONE guild. Default is sequential for a
+  // clean pacing comparison; --concurrency N runs N live agents together as
+  // an explicit crowded-world measurement.
   const g = BENCH_GUILD;
   if (!ALL_GUILDS.includes(g)) { console.error(`unknown guild "${g}" — have: ${ALL_GUILDS.join(', ')}`); process.exit(1); }
   if (!Number.isFinite(MINUTES)) MINUTES = DEFAULT_BENCH_MINUTES;
-  // --variants v1,v2 subsets the matrix; default runs every defined variant.
+  // --variants v1,v2 subsets the matrix; --fast uses the current three-way
+  // iteration set: unchanged control plus threshold-aware weapon candidates.
   const names = (flag('variants', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
   const pick = names.length ? names : FAST
     ? ['baseline', 'edgedBowAware', 'edgedSkinAware']
@@ -120,20 +219,30 @@ if (ARGS.includes('--all')) {
   for (const vn of pick) {
     if (!VARIANTS[vn]) { console.error(`unknown variant "${vn}" — have: ${Object.keys(VARIANTS).join(', ')}`); process.exit(1); }
   }
-  // --races g1,h2 subsets species; --repeats N runs each cell N times
+  // --races g1,h2 subsets species; --repeats N runs each cell N times.
+  // Without --races, benchmark mode uses one canonical race per guild so
+  // script rankings do not silently pool different racial stat profiles.
+  // --race-matrix opts back into the curated fit/mid/poor race sweep.
   // (leveling lab: medians + spread need repetition to judge repeatability).
   const raceNames = (flag('races', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const races = raceNames.length ? raceNames : (RACE_MATRIX[g]?.length ? RACE_MATRIX[g] : ['human']);
+  const races = raceNames.length ? raceNames
+    : ARGS.includes('--race-matrix') ? (RACE_MATRIX[g]?.length ? RACE_MATRIX[g] : ['human'])
+      : [DEFAULT_BENCH_RACE[g] || RACE_MATRIX[g]?.[0] || 'human'];
   for (const rc of races) {
-    if (!RACE_MATRIX[g]?.includes(rc)) { console.error(`unknown race "${rc}" for ${g} — have: ${RACE_MATRIX[g].join(', ')}`); process.exit(1); }
+    if (!RACES[rc]) { console.error(`unknown race "${rc}" — have: ${Object.keys(RACES).join(', ')}`); process.exit(1); }
   }
   const repeats = Math.max(1, Math.min(10, Number(flag('repeats', 1)) || 1));
-  wanted = races.flatMap((race) => pick.flatMap((vn) =>
-    Array.from({ length: repeats }, () => ({ guild: g, race, variant: { name: vn, ...VARIANTS[vn] } }))));
+  // Interleave A/B legs by repeat (A1, B1, A2, B2...) so a server/runtime
+  // drift cannot advantage every run of one variant merely because it ran
+  // earlier in the invocation.
+  wanted = races.flatMap((race) => Array.from({ length: repeats }, (_, repeat) =>
+    pick.map((vn) => ({ guild: g, race, repeat: repeat + 1,
+      variant: { name: vn, ...VARIANTS[vn] } }))).flat());
   MODE = 'benchmark';
-  if (!Number.isFinite(CIRCLE_TARGET)) CIRCLE_TARGET = 10; // leveling lab: full climb
-  if (!Number.isFinite(MINUTES)) MINUTES = 20;
-  log(`benchmark mode: ${g} × [${pick.join(', ')}] × ${races.join(',')} → ${wanted.length} sequential runs, ${MINUTES}m cap each, target circle ${CIRCLE_TARGET}, boost x${BOOST}`);
+  if (!Number.isFinite(CIRCLE_TARGET)) CIRCLE_TARGET = 5;
+  if (!Number.isFinite(MINUTES)) MINUTES = DEFAULT_BENCH_MINUTES;
+  const batches = Math.ceil(wanted.length / BENCH_CONCURRENCY);
+  log(`benchmark mode: ${g} × [${pick.join(', ')}] × ${races.join(',')} → ${wanted.length} runs in ${batches} batch${batches === 1 ? '' : 'es'} (concurrency ${BENCH_CONCURRENCY}), ${MINUTES}m cap each, target circle ${CIRCLE_TARGET}, boost x${BOOST}, stats ${STAT_POLICY}${ARGS.includes('--race-matrix') ? ' (race matrix)' : ''}`);
 } else if (SPAWN_SPEC) {
   // Spawn-a-run: exactly one agent with current defaults — no flag archaeology.
   const [g, race = 'human'] = SPAWN_SPEC.split(',').map((s) => s.trim());
@@ -170,13 +279,16 @@ class SweepAgent {
     return out;
   }
 
-  constructor({ guild, race, variant = null }) {
+  constructor({ guild, race, variant = null, repeat = 1 }) {
     this.guild = guild;
     this.race = race;
+    this.repeat = repeat || 1;
     // Benchmark variant: named param set applied to generated scripts +
     // supervisor interlocks (see VARIANTS). Null for normal sweeps.
     this.variant = variant;
     this.variantName = variant?.name || null;
+    this.statAllocation = statAllocationFor(guild, race, this.repeat);
+    this.statPolicy = this.statAllocation ? STAT_POLICY : 'none';
     this.restPct = Math.min(Math.max(variant?.restPct ?? 55, 20), 90);
     this.hallEvery = Math.max(variant?.hallEvery ?? 4, 1);
     this.arenaBand = Math.max(variant?.arenaBand ?? 2, 0);
@@ -197,6 +309,7 @@ class SweepAgent {
     // exactly the slot-cap + UNIQUE-constraint failure we are fixing).
     // A counter is collision-free by construction for any sweep size.
     const agentTag = '-' + SweepAgent.nextTag();
+    this.agentTag = agentTag.slice(1);
 
     this.char = (('Sw' + guild[0].toUpperCase() + guild.slice(1).replace(/[^a-zA-Z]/g, '')
       + race[0].toUpperCase() + race.slice(1).replace(/[^a-zA-Z]/g, '')).replace(/[^a-zA-Z]/g, '').slice(0, 15 - vTag.length - agentTag.length)
@@ -223,11 +336,18 @@ class SweepAgent {
     this.session = new WireSession({
       user: this.user, pass: PASS, char: this.char, race, guild,
     });
-    // Benchmark runs get their own log file so variants never interleave.
+    // Benchmark runs get their own log file so variants never interleave. In
+    // concurrent mode each agent also gets a unique suffix; otherwise two
+    // live agents would append to the same variant/race file and make the
+    // monitor unable to tell which stream belongs to which worker.
     const vTag2 = this.variantName ? '-' + String(this.variantName).replace(/[^a-z0-9]/gi, '') : '';
-    this.logPath = join(LIVE_DIR, `fidelity-${guild}${vTag2}-${race}.log`);
+    const workerTag = MODE === 'benchmark'
+      ? `-${RUN_ID}-${agentTag.slice(1)}` : '';
+    this.logPath = join(LIVE_DIR, `fidelity-${guild}${vTag2}-${race}${workerTag}.log`);
     this.fidelity = {};       // check name -> count
     this.kills = 0; this.circles = 0; this.deaths = 0; this.trains = 0;
+    this.lastHallAt = Date.now(); // NaN-uninitialized made the 4-min fallback trip fire never
+    this.commandCounts = { moves: 0, attacks: 0, training: 0, recovery: 0, circle: 0, errands: 0, info: 0, other: 0 };
     this.done = false;
     this.runner = null;
     this.curName = null;
@@ -253,6 +373,15 @@ class SweepAgent {
     this.expRateSamples = [];
     this.expRatePrevious = null;
     this.shortfallFirst = null;
+    this.delta5Base = null;
+    this.lastDelta5At = Date.now();
+    this.requirementSplits = {};
+    this.stateChanges = [];
+    this.lastTrackedState = {};
+    this.milestoneEvents = [];
+    this.milestoneSeen = new Set();
+    this.kitParts = { weapon: false, armor: false };
+    this.wieldedWeapons = new Set();
     // Flat-progress tracking (drives the flat-progress breaker below):
     // kills+exp-ranks+room sampled each minute against this key/timer.
     this.lastProgressKey = null;
@@ -269,17 +398,81 @@ class SweepAgent {
 
   appendLog(line) {
     try { appendFileSync(this.logPath, line + '\n'); } catch {}
-    // Avoid rescanning and sorting every historical log after every line.
+    // Publish liveness metadata at most once per interval. The previous path
+    // rescanned and sorted hundreds of logs after every appended line.
     try { refreshLiveIndex(LIVE_DIR); } catch {}
+  }
+
+  recordMilestone(id, detail = '', extra = {}) {
+    const key = `${id}:${extra.circle ?? ''}:${extra.target ?? ''}`;
+    if (this.milestoneSeen.has(key)) return;
+    this.milestoneSeen.add(key);
+    const event = {
+      id, ms: Math.max(0, Date.now() - (this.enteredAt || this.startedAt)),
+      ts: new Date().toISOString(), detail, ...extra,
+    };
+    this.milestoneEvents.push(event);
+    this.appendLog(`[milestone] ${id} ${event.ts}${detail ? ` — ${detail}` : ''}`);
   }
 
   diskAdj() { return (id) => Object.entries(ROOMS[id]?.exits || {}).map(([dir, to]) => ({ dir, to })); }
 
+  // Pure-disk BFS over ROOMS data, IGNORING the session's learned/observed
+  // edge graph (WireSession.bfsPath routes through adjacencyFor, which can be
+  // polluted by stale observedEdges from a prior run / reconnect and return a
+  // null or empty path even when the room data clearly connects two rooms).
+  // Used for baked navigation routes (bazaar -> arena) that MUST be present in
+  // the generated script regardless of graph state, so a regenerated hunt
+  // script can always walk the agent out of the bazaar to its hunting ground.
+  pureDiskPath(from, to) {
+    if (!from || !to || !ROOMS[from] || !ROOMS[to]) return null;
+    if (from === to) return [];
+    const adj = this.diskAdj();
+    const prev = new Map([[from, null]]);
+    const q = [from];
+    while (q.length) {
+      const cur = q.shift();
+      for (const e of adj(cur)) {
+        if (prev.has(e.to)) continue;
+        prev.set(e.to, { via: cur, dir: e.dir });
+        if (e.to === to) {
+          const p = [];
+          let at = to;
+          while (prev.get(at)) { p.unshift(prev.get(at)); at = prev.get(at).via; }
+          return p;
+        }
+        q.push(e.to);
+      }
+    }
+    return null;
+  }
+
+  async allocateAtChargen() {
+    if (!this.statAllocation) {
+      this.session.sendObj({ t: 'enter' });
+      return;
+    }
+    const entries = Object.entries(this.statAllocation).filter(([, n]) => Number(n) > 0);
+    const total = entries.reduce((sum, [, n]) => sum + Number(n), 0);
+    if (total !== STAT_ALLOCATION_TOTAL) {
+      throw new Error(`invalid ${this.statPolicy} allocation: ${total} points (expected ${STAT_ALLOCATION_TOTAL})`);
+    }
+    this.appendLog(`[chargen] stat policy ${this.statPolicy} · ${entries.map(([s, n]) => `${s} +${n}`).join(', ')}`);
+    for (const [stat, amount] of entries) await this.session.cmd(`alloc ${stat} ${amount}`);
+    await this.session.cmd('enter');
+  }
+
   nearestSpawnRoom(from) {
     let best = null, bestAny = null;
     const myCircle = this.session.vitals.circle || 1;
+    // Skip rooms another live agent already claimed so concurrent agents in
+    // this process fan out. If EVERY in-weight-class room is claimed we fall
+    // through to bestAny (any reachable room) so an agent is never left with
+    // no hunting grounds — overlap then is the lesser evil to a dead agent.
+    const exclude = CLAIMED_ARENAS;
     for (const id of Object.keys(ROOMS)) {
       if (!(ROOMS[id].spawns || []).length) continue;
+      if (exclude.has(id)) continue;
       const p = this.session.bfsPath(from, id, this.diskAdj());
       if (!p) continue;
       if (!bestAny || p.length < bestAny.path.length) bestAny = { id, path: p };
@@ -296,13 +489,40 @@ class SweepAgent {
     return best || bestAny;
   }
 
+  // Nearest K spawn rooms within our weight class, each with a baked BFS path
+  // from `from`. The generated hunt script walks this ladder and hunts in the
+  // first room that is EMPTY (%pcount == 0), so agents spread across distinct
+  // hunting grounds by reading world state (no shared memory). Paths are
+  // rooted at `from` (the arena hub), which is stable for the whole run, so
+  // the ladder never goes stale the way gen-time start-room paths would.
+  candidateRooms(from, k = 5) {
+    const myCircle = this.session.vitals.circle || 1;
+    const scored = [];
+    for (const id of Object.keys(ROOMS)) {
+      if (!(ROOMS[id].spawns || []).length) continue;
+      const p = this.session.bfsPath(from, id, this.diskAdj());
+      if (!p) continue;
+      const tooStrong = ROOMS[id].spawns.some((sid) => {
+        const c = creatureById(sid);
+        return c && (c.circle || 1) > myCircle + this.arenaBand;
+      });
+      if (tooStrong) continue;
+      scored.push({ id, path: p, len: p.length });
+    }
+    scored.sort((a, b) => a.len - b.len);
+    return scored.slice(0, k).map((r) => ({ id: r.id, fromHere: r.path }));
+  }
+
   async start() {
     await this.session.httpLogin();
     log(`[${this.guild}/${this.race}] authed as ${this.user} (${this.session.knownChar ? 'existing' : 'new'} char)`);
     this.session.connect({
+      onCharAlloc: () => this.allocateAtChargen(),
       onEnter: () => {
         this.enteredAt = Date.now();
+        this.startingCircle = this.session.vitals.circle || 1;
         this.appendLog(`=== sweep run ${RUN_ID} ${this.char}${this.variantName ? ` [${this.variantName}]` : ''} (${this.race} ${this.guild}) entered ${new Date().toISOString()} ===`);
+        this.recordMilestone('world_entry', 'fresh character entered the world', { circle: this.startingCircle });
         if (BOOST > 1) this.session.sendObj({ t: 'boost', mult: BOOST });
         void this.beginPlaying();
       },
@@ -317,7 +537,18 @@ class SweepAgent {
       },
       onPrompt: (_m, plain) => {
         this.lastPromptAt = Date.now();
+        // The circle-up prose can arrive before WireSession's next prompt has
+        // mirrored the new circle into vitals. If we wait for the prose-side
+        // check alone, a run that reaches its target keeps hunting until the
+        // wall-clock cap (one observed c2 finisher burned the remaining ~7m).
+        // The prompt is authoritative and stops the runner as soon as it
+        // reflects the requested target.
+        if (!this.done && CIRCLE_TARGET > 1 && this.session.vitals.circle >= CIRCLE_TARGET) {
+          void this.finish('target circle reached');
+          return;
+        }
         this.runner?.feed(plain, true);
+        this.captureStateChanges();
         this.supervise();
       },
       onText: (text, type) => this.onText(text, type),
@@ -361,7 +592,10 @@ class SweepAgent {
       // leveling-lab tap: first rank gain = time-to-first-EXP; summed-rank
       // crossings record the 5/10/15 splits.
       onSkills: (skills) => {
-        if (!this.rankBaseline) this.rankBaseline = { ...skills };
+        if (!this.rankBaseline) {
+          this.rankBaseline = { ...skills };
+          this.startingTotalRanks = Object.values(skills).reduce((n, r) => n + (Number(r) || 0), 0);
+        }
         else if (this.firstExpMs === null) {
           // Absent-baseline skills count as rank 0: the mindstate pane only
           // lists skills with ACTIVE pools, so a skill that starts training
@@ -372,6 +606,7 @@ class SweepAgent {
           if (gained) {
             this.firstExpMs = Date.now() - (this.enteredAt || this.startedAt);
             log(`[${this.guild}/${this.race}] FIRST-EXP at ${Math.round(this.firstExpMs / 1000)}s`);
+            this.recordMilestone('first_exp', 'first rank gain observed');
           }
         }
         if (this.RANK_SPLITS.length && this.rankBaseline) {
@@ -385,6 +620,7 @@ class SweepAgent {
             const ms = Date.now() - (this.enteredAt || this.startedAt);
             this.rankSplits.push({ ranks: target, ms });
             log(`[${this.guild}/${this.race}] RANK-SPLIT +${target} ranks at ${Math.round(ms / 1000)}s`);
+            this.recordMilestone(`rank_${target}`, `total ranks crossed +${target}`, { ranks: target });
           }
         }
         // Running total-rank snapshot for the end-of-run DB row (the lab's
@@ -415,14 +651,29 @@ class SweepAgent {
     const arena = this.nearestSpawnRoom(room);
     if (!arena) { this.finish(`no hunting grounds reachable from ${room}`); return; }
     this.arena = arena.id;
+    // Claim this room so sibling agents in this process pick a different one
+    // (fan-out over spawn rooms instead of all stacking on the nearest).
+    CLAIMED_ARENAS.add(arena.id);
+    this.recordMilestone('arena_reached', `hunting ground selected: ${arena.id}`, { room: arena.id });
     const bazaarPath = s.bfsPath(room, 'bazaar', this.diskAdj());
     // Reverse the path we actually plan to walk in (bazaar->...->spawn room):
     // live exits can disagree with disk mid-regrid, so derive the return trip
     // from the same edges the outbound leg uses.
     const backFromBazaar = reversePath(bazaarPath);
+    // Pure-disk route so a stale learned/observed graph can never null the
+    // bazaar -> arena path; the script must always be able to walk out of the
+    // bazaar. (WireSession.bfsPath routes through adjacencyFor, which can be
+    // polluted by stale observedEdges and return empty even when ROOMS
+    // clearly connects bazaar to the arena.)
+    const fromBazaar = this.pureDiskPath('bazaar', arena.id)
+      ?? (room === arena.id ? backFromBazaar : []);
     const cap = {
-      guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase,
+      guild: this.guild, race: this.race, char: this.char, circle: s.vitals.circle || 1, scriptBase: this.scriptBase,
       bazaarPath, trainList: null, trainOffset: this.trainOffset || 0,
+      defensiveKit: this.guild === 'barbarian',
+      survivalBreadth: !!this.variant?.survivalBreadth,
+      survivalFocus: !!this.variant?.survivalFocus,
+      leaveCombatOnLock: !!this.variant?.leaveCombatOnLock,
       // Variant knobs that alter generated script bodies (not just supervisor
       // tuning) must ride on cap — buildHuntScript/buildCircleScript read
       // them from here. skipRage gates the signature roar behind %rage.
@@ -431,17 +682,37 @@ class SweepAgent {
       tdpFloor: this.variant?.tdpFloor,
       helmRetry: this.variant?.helmRetry,
       armorStack: this.variant?.armorStack,
+      shieldKit: this.variant?.shieldKit,
+      cheapWeaponKit: this.variant?.cheapWeaponKit,
+      rotMargin: this.variant?.rotMargin,
+      weaponReserve: this.variant?.weaponReserve,
+      weaponReserveV2: this.variant?.weaponReserveV2,
+      weaponReserveV3: this.variant?.weaponReserveV3,
+      edgedKit: this.variant?.edgedKit,
+      weaponAware: this.variant?.weaponAware,
+      economyFallback: this.variant?.economyFallback,
+      rotationSubscript: !!this.variant?.closeNth,
+      sharedFight: !!this.variant?.closeNth,
     };
     const huntSrc = buildHuntScript({
       cap,
       hallPath: s.bfsPath(arena.id, 'hall_' + this.guild, this.diskAdj()),
       arena: {
         id: arena.id,
-        // Return trip = exact reverse of how we get TO the bazaar (walked-in
-        // edges are ground truth even when the disk map is mid-regrid).
-        fromArmed: reversePath(bazaarPath),
+        // After buying, the character is at the bazaar. Use a route whose
+        // origin is the bazaar; the old reverse(bazaarPath) only returned to
+        // the original starting room when those differed.
+        fromArmed: fromBazaar,
         fromHere: s.bfsPath(room, arena.id, this.diskAdj()),
+        fromHereOrigin: room,
       },
+      // Arena-picking ladder: nearest spawn rooms within weight class, rooted
+      // at the arena hub (stable for the whole run). The script walks them and
+      // hunts in the first that is empty (%pcount==0) — node-agnostic spread.
+      // Use a broad Crossing ladder so three workers cannot deadlock in one
+      // three-room pocket. Difficulty filtering still excludes unsafe rooms;
+      // the ladder simply retains up to eight safe, reachable alternatives.
+      candidates: this.candidateRooms(arena.id, 8),
     });
     const circleSrc = buildCircleScript({
       cap,
@@ -466,6 +737,8 @@ class SweepAgent {
       [this.scriptBase + 'hunt']: huntSrc,
       [this.scriptBase + 'circle']: circleSrc,
       [this.scriptBase + 'mega']: megaSrc,
+      ...(cap.sharedFight ? { [this.scriptBase + 'fight']: buildSharedFightScript(cap) } : {}),
+      ...(this.variant?.closeNth ? { [this.scriptBase + 'rotate']: buildWeaponRotationScript(cap) } : {}),
     };
     this.lastScripts = {
       hunt: huntSrc, circle: circleSrc, mega: megaSrc,
@@ -479,6 +752,14 @@ class SweepAgent {
       await sleep(250);
     }
     this.appendLog(`library saved: ${Object.keys(this.libraryPending || {}).join(', ')} (${huntSrc.split('\n').length} hunt lines)`);
+    const weaponKit = this.variant?.edgedKit
+      ? 'dagger, broadsword, greatsword, hunting bow'
+      : this.variant?.shieldKit
+        ? (this.variant?.cheapWeaponKit ? 'dagger, throwing knives, club, staff' : 'dagger, club, broadsword, greatsword')
+        : 'adaptive guild kit';
+    this.weaponPolicy = `${this.variant?.weaponAware ? 'Nth-aware' : 'standard'} · ${weaponKit}`;
+    this.appendLog(`[weapon-policy] ${this.weaponPolicy}`);
+    this.recordMilestone('scripts_ready', 'generated hunt, circle, and mega scripts uploaded');
     if (process.env.SWEEP_DUMP) this.appendLog('--- hunt.dr ---\n' + huntSrc);
     log(`[${this.guild}/${this.race}] arena ${ROOMS[arena.id].name} — species: ${[...new Set(ROOMS[arena.id].spawns)].map(nounOf).join(', ')}`);
     await sleep(600);
@@ -495,18 +776,44 @@ class SweepAgent {
 
   startCycle(src, name) {
     this.curName = name;
+    if (name.endsWith('circle')) {
+      this.recordMilestone('hall_handoff', `circle/training leg started at circle ${this.session.vitals.circle || 1}`, { circle: this.session.vitals.circle || 1 });
+    }
     if (name.endsWith('mega')) this.lastSendAt = Date.now();
     const s = this.session;
     this.runner = createRunner(src, [], {
       roomNow: () => s.vitals.room,
       send: async (line) => {
+        const bucket = /^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line) ? 'moves'
+          : /^attack\b/.test(line) ? 'attacks'
+          : /^(tdptrain|train)\b/.test(line) ? 'training'
+          : /^(flee|retreat|rest|stand|tend)\b/.test(line) ? 'recovery'
+          : /^circle\b/.test(line) ? 'circle'
+          : /^(exp|tdp|info|skills|look)\b/.test(line) ? 'info'
+          : /^(buy|sell|bundle|withdraw|wear|wield|remove)\b/.test(line) ? 'errands' : 'other';
+        this.commandCounts[bucket] += 1;
+        if (/^wield\b/.test(line)) {
+          this.kitParts.weapon = true;
+          const weapon = line.replace(/^wield\s+/, '').trim().toLowerCase();
+          if (weapon) this.wieldedWeapons.add(weapon);
+          if (this.wieldedWeapons.size >= 2) {
+            this.recordMilestone('weapon_coverage', `${this.wieldedWeapons.size} weapon lanes observed`, { count: this.wieldedWeapons.size });
+          }
+        }
+        if (/^wear\b/.test(line)) { this.kitParts.armor = true; this.lastWearCmd = line; }
+        if (this.kitParts.weapon && this.kitParts.armor) {
+          this.recordMilestone('kit_online', 'starter weapon and armor equipped');
+        }
+        if (/^(tdptrain|train)\b/.test(line)) {
+          this.recordMilestone('training_loop', 'guild training command executed');
+        }
         // Verb allowlist for the fidelity log. Anything omitted here is still
         // SENT — it just leaves no trace, which makes "did my change fire?"
         // unanswerable from the log. `learn` was missing, so a working
         // ability-learn step looked like it never ran (grep count 0) even
         // though the script provably contained it and the walk completed.
         // Keep this list in sync when adding scripted verbs.
-        if (process.env.SWEEP_DEBUG || /^(attack|tdptrain|flee|rest|stand|circle|buy|wear|remove|wield|prepare|cast|khri|enchant|backstab|analyze|roar|meditate|form|learn|drink|effects|stealth|hide|skin|withdraw|sell|bundle|exp|tend)/.test(line)) {
+        if (process.env.SWEEP_DEBUG || /^(attack|tdptrain|train|flee|rest|stand|circle|buy|wear|remove|wield|prepare|cast|khri|enchant|backstab|analyze|roar|meditate|form|learn|drink|effects|stealth|hide|skin|withdraw|sell|bundle|exp|tend)/.test(line)) {
 
           this.appendLog(`script> ${line}`);
           log(`[${this.guild}/${this.race}] > ${line}`);
@@ -524,10 +831,11 @@ class SweepAgent {
         }
         // Movement is progress — it disproves "parked" stall verdicts.
         if (/^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line)) this.lastProgressAt = Date.now();
-        if (/^tdptrain /.test(line)) { this.trains += 1; this.lastProgressAt = Date.now(); }
+        if (/^(tdptrain|train) /.test(line)) { this.trains += 1; this.lastProgressAt = Date.now(); }
         void s.cmd(line);
       },
       onRefusedMove: (dir) => trackRefusedMove(s, dir),
+      onDeathPenalty: (m) => this.appendLog(`[death-penalty] ${JSON.stringify(m)}`),
       say: (t) => { if (t && !/^--/.test(t)) this.appendLog(`[echo] ${t}`); },
       getScript: (n) => this.getScript(n),
     });
@@ -563,6 +871,7 @@ class SweepAgent {
       this.circleTimes.push({ circle: newCircle, ms: split });
       log(`[${this.guild}/${this.race}] *** CIRCLE-UP -> circle ${newCircle} (${Math.round(split / 60000)}m) ***`);
       this.appendLog(`*** CIRCLE-UP -> circle ${newCircle} at ${Math.round(split / 1000)}s ***`);
+      this.recordMilestone('circle_up', `character advanced to circle ${newCircle}`, { circle: newCircle });
       if (this.session.vitals.circle >= CIRCLE_TARGET) return this.finish('target circle reached');
       // Mega finished its circle leg; restart the whole cycle.
       setTimeout(() => this.restartCycle(), 1500);
@@ -571,15 +880,20 @@ class SweepAgent {
     if (/You awaken in the Temple/.test(text)) {
       this.deaths += 1;
       this.appendLog(`[death] #${this.deaths} at ${new Date().toISOString()}`);
+      this.recordMilestone('death_recovery', 'death and temple recovery observed', { deaths: this.deaths });
       this.runner?.stop(); this.runner = null;
       setTimeout(() => this.restartCycle(), 3000);
       return;
     }
     if (/dies|slumps|lifeless|stops moving|collapses/.test(text)) {
       this.kills += 1;
+      if (this.kills === 1) this.recordMilestone('first_kill', 'first creature defeated');
       this.lastProgressAt = Date.now();
       this.lastKillAt = Date.now();
       this.rtRefusalStreak = 0;
+    }
+    if (/You sell |You bundle |You have bundled/i.test(stripAnsi(text))) {
+      this.recordMilestone('economy_loop', 'loot converted into usable funds');
     }
     // Observability: movement/combat refusals are the #1 reason agents park
     // silently. Tag them so a fidelity log explains its own stalls.
@@ -633,10 +947,15 @@ class SweepAgent {
         const id = SKILL_ID_BY_NAME[m[1].trim().toLowerCase()];
         if (id) (this.expRanks ||= {})[id] = Number(m[2]);
       }
+      // The weapon rotator must see the same authoritative EXP ranks as the
+      // circle gate. Mindstate is only a top-10 progress view and can omit
+      // converted or low-progress weapon lanes.
+      if (this.expRanks) Object.assign(this.session.vitals.skills ||= {}, this.expRanks);
     }
     if (/not yet ready to circle/.test(text)) {
       this.appendLog(`[circle-blocked] ${stripAnsi(text).replace(/\n+/g, ' | ').slice(0, 220)}`);
       this.lastProgressAt = Date.now(); // a circle attempt + curriculum parse is activity
+      this.lastCircleBlockText = stripAnsi(text);
       // Retarget: parse the exact missing list so the next hall trip trains
       // the blocking skills instead of the generic curriculum.
       const missing = trainListFromMissing(stripAnsi(text), this.guild,
@@ -684,7 +1003,22 @@ class SweepAgent {
     const dirs = (fresh?.length ? fresh : steps).map((e) => (typeof e === 'string' ? e : e?.dir)).filter(Boolean);
     if (!dirs.length) { this.regenerateFromHere(); return; }
     this.appendLog(`[escape] ${dirs.length} steps from ${here}: ${dirs.join(',')}`);
-    this.runner = createRunner(dirs.map((d) => 'move ' + d).join('\n') + '\nput look\nwait', [], {
+    // When the escape finishes we are standing SOMEWHERE ELSE than where the
+    // current library's baked routes start (regenerateFromHere ran at the
+    // strand origin — temple, sewers, wherever). Without a re-bake, the next
+    // mega cycle's room-gated arrival legs all skip (origin mismatch) and the
+    // agent idles at the bazaar until time runs out (vuld, warmage/dwarf).
+    // On arrival: regenerate from the landing room so every route/gate pair
+    // matches reality, then start a fresh cycle.
+    const done = () => {
+      this.appendLog(`[escape] arrived at ${s.vitals.room} — regenerating from here`);
+      if (this.arena) CLAIMED_ARENAS.delete(this.arena);
+      this.arena = null;
+      this.regenerateFromHere();
+      if (this.library && !this.done) this.startCycle(this.library[this.scriptBase + 'mega'], this.scriptBase + 'mega');
+    };
+    const body = dirs.map((d) => 'move ' + d).join('\n') + '\nput look\nwait';
+    this.runner = createRunner(body, [], {
       roomNow: () => s.vitals.room,
       send: async (line) => {
         trackMove(s, line);
@@ -697,6 +1031,7 @@ class SweepAgent {
       },
       onRefusedMove: (dir) => trackRefusedMove(s, dir),
       say: () => {},
+      onDone: done,
     });
     this.runner.start();
   }
@@ -727,6 +1062,9 @@ class SweepAgent {
     const room = s.vitals.room;
     if (!room || !ROOMS[room]) return;
     let arena = this.nearestSpawnRoom(room);
+    // Release our prior claim first so a regen can re-pick the same room if it
+    // is genuinely the best fit (don't exclude ourselves).
+    if (this.arena) CLAIMED_ARENAS.delete(this.arena);
     const r = ROOMS[room];
     const exitCount = Object.keys(r.exits || {}).length;
     const interior = room !== 'bazaar' && !r.spawns?.length && exitCount <= 2;
@@ -744,6 +1082,8 @@ class SweepAgent {
       if (!arena) return;
     }
     this.arena = arena.id;
+    CLAIMED_ARENAS.add(arena.id);
+    this.appendLog(`[regen] arena=${arena.id} origin=${s.vitals.room} fromHereLen=${(this.session.bfsPath(s.vitals.room, arena.id, this.diskAdj()) || []).length}`);
     this.regenerateScripts();
   }
 
@@ -754,15 +1094,29 @@ class SweepAgent {
     const s = this.session;
     const arena = this.arena;
     if (!arena) return;
-    const cap = { guild: this.guild, race: this.race, char: this.char, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth, tdpFloor: this.variant?.tdpFloor, helmRetry: this.variant?.helmRetry, armorStack: this.variant?.armorStack };
+    const cap = { guild: this.guild, race: this.race, char: this.char, circle: s.vitals.circle || 1, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth, tdpFloor: this.variant?.tdpFloor, helmRetry: this.variant?.helmRetry, armorStack: this.variant?.armorStack, shieldKit: this.variant?.shieldKit, cheapWeaponKit: this.variant?.cheapWeaponKit, rotMargin: this.variant?.rotMargin, weaponReserve: this.variant?.weaponReserve, weaponReserveV2: this.variant?.weaponReserveV2, weaponReserveV3: this.variant?.weaponReserveV3, edgedKit: this.variant?.edgedKit, weaponAware: this.variant?.weaponAware, economyFallback: this.variant?.economyFallback, sharedFight: !!this.variant?.closeNth };
+    cap.defensiveKit = this.guild === 'barbarian';
+    cap.survivalBreadth = !!this.variant?.survivalBreadth;
+    cap.survivalFocus = !!this.variant?.survivalFocus;
+    cap.leaveCombatOnLock = !!this.variant?.leaveCombatOnLock;
+    cap.skipCircle = !!this.skipCircle;
+    cap.rotationSubscript = !!this.variant?.closeNth;
     this.library[this.scriptBase + 'hunt'] = buildHuntScript({
       cap,
       hallPath: s.bfsPath(arena, 'hall_' + this.guild, this.diskAdj()),
       arena: {
         id: arena,
-        fromArmed: [],
+        // Regenerated scripts must still be able to walk out of the bazaar to
+        // the arena (the buy/arm check leaves the agent at the bazaar and the
+        // WIELD -> ARMED_HERE leg walks fromArmed). It was hardcoded to [],
+        // which permanently stranded every re-pathed agent at the bazaar.
+        fromArmed: this.pureDiskPath('bazaar', arena) ?? [],
         fromHere: s.bfsPath(s.vitals.room, arena, this.diskAdj()),
+        fromHereOrigin: s.vitals.room,
       },
+      // Ladder rooted at the arena hub (stable); regen may pick a different
+      // arena, so recompute fresh each time.
+      candidates: this.candidateRooms(arena, 3),
     });
     this.library[this.scriptBase + 'circle'] = buildCircleScript({
       cap,
@@ -785,6 +1139,8 @@ class SweepAgent {
         sellLoot: errandLootFor(this.guild),
       },
     });
+    if (cap.sharedFight) this.library[this.scriptBase + 'fight'] = buildSharedFightScript(cap);
+    if (this.variant?.closeNth) this.library[this.scriptBase + 'rotate'] = buildWeaponRotationScript(cap);
     for (const [name, body] of Object.entries(this.library)) {
       s.sendObj({ t: 'scripts_put', name, body });
     }
@@ -922,6 +1278,26 @@ class SweepAgent {
       return;
     }
 
+    // TOWN-STRAND BREAKER (gydk fix): an agent whose hub-gated arrival legs
+    // all skipped (post-death respawn, drift) idles in a town/dens room where
+    // SCAN can never match a creature. Kills/ranks/room all freeze, but the
+    // 6-minute flat breaker is far too slow for a 10-minute run. Detect the
+    // strand directly: current room spawns NOTHING and hasn't changed for
+    // 45s while out of combat — restart the cycle immediately, which routes
+    // through regenerateFromHere (bazaar-escape for transits, fresh arena
+    // paths otherwise).
+    if (this.runner && !this.restarting && !this.session.vitals.inCombat) {
+      const here = this.session.vitals.room;
+      if (here && !(ROOMS[here]?.spawns || []).length
+        && Date.now() - (this.lastRoomChangeAt || 0) > 45000) {
+        this.appendLog(`[watchdog] stranded in creature-less room ${here} — re-pathing`);
+        log(`[${this.guild}/${this.race}] town-strand breaker fired at ${here}`);
+        this.lastRoomChangeAt = Date.now(); // don't re-fire each tick
+        this.restartCycle();
+        return;
+      }
+    }
+
     // FLAT-PROGRESS BREAKER — must sit with the silence breaker above the
     // early-return interlocks. Sends are liveness, not progress: a script
     // polling `exp`/`look` in a starving loop refreshes lastSendAt every
@@ -940,6 +1316,15 @@ class SweepAgent {
 
     try { this.runner?.feed('', false); } catch {}
     this.session.injectState(this.runner);
+    // Armor-wear retry (server truth): the hands snapshot says whether the
+    // wear LANDED. A lost/refused wear left 1st armor at 0/6 for whole runs
+    // while the send-side kit check claimed it online.
+    if (this.runner && this.session.vitals.armorWorn === false
+      && this.lastWearCmd && !this.armorWearRetried && !this.session.vitals.inCombat) {
+      this.armorWearRetried = true;
+      this.appendLog('[armor] hands show nothing worn — re-sending wear');
+      void this.session.cmd(this.lastWearCmd);
+    }
     if (!this.runner || !this.runner.running) {
       // Restart guard: a restartCycle/escape-walk in flight has already
       // begun building the next runner — don't stack a second cycle on top.
@@ -953,7 +1338,7 @@ class SweepAgent {
     // the circle script once (guild hall trip: circle attempt + TDP spend).
     const v2 = this.session.vitals;
     // Standing in our own guild hall? Circle + TDP-spend right here.
-    if (this.library && v2.room === 'hall_' + this.guild && this.curName !== this.scriptBase + 'circle') {
+    if (this.library && v2.room === 'hall_' + this.guild && !this.skipCircle && this.curName !== this.scriptBase + 'circle') {
       this.appendLog('[hall] already at the guild hall — circling');
       this.startCycle(this.library[this.scriptBase + 'circle'], this.scriptBase + 'circle');
       return;
@@ -965,8 +1350,13 @@ class SweepAgent {
     // until ranks move (or the long timer fires as a fallback). Closes the
     // walk-fail-train-walk-back-per-kill loop.
     const gaps = v2.circleGaps;
+    const requirementsMet = !!(gaps && Object.keys(gaps).length
+      && Object.values(gaps).every((g) => g.have >= g.need));
     if (huntingLeg && gaps && Object.keys(gaps).length) {
-      const skills = v2.skills || {};
+      // Mindstate omits fully-converted skills; merge the authoritative exp
+      // sheet before deciding whether a hall trip is warranted. Otherwise a
+      // run can log shortfall:0 yet remain stranded in the hunting loop.
+      const skills = { ...(v2.skills || {}), ...(this.expRanks || {}) };
       const moved = Object.entries(gaps).filter(([sk, g]) => (skills[sk] || 0) > g.have);
       const close = Object.values(gaps).every((g) => g.have >= g.need);
       if (!moved.length && !close && this.kills - this.killsAtVisit < 12) {
@@ -976,7 +1366,11 @@ class SweepAgent {
         for (const [sk] of moved) gaps[sk].have = skills[sk]; // refresh ledger
         this.appendLog(`[circle-readiness] ranks moved: ${moved.map(([s]) => s).join(', ')} — retrying the hall`);
       } else if (close) {
-        this.appendLog('[circle-readiness] requirements met by ranks — retrying circle');
+        const key = `${v2.circle}:${this.kills}`;
+        if (this.lastReadinessLogKey !== key) {
+          this.lastReadinessLogKey = key;
+          this.appendLog('[circle-readiness] requirements met by ranks — retrying circle');
+        }
       }
     }
     // TDP-gate the hall trip: with a known balance below the floor there is
@@ -987,13 +1381,16 @@ class SweepAgent {
     const tdpKnown = Number.isFinite(v2.tdp);
     const tdpFloor = this.variant?.tdpFloor ?? 8;
     if (huntingLeg && tdpKnown && v2.tdp < tdpFloor && !v2.inCombat
-      && this.kills > this.killsAtVisit) {
+      && this.kills > this.killsAtVisit && !requirementsMet) {
       this.appendLog(`[hall-skip] only ${v2.tdp} TDPs — hunting until the pool fills`);
       log(`[${this.guild}/${this.race}] hall skipped: ${v2.tdp} TDPs below floor`);
       this.killsAtVisit = this.kills;
       return;
     }
-    if (huntingLeg && !tdpKnown && this.kills - this.killsAtVisit >= 12 && !v2.inCombat) {
+    if (huntingLeg && !tdpKnown && !v2.inCombat
+      && (this.kills - this.killsAtVisit >= 6 || Date.now() - this.enteredAt > 180000)) {
+      // Time-based arm: with steady kills the inCombat windows at tick time
+      // are narrow — 3 minutes in the field probes TDP regardless of kills.
       // Balance never observed yet — probe it once instead of walking blind.
       this.appendLog('[hall-probe] checking TDP balance before hall trip');
       void this.session.cmd('tdp');
@@ -1008,7 +1405,7 @@ class SweepAgent {
     // 4-minute timer stays as a fallback for feeds that never arrive.
     const huntingLeg2 = this.curName === this.scriptBase + 'mega';
     if (huntingLeg2 && !v2.inCombat && this.kills > this.killsAtVisit) {
-      const skills = v2.skills || {};
+      const skills = { ...(v2.skills || {}), ...(this.expRanks || {}) };
       const shaped = Object.fromEntries(
         Object.entries(skills).map(([id, rank]) => [id, { rank }]));
       let ready = null;
@@ -1016,6 +1413,8 @@ class SweepAgent {
         ready = circleRequirements({ id: this.guild }, shaped, (v2.circle || 1) + 1);
       } catch { /* unknown guild — fall through to timer trigger */ }
       if (ready?.ok) {
+        this.skipCircle = false;
+        this.recordMilestone('requirements_met', `circle-${(v2.circle || 1) + 1} requirement ledger reached zero`, { target: (v2.circle || 1) + 1 });
         log(`[${this.guild}/${this.race}] hall trip: circle-${(v2.circle || 1) + 1} requirements MET by mindstate ranks`);
         this.appendLog(`[hall-trip] requirements met (${(v2.circle || 1) + 1}) — circling`);
         this.killsAtVisit = this.kills;
@@ -1024,18 +1423,27 @@ class SweepAgent {
         return;
       }
     }
+    // Every guild needs a periodic hall visit: Barbarian skill training and
+    // ability learning are required for circle gates too. The old guard
+    // accidentally excluded all non-economy Barbarian variants, leaving
+    // their generated `train` curriculum unreachable and telemetry at zero.
     if (huntingLeg && !v2.inCombat && this.kills > this.killsAtVisit
       && Date.now() - this.lastHallAt > this.hallFallbackMs) {
+      this.recordMilestone('hall_handoff', `fallback hall trip at circle ${v2.circle || 1}`, { circle: v2.circle || 1, reason: 'fallback-timer' });
       log(`[${this.guild}/${this.race}] hall trip (fallback timer)`);
       this.appendLog(`[hall-trip] fallback timer`);
       this.killsAtVisit = this.kills;
-      // Rotate the curriculum start each trip (see the retarget comment):
-      // without rotation the same first-N skills soak every TDP budget and
-      // later weapon/survival set-fillers stay at rank 0 forever.
-      if (!this.trainList?.length) {
-        this.trainOffset = (this.trainOffset || 0) + 3;
-        this.regenerateScripts();
+      this.skipCircle = true;
+      // Recompute from the latest gate failure on every visit. Caching the
+      // first list starves later armor/survival Nth slots after early rows
+      // improve.
+      if (this.lastCircleBlockText) {
+        const refreshed = trainListFromMissing(this.lastCircleBlockText, this.guild,
+          { targetNth: !!this.variant?.closeNth, ranks: this.expRanks || v2.skills || {} });
+        if (refreshed.length) this.trainList = refreshed;
       }
+      this.trainOffset = 0;
+      this.regenerateScripts();
       this.startCycle(this.library[this.scriptBase + 'circle'], this.scriptBase + 'circle');
       return;
     }
@@ -1092,7 +1500,53 @@ class SweepAgent {
   progressLine() {
     const v = this.session.vitals;
     const mins = Math.round((Date.now() - this.startedAt) / 60000);
-    return `[progress] ${mins}m circle ${v.circle} hp ${v.hp}/${v.maxhp} kills ${this.kills} circles ${this.circles} trains ${this.trains} deaths ${this.deaths} boost x${BOOST} fidelity:${JSON.stringify(this.fidelity)} [room ${v.room}] ${verdictLabel(this.liveVerdict.verdict, this.liveVerdict.reason, 90)}`;
+    return `[progress] ${mins}m circle ${v.circle} hp ${v.hp}/${v.maxhp} kills ${this.kills} circles ${this.circles} trains ${this.trains} deaths ${this.deaths} tdp ${v.tdp ?? '?'} silver ${v.silver ?? '?'} boost x${BOOST} fidelity:${JSON.stringify(this.fidelity)} [room ${v.room}] ${verdictLabel(this.liveVerdict.verdict, this.liveVerdict.reason, 90)}`;
+  }
+
+  // Structured per-tick sample for the live multi-sim chart (public/sim-chart.html).
+  // One line per progress tick; the chart polls public/live/*.log, parses these,
+  // groups by guild (from filename), and plots ranks + circle-up markers. KAIZEN 2026-08-28.
+  sampleLine() {
+    const v = this.session.vitals;
+    const mins = Math.round((Date.now() - this.startedAt) / 60000);
+    return `[sample] ${JSON.stringify({
+      t: mins, guild: this.guild, race: this.race, variant: this.variantName || this.variant?.id || '-',
+      circle: v.circle ?? 1, kills: this.kills, ranks: this.totalRanksAtFinish ?? 0,
+      room: v.room || '-', run: RUN_ID,
+    })}`;
+  }
+
+  captureStateChanges() {
+    const v = this.session.vitals || {};
+    const fields = { circle: v.circle ?? 1, tdp: v.tdp ?? null, silver: v.silver ?? null, weapon: v.wsp || null };
+    for (const [kind, value] of Object.entries(fields)) {
+      const prev = this.lastTrackedState[kind];
+      if (prev === undefined) { this.lastTrackedState[kind] = value; continue; }
+      if (value === prev || value == null) continue;
+      const change = { kind, from: prev, to: value, ms: Math.max(0, Date.now() - this.startedAt), ts: new Date().toISOString() };
+      this.stateChanges.push(change);
+      if (this.stateChanges.length > 200) this.stateChanges.shift();
+      this.appendLog(`[change] ${change.ts} ${kind} ${prev} -> ${value}`);
+      this.lastTrackedState[kind] = value;
+    }
+  }
+
+  requirementSnapshot() {
+    const v = this.session.vitals;
+    const skills = { ...(v.skills || {}), ...(this.expRanks || {}) };
+    const shaped = Object.fromEntries(Object.entries(skills).map(([id, rank]) => [id, { rank }]));
+    try {
+      const target = (v.circle || 1) + 1;
+      const res = circleRequirements({ id: this.guild }, shaped, target);
+      return {
+        target,
+        missing: res.missing.map((m) => ({
+          label: m.replace(/ at least rank.*$/, ''),
+          need: Number(m.match(/rank (\d+)/)?.[1] || 0),
+          have: Number(m.match(/(?:you have|is) (\d+)/)?.[1] || 0),
+        })),
+      };
+    } catch { return null; }
   }
 
   // Per-minute circle-readiness snapshot. The single most useful number in a
@@ -1138,6 +1592,9 @@ class SweepAgent {
       return { what, need, have, short: Math.max(0, need - have) };
     });
     const shortfall = parsed.reduce((s, g) => s + g.short, 0);
+    const gatedTotal = (res.rows || []).reduce((s, r) => s + Number(r.need || 0), 0);
+    const gatedProgress = Math.max(0, gatedTotal - shortfall);
+    const gatedPct = gatedTotal ? Math.round((gatedProgress / gatedTotal) * 1000) / 10 : 100;
     const worst = parsed.slice().sort((a, b) => b.short - a.short).slice(0, 6)
       .map((g) => `${g.what} ${g.have}/${g.need}`).join(', ');
     const totalRanks = Object.values(skills).reduce((s, r) => s + (r || 0), 0);
@@ -1154,35 +1611,41 @@ class SweepAgent {
     // card (Olwydd-style at-a-glance row). Same merged rank source as the
     // missing-set above; rides a second line so sampleGaps parsing is
     // untouched. Colors/thresholds live client-side (public/js/req-table.js).
+    const splitTs = new Date().toISOString();
+    for (const r of (res.rows || [])) {
+      if (r.have >= r.need && !this.requirementSplits[r.label]) {
+        this.requirementSplits[r.label] = {
+          ms: Math.max(0, Date.now() - this.startedAt), ts: splitTs,
+          have: r.have, need: r.need,
+        };
+        // Emit a human-readable crossover so the fidelity log shows the exact
+        // minute each c2 requirement is satisfied — the last one is the c2
+        // gate / max speed-run time. KAIZEN 2026-08-28.
+        const mins = Math.round(this.requirementSplits[r.label].ms / 60000);
+        this.appendLog(`[milestone] req_met ${r.label} ${mins}m (${r.have}/${r.need})`);
+      }
+    }
     const reqs = (res.rows || [])
       .map((r) => `${r.label} ${r.have}/${r.need}`)
       .join(', ');
-    return `[gaps] ${mins}m circle ${v.circle}->${target} blocked:${parsed.length} shortfall:${shortfall} ranks:${totalRanks} src:${src}`
+    return `[gaps] ${mins}m circle ${v.circle}->${target} blocked:${parsed.length} shortfall:${shortfall} gated:${gatedProgress}/${gatedTotal} gatedPct:${gatedPct} ranks:${totalRanks} src:${src}`
       + ` | expall:${top10Sum}/${totalRanks} | ` + top10.map(([id, r]) => `${id} ${r}`).join(', ')
-      + `\n[reqs] ${mins}m c${target} | ${reqs}`;
+      + ` ts:${splitTs}`
+      + `\n[reqs] ${mins}m c${target} ts:${splitTs} | ${reqs}`;
   }
 
-  // Parse one [gaps] line into closure-rate telemetry: shortfall at run start
-  // vs end (shortfallFirst/shortfallLast) plus every per-minute sample.
-  sampleGaps(line) {
-    const m = /(\d+)m circle .*?blocked:(\d+) shortfall:(\d+)(?: ranks:(\d+))? src:(\w+)/.exec(line);
-    if (!m) return null;
-    const sample = {
-      m: Number(m[1]), blocked: Number(m[2]), shortfall: Number(m[3]),
-      ranks: m[4] != null ? Number(m[4]) : null, src: m[5],
-    };
-    this.gapsSamples.push(sample);
-    if (this.shortfallFirst == null) this.shortfallFirst = sample.shortfall;
-    return sample;
-  }
-
-  // Per-interval EXP telemetry: total-rank deltas expose where a script is
-  // converting learning into ranks, while `over` flags high-ranked skills
-  // outside the next-circle requirement set.
+  // Per-interval EXP telemetry. `ranks` is the authoritative total-rank
+  // proxy from the merged EXP sheet; recording its delta exposes where a
+  // script is actually converting learning into ranks rather than merely
+  // producing kills. `over` lists high-ranked skills that are not currently
+  // the concrete weakest member of a next-circle requirement, useful for
+  // spotting rotation that should switch off sooner.
   expRateLine(sample) {
     const v = this.session.vitals;
     const previous = this.expRatePrevious;
-    const elapsedMin = previous ? Math.max(1, sample.m - previous.m) : 1;
+    const elapsedMin = previous
+      ? Math.max(1 / 60, ((sample.elapsedSec ?? sample.m * 60) - (previous.elapsedSec ?? previous.m * 60)) / 60)
+      : 1;
     const delta = previous && sample.ranks != null && previous.ranks != null
       ? sample.ranks - previous.ranks : 0;
     const rate = delta / elapsedMin;
@@ -1206,16 +1669,44 @@ class SweepAgent {
     };
     this.expRateSamples.push(record);
     this.expRatePrevious = sample;
-    return `[exp-rate] ${sample.m}m totalRanks:${sample.ranks} delta:${delta} rate:${record.ranksPerMin}/min shortfall:${sample.shortfall} blocked:${sample.blocked} over:${over.join(',') || '-'}`;
+    const gatedTotal = sample.gatedTotal ?? 0;
+    const gatedProgress = sample.gatedProgress ?? Math.max(0, gatedTotal - sample.shortfall);
+    const gatedDelta = previous && previous.gatedProgress != null ? gatedProgress - previous.gatedProgress : 0;
+    record.gatedProgress = gatedProgress;
+    record.gatedTotal = gatedTotal;
+    record.gatedDelta = gatedDelta;
+    return `[exp-rate] ${sample.m}m elapsed:${sample.elapsedSec ?? sample.m * 60}s totalRanks:${sample.ranks} delta:${delta} rate:${record.ranksPerMin}/min gated:${gatedProgress}/${gatedTotal} gatedDelta:${gatedDelta} shortfall:${sample.shortfall} blocked:${sample.blocked} over:${over.join(',') || '-'}`;
+  }
+
+  // Parse one [gaps] line into closure-rate telemetry: shortfall at run start
+  // vs end (shortfallFirst/shortfallLast) plus every per-minute sample.
+  sampleGaps(line) {
+    const m = /(\d+)m(?: elapsed:(\d+)s)? circle .*?blocked:(\d+) shortfall:(\d+)(?: gated:(\d+)\/(\d+) gatedPct:[\d.]+)?(?: ranks:(\d+))? src:(\w+)/.exec(line);
+    if (!m) return null;
+    const sample = {
+      m: Number(m[1]), elapsedSec: m[2] != null ? Number(m[2]) : Number(m[1]) * 60,
+      blocked: Number(m[3]), shortfall: Number(m[4]),
+      gatedProgress: m[5] != null ? Number(m[5]) : null,
+      gatedTotal: m[6] != null ? Number(m[6]) : null,
+      ranks: m[7] != null ? Number(m[7]) : null, src: m[8],
+    };
+    this.gapsSamples.push(sample);
+    if (this.shortfallFirst == null) this.shortfallFirst = sample.shortfall;
+    return sample;
   }
 
   async finish(reason) {
     if (this.done) return;
     this.done = true;
+    // Release our hunting room so a later regen batch (or a fresh agent in a
+    // long-lived process) can claim it; prevents a finished agent's room from
+    // being permanently off-limits to the rest of the cohort.
+    if (this.arena) CLAIMED_ARENAS.delete(this.arena);
     this.runner?.stop();
     this.session.close();
     this.updateStallVerdict(); // final classification for this run
     this.appendLog(this.progressLine());
+    this.appendLog(this.sampleLine());
     // Why didn't this run circle? Record the final blocking set so a run's own
     // log answers that without re-deriving it from mindstate afterwards.
     const finalGaps = this.gapsLine();
@@ -1258,6 +1749,7 @@ class SweepAgent {
     const summary = {
       run_id: RUN_ID,
       ts: new Date().toISOString(), guild: this.guild, race: this.race, char: this.char,
+      logName: basename(this.logPath, '.log'),
       variant: this.variantName, reason, circle: this.session.vitals.circle, circles: this.circles,
       kills: this.kills, deaths: this.deaths, trains: this.trains,
       refusals: this.refusals || 0,
@@ -1277,20 +1769,59 @@ class SweepAgent {
       shortfallLast: gapTelemetry.shortfall,
       gapsSamples: this.gapsSamples,
       expRateSamples: this.expRateSamples,
+      milestoneSchemaVersion: MILESTONE_SCHEMA_VERSION,
+      milestoneEvents: this.milestoneEvents,
+      requirementSplits: this.requirementSplits,
+      weaponPolicy: this.weaponPolicy || null,
+      stateChanges: this.stateChanges,
+      finalTdp: this.session.vitals.tdp ?? null,
+      finalSilver: this.session.vitals.silver ?? null,
+      // Reproducibility + cohort identity. A/B results are only comparable
+      // when these conditions match; future dashboards must not silently
+      // pool different boosts, caps, targets, races or generated libraries.
+      mode: MODE,
+      concurrency: BENCH_CONCURRENCY,
+      comparisonType: BENCH_CONCURRENCY > 1 ? 'crowded-world' : 'controlled',
+      statPolicy: this.statPolicy,
+      statAllocation: this.statAllocation,
+      targetCircle: CIRCLE_TARGET,
+      boost: BOOST,
+      minutesCap: MINUTES,
+      arena: this.lastScriptMeta?.arena || this.arena || null,
+      species: this.lastScriptMeta?.species || [],
+      variantConfig: this.variant ? Object.fromEntries(Object.entries(this.variant)
+        .filter(([k]) => k !== 'name' && k !== 'hypothesis')) : null,
+      scriptSchemaVersion: SCRIPT_SCHEMA_VERSION,
+      codeRevision: CODE_REVISION,
+      scriptHash: this.lastScripts ? createHash('sha256')
+        .update(Object.entries(this.lastScripts).sort(([a], [b]) => a.localeCompare(b))
+          .map(([name, src]) => `${name}\n${src}`).join('\n---\n'))
+        .digest('hex').slice(0, 16) : null,
+      completedTarget: (this.session.vitals.circle || 1) >= CIRCLE_TARGET,
+      startingCircle: this.startingCircle ?? null,
+      startingTotalRanks: this.startingTotalRanks ?? null,
+      commandCounts: this.commandCounts,
+      closurePerMin: this.shortfallFirst != null && gapTelemetry.shortfall != null
+        ? Math.round(((this.shortfallFirst - gapTelemetry.shortfall)
+          / Math.max(1 / 60, (Date.now() - this.startedAt) / 60000)) * 100) / 100
+        : null,
+      finalRequirements: this.requirementSnapshot(),
       fidelity: this.fidelity, fidelityScore: `${checksPassed}/${checksTotal}`,
       grade,
     };
     // Persist the generated script library beside the log so the Sims page
     // can show WHAT ran, not just how it scored. Directory name encodes
-    // guild-race-variant-<run-id> so every run keeps its own copy (no
-    // overwrite between repeats) and the UI discovers runs via index.json
-    // instead of guessing names.
+    // guild-race-variant-<run-id>-<agent-tag>. The agent suffix matters when
+    // --concurrency > 1: all workers in one invocation share RUN_ID and
+    // variant, so omitting it makes their finish handlers overwrite each
+    // other's .dr files/meta.json and the saved-runs index de-duplicates them.
+    // The UI discovers runs via index.json instead of guessing names.
     if (this.lastScripts) {
       try {
         const scriptDirName = [
           this.guild, this.race,
           this.variantName || 'adhoc',
-          RUN_ID,
+          RUN_ID, this.agentTag,
         ].join('-');
         const dir = join(LIVE_DIR, 'scripts', scriptDirName);
         mkdirSync(dir, { recursive: true });
@@ -1305,7 +1836,11 @@ class SweepAgent {
           variant: this.variantName, restPct: this.restPct, hallEvery: this.hallEvery,
           arenaBand: this.arenaBand, hallFallbackMs: this.hallFallbackMs,
           targetCircle: CIRCLE_TARGET, boost: BOOST,
+          milestoneSchemaVersion: MILESTONE_SCHEMA_VERSION,
+          milestoneEvents: summary.milestoneEvents,
+          statPolicy: this.statPolicy, statAllocation: this.statAllocation,
           arena: this.lastScriptMeta?.arena, species: this.lastScriptMeta?.species,
+          weaponPolicy: this.weaponPolicy || null,
           ts: summary.ts,
         }, null, 2));
         // Append-only index so the UI lists saved runs without probing.
@@ -1337,7 +1872,28 @@ class SweepAgent {
         circleTimes: this.circleTimes,
         char: this.char,
         totalRanks: this.totalRanksAtFinish ?? null,
+        targetCircle: CIRCLE_TARGET, boost: BOOST, minutesCap: MINUTES,
+        mode: MODE, arena: summary.arena, species: summary.species,
+        statPolicy: summary.statPolicy, statAllocation: summary.statAllocation,
+        concurrency: BENCH_CONCURRENCY,
+        comparisonType: summary.comparisonType,
+        variantConfig: summary.variantConfig, scriptHash: summary.scriptHash,
+        scriptSchemaVersion: SCRIPT_SCHEMA_VERSION,
+        codeRevision: CODE_REVISION,
+        completedTarget: summary.completedTarget ? 1 : 0,
+        closurePerMin: summary.closurePerMin,
+        finalRequirements: summary.finalRequirements,
+        requirementSplits: summary.requirementSplits,
+        stateChanges: summary.stateChanges,
+        shortfallFirst: summary.shortfallFirst,
+        shortfallLast: summary.shortfallLast,
+        gapsSamples: summary.gapsSamples,
         expRateSamples: summary.expRateSamples,
+        milestoneEvents: summary.milestoneEvents,
+        finalTdp: summary.finalTdp,
+        finalSilver: summary.finalSilver,
+        startingCircle: summary.startingCircle, startingTotalRanks: summary.startingTotalRanks,
+        commandCounts: summary.commandCounts,
       });
       // Leveling-lab columns (guarded migration keeps older DBs working).
       try {
@@ -1408,11 +1964,18 @@ class SweepAgent {
     this.refusalTimes = [];
     this.roomChangedAt = now;
     this.lastProgressAt = now;
+    this.requirementSplits = {};
+    this.stateChanges = [];
+    this.lastTrackedState = {};
+    this.milestoneEvents = [];
+    this.milestoneSeen = new Set();
+    this.kitParts = { weapon: false, armor: false };
+    this.wieldedWeapons = new Set();
     this.lowHpSince = null;
     this.liveVerdict = { verdict: 'healthy', reason: 'warming up' };
-    const PROGRESS = setInterval(() => { if (!this.done) this.appendLog(this.progressLine()); }, 30000);
-    // Circle-gap tracking, once a minute: shows exactly which requirements
-    // still block the next circle and whether the shortfall is closing.
+    const PROGRESS = setInterval(() => { if (!this.done) { this.appendLog(this.progressLine()); this.appendLog(this.sampleLine()); } }, 30000);
+    // Circle-gap/EXP tracking: sample every 30 seconds so pool stalls and the
+    // exact point of divergence are visible without LLM review.
     const GAPS = setInterval(() => {
       if (this.done) return;
       const line = this.gapsLine();
@@ -1421,6 +1984,28 @@ class SweepAgent {
       const s = this.sampleGaps(line);
       if (s) {
         this.appendLog(this.expRateLine(s));
+        // Five-minute outcome windows make long stalls visible without
+        // requiring Kaizen review to compare a wall of one-minute lines.
+        // Positive shortfallDelta means the circle gate improved.
+        const now = Date.now();
+        if (!this.delta5Base) {
+          this.delta5Base = { ...s, kills: this.kills, deaths: this.deaths };
+          this.lastDelta5At = now;
+        } else if (now - this.lastDelta5At >= 5 * 60 * 1000) {
+          const base = this.delta5Base;
+          this.appendLog(`[delta5] ${JSON.stringify({
+            fromMin: base.m, toMin: s.m,
+            rankGain: (s.ranks ?? 0) - (base.ranks ?? 0),
+            killGain: this.kills - base.kills,
+            deathGain: this.deaths - base.deaths,
+            shortfallDelta: base.shortfall - s.shortfall,
+            blockedDelta: base.blocked - s.blocked,
+            shortfall: s.shortfall, blocked: s.blocked,
+            room: this.session.vitals?.room || '-',
+          })}`);
+          this.delta5Base = { ...s, kills: this.kills, deaths: this.deaths };
+          this.lastDelta5At = now;
+        }
         // Liveness vs progress: `exp`/`look` SENDS refresh lastSendAt, so the
         // 90s-silence breaker cannot catch a starving agent that keeps talking.
         // Measured wedge (runs 2/3 of A/B ab30b): post-death respawn in a
@@ -1433,7 +2018,7 @@ class SweepAgent {
           this.flatSince = Date.now();
         }
       }
-    }, 60000);
+    }, 30000);
     const HB = setInterval(() => this.heartbeat(), 1000);
     setTimeout(() => {
       clearInterval(PROGRESS); clearInterval(GAPS); clearInterval(HB);
@@ -1512,11 +2097,19 @@ function report() {
 
 const NOISE_FRAC = 0.1;
 
-// --by-variant: leveling-lab comparison. Groups runs by variant × race from
-// the sweeps DB and reports median time-to-target-circle, per-circle pacing
-// medians, kills/hour, deaths, and a winner line. Runs whose time-to-circle
-// is within NOISE_FRAC of the best are marked as ties (server-day variance
-// can easily swing a single run by that much).
+// --by-variant: leveling-lab comparison. Groups runs by variant × race ×
+// experiment cohort from the sweeps DB and reports median time-to-target-
+// circle, per-circle pacing medians, kills/hour, deaths, and a winner line.
+// A cohort includes concurrency/target/boost/cap: a crowded-world run must
+// never silently pool with a controlled run just because the variant name
+// matches. Runs whose time-to-circle is within NOISE_FRAC of the best are
+// marked as ties (server-day variance can easily swing a single run by that
+// much).
+
+function cliCohortKey(r) {
+  return [Number(r.concurrency) || 1, r.comparisonType || ((Number(r.concurrency) || 1) > 1 ? 'crowded-world' : 'controlled'),
+    r.targetCircle ?? '?', r.boost ?? '?', r.minutesCap ?? '?', r.statPolicy || 'legacy'].join('|');
+}
 
 function reportByVariant() {
   const since = flag('since', null);
@@ -1524,7 +2117,7 @@ function reportByVariant() {
   let rows;
   try {
     const db = openSweepsDb(LIVE_DIR);
-    let sql = 'SELECT run_id, ts, guild, race, variant, circle, kills, circles_up, deaths, durationMs, timeToCircleMs, circleTimes, stallVerdict FROM sweeps WHERE variant IS NOT NULL';
+    let sql = 'SELECT run_id, ts, guild, race, variant, circle, kills, circles_up, deaths, durationMs, timeToCircleMs, circleTimes, stallVerdict, concurrency, comparisonType, targetCircle, boost, minutesCap, statPolicy FROM sweeps WHERE variant IS NOT NULL';
     const params = [];
     if (since) {
       const cutoff = since === 'today' ? new Date().toISOString().slice(0, 10) : since;
@@ -1536,26 +2129,29 @@ function reportByVariant() {
   } catch (e) { console.log('no sweeps.db yet:', e.message); return; }
   if (!rows.length) { console.log('no variant-tagged runs found'); return; }
 
-  // Group by guild|variant|race.
+  // Group by guild|variant|race|cohort. Legacy rows without cohort columns
+  // normalize to controlled ×1 so they remain comparable with one-worker
+  // controls, but never with a crowded-world cohort.
   const groups = new Map();
   for (const r of rows) {
-    const key = `${r.guild}|${r.variant}|${r.race}`;
+    const key = `${r.guild}|${r.variant}|${r.race}|${cliCohortKey(r)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(r);
   }
 
   console.log(`\n=== Leveling lab — variants → circle ${target} (${rows.length} runs) ===`);
-  console.log(pad('guild', 11) + pad('variant', 10) + pad('race', 10)
+  console.log(pad('guild', 11) + pad('variant', 10) + pad('race', 10) + pad('cohort', 25)
     + pad('runs', 5) + pad('to-c10', 8) + pad('kills/h', 8) + pad('deaths', 7)
     + pad('verdicts', 20) + 'pacing (median min/circle)');
   for (const [key, rs] of [...groups].sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
-    const [guild, variant, race] = key.split('|');
+    const [guild, variant, race, ...cohortParts] = key.split('|');
+    const cohort = cohortParts.join('|');
     const done = rs.filter((r) => r.timeToCircleMs != null);
     const times = done.map((r) => r.timeToCircleMs).sort((a, b) => a - b);
     const median = times.length ? times[Math.floor(times.length / 2)] : null;
     // Guard the spread: an empty filter yields Infinity, which would mark
     // every (nonexistent-finisher) row as tied with nothing.
-    const bestTimes = rows.filter((x) => x.guild === guild && x.race === race && x.timeToCircleMs != null).map((x) => x.timeToCircleMs);
+    const bestTimes = rows.filter((x) => x.guild === guild && x.race === race && cliCohortKey(x) === cohort && x.timeToCircleMs != null).map((x) => x.timeToCircleMs);
     const best = bestTimes.length ? Math.min(...bestTimes) : null;
     const tie = median != null && best != null && median <= best * (1 + NOISE_FRAC);
     const kph = rs.map((r) => r.kills / ((r.durationMs || 0) / 3600000)).filter(Number.isFinite);
@@ -1573,7 +2169,7 @@ function reportByVariant() {
         pace.push(`c${c}:${fmtMin(splits[Math.floor(splits.length / 2)])}`);
       }
     }
-    console.log(pad(guild, 11) + pad(variant, 10) + pad(race, 10)
+    console.log(pad(guild, 11) + pad(variant, 10) + pad(race, 10) + pad(cohort, 25)
       + pad(String(rs.length), 5)
       + pad(median != null ? fmtMin(median) + (tie ? '*' : '') : '-', 8)
       + pad(kph.length ? String(Math.round(kph.reduce((s, x) => s + x, 0) / kph.length)) : '-', 8)
@@ -1581,39 +2177,81 @@ function reportByVariant() {
       + pad(verdicts.slice(0, 18), 20)
       + pace.join(' '));
   }
-  console.log('\n* = statistically tied with the fastest variant for this guild×race (±' + Math.round(NOISE_FRAC * 100) + '%)');
+  console.log('\n* = statistically tied with the fastest variant for this guild×race×cohort (±' + Math.round(NOISE_FRAC * 100) + '%)');
   console.log('-'.repeat(30));
 }
 
-// --lab: barbarian leveling-efficiency report. Per variant × race medians of:
+// --lab: barbarian leveling-efficiency report. Per variant × race × cohort medians of:
 //   firstExp — enter -> first rank gain (the "is the script alive" metric)
 //   +5/+10/+15 — total-rank crossing splits (early leveling velocity)
 //   circle1 — time to circle up (when reached)
 //   spread — max-min of the above across runs (repeatability)
 // Judged on timing AND repeatability: a config that's fast when it works but
 // wildly variable loses to a slightly slower, tighter one.
+// --speed: per-run c2 gate (max requirement-crossover minute). The last
+// requirement to cross its threshold is the binding constraint on circling —
+// i.e. the fastest the character COULD reach circle 2 if the run had walked
+// the hall the instant ranks were ready. Surfaces the inferred speed-run
+// floor across seeds/variants. KAIZEN 2026-08-28.
+function reportSpeed() {
+  const since = flag('since', null);
+  const guild = flag('guild', 'barbarian');
+  let rows;
+  try {
+    const db = openSweepsDb(LIVE_DIR);
+    let sql = 'SELECT run_id, ts, guild, race, variant, circle, durationMs, requirementSplits FROM sweeps WHERE requirementSplits IS NOT NULL AND guild = ?';
+    const params = [guild];
+    if (since) {
+      const cutoff = since === 'today' ? new Date().toISOString().slice(0, 10) : since;
+      sql += ' AND ts >= ?'; params.push(cutoff);
+    }
+    sql += ' ORDER BY ts DESC';
+    rows = db.prepare(sql).all(...params);
+    db.close();
+  } catch (e) { console.log('no sweeps.db yet:', e.message); return; }
+  if (!rows.length) { console.log('no runs with requirementSplits found'); return; }
+  console.log(`\n=== Speed-run gate — latest c2 requirement crossover (${rows.length} runs, guild ${guild}) ===`);
+  console.log(pad('run', 10) + pad('variant', 12) + pad('race', 10) + pad('circle', 7) + 'c2-gate(min)  last-req');
+  for (const r of rows) {
+    let splits = {};
+    try { splits = JSON.parse(r.requirementSplits || '{}'); } catch { /* ignore */ }
+    const entries = Object.entries(splits);
+    if (!entries.length) continue;
+    let gateMin = 0; let lastReq = '-';
+    for (const [label, s] of entries) {
+      const m = Math.round((s.ms || 0) / 60000);
+      if (m > gateMin) { gateMin = m; lastReq = label; }
+    }
+    console.log(pad(r.run_id, 10) + pad(r.variant || '-', 12) + pad(r.race, 10)
+      + pad('c' + r.circle, 7) + pad(gateMin + 'm', 12) + lastReq);
+  }
+  console.log('-'.repeat(20));
+  console.log('c2-gate = minute the LAST requirement crossed — the fastest c2 is reachable if the hall trip fires then.');
+}
+
 function reportLab() {
   const guild = flag('guild', 'barbarian');
   let rows;
   try {
     const db = openSweepsDb(LIVE_DIR);
-    rows = db.prepare(`SELECT run_id, ts, race, variant, kills, durationMs, timeToCircleMs, firstExpMs, rankSplits FROM sweeps WHERE guild = ? AND variant IS NOT NULL`).all(guild);
+    rows = db.prepare(`SELECT run_id, ts, race, variant, kills, durationMs, timeToCircleMs, firstExpMs, rankSplits, concurrency, comparisonType, targetCircle, boost, minutesCap, statPolicy FROM sweeps WHERE guild = ? AND variant IS NOT NULL`).all(guild);
     db.close();
   } catch (e) { console.log('no sweeps.db yet:', e.message); return; }
   if (!rows.length) { console.log(`no ${guild} variant runs found`); return; }
 
   const groups = new Map();
   for (const r of rows) {
-    const key = `${r.variant}|${r.race}`;
+    const key = `${r.variant}|${r.race}|${cliCohortKey(r)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(r);
   }
   console.log(`\n=== ${guild} leveling lab (${rows.length} runs) ===`);
-  console.log(pad('variant', 10) + pad('race', 10) + pad('runs', 5)
+  console.log(pad('variant', 10) + pad('race', 10) + pad('cohort', 25) + pad('runs', 5)
     + pad('firstEXP', 9) + pad('+5ranks', 9) + pad('+10ranks', 9) + pad('+15ranks', 9)
     + pad('circle1', 8) + 'spread(firstExp..c1)');
   for (const [key, rs] of [...groups].sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
-    const [variant, race] = key.split('|');
+    const [variant, race, ...cohortParts] = key.split('|');
+    const cohort = cohortParts.join('|');
     const med = (arr) => {
       const v = arr.filter(Number.isFinite).sort((a, b) => a - b);
       return v.length ? v[Math.floor(v.length / 2)] : null;
@@ -1628,7 +2266,7 @@ function reportLab() {
     const spread = feVals.length >= 2
       ? `±${Math.round(((feVals[feVals.length - 1] - feVals[0]) / 2 / 1000))}s`
       : '-';
-    console.log(pad(variant, 10) + pad(race, 10) + pad(String(rs.length), 5)
+    console.log(pad(variant, 10) + pad(race, 10) + pad(cohort, 25) + pad(String(rs.length), 5)
       + pad(fmtMin(fexp), 9) + pad(fmtMin(at(5)), 9) + pad(fmtMin(at(10)), 9) + pad(fmtMin(at(15)), 9)
       + pad(fmtMin(c1), 8) + spread);
   }
@@ -1637,7 +2275,7 @@ function reportLab() {
 }
 
 // --leaderboard: ranked benchmark table from the sweeps DB — best/median
-// wall time to reach the target circle per guild × variant (races pooled),
+// wall time to reach the target circle per guild × variant × cohort (races pooled),
 // plus kills, deaths, and stall counts. Variants that never reached the
 // target circle rank below finishers, ordered by total kills. Pairs with
 // --by-variant, which shows per-race detail and pacing curves.
@@ -1648,7 +2286,7 @@ function leaderboard() {
   try {
     const db = openSweepsDb(LIVE_DIR);
     const params = [];
-    let sql = 'SELECT run_id, ts, guild, race, grade, circle, kills, deaths, trains, refusals, durationMs, variant, timeToCircleMs, stallVerdict FROM sweeps WHERE variant IS NOT NULL';
+    let sql = 'SELECT run_id, ts, guild, race, grade, circle, kills, deaths, trains, refusals, durationMs, variant, timeToCircleMs, stallVerdict, concurrency, comparisonType, targetCircle, boost, minutesCap, statPolicy FROM sweeps WHERE variant IS NOT NULL';
     if (guild) { sql += ' AND guild = ?'; params.push(guild); }
     sql += ' ORDER BY ts ASC';
     rows = db.prepare(sql).all(...params);
@@ -1656,18 +2294,21 @@ function leaderboard() {
   } catch { console.log('no sweeps.db yet:', LIVE_DIR); return; }
   if (!rows.length) { console.log(`no benchmark rows yet${guild ? ` for ${guild}` : ''} — run --benchmark <guild> first`); return; }
 
-  // One ranked row per guild x variant.
+  // One ranked row per guild x variant x experiment cohort. Pooling different
+  // concurrency levels would make a crowded-world trial silently outrank a
+  // clean control (and pooling targets/boosts would invalidate time-to-circle).
   const byVariant = new Map();
   for (const r of rows) {
-    const k = r.guild + '|' + r.variant;
+    const k = r.guild + '|' + r.variant + '|' + cliCohortKey(r);
     if (!byVariant.has(k)) byVariant.set(k, []);
     byVariant.get(k).push(r);
   }
   const rankRows = [...byVariant.entries()].map(([k, rs]) => {
-    const [g, v] = k.split('|');
+    const [g, v, ...cohortParts] = k.split('|');
+    const cohort = cohortParts.join('|');
     const times = rs.map((r) => r.timeToCircleMs).filter((t) => t != null);
     return {
-      guild: g, variant: v, runs: rs.length,
+      guild: g, variant: v, cohort, runs: rs.length,
       reached: times.length,
       best: times.length ? Math.min(...times) : null,
       med: median(times),
@@ -1679,11 +2320,12 @@ function leaderboard() {
   }).sort((a, b) => ((a.med ?? Infinity) - (b.med ?? Infinity)) || (b.kills - a.kills));
 
   console.log(`\n=== Benchmark leaderboard — time to circle ${target}${guild ? ` — ${guild}` : ''} (${rows.length} runs, boost x${BOOST}) ===`);
-  console.log(pad('rank', 5) + pad('variant', 10) + pad('guild', 13)
+  console.log(pad('rank', 5) + pad('variant', 10) + pad('guild', 13) + pad('cohort', 25)
     + pad('runs', 5) + pad('reached', 8) + pad('best', 7) + pad('median', 7)
     + pad('kills', 6) + pad('deaths', 7) + pad('kills/h', 8) + pad('stall/wdg', 10));
   rankRows.forEach((r, i) => {
-    console.log(pad(String(i + 1), 5) + pad(r.variant, 10) + pad(r.guild, 13)
+      console.log(pad(String(i + 1), 5) + pad(r.variant, 10) + pad(r.guild, 13)
+      + pad(r.cohort, 25)
       + pad(String(r.runs), 5) + pad(`${r.reached}/${r.runs}`, 8)
       + pad(fmtMs(r.best), 7) + pad(fmtMs(r.med), 7)
       + pad(String(r.kills), 6) + pad(String(r.deaths), 7)
@@ -1693,26 +2335,31 @@ function leaderboard() {
     }
 
 // Machine-readable leaderboard for the /sims.html "Guild Champions" panel:
-// best variant per guild over time, with milestone pacing. Written to
+// best variant per guild and experiment cohort over time, with milestone pacing. Written to
 // public/live/leaderboard.json alongside lab.json (refreshed at each run
 // finish and by --report).
 export function buildLeaderboard() {
   let rows = [];
   try {
-    const db = new DatabaseSync(join(LIVE_DIR, 'sweeps.db'), { readOnly: true });
-    rows = db.prepare(`SELECT run_id, ts, guild, race, grade, circle, kills, deaths,
-trains, durationMs, variant, timeToCircleMs, stallVerdict, firstExpMs, rankSplits
+    // A second benchmark process may be committing a row while the Sims
+    // leaderboard refreshes. Wait for that writer rather than briefly
+    // returning an empty leaderboard and overwriting the last good export.
+    const db = new DatabaseSync(join(LIVE_DIR, 'sweeps.db'), { readOnly: true, timeout: 5000 });
+rows = db.prepare(`SELECT run_id, ts, guild, race, grade, circle, kills, deaths,
+trains, durationMs, variant, timeToCircleMs, stallVerdict, firstExpMs, rankSplits,
+concurrency, comparisonType, targetCircle, boost, minutesCap, statPolicy
 FROM sweeps WHERE variant IS NOT NULL ORDER BY ts ASC`).all();
     db.close();
   } catch { return { guilds: [] }; }
   const byGV = new Map();
   for (const r of rows) {
-    const k = r.guild + '|' + r.variant;
+    const k = r.guild + '|' + r.variant + '|' + cliCohortKey(r);
     if (!byGV.has(k)) byGV.set(k, []);
     byGV.get(k).push(r);
   }
   const variants = [...byGV.entries()].map(([k, rs]) => {
-    const [guild, variant] = k.split('|');
+    const [guild, variant, ...cohortParts] = k.split('|');
+    const cohort = cohortParts.join('|');
     const times = rs.map((r) => r.timeToCircleMs).filter((t) => t != null);
     const firstExp = rs.map((r) => r.firstExpMs).filter((t) => t != null);
     const splits = {};
@@ -1735,7 +2382,10 @@ FROM sweeps WHERE variant IS NOT NULL ORDER BY ts ASC`).all();
       trend = newer != null && older != null ? newer - older : null;
     }
     return {
-      guild, variant, runs: rs.length,
+      guild, variant, cohort, concurrency: Number(rs[0].concurrency) || 1,
+      comparisonType: rs[0].comparisonType || (Number(rs[0].concurrency) > 1 ? 'crowded-world' : 'controlled'),
+      targetCircle: rs[0].targetCircle ?? null, boost: rs[0].boost ?? null,
+      minutesCap: rs[0].minutesCap ?? null, runs: rs.length,
       reached: times.length,
       bestMs: times.length ? Math.min(...times) : null,
       medMs: median(times),
@@ -1756,11 +2406,17 @@ FROM sweeps WHERE variant IS NOT NULL ORDER BY ts ASC`).all();
     (guilds[v.guild] ||= []).push(v);
   }
   const out = Object.entries(guilds).map(([g, vs]) => {
-    vs.sort((a, b) => ((a.medMs ?? Infinity) - (b.medMs ?? Infinity)) || (b.kills - a.kills));
+    // A crowded-world run is useful resilience evidence, but it should not
+    // replace the clean pacing champion. Prefer controlled cohorts whenever a
+    // guild has one; fall back to crowded-only data when it does not.
+    const preferred = vs.filter((v) => v.comparisonType === 'controlled');
+    const pool = preferred.length ? preferred : vs;
+    pool.sort((a, b) => ((a.medMs ?? Infinity) - (b.medMs ?? Infinity)) || (b.kills - a.kills));
     return {
       guild: g,
-      champion: vs[0].variant,
-      championMedMs: vs[0].medMs,
+      champion: pool[0].variant,
+      championMedMs: pool[0].medMs,
+      championCohort: pool[0].cohort,
       variants: vs,
     };
   });
@@ -1771,6 +2427,7 @@ FROM sweeps WHERE variant IS NOT NULL ORDER BY ts ASC`).all();
 
 if (ARGS.includes('--report')) {
   if (ARGS.includes('--lab')) reportLab();
+  else if (ARGS.includes('--speed')) reportSpeed();
   else if (ARGS.includes('--by-variant')) reportByVariant();
   else report();
   // Regenerate leaderboard.json alongside the report so the Champions
@@ -1786,6 +2443,79 @@ if (ARGS.includes('--leaderboard')) { leaderboard(); process.exit(0); }
 
 const agents = wanted.map((w) => new SweepAgent(w));
 log(`sweep run ${RUN_ID}: ${agents.length} agents over ${new Set(wanted.map((w) => w.guild)).size} guilds, ${MINUTES}m each`);
+
+// The summary row for a leg arrives only when that leg finishes. This small
+// manifest lets /sims.html explain a brand-new benchmark immediately: exact
+// plan, current leg, queue, ETA, and the decision rule.
+const EXPERIMENT_PATH = join(LIVE_DIR, 'experiment-current.json');
+const EXPERIMENT_INDEX_PATH = join(LIVE_DIR, 'experiment-index.json');
+const experimentStartedAt = new Date().toISOString();
+const experimentWorldPort = Number(process.env.DR_PORT || process.env.PORT || 3000);
+const experimentWatchToken = (() => {
+  try {
+    const tokenPath = `/tmp/dr-world-token-${experimentWorldPort}.json`;
+    return JSON.parse(readFileSync(tokenPath, 'utf8')).token || null;
+  } catch { return null; }
+})();
+function writeExperimentState(status, currentIndex = -1, completedLegs = 0, activeIndexes = []) {
+  if (MODE !== 'benchmark') return;
+  const current = currentIndex >= 0 ? wanted[currentIndex] : null;
+  const repeatsPerVariant = Math.max(1, ...wanted.map((w) => w.repeat || 1));
+  const requiredFinishes = Math.max(1, Math.ceil(repeatsPerVariant * 2 / 3));
+  const plannedMinutes = Math.ceil(agents.length / BENCH_CONCURRENCY) * MINUTES;
+  const elapsedMinutes = (Date.now() - Date.parse(experimentStartedAt)) / 60000;
+  const active = new Set(activeIndexes);
+  const body = {
+    runId: RUN_ID, status, mode: MODE,
+    startedAt: experimentStartedAt, updatedAt: new Date().toISOString(),
+    guild: BENCH_GUILD, targetCircle: CIRCLE_TARGET, boost: BOOST,
+    worldPort: experimentWorldPort,
+    watchToken: experimentWatchToken,
+    minutesPerLeg: MINUTES, totalLegs: agents.length, completedLegs,
+    expIntervalSeconds: EXP_INTERVAL_MS / 1000,
+    concurrency: BENCH_CONCURRENCY,
+    comparisonType: BENCH_CONCURRENCY > 1 ? 'crowded-world' : 'controlled',
+    statPolicy: STAT_POLICY,
+    currentLeg: current ? currentIndex + 1 : null,
+    estimatedRemainingMinutes: status === 'complete' ? 0 : Math.max(0, plannedMinutes - elapsedMinutes),
+    decisionRule: `Promote the candidate only if at least ${requiredFinishes} of ${repeatsPerVariant} runs reach circle ${CIRCLE_TARGET} with no worse deaths; tie-break on median time-to-circle.`,
+    plan: wanted.map((w, i) => ({
+      index: i + 1, guild: w.guild, race: w.race, repeat: w.repeat || 1,
+      variant: w.variant?.name || 'baseline', char: agents[i]?.char || null,
+      status: i < completedLegs ? 'complete' : active.has(i) || i === currentIndex ? 'running' : 'queued',
+    })),
+  };
+  const encoded = JSON.stringify(body, null, 2);
+  // Keep a per-invocation manifest so separate ports/DBs cannot overwrite
+  // each other's experiment history. The legacy current pointer remains for
+  // older clients; the Sims page prefers the indexed per-run manifests.
+  try { writeFileSync(join(LIVE_DIR, `experiment-${RUN_ID}.json`), encoded); } catch {}
+  try { writeFileSync(EXPERIMENT_PATH, encoded); } catch {}
+  try {
+    let index = [];
+    try {
+      const prior = JSON.parse(readFileSync(EXPERIMENT_INDEX_PATH, 'utf8'));
+      // Older builds wrote one manifest object here; normalize it instead of
+      // throwing on `.filter`, so the first upgraded run repairs the index.
+      index = Array.isArray(prior) ? prior
+        : prior?.runId ? [{ runId: prior.runId, status: prior.status,
+          updatedAt: prior.updatedAt, path: `/live/experiment-${prior.runId}.json` }] : [];
+    } catch {}
+    index = index.filter((e) => e.runId !== RUN_ID);
+    index.push({ runId: RUN_ID, status, updatedAt: body.updatedAt, path: `/live/experiment-${RUN_ID}.json` });
+    writeFileSync(EXPERIMENT_INDEX_PATH, JSON.stringify(index.slice(-50), null, 2));
+  } catch {}
+}
+// Keep the manifest's clock/ETA fresh while a batch is running. Previously
+// updatedAt changed only at batch boundaries, so a five-minute concurrent
+// batch looked frozen for its entire duration even though all worker logs
+// were active. This heartbeat is metadata-only and does not touch the game.
+let experimentSnapshot = { currentIndex: 0, completedLegs: 0, activeIndexes: [] };
+const experimentHeartbeat = MODE === 'benchmark'
+  ? setInterval(() => writeExperimentState('running', experimentSnapshot.currentIndex,
+    experimentSnapshot.completedLegs, experimentSnapshot.activeIndexes), 15000)
+  : null;
+writeExperimentState('running', 0, 0);
 // Spawn-a-run contract: print the run-id and log path up front so the
 // operator can tail the fidelity log without digging through public/live/.
 if (MODE === 'spawn') {
@@ -1793,22 +2523,46 @@ if (MODE === 'spawn') {
   console.log(`SPAWNED ${a.guild},${a.race} -> ${a.char} | run-id ${RUN_ID} | log ${a.logPath} | ${MINUTES}m | boost x${BOOST}`);
 }
 
-// Benchmark runs are STRICTLY sequential: concurrent agents contend for
-// creature spawns, which inflates every time-to-circle and makes variant
-// comparisons meaningless. Ad-hoc sweeps keep the historical parallel launch.
+// Benchmark runs are sequential by default so time-to-circle is a clean
+// script-pacing measurement. --concurrency N is supported and deliberately
+// models a crowded world; compare those results only with other runs using
+// the same concurrency. Ad-hoc sweeps keep the historical parallel launch.
 async function launchAll() {
-  for (const a of agents) {
-    try {
-      await a.start();
-      a.run(MINUTES);
-      if (MODE === 'benchmark') {
-        const t0 = Date.now();
-        while (!a.done && Date.now() - t0 < (MINUTES + 2) * 60000) await sleep(2000);
-        log(`[${a.guild}/${a.race}] benchmark run complete — next agent`);
+  const width = MODE === 'benchmark' ? BENCH_CONCURRENCY : agents.length;
+  for (let i = 0; i < agents.length; i += width) {
+    const batch = agents.slice(i, i + width);
+    const indexes = batch.map((_, j) => i + j);
+    if (MODE === 'benchmark') {
+      experimentSnapshot = { currentIndex: i, completedLegs: i, activeIndexes: indexes };
+      writeExperimentState('running', i, i, indexes);
+    }
+    await Promise.all(batch.map(async (a, j) => {
+      const index = i + j;
+      try {
+        await a.start();
+        a.run(MINUTES);
+        if (MODE === 'benchmark') {
+          const t0 = Date.now();
+          while (!a.done && Date.now() - t0 < (MINUTES + 2) * 60000) await sleep(2000);
+          log(`[${a.guild}/${a.race}] benchmark run complete${BENCH_CONCURRENCY > 1 ? ` (worker ${index + 1}/${agents.length})` : ' — next agent'}`);
+        }
+      } catch (e) {
+        log(`[${a.guild}/${a.race}] failed to start: ${e.message}`);
+        await a.finish('start-failed');
       }
-    } catch (e) { log(`[${a.guild}/${a.race}] failed to start: ${e.message}`); a.finish('start-failed'); }
+    }));
+    if (MODE === 'benchmark') {
+      experimentSnapshot = {
+        currentIndex: i + batch.length < agents.length ? i + batch.length : -1,
+        completedLegs: i + batch.length, activeIndexes: [],
+      };
+      writeExperimentState('running', experimentSnapshot.currentIndex,
+        experimentSnapshot.completedLegs, experimentSnapshot.activeIndexes);
+    }
   }
   if (MODE === 'benchmark') {
+    if (experimentHeartbeat) clearInterval(experimentHeartbeat);
+    writeExperimentState('complete', -1, agents.length);
     log('all benchmark runs finished — compare with:');
     console.log(`  node scripts/race-guild-sweep.mjs --report --by-variant --since ${new Date().toISOString().slice(0, 10)}`);
   }

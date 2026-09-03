@@ -13,6 +13,7 @@
 // --start-ranks/<skill> and --silver use the separately authorized debug API
 // so demos can skip the early grind (DR_ENABLE_DEBUG_API + DR_DEBUG_TOKEN).
 import WebSocket from 'ws';
+import { resolveDebugToken } from './lib/debug-token.mjs';
 
 const args = process.argv.slice(2);
 const opt = (flag, dflt) => {
@@ -23,7 +24,7 @@ const MAX_MINUTES = Number(opt('--minutes', '5'));
 const TARGET_CIRCLE = Number(opt('--circle', '3'));
 const START_SILVER = Number(opt('--silver', '0'));
 const START_RANKS = Number(opt('--start-ranks', '0'));
-const DEBUG_TOKEN = process.env.DR_DEBUG_TOKEN || '';
+const DEBUG_TOKEN = process.env.DR_DEBUG_TOKEN || resolveDebugToken();
 const letters = 'abcdefghijklmnopqrstuvwxyz';
 const rnd = (n) => letters[Math.floor(Math.random() * n)];
 const BOT_NAME = (opt('--name', '') || 'Gor' + Array.from({ length: 5 }, () => rnd(26)).join('')).replace(/[^a-zA-Z]/g, '');
@@ -573,16 +574,6 @@ function hallBusiness() {
       return;
     }
   }
-  if ((state.tdpTrainedThisVisit || 0) < 3) {
-    state.tdpTrainedThisVisit = (state.tdpTrainedThisVisit || 0) + 1;
-    const skill = state.missingTrains && state.missingTrains.length
-      ? state.missingTrains.shift()
-      : TDP_PRIORITY[state.tdpIdx % TDP_PRIORITY.length];
-    if (!skill) { state.tdpTrainedThisVisit = 3; return; }
-    state.tdpIdx += 1;
-    sendCmd(`tdptrain ${skill}`);
-    return;
-  }
   if (!state.circleTriedThisVisit) {
     state.circleTriedThisVisit = true;
     log('circling...');
@@ -591,7 +582,6 @@ function hallBusiness() {
   }
   // Done here: go earn more and grow.
   log('hall business done — back to hunting');
-  state.tdpTrainedThisVisit = 0;
   state.learnTriedThisVisit = false;
   state.circleTriedThisVisit = false;
   navigate('square', ROUTES.fromHall);

@@ -165,7 +165,7 @@ export const commands = {
     if (!combat) {
       const creature = targetName ? game.findCreature(p.room, targetName) : null;
       if (creature) {
-        game.startCombat(p, [creature.def]);
+        game.startCombat(p, [creature.def], [creature]);
         combat = game.combat.getFor(p);
         uid = combat.playerTarget;
       } else {

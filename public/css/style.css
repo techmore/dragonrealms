@@ -344,6 +344,12 @@ button { color: inherit; }
   white-space: nowrap;
   animation: combat-pulse 1.6s ease-in-out infinite;
 }
+.fe-blips { display:flex; align-items:center; gap:3px; margin-top:7px; flex-wrap:wrap; }
+.fe-blips-label { color:var(--dim); font-size:10px; margin-right:2px; }
+.fe-blip { width:7px; height:10px; border-radius:2px; background:var(--red); display:inline-block; }
+.fe-blip.near { background:var(--amber); }
+.fe-blip.met { background:var(--green); }
+.fe-blip.over { background:var(--magenta); box-shadow:0 0 3px var(--magenta); }
 @keyframes combat-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
@@ -1558,6 +1564,21 @@ body.in-combat #inputbar { border-top-color: color-mix(in srgb, var(--red) 65%, 
   white-space: nowrap;
 }
 .wmenu-row:hover { background: var(--bg); }
+.wmenu-sims {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 8px 8px;
+  margin-bottom:5px;
+  border-bottom:1px solid var(--line);
+  color:var(--text);
+  text-decoration:none;
+  border-radius:3px;
+}
+.wmenu-sims:hover { background:var(--bg); color:var(--amber); }
+.wmenu-sims-icon { color:var(--cyan); font-size:16px; line-height:1; }
+.wmenu-sims b, .wmenu-sims small { display:block; }
+.wmenu-sims small { color:var(--dim); font-size:10px; margin-top:1px; }
 .wmenu-row input { accent-color: var(--amber); }
 .wmenu-col {
   margin-left: auto;

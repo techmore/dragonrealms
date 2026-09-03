@@ -7,7 +7,10 @@ import { join } from 'node:path';
 
 export function openSweepsDb(liveDir) {
   mkdirSync(liveDir, { recursive: true });
-  const db = new DatabaseSync(join(liveDir, 'sweeps.db'));
+  // Multiple benchmark processes may finish together and write the shared
+  // sim-artifact DB. Let SQLite wait briefly for the other writer instead of
+  // dropping a perfectly valid run on an immediate SQLITE_BUSY.
+  const db = new DatabaseSync(join(liveDir, 'sweeps.db'), { timeout: 5000 });
   db.exec(`
     CREATE TABLE IF NOT EXISTS sweeps (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,6 +41,7 @@ export function openSweepsDb(liveDir) {
 // reader treats NULL as "unknown" and renders '-'.
 const EXTRA_COLUMNS = {
   variant: 'TEXT',
+  weaponPolicy: 'TEXT',
   timeToCircleMs: 'INTEGER',
   stallVerdict: 'TEXT',
   stallReason: 'TEXT',
@@ -57,15 +61,61 @@ const EXTRA_COLUMNS = {
   // waiting (possibly forever) for an actual circle-up.
   shortfall: 'INTEGER',
   blocked: 'INTEGER',
-  // Per-minute total-rank deltas/rates and high-ranked skills outside the
-  // next-circle requirement set.
+  // Full circle-gap closure history. `shortfall`/`blocked` are the final
+  // snapshot; these fields preserve the first/last values and each minute's
+  // sample so DB reports do not need to re-parse fidelity logs.
+  shortfallFirst: 'INTEGER',
+  shortfallLast: 'INTEGER',
+  gapsSamples: 'TEXT',
+  // Per-minute total-rank deltas/rates plus high-ranked skills that were not
+  // the concrete weakest member of the next-circle requirement set.
   expRateSamples: 'TEXT',
+  // Reproducible experiment cohort. These fields prevent the reporting layer
+  // from comparing runs with different targets, boosts, caps, arenas or
+  // generated configurations as though they were equivalent repeats.
+  targetCircle: 'INTEGER',
+  boost: 'INTEGER',
+  minutesCap: 'REAL',
+  mode: 'TEXT',
+  concurrency: 'INTEGER',
+  comparisonType: 'TEXT',
+  statPolicy: 'TEXT',
+  statAllocation: 'TEXT',
+  arena: 'TEXT',
+  species: 'TEXT',
+  variantConfig: 'TEXT',
+  scriptHash: 'TEXT',
+  scriptSchemaVersion: 'INTEGER',
+  completedTarget: 'INTEGER',
+  closurePerMin: 'REAL',
+  finalRequirements: 'TEXT',
+  requirementSplits: 'TEXT',
+  stateChanges: 'TEXT',
+  milestoneEvents: 'TEXT',
+  finalTdp: 'INTEGER',
+  finalSilver: 'INTEGER',
+  codeRevision: 'TEXT',
+  startingCircle: 'INTEGER',
+  startingTotalRanks: 'INTEGER',
+  commandCounts: 'TEXT',
 };
+
+const JSON_COLUMNS = new Set(['circleTimes', 'species', 'variantConfig', 'statAllocation', 'finalRequirements', 'requirementSplits', 'stateChanges', 'commandCounts', 'gapsSamples', 'expRateSamples', 'milestoneEvents']);
 
 function migrateSweepsColumns(db) {
   const have = new Set(db.prepare('PRAGMA table_info(sweeps)').all().map((c) => c.name));
   for (const [col, type] of Object.entries(EXTRA_COLUMNS)) {
-    if (!have.has(col)) db.exec(`ALTER TABLE sweeps ADD COLUMN ${col} ${type}`);
+    if (have.has(col)) continue;
+    // Two benchmark processes may open the shared sim-artifact DB at the
+    // same time (for example, separate ports/DBs running against this
+    // checkout). Both can observe the column as absent before either ALTER
+    // commits. Treat the resulting duplicate-column race as success; any
+    // other migration error must still surface to the caller.
+    try {
+      db.exec(`ALTER TABLE sweeps ADD COLUMN ${col} ${type}`);
+    } catch (e) {
+      if (!/duplicate column name/i.test(String(e?.message || e))) throw e;
+    }
   }
 }
 
@@ -80,9 +130,7 @@ export function insertSweep(db, r) {
   for (const col of Object.keys(EXTRA_COLUMNS)) {
     if (r[col] === undefined) continue;
     cols.push(col);
-    // circleTimes is stored as its JSON encoding; everything else passes through.
-    vals.push((col === 'circleTimes' || col === 'expRateSamples')
-      ? JSON.stringify(r[col]) : (r[col] ?? null));
+    vals.push(JSON_COLUMNS.has(col) ? JSON.stringify(r[col]) : (r[col] ?? null));
   }
   const placeholders = cols.map(() => '?').join(', ');
   db.prepare(`INSERT INTO sweeps (${cols.join(', ')}) VALUES (${placeholders})`).run(...vals);

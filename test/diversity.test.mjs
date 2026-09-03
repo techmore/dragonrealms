@@ -68,19 +68,24 @@ test('ife/ifne engine commands branch on string equality', () => {
 
 test('closeNth rotation wields the NEXT kit weapon from ground truth', async () => {
   const seg = rotationSeg(mkHunt(true));
-  // All weapons below need+margin (8+4=12): straight rotation blunt->knives->staff->blunt.
-  const ranks = { blunt: 0, thrown: 0, staff: 0 };
-  assert.deepEqual(await swapFor(seg, 'blunt', ranks), ['remove club', 'wield throwing knives']);
-  assert.deepEqual(await swapFor(seg, 'small_edged', ranks), ['remove dagger', 'wield throwing knives']);
-  assert.deepEqual(await swapFor(seg, 'thrown', ranks), ['remove throwing knives', 'wield club']);
+  // All weapons below need+margin (8+4=12): stocked blunt->small edged->slings.
+  const ranks = { blunt: 0, small_edged: 0, slings: 0 };
+  assert.deepEqual(await swapFor(seg, 'blunt', ranks), ['remove club', 'wield dagger']);
+  assert.deepEqual(await swapFor(seg, 'small_edged', ranks), ['remove dagger', 'wield sling']);
+  assert.deepEqual(await swapFor(seg, 'slings', ranks), ['remove sling', 'wield club']);
 });
 
 test('a weapon at need+4 margin rotates away even though the others are fresh', async () => {
   const seg = rotationSeg(mkHunt(true));
-  const satBlunt = { blunt: 12, small_edged: 2, thrown: 1 };
+  const satBlunt = { blunt: 12, small_edged: 2, slings: 1 };
   const res = await swapFor(seg, 'blunt', satBlunt);
   assert.deepEqual(res.filter((x) => x.startsWith('wield')), ['wield dagger'],
     'satisfied holder still rotates onward — exp flows into unsatisfied slots');
+});
+
+test('an unseen weapon rank is treated as rank zero for first rotation', async () => {
+  const seg = rotationSeg(mkHunt(true));
+  assert.deepEqual(await swapFor(seg, 'blunt', {}), ['remove club', 'wield dagger']);
 });
 
 test('rotation survives cycle restarts — alternation does not need runner state', async () => {
@@ -93,13 +98,13 @@ test('rotation survives cycle restarts — alternation does not need runner stat
   const order = [];
   let hand = '';                       // fresh cycle: state lost, ground truth kept
   for (let kill = 0; kill < 9; kill++) {
-    const ranks = { blunt: kill >= 5 ? 12 : Math.min(kill * 2, 8), thrown: 2, staff: 2 };
+    const ranks = { blunt: kill >= 5 ? 12 : Math.min(kill * 2, 8), small_edged: 2, slings: 2 };
     const sent = await swapFor(seg, hand, ranks);
     const wielded = sent.find((l) => l.startsWith('wield '));
     order.push(wielded.replace('wield ', ''));
-    hand = { 'throwing knives': 'thrown', dagger: 'small_edged', club: '' }[order[kill]] ?? '';
+    hand = { sling: 'slings', dagger: 'small_edged', club: 'blunt' }[order[kill]] ?? '';
   }
-  assert.ok(order.includes('throwing knives') && order.includes('dagger') && order.includes('club'),
+  assert.ok(order.includes('sling') && order.includes('dagger') && order.includes('club'),
     `all three categories exercised across restarts (${order.join(' -> ')})`);
 });
 

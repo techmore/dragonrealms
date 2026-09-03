@@ -477,15 +477,10 @@ function gmAdmin(res, game, action) {
       for (const p of [...game.players.values()]) {
         try { game.persistPlayer(p); } catch {}
       }
-      let reloaded = 0;
-      for (const [id, r] of Object.entries(ROOMS)) {
-        game.roomCreatures.set(id, (r.spawns || []).map((sid) => {
-          const def = CREATURES[sid];
-          if (!def) return null;
-          return { def, hp: def.circle * 14 + def.stats.con * 3 + 20, maxHp: def.circle * 14 + def.stats.con * 3 + 20, alive: true };
-        }).filter(Boolean));
-        reloaded += 1;
-      }
+      // Rebuild through the same stocking path as boot (full makeCreature
+      // shape with uid/respawnAt, SPAWN_MULT honored). In-flight combats keep
+      // fighting their own clones; their kills just orphan harmlessly.
+      const reloaded = game.reloadCreatures();
       return json(res, 200, { ok: true, reloaded });
     }
     default:

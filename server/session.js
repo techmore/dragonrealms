@@ -15,6 +15,7 @@ import { handleGmPlayMessage } from './gm-play.js';
 import { handleBoostMessage } from './boost.js';
 
 const INPUT_MAX = 20; // commands per second
+const AUTH_MAX = 5;   // login/register/token messages per second
 
 export function attachWebSocket(httpServer, game, { gmToken } = {}) {
   // maxPayload must clear the largest LEGITIMATE frame a client can send.
@@ -43,6 +44,7 @@ export function attachWebSocket(httpServer, game, { gmToken } = {}) {
       isBot,
       charCreate: null,     // {name, race, guild, stats, pool}
       cmdTimestamps: [],
+      authGeneration: 0,    // bumped by every auth action/logout; stale completions discard themselves
       gmAuthorized: false,
       stateBeforeSpectate: null,
       game,
@@ -108,15 +110,20 @@ export function attachWebSocket(httpServer, game, { gmToken } = {}) {
   return wss;
 }
 
-function route(session, msg) {
+// Message routing. Exported for tests (audit C17 generation-guard spec).
+export function route(session, msg) {
   switch (msg.t) {
     case 'login':
-      doLogin(session, msg.u, msg.p);
-      break;
     case 'register':
-      doRegister(session, msg.u, msg.p);
+      // Auth message types get their own tighter budget (separate from the
+      // command budget): one socket can no longer pin the 2-worker scrypt
+      // queue with unlimited login/register spam.
+      rateLimit(session, AUTH_MAX);
+      if (msg.t === 'login') doLogin(session, msg.u, msg.p);
+      else doRegister(session, msg.u, msg.p);
       break;
     case 'token':
+      rateLimit(session, AUTH_MAX);
       doTokenLogin(session, msg.token);
       break;
     case 'charselect':
@@ -192,6 +199,13 @@ function route(session, msg) {
       rateLimit(session);
       const p = session.player;
       if (session.state !== 'playing' || !p) break;
+      // Runtime ownership (audit C6): a superseded socket can still sit at
+      // state 'playing' while another session owns the character — same
+      // predicate as the input path below.
+      if (session.game.players.get(p.charId) !== p) {
+        session.send({ t: 'error', msg: 'This character is no longer active in this session.' });
+        break;
+      }
       const ok = pushStarterScripts(session, p);
       if (!ok) session.send({ t: 'error', msg: 'Could not generate a starter script here (no hunting area reachable).' });
       break;
@@ -200,6 +214,13 @@ function route(session, msg) {
       rateLimit(session);
       const p = session.player;
       if (session.state !== 'playing' || !p) break;
+      // Runtime ownership (audit C6): without this, a stale socket that lost
+      // the character to a newer session could overwrite the CURRENT owner's
+      // persisted scripts via putScript(). Same predicate as the input path.
+      if (session.game.players.get(p.charId) !== p) {
+        session.send({ t: 'error', msg: 'This character is no longer active in this session.' });
+        break;
+      }
       const res = putScript(p, msg.name, msg.body);
       if (!res.ok) session.send({ t: 'error', msg: res.error });
       session.send({ t: 'scripts', scripts: p.scripts || {} });
@@ -209,6 +230,11 @@ function route(session, msg) {
       rateLimit(session);
       const p = session.player;
       if (session.state !== 'playing' || !p) break;
+      // Runtime ownership (audit C6): same guard as scripts_put above.
+      if (session.game.players.get(p.charId) !== p) {
+        session.send({ t: 'error', msg: 'This character is no longer active in this session.' });
+        break;
+      }
       delScript(p, msg.name);
       session.send({ t: 'scripts', scripts: p.scripts || {} });
       break;
@@ -239,6 +265,8 @@ function enterSpectatingState(session) {
 
 function doLogout(session) {
   unsubscribe(session);
+  // Any in-flight login/register completion is now stale.
+  session.authGeneration = (session.authGeneration || 0) + 1;
   if (session.player && session.game.players.get(session.player.charId) === session.player) {
     session.game.removePlayer(session.player);
   }
@@ -256,20 +284,32 @@ function doLogout(session) {
 }
 
 async function doLogin(session, u, p) {
+  // Generation guard (C17): async password work must not clobber a NEWER auth
+  // action or resurrect a logged-out session. login -> logout -> slow login
+  // resolving used to log the socket back in; two rapid logins raced, with
+  // the last-to-RESOLVE (not last-SENT) winning.
+  const gen = ++session.authGeneration;
   const res = await loginAccount(u, p);
+  if (gen !== session.authGeneration) return; // stale auth completion — ignore
   if (!res.ok) return session.send({ t: 'error', msg: res.error });
   startAccountSession(session, res);
 }
 
 async function doRegister(session, u, p) {
+  const gen = ++session.authGeneration;
   const res = await registerAccount(u, p);
+  if (gen !== session.authGeneration) return; // stale auth completion — ignore
   if (!res.ok) return session.send({ t: 'error', msg: res.error });
   const login = await loginAccount(u, p);
+  if (gen !== session.authGeneration) return; // stale after second await too
   if (!login.ok) return session.send({ t: 'error', msg: 'Account created, but login failed. Try again.' });
   startAccountSession(session, login);
 }
 
 function doTokenLogin(session, token) {
+  // Sync but still an auth action: bump the generation so an in-flight
+  // login/register resolves as stale and cannot clobber this session.
+  session.authGeneration = (session.authGeneration || 0) + 1;
   const v = validateSession(token);
   if (!v) return session.send({ t: 'error', msg: 'Session expired. Please log in.' });
   startAccountSession(session, { accountId: v.accountId, username: v.username, token });
@@ -299,10 +339,10 @@ function startAccountSession(session, info) {
   }
 }
 
-function rateLimit(session) {
+function rateLimit(session, max = INPUT_MAX) {
   const now = Date.now();
   session.cmdTimestamps = session.cmdTimestamps.filter((t) => now - t < 1000);
-  if (session.cmdTimestamps.length >= INPUT_MAX) {
+  if (session.cmdTimestamps.length >= max) {
     throw new Error('Input rate limit exceeded.');
   }
   session.cmdTimestamps.push(now);
