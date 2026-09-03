@@ -27,7 +27,11 @@ function weaponKitFor(cap, plan) {
   // carried a 650s broadsword fourth lane that a 150s starter purse can never
   // reach while the 20s sling sat behind 337/562 re-entry gates — the observed
   // 3rd-weapon Nth-set starve (only dagger+club ever trained).
-  if (cap.defensiveKit) return ['dagger', 'club', 'sling'];
+  // Order matters beyond price: the per-kill rotation walks the kit IN ORDER
+  // from the wielded lane, so the lanes owned on visit 1 (dagger, sling) must
+  // lead. Leading with club parked the rotation on an unowned weapon (failed
+  // `wield club` -> fighting bare-handed) and the owned sling never trained.
+  if (cap.defensiveKit) return ['dagger', 'sling', 'club'];
   if (cap.edgedKit) return ['dagger', 'broadsword', 'greatsword', 'hunting_bow'];
   // Legacy generator callers that do not opt into the mandated defensive
   // baseline retain their historical closeNth fixture.
@@ -713,7 +717,18 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
     L.push('  goto SCAN'); // target no longer present -> next scan
     L.push(`SD_${key}:`);
     L.push('  wait');
-    L.push('  pause 3');
+    if (cap.guild === 'barbarian') {
+      // CHAINED-KILL FORAGE (muse-a): another creature of the same noun is
+      // still here, so this branch (not the empty-room timeout below) is the
+      // path that actually executes in populated arenas — the first attempt
+      // at placing forage here never fired (0 sends across 23 kills). It
+      // replaces the idle `pause 3` at a net +2s per chained kill and feeds
+      // the starved foraging survival-Nth slot with boost-multiplied exp.
+      L.push('  put forage');
+      L.push('  wait');
+    } else {
+      L.push('  pause 3');
+    }
     if (cap.leaveCombatOnLock) {
       // A full EXP pool is not useful training. Check after the kill, when
       // fleeing is safe, and leave the fight before the next swing if the
