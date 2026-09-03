@@ -577,36 +577,6 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
   // prose will ever match — an untimed matchwait wedges here until the
   // external watchdog restarts the whole cycle ~90s later.
   L.push('  matchwait 8');
-  // IDLE-SCAN SCHEDULE (muse-d follow-up): event-placed verbs (post-kill and
-  // chained-kill forage) measured 0 sends across 26 kills — populated arenas
-  // never present those moments. But the matchwait-timeout fall-through below
-  // provably executes on every empty scan, so hang a 3-cycle rotation here:
-  // every 3rd empty scan fires one training verb, alternating forage/hunt.
-  // Both are legal in every sweep arena (sewers IS a wild zone) and each use
-  // grants exp unconditionally (foraging 3-8, perception 3-6) — the two
-  // survival-Nth inputs sitting at 0 while combat over-gains skinning.
-  L.push('SCAN_IDLE_1:');
-  L.push('  if_3 goto SCAN_IDLE_2');
-  L.push('  setvariable 3 1');
-  L.push('  goto SCAN_AFTER_IDLE');
-  L.push('SCAN_IDLE_2:');
-  L.push('  if_4 goto SCAN_IDLE_3');
-  L.push('  setvariable 4 1');
-  L.push('  setvariable 3');
-  L.push('  goto SCAN_AFTER_IDLE');
-  L.push('SCAN_IDLE_3:');
-  L.push('  setvariable 4');
-  L.push('  setvariable 3');
-  L.push('  if_6 goto SCAN_IDLE_HUNT');
-  L.push('  setvariable 6 1');
-  L.push('  put forage');
-  L.push('  wait');
-  L.push('  goto SCAN_AFTER_IDLE');
-  L.push('SCAN_IDLE_HUNT:');
-  L.push('  setvariable 6');
-  L.push('  put hunt');
-  L.push('  wait');
-  L.push('SCAN_AFTER_IDLE:');
   if (cap.sharedFight) {
     for (const sp of species) {
       const key = sp.replace(/\W/g, '_');
@@ -682,6 +652,26 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
     if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('skinning')) {
       L.push(`  put skin ${noun}`);
       L.push('  wait');
+    }
+    // POST-KILL TRAINING SLOT (muse-e follow-up): two earlier forage
+    // placements measured 0 sends — empty-scan branches never execute because
+    // scans almost always find a target (~90s/kill vs 25s respawn), and the
+    // chained-kill branch needs a second same-noun creature present. But the
+    // post-kill sequence here runs once per engagement, so alternate
+    // forage/hunt on a flag: foraging + perception are the survival-Nth
+    // inputs at 0, both legal in every sweep arena with unconditional exp
+    // per use. One extra RT per ~90s fight is negligible.
+    if (cap.guild === 'barbarian') {
+      L.push(`  if_6 goto POSTHUNT_${key}`);
+      L.push('  setvariable 6 1');
+      L.push('  put forage');
+      L.push('  wait');
+      L.push(`  goto POSTVERB_${key}`);
+      L.push(`POSTHUNT_${key}:`);
+      L.push('  setvariable 6');
+      L.push('  put hunt');
+      L.push('  wait');
+      L.push(`POSTVERB_${key}:`);
     }
     // FIRST AID field training — tend bleeding wounds between kills.
     // Skins first (same RT window), then branch: only `tend` when the prompt
