@@ -55,14 +55,35 @@ export const GUILD_SCRIPTS = {
     },
     arena: null,             // nearest spawn room (generator picks)
     trainSets: {
-      weapon: ['large_edged', 'twohanded_edged', 'twohanded_blunt', 'blunt', 'thrown', 'staff'],
+      // Nth-weapon breadth must mirror the FIELD kit (weaponPlan dagger/club/
+      // broadsword/sling = small_edged/blunt/large_edged/slings): baseline
+      // hall retargeting expands a missing Nth-weapon line from THIS list, so
+      // a kit-trained category absent here is starved by the retargeter while
+      // the counted slot sits at rank 0.
+      weapon: ['large_edged', 'twohanded_edged', 'twohanded_blunt', 'blunt', 'small_edged', 'slings', 'thrown', 'staff'],
       armor: ['light_armor', 'brigandine', 'chain_armor', 'shield_usage'],
       survival: ['perception', 'foraging', 'athletics', 'climbing', 'first_aid', 'scouting', 'hunting', 'tracking', 'skinning'],
       lore: ['appraisal', 'scholarship'],
+      // 1st-supernatural gate (circle 2+): hall CANNOT teach this — `train
+      // augmentation` is refused (not a guild skill). Field-only via roar/
+      // form abilities (server/combat.js useAbility: +10 augmentation, or
+      // warding_magic on tenacity/serenity/dispel/mages_lash paths). The
+      // signature roar in the fight loop is the training plan; this key
+      // exists so Nth expansion and future retargeting know the category.
+      supernatural: ['augmentation'],
     },
     defaultTrain: ['expertise', 'parry', 'evasion', 'light_armor', 'large_edged',
       'twohanded_blunt', 'fitness', 'perception', 'foraging', 'athletics',
-      'scouting', 'hunting', 'appraisal', 'tactics', 'inner_fire'],
+      'scouting', 'hunting', 'appraisal', 'tactics', 'inner_fire',
+      // melee_mastery (named HARD circle req): hall refuses it (not taught) —
+      // field-passive only, +2 per melee swing (server/combat.js). Listed so
+      // the curriculum names every hard gate; refusal prose is harmless.
+      // HALL-TRAINING NOTES: expertise is hall-closable (`train expertise`
+      // works); inner_fire/parry/tactics are refused — inner_fire and parry
+      // accrue in the field (abilities/taking hits), but tactics trains ONLY
+      // via combat maneuvers (disarm/trip/bash) which no hunt loop fires —
+      // known field-verb gap, flagged for a future maneuver step.
+      'melee_mastery'],
     // Abilities to learn on each guild-hall trip, in priority order. Taught
     // only at the hall (server/commands/combat.js learn()), and slots are
     // scarce early: barbarianSlots() gives 1 + floor(circle/2), so a circle-1
@@ -91,13 +112,33 @@ export const GUILD_SCRIPTS = {
     signature: { cmd: 'khri focus', ok: /You focus Khri/i, probe: 'khri' },
     armVerb: 'wield',
     trainSets: {
-      weapon: ['small_edged', 'small_blunt', 'thrown', 'staff', 'large_edged'],
+      // 'small_blunt' is not a real skill id (SKILLS has blunt = Small Blunt)
+      // — `train small_blunt` fails with "I do not know that skill". Fixed to
+      // blunt: the fallback club trains it in the field.
+      weapon: ['small_edged', 'blunt', 'thrown', 'staff', 'large_edged'],
       armor: ['light_armor', 'shield_usage'],
-      survival: ['stealth', 'perception', 'athletics', 'climbing', 'lockpicking', 'first_aid', 'hiding'],
-      lore: ['appraisal', 'scholarship'],
+      // Survival Nth demands 8 of 9 pool members: foraging/skinning/thievery
+      // were absent, capping the ladder at 6. skinning auto-adds the skin
+      // verb (+loot income); thievery trains ONLY via steal (town NPCs, crime
+      // risk — no hunt loop fires it yet; flagged field-verb gap).
+      survival: ['stealth', 'perception', 'athletics', 'climbing', 'lockpicking', 'first_aid', 'hiding', 'foraging', 'skinning', 'thievery'],
+      // Lore Nth needs 3: appraisal (hall-teachable ✓) + scholarship (study)
+      // + tactics (maneuvers ONLY — no loop verb yet; flagged gap).
+      lore: ['appraisal', 'scholarship', 'tactics'],
+      // Khri are the thief's ONLY magic path (no cast/harness): elusion→
+      // augmentation, focus→debilitation, every focus→primary_magic + stealth
+      // (server/commands/combat.js khri). Both loop khri (preFight elusion,
+      // signature focus) already fire, so these accrue in the field.
+      magic: ['augmentation', 'debilitation'],
     },
+    // HALL-TRAINING NOTES: backstab/stealth/lockpicking/appraisal are
+    // hall-closable (`train X` works — all taught). thievery/primary_magic/
+    // parry are refused: thievery needs steal, primary_magic needs khri
+    // focus, parry accrues taking hits — all field, all already in the loop
+    // except steal (flagged above).
     defaultTrain: ['backstab', 'stealth', 'evasion', 'light_armor', 'small_edged',
-      'perception', 'athletics', 'appraisal', 'lockpicking'],
+      'perception', 'athletics', 'appraisal', 'lockpicking',
+      'thievery', 'primary_magic', 'parry'],
     fidelityChecks: [
       { name: 'khri-focus', re: /You focus Khri/i },
       { name: 'backstab-attempt', re: /backstab|from behind|surprise/i },
@@ -114,12 +155,12 @@ export const GUILD_SCRIPTS = {
     identityVerbs: ['chaffer'],
     armVerb: 'wield',
     trainSets: {
-      weapon: ['small_blunt', 'staff', 'thrown', 'large_blunt'],
+      weapon: ['blunt', 'staff', 'thrown', 'large_blunt'],
       armor: ['light_armor', ' Brigandine'.trim().toLowerCase(), 'shield_usage'],
       survival: ['perception', 'foraging', 'athletics', 'first_aid', 'scouting'],
       lore: ['trading', 'appraisal', 'scholarship'],
     },
-    defaultTrain: ['trading', 'appraisal', 'evasion', 'light_armor', 'small_blunt',
+    defaultTrain: ['trading', 'appraisal', 'evasion', 'light_armor', 'blunt',
       'perception', 'foraging', 'athletics'],
     fidelityChecks: [
       { name: 'appraise-item', re: /worth about \d+ silvers/i },
@@ -153,13 +194,33 @@ export const GUILD_SCRIPTS = {
     trainSets: {
       weapon: ['medium_edged', 'blunt', 'staff'],
       armor: ['chain_armor', 'shield_usage'],
-      survival: ['perception', 'athletics', 'first_aid', 'scouting'],
-      lore: ['elemental_lore', 'attunement', 'scholarship', 'appraisal'],
-      magic: ['war_magic', 'offensive_magic', 'primary_magic'],
+      // Survival Nth needs 4: evasion/athletics/perception/first_aid exactly
+      // covered it. +skinning (auto-adds the skin verb + loot income) and
+      // +foraging (wilds forage verb) for breadth/redundancy.
+      survival: ['perception', 'athletics', 'first_aid', 'scouting', 'skinning', 'foraging'],
+      // Lore Nth needs 3 countable members but only scholarship+appraisal
+      // counted (elemental_lore/attunement are NOT in the lore Nth pool).
+      // +tactics as the third. FLAG: the hall teaches NONE of the lore pool,
+      // so all three need field verbs the baseline loop lacks (study at the
+      // library → scholarship/appraisal; maneuvers → tactics) — known gap
+      // for a future town-study/appraise errand.
+      lore: ['elemental_lore', 'attunement', 'scholarship', 'appraisal', 'tactics'],
+      // Magic Nth counts the common pool, NOT war/offensive/primary (none of
+      // those are pool members — pushing them for an Nth-magic line wastes
+      // silver). Every combat cast trickles +2 to arcana/augmentation/
+      // debilitation/utility/warding AND +12 to its kind school: damage→
+      // targeted_magic, so targeted_magic is field-fast; augmentation/utility
+      // ride the trickle (server/combat.js afterCast).
+      magic: ['war_magic', 'offensive_magic', 'primary_magic', 'targeted_magic', 'augmentation', 'utility_magic'],
     },
+    // HALL-TRAINING NOTES: summoning is hall-closable (`train summoning`
+    // works) AND trickles +5 per cast — the observed 0/6 stall means casts
+    // weren't landing, not a curriculum gap. defending is refused (not
+    // taught) and accrues only taking hits in the field.
     defaultTrain: ['war_magic', 'offensive_magic', 'primary_magic', 'summoning',
       'targeted_magic', 'evasion', 'parry', 'chain_armor', 'shield_usage',
-      'medium_edged', 'attunement', 'elemental_lore', 'scholarship', 'perception'],
+      'medium_edged', 'attunement', 'elemental_lore', 'scholarship', 'perception',
+      'defending'],
     fidelityChecks: [
       { name: 'prepare-spell', re: /You begin preparing/i },
       { name: 'cast-lands', re: /You cast Fire Shard|engulfed for \d+ damage/i },
@@ -184,7 +245,7 @@ export const GUILD_SCRIPTS = {
     armVerb: 'wield',
     spellsByCircle: { 1: 'chime', 3: 'lullaby', 5: 'song_of_woe' },
     trainSets: {
-      weapon: ['small_edged', 'small_blunt', 'staff', 'thrown'],
+      weapon: ['small_edged', 'blunt', 'staff', 'thrown'],
       armor: ['light_armor', 'shield_usage'],
       survival: ['perception', 'athletics', 'first_aid', 'scouting', 'hiding'],
       lore: ['bardic_lore', 'scholarship', 'appraisal', 'attunement'],
@@ -208,14 +269,14 @@ export const GUILD_SCRIPTS = {
     armVerb: 'wield',
     spellsByCircle: { 1: 'sacred_flame', 3: 'wrath', 5: 'judgement' },
     trainSets: {
-      weapon: ['medium_blunt', 'large_blunt', 'staff'],
+      weapon: ['blunt', 'large_blunt', 'staff'],
       armor: ['chain_armor', 'plate_armor', 'shield_usage'],
       survival: ['perception', 'first_aid', 'foraging', 'athletics'],
       lore: ['theurgy', 'attunement', 'scholarship'],
       magic: ['offensive_magic', 'primary_magic', 'theurgy'],
     },
     defaultTrain: ['theurgy', 'primary_magic', 'offensive_magic', 'defensive_magic',
-      'evasion', 'chain_armor', 'medium_blunt', 'attunement', 'first_aid', 'perception'],
+      'evasion', 'chain_armor', 'blunt', 'attunement', 'first_aid', 'perception'],
     fidelityChecks: [
       { name: 'pray-theurgy', re: /kneel.*pray|peace steadies/i },
       { name: 'cast-sacred-flame', re: /You cast Sacred Flame|engulfed for \d+ damage/i },
@@ -231,14 +292,30 @@ export const GUILD_SCRIPTS = {
     armVerb: 'wield',
     spellsByCircle: { 1: 'soothe', 3: 'mending' },
     trainSets: {
-      weapon: ['small_edged', 'staff', 'small_blunt'],
+      // 'small_blunt' is not a real skill id (SKILLS has blunt = Small Blunt).
+      // Fixed to blunt — also hall-teachable (primary), so `train blunt` now
+      // actually spends instead of failing skill match.
+      weapon: ['small_edged', 'staff', 'blunt'],
       armor: ['light_armor'],
       survival: ['first_aid', 'perception', 'foraging', 'athletics'],
-      lore: ['empathy', 'attunement', 'scholarship'],
-      magic: ['healing_magic', 'primary_magic', 'empathy'],
+      // Lore Nth needs 3 but scholarship is HARD-excluded from the pool, so
+      // the old list counted ZERO (empathy/attunement/scholarship are all
+      // non-members). appraisal+tactics+performance are all pool members.
+      // FLAG: hall teaches none of them — appraise/study (appraisal),
+      // maneuvers (tactics), perform (performance) are future errand verbs.
+      lore: ['empathy', 'attunement', 'scholarship', 'appraisal', 'tactics', 'performance'],
+      // Magic Nth counts the common pool, NOT healing/primary/empathy.
+      // utility_magic is hall-teachable (secondary ✓) — the hall-closable
+      // leg; augmentation rides the +2 per-heal-cast trickle in the field
+      // (server/combat.js afterCast).
+      magic: ['healing_magic', 'primary_magic', 'empathy', 'utility_magic', 'augmentation'],
     },
+    // HALL-TRAINING NOTES: empathy/first_aid/utility_magic are hall-closable
+    // (all taught) — empathy ALSO trickles +5 per soothe cast, so the
+    // observed 0/8 stall means heals weren't landing, not a curriculum gap.
     defaultTrain: ['empathy', 'primary_magic', 'defensive_magic', 'first_aid',
-      'evasion', 'light_armor', 'small_edged', 'attunement', 'perception'],
+      'evasion', 'light_armor', 'small_edged', 'attunement', 'perception',
+      'utility_magic'],
     fidelityChecks: [
       { name: 'heal-soothe', re: /Soothe|warmth.*knit|soothing/i },
     ],
@@ -277,14 +354,37 @@ export const GUILD_SCRIPTS = {
     armVerb: 'wield',
     spellsByCircle: { 1: 'bone_spear', 3: 'rot', 5: 'grave_mist' },
     trainSets: {
-      weapon: ['large_edged', 'staff', 'small_blunt'],
-      armor: ['light_armor', 'brigandine'],
-      survival: ['first_aid', 'perception', 'thanatology', 'athletics'],
-      lore: ['thanatology', 'attunement', 'scholarship'],
-      magic: ['offensive_magic', 'primary_magic', 'thanatology'],
+      // 'small_blunt' is not a real skill id (SKILLS has blunt = Small Blunt).
+      // Fixed to blunt (hall-teachable, primary ✓). +small_edged: the named
+      // HARD gate the fallback club never trains — hall-teachable (primary)
+      // so the hall trip itself closes it.
+      weapon: ['large_edged', 'staff', 'blunt', 'small_edged'],
+      // +chain_armor: hall-teachable (primary) and the helm every closeNth
+      // trip retries trains exactly this in the field.
+      armor: ['light_armor', 'brigandine', 'chain_armor'],
+      // Survival Nth demands 7 of 8 pool members (thanatology is NOT a pool
+      // member — it sat in this list as non-countable clutter). Have evasion/
+      // athletics/perception/first_aid; +foraging (forage verb) +skinning
+      // (auto-adds skin verb + loot) +stealth (hide verb) = 7. lockpicking is
+      // the 8th (no loop verb yet; flagged gap).
+      survival: ['first_aid', 'perception', 'thanatology', 'athletics', 'foraging', 'skinning', 'stealth'],
+      // Lore Nth needs 2: scholarship + appraisal (appraise/study verbs —
+      // flagged errand gap; hall teaches neither).
+      lore: ['thanatology', 'attunement', 'scholarship', 'appraisal'],
+      // Magic Nth needs 4 but the old list counted ONE (attunement only —
+      // offensive/primary/thanatology are non-members). +targeted_magic
+      // (every bone_spear/rot damage cast grants +12 — field-fast),
+      // +utility_magic (hall-teachable, secondary ✓ — hall-closable leg),
+      // +debilitation (grave_mist sleep school + per-cast trickle).
+      magic: ['offensive_magic', 'primary_magic', 'thanatology', 'targeted_magic', 'utility_magic', 'debilitation'],
     },
+    // HALL-TRAINING NOTES: thanatology/small_edged/utility_magic are
+    // hall-closable (all taught) — thanatology ALSO trickles +5 per cast, so
+    // the observed 0/6 stall means casts weren't landing, not a curriculum
+    // gap. targeted_magic is refused (not taught): damage-cast only.
     defaultTrain: ['thanatology', 'primary_magic', 'offensive_magic', 'attunement',
-      'evasion', 'light_armor', 'large_edged', 'first_aid', 'perception'],
+      'evasion', 'light_armor', 'large_edged', 'first_aid', 'perception',
+      'small_edged', 'utility_magic', 'targeted_magic'],
     fidelityChecks: [
       { name: 'cast-bone-spear', re: /You cast Bone Spear|engulfed for \d+ damage/i },
     ],
@@ -302,12 +402,29 @@ export const GUILD_SCRIPTS = {
     trainSets: {
       weapon: ['twohanded_edged', 'large_edged', 'large_blunt'],
       armor: ['plate_armor', 'chain_armor', 'shield_usage', 'brigandine'],
-      survival: ['perception', 'first_aid', 'athletics', 'climbing'],
-      lore: ['conviction', 'attunement', 'scholarship'],
-      magic: ['defensive_magic', 'offensive_magic', 'conviction'],
+      // Survival Nth needs 4 but evasion is HARD-excluded from the pool, so
+      // the old list counted 3 (athletics/perception/first_aid). +foraging
+      // (forage verb) +skinning (auto-adds skin verb + loot income) = 5.
+      survival: ['perception', 'first_aid', 'athletics', 'climbing', 'foraging', 'skinning'],
+      // Lore Nth needs 3 but the old list counted ONE (scholarship only —
+      // conviction/attunement are non-members). +tactics (also the soft named
+      // req; maneuvers-only — flagged gap) +appraisal (appraise/study verbs —
+      // flagged errand gap). scholarship itself needs study (not taught).
+      lore: ['conviction', 'attunement', 'scholarship', 'tactics', 'appraisal'],
+      // Magic Nth needs 3 but the old list counted ONE (attunement only —
+      // defensive/offensive/conviction are non-members). +targeted_magic
+      // (every smite damage cast grants +12 — field-fast) +warding_magic
+      // (ward/bulwark school — field).
+      magic: ['defensive_magic', 'offensive_magic', 'conviction', 'attunement', 'targeted_magic', 'warding_magic'],
     },
+    // HALL-TRAINING NOTES: conviction/shield_usage/parry are hall-closable
+    // (all taught) — conviction ALSO accrues via smite/pray, so the observed
+    // 0/6 stall means casts weren't landing, not a curriculum gap. defending
+    // is refused (not taught): accrues only taking hits. tactics is refused
+    // AND has no loop verb (maneuvers only) — flagged field-verb gap.
     defaultTrain: ['conviction', 'primary_magic', 'defensive_magic', 'offensive_magic',
-      'evasion', 'chain_armor', 'twohanded_edged', 'shield_usage', 'first_aid', 'perception'],
+      'evasion', 'chain_armor', 'twohanded_edged', 'shield_usage', 'first_aid', 'perception',
+      'parry', 'defending', 'tactics', 'targeted_magic'],
     fidelityChecks: [
       { name: 'cast-smite', re: /You cast Smite|engulfed for \d+ damage/i },
     ],
@@ -323,12 +440,28 @@ export const GUILD_SCRIPTS = {
     trainSets: {
       weapon: ['bow', 'small_edged', 'staff', 'thrown'],
       armor: ['light_armor'],
-      survival: ['scouting', 'hunting', 'tracking', 'foraging', 'perception', 'climbing', 'skinning', 'first_aid'],
+      // Survival Nth demands the ENTIRE 8-member pool (ranger table has eight
+      // survival rows). first_aid was the known fix; athletics/stealth/
+      // lockpicking were still absent, capping the ladder at 5. scouting/
+      // hunting/tracking/climbing ride along as field-useful but NON-counting
+      // (not pool members) — the counted leg is evasion/athletics/perception/
+      // stealth/lockpicking/first_aid/foraging/skinning. FLAG: climb-swim
+      // (athletics), hide (stealth), pick (lockpicking) have no loop verbs yet.
+      survival: ['scouting', 'hunting', 'tracking', 'foraging', 'perception', 'climbing', 'skinning', 'first_aid', 'athletics', 'stealth', 'lockpicking'],
       lore: ['attunement', 'scholarship'],
-      magic: ['primary_magic', 'scouting'],
+      // Magic Nth needs 3 but the old list counted ONE (attunement only —
+      // primary/scouting are non-members). +augmentation (every camouflage/
+      // aspect/thorns buff cast grants +12 — field-fast) +targeted_magic
+      // (hunter's mark/swift_wound school — field).
+      magic: ['primary_magic', 'scouting', 'attunement', 'augmentation', 'targeted_magic'],
     },
+    // HALL-TRAINING NOTES: scouting/tracking/foraging are hall-closable (all
+    // taught). parry/defending are refused (not taught): accrue taking hits.
+    // athletics/stealth/lockpicking are refused AND verb-less in the loop —
+    // flagged gap above.
     defaultTrain: ['scouting', 'hunting', 'tracking', 'primary_magic',
-      'evasion', 'light_armor', 'small_edged', 'perception', 'foraging', 'skinning', 'first_aid'],
+      'evasion', 'light_armor', 'small_edged', 'perception', 'foraging', 'skinning', 'first_aid',
+      'parry', 'defending', 'athletics', 'stealth', 'lockpicking'],
     fidelityChecks: [
       { name: 'track-wilds', re: /read the signs|No tracks to follow|signs are too faint/i },
     ],
