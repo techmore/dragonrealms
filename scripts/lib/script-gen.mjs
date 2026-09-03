@@ -21,7 +21,13 @@ function weaponKitFor(cap, plan) {
     if (cap.weaponReserve) return ['dagger', 'club', 'staff', 'sling'];
     return cap.weaponFirst ? ['dagger', 'club', 'sling', 'staff'] : ['dagger', 'sling', 'club', 'staff'];
   }
-  if (cap.defensiveKit || cap.shieldKit) return ['dagger', 'club', 'broadsword', 'sling'];
+  if (cap.shieldKit) return ['dagger', 'club', 'broadsword', 'greatsword'];
+  // Sweep-default barbarian kit (defensiveKit, no kit variant): three DISTINCT,
+  // affordable, bazaar-stocked lanes (small_edged/blunt/slings). The old entry
+  // carried a 650s broadsword fourth lane that a 150s starter purse can never
+  // reach while the 20s sling sat behind 337/562 re-entry gates — the observed
+  // 3rd-weapon Nth-set starve (only dagger+club ever trained).
+  if (cap.defensiveKit) return ['dagger', 'club', 'sling'];
   if (cap.edgedKit) return ['dagger', 'broadsword', 'greatsword', 'hunting_bow'];
   // Legacy generator callers that do not opt into the mandated defensive
   // baseline retain their historical closeNth fixture.
@@ -104,6 +110,13 @@ function buildSharedFightScript(cap) {
   }
   for (const v of cfg.identityVerbs || []) L.push(`  put ${v}`, '  wait');
   if (cap.closeNth) L.push(`  putrun ${cap.scriptBase}rotate`);
+  if (cap.guild === 'barbarian') {
+    // Same respawn-wait forage as the inline fight blocks (see hunt.dr):
+    // the subroutine returns to SCAN next, so this RT is spent outside
+    // combat feeding the foraging survival-Nth slot.
+    L.push('  put forage');
+    L.push('  wait');
+  }
   L.push('  put exp', '  wait', '  exit');
   return L.join('\n');
 }
@@ -146,6 +159,10 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
   // the legacy 337/562 upgrade gates stranded club/staff at rank zero for an
   // entire 30-minute cohort even after skins had funded either purchase.
   if (cap.cheapWeaponKit) L.push('  ifge silver 112 goto GETWEAPON');
+  // Sweep-default barbarians restock the affordable third lane (club/sling)
+  // on any 112s+ bazaar pass. The legacy 337/562 upgrade gates below stranded
+  // the sling lane: affordable after the first pelt sale yet never re-bought.
+  else if (cap.defensiveKit) L.push('  ifge silver 112 goto GETWEAPON');
   else {
     L.push('  ifge silver 562 goto GETWEAPON');
     L.push('  ifge silver 337 goto GETWEAPON');
@@ -183,11 +200,15 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
     // edged). The shield remains worn while the weapon in hand rotates, so
     // every landed blow also trains shield_usage.
     const kit = weaponKitFor(cap, plan);
-    if ((cap.defensiveKit || cap.shieldKit) && !cap.cheapWeaponKit) {
+    // Shield-first is the shieldKit variant's identity (a worn shield trains
+    // shield_usage on every landed blow). The sweep-default barbarian skips
+    // it: 70s on a shield leaves a 150s starter purse unable to open armor +
+    // two weapon lanes (the observed shield + dagger-only stall).
+    if (cap.shieldKit && !cap.cheapWeaponKit) {
       // Re-entry can happen after a profitable hunt. Inspect first so a
       // shielded worker does not spend 70s buying duplicate shields on every
       // upgrade visit; only the missing-shield path reaches the purse gate.
-      L.push('  matchre PLAN_WEAPONS Worn:[\\s\\S]*shield|carrying:[\\s\\S]*shield');
+      L.push(`  matchre PLAN_WEAPONS Worn:[\\s\\S]*shield|carrying:[\\s\\S]*shield`);
       L.push('  put inventory');
       L.push('  matchwait 4');
       L.push('  iflt silver 70 goto PLAN_WEAPONS');
@@ -196,6 +217,25 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
       L.push('  put wear wooden shield');
       L.push('  wait');
       L.push('PLAN_WEAPONS:');
+    }
+    // ARMOR-FIRST (muse-a): provision padded cloth armor BEFORE weapon extras.
+    // Fresh characters carry 150s; the old order bought weapons first and the
+    // purse died at 13s, so agents left the bazaar with no worn armor and 1st
+    // armor sat at 0/6 all run. Padded (40s) + dagger (25s) + sling (20s) =
+    // 85s fits the starter purse with 65s toward the 112s club/staff lane;
+    // the purse gate preserves a sub-40s purse for the weapon loop instead.
+    // Cheap-kit reserve experiments keep their own armor timing (untouched).
+    if (cap.defensiveKit && !cap.cheapWeaponKit) {
+      L.push('ARMOR_FIRST:');
+      L.push('  matchre KIT_WEAPONS Worn:[\\s\\S]*padded cloth armor');
+      L.push('  put inventory');
+      L.push('  matchwait 2');
+      L.push('  iflt silver 40 KIT_WEAPONS');
+      L.push('  put buy padded cloth armor');
+      L.push('  wait');
+      L.push('  put wear padded cloth armor');
+      L.push('  wait');
+      L.push('KIT_WEAPONS:');
     }
     for (const wid of kit) {
       const nm = String(wid).replace(/_/g, ' ');
@@ -661,6 +701,15 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
     L.push('  put look');
     L.push(`  matchre SD_${key} ${noun} is here`);
     L.push('  matchwait 3');
+    if (cap.guild === 'barbarian') {
+      // RESPAWN-WAIT FORAGE (muse-a): the look just proved this noun is gone,
+      // so the next seconds are dead respawn wait (25s ticker) — forage them.
+      // WANDER's forage almost never fires because populated arenas match a
+      // FIGHT first; this slot fires once per kill, costs one 5s RT outside
+      // combat, and feeds the starved foraging survival-Nth slot.
+      L.push('  put forage');
+      L.push('  wait');
+    }
     L.push('  goto SCAN'); // target no longer present -> next scan
     L.push(`SD_${key}:`);
     L.push('  wait');
@@ -728,7 +777,11 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
         // its circle-2 need, skip it and feed the next lane. The shield stays
         // in its own equipment slot throughout, so incoming blows continue
         // training shield_usage even while a two-handed weapon is wielded.
-        const needs = { blunt: 8, small_edged: 8, large_edged: 8, twohanded_edged: 8 };
+        // slings rides the same need-8 as the other affordable lanes. It was
+        // missing here, so every comparison against it was NaN (never true)
+        // and the rotation could never swap TO the sling — the second half
+        // of the 3rd-weapon starve (owned but never wielded).
+        const needs = { blunt: 8, small_edged: 8, large_edged: 8, twohanded_edged: 8, slings: 8 };
         // rotMargin: how far above a weapon's circle-2 need the rotation
         // treats it as "done" and stops feeding it. Default 4 (historical).
         // Kaizen (diversity2stackRot): 1 — keep the 3rd-weapon category
@@ -1151,6 +1204,29 @@ function buildCircleScript({ cap, fromArena, errands }) {
         ['STAFF', 'staff', 112],
       ];
       for (const [tag, noun, cost] of cheapWeapons) {
+        L.push(`WEAPON_RETRY_${tag}:`);
+        L.push(`  iflt silver ${cost} WEAPON_RETRY_NEXT_${tag}`);
+        L.push('  put inventory');
+        L.push(`  matchre WEAPON_RETRY_NEXT_${tag} Worn:[\\s\\S]*${noun}|carrying:[\\s\\S]*${noun}`);
+        L.push('  matchwait 4');
+        L.push(`  put buy ${noun}`);
+        L.push('  wait');
+        L.push(`WEAPON_RETRY_NEXT_${tag}:`);
+      }
+    }
+    // SWEEP-DEFAULT RETRY (muse-a): defensiveKit barbarians with no kit
+    // variant previously never retried missing weapons at hall errands, so a
+    // club skipped on the first visit (85s left of 150s after armor + dagger
+    // + sling) waited for a 112s+ watchdog re-entry instead of converting
+    // pelt silver on the next hall trip. Labels stay disjoint from the
+    // cheap/edged retry blocks via the mutually exclusive cap gates.
+    if (cap.defensiveKit && !cap.cheapWeaponKit && !cap.edgedKit && !cap.shieldKit) {
+      const defaultLanes = [
+        ['DAGGER', 'dagger', 25],
+        ['CLUB', 'club', 112],
+        ['SLING', 'sling', 20],
+      ];
+      for (const [tag, noun, cost] of defaultLanes) {
         L.push(`WEAPON_RETRY_${tag}:`);
         L.push(`  iflt silver ${cost} WEAPON_RETRY_NEXT_${tag}`);
         L.push('  put inventory');
