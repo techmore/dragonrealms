@@ -7,8 +7,14 @@ import { db } from '../db.js';
 import {
   skillRank, gainSkillExp, applyExpToSkill, weaponOf, totalArmor, STAT_NAMES, MAX_STAT,
   statRaiseCost, tdpAwardFor, baseStatsFor, ACHIEVEMENTS, unlockAchievement, poolCap,
+  totalBurden, netBurden, carryAllowance,
 } from '../player.js';
 import { pad, matchSkill, recalcDerived, rankExp, SLOT_RATES, STAT_FULL } from './util.js';
+// DR HEALTH: wounds and afflictions. Condition reads off HP fraction.
+import { vitalityLabel } from '../combat.js';
+// DR encumbrance word for the current load vs carry allowance.
+import { loadWord } from './verbs.js';
+import { bleedInfo } from '../wounds.js';
 
 export const commands = {
   score(ctx) { showScore(ctx); },
@@ -197,15 +203,6 @@ export const commands = {
     emit(`Character "${target.name}" has been deleted forever. You have ${rows.length - 1} character slot(s) free.`);
   },
 };
-
-// DR HEALTH: wounds and afflictions. We track a single HP pool, so the
-// condition reads off its fraction with DR's vitality ladder.
-import { vitalityLabel } from '../combat.js';
-// DR encumbrance word for the current load vs your carry allowance.
-import { loadWord } from './verbs.js';
-import { totalBurden, netBurden, carryAllowance } from '../player.js';
-import { bleedInfo } from '../wounds.js';
-
 
 function showHealth(ctx) {
   const { p, say } = ctx;

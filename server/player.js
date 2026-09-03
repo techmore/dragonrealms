@@ -260,7 +260,6 @@ export function loadPlayer(charId) {
     combatId: null,
     caster: false,
     heldMana: 0,
-    cambrinth: null,
     prepared: null,
     innerFire: Number.isFinite(persisted.innerFire) ? persisted.innerFire : 100,
     maxInnerFire: 100,

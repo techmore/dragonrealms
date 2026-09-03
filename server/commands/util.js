@@ -3,7 +3,7 @@ import { roomById } from '../../data/world.js';
 import { SKILLS } from '../../data/skills.js';
 import { ITEMS } from '../../data/items.js';
 import { npcById } from '../../data/npcs.js';
-import { maxStaminaFor, maxStaminaEff } from '../player.js';
+import { maxStaminaFor, maxStaminaEff, sayRaw } from '../player.js';
 
 export const STAT_FULL = {
   str: 'Strength', con: 'Constitution', ref: 'Reflex', agi: 'Agility',
@@ -51,7 +51,7 @@ export function findSlotByItem(p, name) {
 export function broadcastRoom(game, p, selfMsg, otherMsg, channel) {
   for (const o of game.players.values()) {
     if (o.room === p.room) {
-      o.ws.send(JSON.stringify({ t: 'msg', msg: o === p ? selfMsg : otherMsg, channel }));
+      sayRaw(o, { t: 'msg', msg: o === p ? selfMsg : otherMsg, channel });
     }
   }
   game.status(p);

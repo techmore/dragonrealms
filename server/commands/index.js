@@ -30,7 +30,7 @@ export function mergeCommandModules(modules) {
 
 const REGISTRY = mergeCommandModules(COMMAND_MODULES);
 
-import { setRoundtime, roundtimeLeft, netBurden } from '../player.js';
+import { setRoundtime, roundtimeLeft, netBurden, say as sendLine } from '../player.js';
 
 // Commands that take roundtime (DR): each sets its own RT when it runs, and
 // is refused while RT is still counting down. Movement, passive reads, and
@@ -87,7 +87,7 @@ export function handleCommand(game, p, input, depth = 0, opts = {}) {
   const arg1 = args[1];
   const arg2 = args[2];
 
-  const say = (msg) => p.ws.send(JSON.stringify({ t: 'msg', msg }));
+  const say = (msg) => sendLine(p, msg);
   const emit = (msg) => { say(msg); game.status(p); };
   const ctx = { game, p, cmd, arg1, arg2, rest, args, say, emit };
 

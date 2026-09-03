@@ -8,7 +8,7 @@ import { npcById } from '../../data/npcs.js';
 import { barbarianAbilityById, FORGET_COOLDOWN_MS } from '../../data/abilities.js';
 import { gainSkillExp, addItem, skillRank } from '../player.js';
 import { itemById } from '../../data/items.js';
-import { setAlias, removeAlias, setRoundtime, setSleep, bankDeepSleepRexp } from '../player.js';
+import { setAlias, removeAlias, setRoundtime, setSleep, bankDeepSleepRexp, sayRaw } from '../player.js';
 import { pad, matchSkill, findNpcByName, findInventoryItem, broadcastRoom, gameTime } from './util.js';
 
 // Thief Passages: chalk-sign ways out of the Dark Knot (name -> destination).
@@ -431,7 +431,7 @@ export const commands = {
     const { game, p, rest, emit } = ctx;
     if (!rest) return emit('Shout what?');
     for (const o of game.players.values()) {
-      o.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} shouts, "${rest.toUpperCase()}!"`, channel: 'shout' }));
+      sayRaw(o, { t: 'msg', msg: `${p.name} shouts, "${rest.toUpperCase()}!"`, channel: 'shout' });
     }
   },
 

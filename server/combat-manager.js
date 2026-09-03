@@ -246,6 +246,7 @@ say(player, fleeTo ? 'You stagger back through the gate, breathing hard.' : 'You
         try { combat.tick(); } catch (e) { console.error('combat tick error', e); }
       }
     }, TICK_MS);
+    if (this.timer.unref) this.timer.unref();
   }
 
   stopTicker() {

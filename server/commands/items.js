@@ -5,6 +5,14 @@ import { ITEMS, itemById } from '../../data/items.js';
 import { RECIPES, recipeById } from '../../data/recipes.js';
 import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll, QUALITY_LADDER, CRAFT_TECHNIQUES, craftSlotsFor } from '../../data/forging.js';
 import { ENCHANT_RECIPES, enchantRecipeById } from '../../data/enchanting.js';
+import { npcById } from '../../data/npcs.js';
+import {
+  skillRank, gainSkillExp, addItem, removeItem, removeItemInstances,
+  equipItem, unequipItem, countItems, unlockAchievement, setRoundtime,
+  isStackableItem,
+} from '../player.js';
+import { pad, findInventoryItem, findSlotByItem, findNpcByName } from './util.js';
+import { loadWord, stationVerbs } from './verbs.js';
 
 // ---- Work orders (P26): craft NPCs post piecework; quality matters. ----
 const ORDER_VERBS = {
@@ -32,14 +40,6 @@ function completeOrderStep(p, verb, recipeId, qMult) {
   o.done = true;
   return `You set it aside for ${o.npc}'s order — "order claim" collects your ${o.pay} silvers.`;
 }
-import { npcById } from '../../data/npcs.js';
-import {
-  skillRank, gainSkillExp, addItem, removeItem, removeItemInstances,
-  equipItem, unequipItem, countItems, unlockAchievement, setRoundtime,
-  isStackableItem,
-} from '../player.js';
-import { pad, findInventoryItem, findSlotByItem, findNpcByName } from './util.js';
-import { loadWord, stationVerbs } from './verbs.js';
 
 // Guild crafting affiliations (DR: free technique slots per discipline).
 // A guild's crafters hold a natural edge in their traditional trades.

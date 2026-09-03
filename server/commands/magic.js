@@ -2,6 +2,10 @@
 import { roomById } from '../../data/world.js';
 import { spellsFor, spellById, spellTierFor, SPELL_TIER_RANKS, spellSlotCost, spellSlotsTotal, spellSlotsUsed } from '../../data/guilds.js';
 import { craftTechnique, stationVerbs } from './verbs.js';
+import { SKILLS } from '../../data/skills.js';
+import { manaTypeFor, manaCycle, roomManaLevel, manaDescriptor, safeOverchannelPct, backfireChance } from '../../data/mana.js';
+import { gainSkillExp, skillRank, removeItem, addItem, unlockAchievement, setRoundtime, say as sayPlayer } from '../player.js';
+import { db } from '../db.js';
 
 // A spell is castable when your guild's curriculum reaches it and you have
 // not forgotten it. The slot budget is enforced where spells are granted
@@ -10,11 +14,46 @@ function knownSpell(p, spell) {
   if (spell.minCircle > p.circle) return false;
   return !Array.isArray(p.spellsForgotten) || !p.spellsForgotten.includes(spell.id);
 }
-import { SKILLS } from '../../data/skills.js';
-import { manaTypeFor, manaCycle, roomManaLevel, manaDescriptor, safeOverchannelPct, backfireChance } from '../../data/mana.js';
-import { gainSkillExp, skillRank, removeItem, addItem, unlockAchievement, setRoundtime } from '../player.js';
-import { db } from '../db.js';
 import { findInventoryItem } from './util.js';
+
+// Bard enchante engine, shared by `enchant` and `segue` as a direct function
+// reference — the commands literal must never reference `commands` itself
+// (TDZ: the binding isn't initialized until the literal finishes evaluating).
+function doEnchant(ctx) {
+    const { p, arg1, emit } = ctx;
+    if (p.guild.id !== 'bard') return emit('Only bards weave enchantes.');
+    if (!arg1 || arg1 === 'off' || arg1 === 'stop') {
+      p.cyclic = null;
+      return emit('The song fades from the air.');
+    }
+    const song = arg1.toLowerCase();
+    if (!['war', 'bravery', 'regen'].includes(song)) return emit('You know three enchantes: enchant war (fury), enchant bravery (ward), enchant regen (renewal).');
+    // Bardic Lore is the craft behind the song: ranks lengthen the enchante
+    // and ease its mana upkeep (DR: Bardic Lore powers music abilities).
+    const bl = skillRank(p, 'bardic_lore');
+    const ticks = 60 + Math.min(60, bl * 2);
+    const cost = Math.max(2, (song === 'regen' ? 5 : 4) - Math.floor(bl / 25));
+    // Segue (DR, clean-room condensation): a bard may flow from one active
+    // enchante straight into another without ending the first. The incoming
+    // song rides "fast cycles" for a stretch based on Bardic Lore.
+    let segueFrom = null;
+    if (p.cyclic && p.cyclic.song !== song) {
+      segueFrom = p.cyclic.song;
+    }
+    p.cyclic = { song, ticks, tickCount: 0, upkeep: cost, ...(segueFrom ? { fastUntilTick: Math.min(30, 10 + Math.floor(bl / 5)) } : {}) };
+    gainSkillExp(p, 'bardic_lore', 5);
+    gainSkillExp(p, 'illusion', 6);
+    gainSkillExp(p, 'performance', 6);
+    if (segueFrom) {
+      // DR: seguing trains Bardic Lore; mojo cost folded into a small mana
+      // charge that only applies when the new song benefits from speed.
+      const mojoCost = Math.min(3, p.mana);
+      p.mana -= mojoCost;
+      gainSkillExp(p, 'bardic_lore', 12);
+      return emit(`You segue mid-phrase — the ${segueFrom === 'war' ? 'war march' : segueFrom === 'bravery' ? 'ballad of bravery' : 'hymn of renewal'} becomes ${song === 'war' ? 'a driving war march' : song === 'bravery' ? 'a steady ballad of bravery' : 'a gentle hymn of renewal'} without a missed beat! The new song cycles swiftly.${mojoCost ? ` (${mojoCost} mana for the flourish)` : ''}`);
+    }
+    emit(`You begin an enchante — ${song === 'war' ? 'a driving war march' : song === 'bravery' ? 'a steady ballad of bravery' : 'a gentle hymn of renewal'}. It costs ${cost} mana every few beats to sustain.${bl >= 10 ? ' Your lore lends the song real weight.' : ''}`);
+}
 
 export const commands = {
   prepare(ctx) {
@@ -376,7 +415,7 @@ export const commands = {
     p.hp = Math.max(1, p.hp - selfCost);
     gainSkillExp(p, 'empathy', 6);
     gainSkillExp(p, 'healing_magic', 8);
-    target.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} lays hands on you — warmth floods the wound and it closes. (+${amount} health)${viaLink ? ' You feel the touch across the distance.' : ''}` }));
+    sayPlayer(target, `${p.name} lays hands on you — warmth floods the wound and it closes. (+${amount} health)${viaLink ? ' You feel the touch across the distance.' : ''}`);
     emit(`You take ${target.name}'s wound into yourself, mending ${amount} health${viaLink ? ' from afar' : ''} — and feel ${selfCost} of it yourself.${viaLink}`);
     game.status(target);
   },
@@ -398,7 +437,7 @@ export const commands = {
     game.persistPlayer(p);
     game.persistPlayer(target);
     const leveled = gainSkillExp(p, 'empathy', 10);
-    target.ws.send(JSON.stringify({ t: 'msg', msg: `${p.name} reaches out and a silver thread settles around your heart — an empath link.` }));
+    sayPlayer(target, `${p.name} reaches out and a silver thread settles around your heart — an empath link.`);
     emit(`You spin a link of silver light between you and ${target.name}. You may "mend" them from any distance for ten minutes.${leveled ? ' Your Empathy improved!' : ''}`);
   },
 
@@ -456,47 +495,13 @@ export const commands = {
       ? 'You stand a long while in the great hall, and the weight of centuries steadies you. A moment of peace steadies you.'
       : 'You kneel in the quiet and pray. A moment of peace steadies you.');
   },
-  enchant(ctx) {
-    const { p, arg1, emit } = ctx;
-    if (p.guild.id !== 'bard') return emit('Only bards weave enchantes.');
-    if (!arg1 || arg1 === 'off' || arg1 === 'stop') {
-      p.cyclic = null;
-      return emit('The song fades from the air.');
-    }
-    const song = arg1.toLowerCase();
-    if (!['war', 'bravery', 'regen'].includes(song)) return emit('You know three enchantes: enchant war (fury), enchant bravery (ward), enchant regen (renewal).');
-    // Bardic Lore is the craft behind the song: ranks lengthen the enchante
-    // and ease its mana upkeep (DR: Bardic Lore powers music abilities).
-    const bl = skillRank(p, 'bardic_lore');
-    const ticks = 60 + Math.min(60, bl * 2);
-    const cost = Math.max(2, (song === 'regen' ? 5 : 4) - Math.floor(bl / 25));
-    // Segue (DR, clean-room condensation): a bard may flow from one active
-    // enchante straight into another without ending the first. The incoming
-    // song rides "fast cycles" for a stretch based on Bardic Lore.
-    let segueFrom = null;
-    if (p.cyclic && p.cyclic.song !== song) {
-      segueFrom = p.cyclic.song;
-    }
-    p.cyclic = { song, ticks, tickCount: 0, upkeep: cost, ...(segueFrom ? { fastUntilTick: Math.min(30, 10 + Math.floor(bl / 5)) } : {}) };
-    gainSkillExp(p, 'bardic_lore', 5);
-    gainSkillExp(p, 'illusion', 6);
-    gainSkillExp(p, 'performance', 6);
-    if (segueFrom) {
-      // DR: seguing trains Bardic Lore; mojo cost folded into a small mana
-      // charge that only applies when the new song benefits from speed.
-      const mojoCost = Math.min(3, p.mana);
-      p.mana -= mojoCost;
-      gainSkillExp(p, 'bardic_lore', 12);
-      return emit(`You segue mid-phrase — the ${segueFrom === 'war' ? 'war march' : segueFrom === 'bravery' ? 'ballad of bravery' : 'hymn of renewal'} becomes ${song === 'war' ? 'a driving war march' : song === 'bravery' ? 'a steady ballad of bravery' : 'a gentle hymn of renewal'} without a missed beat! The new song cycles swiftly.${mojoCost ? ` (${mojoCost} mana for the flourish)` : ''}`);
-    }
-    emit(`You begin an enchante — ${song === 'war' ? 'a driving war march' : song === 'bravery' ? 'a steady ballad of bravery' : 'a gentle hymn of renewal'}. It costs ${cost} mana every few beats to sustain.${bl >= 10 ? ' Your lore lends the song real weight.' : ''}`);
-  },
+  enchant(ctx) { return doEnchant(ctx); },
   enchante(ctx) { /* alias */ const { p, emit } = ctx; const c = p.cyclic; emit(c ? `Enchante active: ${c.song} (${c.ticks} beats left)` : 'No enchante is playing.'); },
   // SEGUE <enchante> — DR syntax for the transition (same path as `enchant`).
   segue(ctx) {
     const { p, emit } = ctx;
     if (!p.cyclic) return emit('You have no song going to segue from. Begin an enchante first.');
-    return commands.enchant(ctx);
+    return doEnchant(ctx);
   },
   devotion(ctx) {
     const { p, emit } = ctx;

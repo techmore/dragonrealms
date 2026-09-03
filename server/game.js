@@ -73,6 +73,7 @@ export class Game {
     }
     this.combat.startTicker();
     this.respawnTicker = setInterval(() => this.respawnTick(), RESPAWN_MS);
+    this.respawnTicker.unref();
     this.manaTicker = setInterval(() => this.manaPulse(), MANA_PULSE_MS);
     this.manaTicker.unref();
     this.weatherTicker = setInterval(() => this.rollWeather(), 60 * 1000);
