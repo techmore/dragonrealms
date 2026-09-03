@@ -1,7 +1,7 @@
 # AGENTS.md — Dragon Realms
 
 Text-based MUD (multi-user dungeon) inspired by DragonRealms. Node 22+ ESM,
-zero runtime dependencies, SQLite via `node:sqlite`. Web client is vanilla
+one runtime dependency (`ws`; everything else is stdlib), SQLite via `node:sqlite`. Web client is vanilla
 HTML/CSS/JS (no build step, no frameworks).
 
 ## Layout

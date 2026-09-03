@@ -6,12 +6,14 @@
 import { execFileSync } from 'node:child_process';
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = join(fileURLToPath(import.meta.url), '..', '..');
 const files = [];
+const SKIP_DIRS = new Set(['node_modules', 'store', '.git', 'live', 'bins']);
 const walk = (dir) => {
   for (const e of readdirSync(dir)) {
-    if (e === 'node_modules' || e === 'store' || e === '.git') continue;
+    if (SKIP_DIRS.has(e) || e.startsWith('Qwen')) continue;
     const p = join(dir, e);
     if (statSync(p).isDirectory()) walk(p);
     else if (p.endsWith('.js') || p.endsWith('.mjs')) files.push(p);

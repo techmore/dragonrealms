@@ -51,6 +51,7 @@ export function setStatusOverride(text, cls) {
 
 function setStatus(on) {
   const el = $('conn-status');
+  if (!el) return;
   el.textContent = on ? 'connected' : 'disconnected';
   el.className = on ? 'conn-on' : 'conn-off';
 }

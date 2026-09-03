@@ -16,6 +16,7 @@ export const db = new DatabaseSync(
 
 db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA foreign_keys = ON;');
+db.exec('PRAGMA busy_timeout = 5000;');
 
 export function migrate() {
   db.exec(`
@@ -193,6 +194,16 @@ export function migrate() {
       instances TEXT NOT NULL DEFAULT '[]',
       at INTEGER NOT NULL
     );
+  `);
+  // FK lookups run on every load/save — index them (previously full scans).
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_skills_character ON skills(character_id);
+    CREATE INDEX IF NOT EXISTS idx_inventory_character ON inventory(character_id);
+    CREATE INDEX IF NOT EXISTS idx_equipment_character ON equipment(character_id);
+    CREATE INDEX IF NOT EXISTS idx_aliases_character ON aliases(character_id);
+    CREATE INDEX IF NOT EXISTS idx_vault_character ON vault(character_id);
+    CREATE INDEX IF NOT EXISTS idx_quest_character ON character_quest(character_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
   `);
 }
 
