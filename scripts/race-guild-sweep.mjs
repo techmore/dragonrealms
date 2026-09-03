@@ -9,6 +9,15 @@
 //   node scripts/race-guild-sweep.mjs --benchmark barbarian --fast
 //     # 3-worker optimized Circle-5 trial (30-minute iteration cap)
 //
+// Run tagging (parallel-session disambiguation): pass --tag muse-<name>
+// (aliases: --variant, --run-tag) to label every agent in the invocation.
+// The tag threads into character names (as the -vTag segment), the
+// fidelity-log `=== sweep run` line (as [tag]), the log filename, and the
+// summary rows (variant + char fields in fidelity-summary.jsonl / sweeps.db).
+// Without the flag behavior is unchanged (variant null, historical naming).
+// Benchmark mode also accepts muse-* names in --variants as lightweight
+// tag-only variants (baseline knobs, label only).
+//
 // Per character:
 //   1. Real account + WS chargen entry (WireSession, no bot flag).
 //   2. A generated script library saved to the ACCOUNT via scripts_put —
@@ -50,6 +59,11 @@ let MINUTES = Number(flag('minutes', NaN));
 let CIRCLE_TARGET = Number(flag('circle', NaN));
 const BOOST = Number(flag('boost', 20)); // agent speed multiplier (0/1 = off)
 const FAST = ARGS.includes('--fast');
+// Run tag for parallel-session disambiguation: --tag muse-<name> (aliases
+// --variant, --run-tag). Empty = untagged (historical behavior). A tag-only
+// variant carries no knob overrides, so supervisor defaults apply; it only
+// labels names/logs/summary rows via SweepAgent.variantName.
+const RUN_TAG = String(flag('tag', flag('variant', flag('run-tag', ''))) || '').trim();
 const DEFAULT_BENCH_MINUTES = 20;
 // Structured EXP/requirement checkpoints are always 30s; `--fast` no longer
 // changes telemetry cadence, so manifests and logs describe one contract.
@@ -217,7 +231,9 @@ if (ARGS.includes('--all')) {
     ? ['baseline', 'edgedBowAware', 'edgedSkinAware']
     : Object.keys(VARIANTS);
   for (const vn of pick) {
-    if (!VARIANTS[vn]) { console.error(`unknown variant "${vn}" — have: ${Object.keys(VARIANTS).join(', ')}`); process.exit(1); }
+    // muse-* names are lightweight run tags (baseline knobs, label only) so
+    // parallel review sessions can disambiguate logs without a VARIANTS entry.
+    if (!VARIANTS[vn] && !/^muse-/i.test(vn)) { console.error(`unknown variant "${vn}" — have: ${Object.keys(VARIANTS).join(', ')}`); process.exit(1); }
   }
   // --races g1,h2 subsets species; --repeats N runs each cell N times.
   // Without --races, benchmark mode uses one canonical race per guild so
@@ -237,7 +253,7 @@ if (ARGS.includes('--all')) {
   // earlier in the invocation.
   wanted = races.flatMap((race) => Array.from({ length: repeats }, (_, repeat) =>
     pick.map((vn) => ({ guild: g, race, repeat: repeat + 1,
-      variant: { name: vn, ...VARIANTS[vn] } }))).flat());
+      variant: { name: vn, ...(VARIANTS[vn] || {}) } }))).flat());
   MODE = 'benchmark';
   if (!Number.isFinite(CIRCLE_TARGET)) CIRCLE_TARGET = 5;
   if (!Number.isFinite(MINUTES)) MINUTES = DEFAULT_BENCH_MINUTES;
@@ -250,14 +266,20 @@ if (ARGS.includes('--all')) {
   if (!Number.isFinite(MINUTES)) MINUTES = 10;
   if (!Number.isFinite(CIRCLE_TARGET)) CIRCLE_TARGET = 2;
   wanted = [{ guild: g, race }];
+  // Run tag labels the single spawn too (names/logs/summary carry [tag]).
+  if (RUN_TAG) wanted[0].variant = { name: RUN_TAG };
   MODE = 'spawn';
 } else {
   const guilds = (flag('guilds', 'barbarian') || '').split(',').map((s) => s.trim()).filter(Boolean);
   const races = (flag('races', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
   for (const g of guilds) {
     if (!ALL_GUILDS.includes(g)) { log(`unknown guild "${g}" — skipping`); continue; }
-    if (races.length) races.forEach((race) => wanted.push({ guild: g, race }));
-    else RACE_MATRIX[g]?.forEach((race) => wanted.push({ guild: g, race }));
+    // Ad-hoc tag: attach a lightweight tag-only variant so char names, the
+    // `=== sweep run` line, log filenames, and summary rows all carry it.
+    // No knob overrides — supervisor defaults apply unchanged.
+    const tagVariant = RUN_TAG ? { name: RUN_TAG } : null;
+    if (races.length) races.forEach((race) => wanted.push(tagVariant ? { guild: g, race, variant: { ...tagVariant } } : { guild: g, race }));
+    else RACE_MATRIX[g]?.forEach((race) => wanted.push(tagVariant ? { guild: g, race, variant: { ...tagVariant } } : { guild: g, race }));
   }
 }
 if (!Number.isFinite(MINUTES) || MINUTES <= 0) MINUTES = 10;
@@ -296,7 +318,13 @@ class SweepAgent {
     // above it still fires the moment mindstate ranks meet the requirement.
     this.hallFallbackMs = Math.min(Math.max(variant?.hallFallbackMs ?? 240000, 60000), 900000);
 
-    const vTag = this.variantName ? '-' + String(this.variantName).replace(/[^a-z0-9]/gi, '').slice(0, 4) : '';
+    // muse-* run tags keep a longer sanitized segment (up to 8 chars) so
+    // parallel sessions stay distinguishable in char names: the historical
+    // 4-char slice collapses muse-c and muse-d to the same '-muse'.
+    // Non-muse variants keep the historical 4-char truncation unchanged.
+    const vSan = String(this.variantName || '').replace(/[^a-z0-9]/gi, '');
+    const vTag = this.variantName
+      ? '-' + vSan.slice(0, /^muse-/i.test(this.variantName) ? 8 : 4) : '';
     // Per-AGENT suffix (not per-RUN): benchmark repeats reuse RUN_ID, so two
     // repeats of the same variant must never share a character — repeat 2
     // would inherit repeat 1's ranks and poison the leveling-lab splits.
@@ -1340,6 +1368,7 @@ class SweepAgent {
     // Standing in our own guild hall? Circle + TDP-spend right here.
     if (this.library && v2.room === 'hall_' + this.guild && !this.skipCircle && this.curName !== this.scriptBase + 'circle') {
       this.appendLog('[hall] already at the guild hall — circling');
+      this.lastHallAt = Date.now();
       this.startCycle(this.library[this.scriptBase + 'circle'], this.scriptBase + 'circle');
       return;
     }
@@ -1359,7 +1388,13 @@ class SweepAgent {
       const skills = { ...(v2.skills || {}), ...(this.expRanks || {}) };
       const moved = Object.entries(gaps).filter(([sk, g]) => (skills[sk] || 0) > g.have);
       const close = Object.values(gaps).every((g) => g.have >= g.need);
-      if (!moved.length && !close && this.kills - this.killsAtVisit < 12) {
+      // Reachability (dead-trigger audit): the old 12-kill threshold exceeded
+      // typical agent output, wedging runs behind this return — which also
+      // sits above the fallback timer, RT-stall, and parked watchdogs. Gate
+      // on hallEvery (default 4, the documented alternation) and yield when
+      // the fallback timer is already due so the long-timer trip stays live.
+      const fallbackDue = Date.now() - (this.lastHallAt || Date.now()) > this.hallFallbackMs;
+      if (!moved.length && !close && !fallbackDue && this.kills - this.killsAtVisit < this.hallEvery) {
         return; // silently keep hunting — no log spam, no wasted walk
       }
       if (moved.length) {
@@ -1388,7 +1423,7 @@ class SweepAgent {
       return;
     }
     if (huntingLeg && !tdpKnown && !v2.inCombat
-      && (this.kills - this.killsAtVisit >= 6 || Date.now() - this.enteredAt > 180000)) {
+      && (this.kills - this.killsAtVisit >= 6 || Date.now() - (this.enteredAt || this.startedAt) > 180000)) {
       // Time-based arm: with steady kills the inCombat windows at tick time
       // are narrow — 3 minutes in the field probes TDP regardless of kills.
       // Balance never observed yet — probe it once instead of walking blind.
@@ -1418,6 +1453,7 @@ class SweepAgent {
         log(`[${this.guild}/${this.race}] hall trip: circle-${(v2.circle || 1) + 1} requirements MET by mindstate ranks`);
         this.appendLog(`[hall-trip] requirements met (${(v2.circle || 1) + 1}) — circling`);
         this.killsAtVisit = this.kills;
+        this.lastHallAt = Date.now();
         this.regenerateFromHere();
         this.startCycle(this.library[this.scriptBase + 'circle'], this.scriptBase + 'circle');
         return;
@@ -1433,6 +1469,7 @@ class SweepAgent {
       log(`[${this.guild}/${this.race}] hall trip (fallback timer)`);
       this.appendLog(`[hall-trip] fallback timer`);
       this.killsAtVisit = this.kills;
+      this.lastHallAt = Date.now();
       this.skipCircle = true;
       // Recompute from the latest gate failure on every visit. Caching the
       // first list starves later armor/survival Nth slots after early rows
