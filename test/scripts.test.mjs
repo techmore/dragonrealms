@@ -360,3 +360,108 @@ test('[PLAYERS:n] prompt token mirrors into %pcount', () => {
   feed(r2, 'HP: 50/50  Circle 1', 'prompt');
   assert.deepEqual(say2, ['PC=%pcount'], 'unset pcount prints literally (branch sees non-number)');
 });
+
+test('barbarian fight loop ends with a trip (tactics field training)', async () => {
+  const { buildSharedFightScript } = await import('../scripts/lib/script-gen.mjs');
+  const src = buildSharedFightScript({ guild: 'barbarian' });
+  const text = Array.isArray(src) ? src.join('\n') : src;
+  const atk = text.indexOf('put attack %1');
+  const trip = text.indexOf('put trip %1');
+  assert.ok(atk >= 0 && trip > atk, 'trip step trails the attack in the shared fight body');
+});
+
+test('climb variant is a one-knob delta on the shielded kit', async () => {
+  const { VARIANTS } = await import('../data/guild-scripts.js');
+  assert.ok(VARIANTS.climb, 'climb variant exists');
+  assert.deepEqual(VARIANTS.climb.diff, ['climb'], 'climb changes exactly one knob');
+  assert.match(VARIANTS.climb.hypothesis, /teaching/i, 'hypothesis names the mechanism');
+});
+
+test('occupancy ladder checks each room and settles in the first empty one', async () => {
+  const { buildOccupancyLadder } = await import('../scripts/lib/script-gen.mjs');
+  const lines = buildOccupancyLadder({
+    cap: {}, arena: { id: 'hub' },
+    ladder: [{ id: 'a', fromHere: ['n'] }, { id: 'b', fromHere: [] }],
+  }).join('\n');
+  assert.match(lines, /PICK_ROOM_0:/);
+  assert.match(lines, /PICK_ROOM_1:/);
+  assert.match(lines, /ifgt pcount 0 goto RETURN_TO_HUB_0/, 'occupied room branches home');
+  assert.match(lines, /ifgt pcount 0 goto OCCUPIED_PATROL/, 'full ladder patrols instead of stacking');
+  assert.match(lines, /REANCHOR:/, 'drift safety net present');
+  const empty = buildOccupancyLadder({ cap: {}, arena: { id: 'hub' }, ladder: [] }).join('\n');
+  assert.match(empty, /PICK_ROOM_DONE:/);
+  assert.doesNotMatch(empty, /PICK_ROOM_0:/, 'no rooms, no legs');
+});
+
+// ---- Gear-ledger script standard (finishKit) ------------------------------
+
+const HALL_ERRANDS = () => ({
+  bazaarPath: [{ dir: 'w', to: 'b1' }, { dir: 'sw', to: 'bazaar' }],
+  returnPath: [{ dir: 'ne', to: 'r1' }, { dir: 'e', to: 'arena' }],
+  sellLoot: ['rat_pelt'],
+  studyPath: [{ dir: 'w', to: 's1' }, { dir: 's', to: 'academy' }],
+  studyToBazaar: [{ dir: 'n', to: 's1' }, { dir: 'ne', to: 'r1' }, { dir: 'e', to: 'bazaar' }],
+  studyRoom: 'academy',
+});
+
+test('gear ledger prices come from ITEMS values, never literals', async () => {
+  const { GUILD_SCRIPTS } = await import('../data/guild-scripts.js');
+  const { ITEMS } = await import('../data/items.js');
+  for (const row of GUILD_SCRIPTS.barbarian.gearLedger) {
+    assert.ok(ITEMS[row.id], `ledger row ${row.id} exists in data/items.js`);
+    assert.ok(Number.isFinite(ITEMS[row.id].value) && ITEMS[row.id].value > 0,
+      `${row.id} has a positive value`);
+    assert.ok(row.lane && row.purpose, `${row.id} declares lane + purpose`);
+  }
+});
+
+test('finishKit emits purse-gated, worn-gated kit buys with live prices', async () => {
+  const { buildCircleScript } = await import('../scripts/lib/script-gen.mjs');
+  const { ITEMS } = await import('../data/items.js');
+  const cap = {
+    guild: 'barbarian', race: 'gortog', char: 't', circle: 1, scriptBase: 'x-',
+    closeNth: true, finishKit: true, finishWear: true, hallTrainCap: 4,
+    trainList: ['blunt'], skipCircle: true, studySkills: [],
+    fromArena: { hall: [{ dir: 'w', to: 'hall_barbarian' }], back: [{ dir: 'e', to: 'arena' }] },
+  };
+  const errands = HALL_ERRANDS();
+  const src = buildCircleScript({ cap, fromArena: cap.fromArena, errands });
+  // Club (4th weapon lane): buy gated on the LIVE items value (112), no wear line
+  assert.match(src, new RegExp(`iflt silver ${ITEMS.club.value} KIT_NEXT_CLUB`));
+  assert.match(src, /put buy sturdy oaken club/);
+  assert.doesNotMatch(src, /put wear sturdy oaken club/, 'weapons are wielded by the fight loop, not worn');
+  // Helm: wear line present (armor)
+  assert.match(src, /put buy iron helm/);
+  assert.match(src, /put wear iron helm/);
+  // Worn-gates are tail substrings that survive shop-vs-inventory wording
+  assert.match(src, /Worn:\[\\s\\S\]\*oaken club/);
+  assert.match(src, /Worn:\[\\s\\S\]\*iron helm/);
+  // No hand-copied legacy prices anywhere in the emitted script
+  assert.doesNotMatch(src, /iflt silver 60 STACKR/, 'legacy hardcoded stack block replaced');
+});
+
+test('finishKit routes lore to the study detour and keeps the hall teachable-only', async () => {
+  const { buildCircleScript } = await import('../scripts/lib/script-gen.mjs');
+  const cap = {
+    guild: 'barbarian', race: 'gortog', char: 't', circle: 1, scriptBase: 'x-',
+    closeNth: true, finishKit: true, finishWear: true, hallTrainCap: 4,
+    trainList: ['appraisal', 'scholarship', 'blunt', 'evasion', 'parry'],
+    skipCircle: true,
+    fromArena: { hall: [{ dir: 'w', to: 'hall_barbarian' }], back: [{ dir: 'e', to: 'arena' }] },
+  };
+  const errands = HALL_ERRANDS();
+  const src = buildCircleScript({ cap, fromArena: cap.fromArena, errands });
+  // appraisal/scholarship are NOT hall-teachable: absent from train lines...
+  assert.doesNotMatch(src, /put train appraisal/);
+  assert.doesNotMatch(src, /put train scholarship/);
+  // ...and routed to the free study verb inside the academy room gate
+  assert.match(src, /ifne room academy goto STUDY_DONE/);
+  assert.match(src, /put study/);
+  // The two study legs chain: study block sits between hall work and bazaar errands
+  const studyAt = src.indexOf('STUDY_DONE');
+  const bazaarAt = src.indexOf('ifne room bazaar');
+  assert.ok(studyAt > 0 && bazaarAt > studyAt, 'study detour precedes the bazaar errands');
+  // Hall trains ONLY teachable skills (blunt yes, evasion yes)
+  assert.match(src, /put train blunt/);
+  assert.match(src, /put train evasion/);
+});

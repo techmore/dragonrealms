@@ -40,75 +40,100 @@
 <h1>&#128009; Barbarian Scripting Roadmap</h1>
 <p class="sub">Kaizen status of the barbarian progression sim — where we are, what's measured, what's next.
 Companion pages: <a href="/sim-architecture.html">Sim architecture</a> · Sims dashboard at <a href="/sims.html">/sims.html</a> · <a href="/warmage-roadmap.html">Warmage roadmap</a> · <a href="/ROADMAP.html">full roadmap</a>.
-Last updated 2026-08-29.</p>
+Last updated 2026-09-04.</p>
 
 <div class="callout">
-  <b>What changed this arc:</b> the circling kaizen is <b>built and verified to engage</b> — in the
-  <code>zrmn</code> run (6 agents · 15 min · boost ×20) <code>barbarian/human</code> drained 22 skills /
-  186 total ranks at the hall and fired the <code>analyze-expertise</code> fidelity check. The old
-  "bank TDPs, walk home" failure mode is gone. <b>But circle 2 still did not land</b>: kill rate was only
-  ~24/h and 3 of 6 agents wedged at the bazaar. The circling <em>logic</em> is no longer the wall —
-  <b>kill rate / spawn availability and navigation are</b>.
+  <b>What changed this arc (muse-c20 p1→p10, r1→r3):</b> circle-2 shortfall went
+  <b>84 → 10 ranks</b> (88.1% of the gate closed — best ever), on ONE persistent character
+  (<code>vltm</code>) across resumed 45-min legs. The five structural bugs that ate six prior arcs are
+  fixed server- and script-side: refused-roar roundtime pinning, skin-before-corpse, watchdog eating the
+  post-kill window, survival lanes never scheduled, and the purse leaking into rank-163 "hall training".
+  Skinning went 0 → 18 (five legs at literal zero), silver flows, and the last 10 ranks are all
+  purchasable/study-able. The wall is now <b>silver income and exp imbalance</b> — both have named fixes
+  in flight (<code>climbFinish</code> leg running; crier-quest loop measured at ~30 silver/min vs
+  hunting's ~1.7/min).
 </div>
 
 <h2>Current status</h2>
 <p>
-The identity chain works end-to-end (hall learning, roar in its one valid slot, augmentation accruing,
-honest <code>exp</code> parsing, zero wedges in healthy runs). The circling kaizen (<code>buildCircleScript</code>
-re-attempts <code>circle</code> immediately after one TDP-curriculum drain) now closes the
-505-banked-TDP / shortfall-35 failure mode. What it cannot fix on its own is <strong>the rate at which
-exp-ranks accrue</strong> — circle 2 needs the exp-category ranks (weapon / armor / parry / evasion /
-survival) reached by <em>kill rate</em>, and the <code>zrmn</code> run only managed 24 kills/hour.
+The per-leg throwaway problem is dead: <code>--resume &lt;char&gt;</code> re-enters the world with every
+rank, kit, and silver balance intact, so legs compound instead of restarting from rank 0. The
+<code>zrmn</code>-era walls (spawn starvation, bazaar wedges) were solved by
+<code>DR_SPAWN_MULT</code> sweep density + the arena ladder — best kill rate is now <b>49/h</b>
+(old typical 24–32). What gates circle 2 today is a short, named shopping list.
 </p>
 <table>
-  <tr><th>Metric (best measured)</th><th class="num">Prior best</th><th class="num">Current (zrmn)</th><th></th></tr>
-  <tr><td>Circle-ups</td><td class="num">0</td><td class="num">0</td><td><span class="pill next">the wall</span></td></tr>
-  <tr><td>Best circle-up ever</td><td class="num">32.9m (diversity2)</td><td class="num">— unchanged</td><td><span class="pill now">pre-kaizen</span></td></tr>
-  <tr><td>Total ranks at finish (healthy agent)</td><td class="num">182</td><td class="num">186</td><td><span class="metric-good">kaizen engaging</span></td></tr>
-  <tr><td>Kills/hour (healthy agent)</td><td class="num">36</td><td class="num">24</td><td><span class="metric-warn">spawn-starved</span></td></tr>
-  <tr><td>Agents wedged at bazaar</td><td class="num">most runs</td><td class="num">3 of 6</td><td><span class="pill next">nav regressed</span></td></tr>
-  <tr><td>Circling kaizen (drain + re-attempt)</td><td class="num">not built</td><td class="num">engaged</td><td><span class="pill done">verified</span></td></tr>
+  <tr><th>Metric (best measured)</th><th class="num">Prior best</th><th class="num">Current (p10→r2)</th><th></th></tr>
+  <tr><td>Circle-2 shortfall (of 84 ranks)</td><td class="num">35</td><td class="num">10</td><td><span class="pill now">10 ranks left</span></td></tr>
+  <tr><td>Gated progress (84-rank gate)</td><td class="num">58%</td><td class="num">88.1%</td><td><span class="metric-good">record</span></td></tr>
+  <tr><td>Total ranks (persistent char)</td><td class="num">372</td><td class="num">1371+</td><td><span class="metric-good">resume compounding</span></td></tr>
+  <tr><td>Kills/hour</td><td class="num">36</td><td class="num">49</td><td><span class="metric-good">solved</span></td></tr>
+  <tr><td>Skinning ranks (was 0 in every run ever)</td><td class="num">0</td><td class="num">18</td><td><span class="pill done">fixed</span></td></tr>
+  <tr><td>Deaths per leg</td><td class="num">2–10</td><td class="num">0</td><td><span class="metric-good">solved</span></td></tr>
+  <tr><td>Circle-ups</td><td class="num">0</td><td class="num">0</td><td><span class="pill next">the wall — 10 ranks, all purchasable</span></td></tr>
 </table>
 <p>
-In <code>zrmn</code>: <code>barbarian/human</code> was healthy (6 kills, 24/h, 186 ranks) and visibly draining
-at the hall; <code>barbarian/giantman</code> was slow (0 kills, 15 ranks); <code>barbarian/halfling</code>
-wedged at the bazaar (28 ranks). The drain loop fired — the gate just never closed because the ranks
-weren't there yet.
+The exact remaining list on <code>vltm</code>: 4th weapon 0/2 (buy club, 112s), 1st armor 4/6
+(padded cloth 40s), 2nd armor 0/2 (iron helm 120s), 1st lore 0/2 + 2nd lore 0/2
+(<code>study</code> at the Academy — free, and the only source: the barbarian hall cannot teach
+appraisal/scholarship). ~370 silver closes everything; field exp then feeds each worn lane at boost ×20.
 </p>
 
 <h2>The remaining blocker buckets</h2>
 <table>
   <tr><th>Bucket</th><th>Gap to circle 2</th><th>Root cause</th></tr>
-  <tr><td><b>Kill rate / spawn availability</b></td><td>exp-ranks accrue only from kills; ~24/h leaves the gate unmet in 15m</td><td>Creatures respawn every 25s but an anti-camp throttle pushes respawns to +120s once a room sees ≥14 respawns in 5 min. Six concurrent agents sharing a few arenas starves spawns; <code>DR_SPAWN_MULT</code> scales both density and the threshold for sweep windows.</td></tr>
-  <tr><td><b>Navigation (bazaar stall)</b></td><td>agents park at <code>room bazaar</code> for the whole run, 0 progress</td><td>Town-strand breaker fires but agents re-drift back. Origin-gated arrival routes and the bazaar <code>ife</code> guard are insufficient — need a real escape + regen that holds.</td></tr>
-  <tr><td>Circling loop (kaizen)</td><td>built — drain + re-attempt <code>circle</code> in one hall visit</td><td>Verified engaging (186 ranks / analyze-expertise in zrmn). Not yet producing a circle-up because the two buckets above starve it.</td></tr>
-  <tr><td>Readiness gate</td><td>still timer-driven (mindstate), not expRanks</td><td>The kaizen's drain-on-shortfall covers most of this, but the gate itself never reads <code>expRanks</code>, so hall trips are timer-driven, not intelligence-driven.</td></tr>
+  <tr><td><b>Silver income</b></td><td>~370s needed, purse ~22; hunting yields ~1.7/min</td><td>Every hall trip spent 8 × 40–60s lines on guild-trainer drills — including rank-163 evasion pointed at a rank-8 need — so the kit buys never fired. Skins now sell (half value), but the crier quests (70–75s per kill-quest, 8 steps from the sewers) were never once used in 600+ runs.</td></tr>
+  <tr><td><b>Exp imbalance (Sean, 2026-09-04)</b></td><td>passives drown the gate rows</td><td>evasion 163 vs need 6, fitness 159 vs 8 — passives gain on every combat tick at full rate forever, while weapon-breadth/armor/lore rows need deliberate, costly action. Teaching bands only care about the creature's band, so high-rank lanes never back off. Game-side fix candidate: scale teaching with the requirement's rank, not the creature's.</td></tr>
+  <tr><td>Purchasable lanes (mechanism)</td><td>built — gear-ledger standard <code>climbFinish</code></td><td>First consumer of the new declarative kit emitter: teachable filter + hall-train cap + Academy study detour + worn-gated, live-priced buys. In flight (r3).</td></tr>
+  <tr><td>Lore (appraisal/scholarship)</td><td>0/2 both — structural until now</td><td>Hall cannot teach either (<code>train appraisal</code> = refusal prose at 40–60s a line). <code>study</code> at the Academy/temple grants both per read, RT 4, zero silver. Generated scripts never routed there once in the project's history — the <code>finishKit</code> detour is the first path.</td></tr>
 </table>
 
-<h2>Spawn availability — the now-dominant wall</h2>
+<h2>Spawn availability — solved this arc</h2>
 <p>
-This is the lever that actually gates circle-2 time. The mechanism, measured in <code>server/game.js</code>:
+The <code>zrmn</code>-era starvation is gone for sweep windows: <code>DR_SPAWN_MULT</code> (the
+test-only agent boost, ×20 in this arc) scales density and the anti-camp threshold together, and the
+occupancy ladder spreads agents. Measured pace: <b>49 kills/h</b> (p1, dibo), 40–44/h typical healthy.
+The throttle still exists and still matters for crowded live worlds — but it is no longer the sim's
+binding constraint. Kill-rate work is parked; survival/lore/silver are the current front (Sean's
+prioritization call, validated by the numbers: all four survival lanes closed mid-leg once scheduled,
+~2–3 minutes of roundtime each).
 </p>
-<ul>
-  <li>Respawn tick every <code>25s</code>; a dead creature returns in 25s normally.</li>
-  <li><strong>Anti-camp throttle:</strong> a room with <strong>≥14 respawns in a 5-min rolling window</strong> pushes the next respawn to <strong>+120s</strong> and emits "the hunting here has grown thin".</li>
-  <li>Quiet world has plenty (a probe saw a rat + silverfish present every look for 2 min). Starvation only appears when many agents share few rooms — exactly the crowded-world mode.</li>
-  <li>The throttle bites even a <em>lone fast</em> hunter: boost ×20 kills faster than 1/21s, so camping one room self-throttles.</li>
-</ul>
+
+<h2>Lock-driven training — weapon, armour, and the climb <span class="pill done">working</span></h2>
 <p>
-<strong>Implication:</strong> in a clean one-agent-per-arena run, spawn availability is <em>not</em> the
-limiter — kill rate is. The <code>zrmn</code> run kept agents in distinct arenas yet still hit 24/h, which
-means the bound is the per-agent hunt cadence + how many creatures a room holds, not contention. The fix
-is arena spread (already done) plus raising per-room creature density for sweeps (<code>DR_SPAWN_MULT</code>).
+Real players watch mind state and move off a locked skill. The scripts now do the same three things,
+each measured as its own kaizen change. The sensing is free: <code>put exp</code> already fires at the
+per-kill checkpoint and prints every skill with its lock word (<code>mind lock</code>), so the generated
+script branches on reply prose — no new plumbing, no side channels.
+</p>
+<div class="callout">
+  <b>2026-09-04 update:</b> the table below predates this arc. What it calls "remaining structural zeros"
+  is now solved differently: 4th survival closed via the standing survival interleave (not a kit change),
+  both lores via the Academy <code>study</code> detour (not hall silver), 4th weapon + armor rows via the
+  gear-ledger kit emitter. The <em>mechanisms</em> below (rotation, trip, worn-armor training, teaching
+  bands) all still hold — the wiring around them changed. Kept for the reasoning trail.
+</div>
+<table>
+  <tr><th>Loop</th><th>Lock signal → action</th><th>Status</th></tr>
+  <tr><td><b>Weapon rotation</b></td><td>Each kill feeds whichever weapon is wielded, so lanes take turns instead of one lane starving the Nth slots. Rotation is kill-count driven (<code>rotateEvery</code>); the exp sheet (<code>expRanks</code>, authoritative over mindstate) retargets hall training to the exact Nth slot that counts.</td><td><span class="pill done">working</span></td></tr>
+  <tr><td><b>Tactics (trip)</b></td><td>Tactics sat at a structural 0/2: its only exp source is combat maneuvers, which no loop fired. A trailing <code>put trip</code> (brawling-based, no shield needed, stamina-gated, no roundtime, +12 exp even on failure) closed it to 3/2 in the <code>trip</code> run with kill pace intact (28–40/h).</td><td><span class="pill done">working</span></td></tr>
+  <tr><td><b>Armour (shield)</b></td><td>Worn armour trains on every landed blow, per piece — so a second worn category opens the 2nd-armour slot. The <code>shieldLadder</code> A/B closed 2nd armour 0/2 → 10/2 via a worn wooden shield. Trade found: shield-first spending starved weapon lanes (3rd weapon 12/4 → 0/4, tactics 3/2 → 1/2) — the cheap-kit ordering (<code>shieldLadderFocus</code>) is the queued answer.</td><td><span class="metric-warn">works, with a cost</span></td></tr>
+  <tr><td><b>Lore (appraise) — superseded</b></td><td><code>put appraise</code> banks +4 appraisal even on failure, but costs 4s roundtime per fight. The <code>lore</code> run moved appraisal to rank 1 only while kill pace fell a third (20–24/h vs 28–40/h). Reverted; superseded 2026-09-04: the free <code>study</code> verb at the Academy grants appraisal AND scholarship per read (RT 4, zero silver, no fight cost) and the <code>finishKit</code> detour routes hall trips through it. Both lore rows (0/2 ×2) finally have a source.</td><td><span class="pill now">detour in flight</span></td></tr>
+  <tr><td><b>The climb (rank-aware arena)</b></td><td>Creature exp collapses past a spawn's teaches-high (floor 0.15) — rats teach ranks 0–6, so a rank-12 lane farming sewers earns nearly nothing. The picker chose rooms by <em>circle</em>, pinning high-rank agents in beginner rooms. The <code>climb</code> variant picks the nearest room that still teaches the best weapon lane at full rate and orders the occupancy ladder by teaching headroom first, distance second; the circle safety gate is unchanged. v2 caps overrides to walks of ≤8 moves (v1 death-looped on a 17-move trek). Expect nothing at low ranks, a growing gap past ~rank 7.</td><td><span class="pill now">v2 measuring</span></td></tr>
+</table>
+<p>
+Net of this arc: tactics closed, 2nd armour closable at a known weapon-breadth price, lore routed to the hall,
+and the circle-20 wall (teaching bands) has a mechanism aimed at it. Remaining structural zeros for circle 2:
+4th weapon (kit lane), 3rd/4th survival, both lores via hall silver.
 </p>
 
 <h2>Long-term goals</h2>
 <h3>Near term — first circle-up <span class="pill now">active focus</span></h3>
 <ul>
-  <li><strong>Land circle 2 with the kaizen.</strong> Logic is built and engaging; the remaining work is upstream — kill rate and nav. Every run graded by shortfall-closure rate so variants stay comparable without the event.</li>
-  <li><strong>Kill-rate to 50/h:</strong> arena spread (done) + <code>DR_SPAWN_MULT</code> density for sweep windows + tighter RT idle in the fight loop.</li>
-  <li><strong>Kill the bazaar stall:</strong> make the origin-gated arrival + bazaar guard actually hold — agents must not re-drift once re-pathed.</li>
-  <li>Get the readiness gate to read <code>expRanks</code> so hall trips are intelligence-driven, not timer-driven.</li>
+  <li><strong>Close the last 10 ranks (vltm):</strong> the <code>climbFinish</code> leg is running — teachable-filtered hall training, Academy study detour for both lore rows, gear-ledger kit buys (club/padded cloth/iron helm). Then resume legs accumulate silver until the buys fire.</li>
+  <li><strong>Silver engine — the crier quests:</strong> 70–75s per kill-quest (rats already the target), ~30 silver/min vs hunting's ~1.7/min, plus appraisal exp per claim. One generator block, never once used in 600+ runs. Measured candidate for the 6-minute finish (Sean's target).</li>
+  <li><strong>Gear-ledger script standard (built 2026-09-04):</strong> every purchasable piece is one declarative row (<code>gearLedger</code> in data/guild-scripts.js) priced from <code>ITEMS[id].value</code> at generation time — no hardcoded prices (the old blocks had already drifted: sleeves gated at 60 vs value 45), no copy-paste blocks per guild. Circle-3+ becomes data-only.</li>
+  <li><strong>Exp-imbalance audit (Sean's call):</strong> map each lane's exp income vs its circle need; propose the smallest teaching-band change (passives should back off ~2× past their need). Evasion 163 vs need 6 is the poster child.</li>
 </ul>
 
 <h3>Mid term — efficient circling machine</h3>
@@ -142,13 +167,23 @@ is arena spread (already done) plus raising per-room creature density for sweeps
   <tr><td>Nav fixes (parallel session, this arc)</td><td>Hub-gated ladder legs, origin-gated arrival (<code>fromHereOrigin</code>), bazaar guard (<code>ife room bazaar</code>), arrival regen <code>onDone</code>, town-strand breaker (45s idle → re-path).</td><td class="metric-warn">breaker fires, but 3/6 agents still wedged at bazaar in zrmn — insufficient, needs to hold</td></tr>
   <tr><td><b>Circling kaizen (this arc)</b></td><td><code>buildCircleScript</code>: after draining the TDP curriculum once, <code>goto CIRCLE_AGAIN</code> re-attempts <code>circle</code> immediately — closes the 505-banked-TDP / shortfall-35 failure mode.</td><td class="metric-good">VERIFIED engaging: barb/human zrmn drained 186 ranks at hall, analyze-expertise fired. Not yet a circle-up — upstream kill-rate + nav walls.</td></tr>
   <tr><td><code>zrmn</code> run</td><td>6 agents · 15 min · boost ×20 · arena spread. First measurement of the kaizen in a group.</td><td class="metric-warn">0 circle-ups. barb/human only healthy (24/h); 3/6 wedged at bazaar. Confirms kill-rate + nav are the walls, not the circling logic.</td></tr>
+  <tr><td><code>trip</code> run (utoa)</td><td>Trailing <code>put trip</code> in the fight loop + <code>trip|disarm|bash</code> in the fidelity allowlist (same commit).</td><td class="metric-good">Tactics 0/2 → 3/2 (human). 28–40/h, 0 deaths, ranks 163–180. Structural zero closed at no pace cost.</td></tr>
+  <tr><td><code>shieldab</code> A/B (mprg)</td><td><code>baseline</code> vs <code>shieldLadder</code>, 15m single-worker legs, boost ×20, both with trip.</td><td class="metric-warn">Shield closes 2nd armour 0/2 → 10/2 but reopens weapons: 3rd weapon 12/4 → 0/4, tactics 3/2 → 1/2 (fewer kills: 8 vs 10). Queued answer: cheap-kit ordering (<code>shieldLadderFocus</code>).</td></tr>
+  <tr><td><code>lore</code> run (pwxx)</td><td>Trailing <code>put appraise</code> + allowlist, same trip-test pattern (generator assert + expPools proof).</td><td class="metric-warn">MISS — appraisal reached rank 1 only; kill pace fell a third (20–24/h). Reverted same session; lore routes to hall training.</td></tr>
+  <tr><td><code>climb</code> variant</td><td>Rank-aware arena pick + headroom-ordered ladder (teaching bands); one-knob diff on the shielded kit.</td><td>v1 MISS — 17-move trek for headroom 5 death-looped ×10 (1 kill, 6/h). v2 (8-move cap): 9 kills, 36/h, healthy, 1 death, weapons 1–3 met. Flaw found: overrides fire even at rank 0 when everything teaches — v3 gates on need (nearest headroom &lt; ~5).</td></tr>
+  <tr><td><b>muse-c20 arc (2026-09-04): RT fix</b> (server/commands/combat.js)</td><td>Refused abilities charged full roundtime — "the rage already burns in you" pinned RT 3s, cascading refusal into trip/skin/forage every fight cycle. One line: <code>if (res.ok) setRoundtime(...)</code>.</td><td class="metric-good">refused verbs no longer charge RT; the whole post-kill verb chain unblocked</td></tr>
+  <tr><td><b>corpse-jump skinning</b> (script-gen, commits 8d0f92c+40c40c5)</td><td>Skin fired before the corpse existed; the only reliable window is the kill prose itself. Fight body registers <code>matchre SKINME corpse slumps</code> BEFORE the gone-matchers; triple-fire beats the kill-blow RT (attempt 3 parks and lands).</td><td class="metric-good">skinning 0 (project-wide, every run ever) → 15 in one leg; 15/25 skins landed (p10)</td></tr>
+  <tr><td><b>survival-first standing interleave</b></td><td>Burst-on-arrival fired once (16 sends vs 700+ combat). Redesigned per Sean: a survival verb before every target check in the SCAN loop, out-of-combat gated, supervisor valve auto-disarms when the lanes close; 75s kill-activity watchdog guard.</td><td class="metric-good">all four survival slots closed mid-leg (p10): 1st 13, 2nd 10, 3rd 5, 4th 3/2; foraging 14, first_aid 10</td></tr>
+  <tr><td><b><code>--resume &lt;char&gt;</code></b></td><td>Every 45-min leg threw away a near-circle-2 character — the 602-run history's biggest structural waste. Resume re-enters via the existing <code>doCharSelect</code> path with ranks/kits/silver intact.</td><td class="metric-good">r1: shortfall HELD at 10, ranks 530→814, 0 deaths; r2: ranks→1136. Legs now compound.</td></tr>
+  <tr><td><b><code>climbFinish</code> + gear-ledger standard</b> (this arc)</td><td>Shortfall pinned at 10 with 5 purchasable/study rows while the purse leaked into rank-163 evasion drills and worn-gear re-buys. New standard: <code>gearLedger</code> rows priced from ITEMS at generation time; teachable-only hall training (cap 4); Academy <code>study</code> detour for both lore rows; worn-gated, purse-gated kit emitter.</td><td class="metric-warn">in flight (r3) — kit emitter + study detour verified in generated output; awaiting the first hall trip to fire in a live leg</td></tr>
+  <tr><td><b>Crier-quest silver loop</b> (measured, not yet built)</td><td>Kill-quests pay 70–75s (rats = the agent's existing target), 8 steps from the sewers; hunting income is ~1.7/min vs ~30/min via quests; deliver/recover quests also bank appraisal exp (lore!).</td><td>queued as the final kaizen — the 6-minute finish depends on it</td></tr>
 </table>
 
 <h2>Open risks &amp; honest caveats</h2>
 <ul>
-  <li><strong>No circle-up has ever happened</strong> — the grade ladder and all pacing projections remain unvalidated against the actual event. Best recorded circle-2 is still the pre-kaizen 32.9 min.</li>
-  <li><strong>Navigation still regresses:</strong> the town-strand breaker + bazaar guard fire but don't hold — half the agents end wedged at the bazaar. This is now the dominant non-spawn blocker.</li>
-  <li><strong>Kill rate is the ceiling:</strong> boost ×20 already maxes per-kill exp; 24/h in zrmn means the exp-rank gate can't close in a 15-min window. Per-room creature density (<code>DR_SPAWN_MULT</code>) is the only lever left.</li>
+  <li><strong>No circle-up has ever happened</strong> — the grade ladder and all pacing projections remain unvalidated against the actual event. Best recorded circle-2 is still the pre-kaizen 32.9 min. Shortfall 10 is the closest approach ever (88.1% of the gate).</li>
+  <li><strong>Exp imbalance is the new structural risk (Sean, 2026-09-04):</strong> passives (evasion 163, fitness 159) gain at full rate forever while the gate rows need deliberate action. If the teaching-band audit doesn't land, every future circle pays a widening junk-rank tax — total ranks are no longer a proxy for progress (1371 ranks vs 88% gated).</li>
+  <li><strong>Silver math is thin:</strong> ~370s needed, resume legs bank ~30–90s each after kit spends. The crier-quest loop (~30/min, never used in 600+ runs) is unproven live; skin sales (~4/pelt) plus kill coins currently lose to kit costs on any leg with a death.</li>
   <li><strong>Run variance is wide</strong> (kills/hour spread ~2×) with few repeats; medians are thin. Kaizen A/Bs use one-variable changes for exactly this reason.</li>
   <li><strong>Measurement has repeatedly lied to us</strong> — truncated fidelity logs, mindstate omissions, latched wedge detectors. The DB + harness probes are ground truth; grep counts alone are not. Catalogued in <a href="/sim-architecture.html">sim architecture §7</a>.</li>
 </ul>

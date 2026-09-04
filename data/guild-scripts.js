@@ -102,6 +102,24 @@ export const GUILD_SCRIPTS = {
     // circling frees slots; extras fail harmlessly with "no free ability
     // slots" / path-requirement prose and fall through.
     learnAbilities: ['everilds_rage', 'dragon', 'tenacity', 'wildfire', 'screech'],
+    // GEAR LEDGER (script standard, 2026-09-04): one declarative row per
+    // purchasable piece the generator can emit buys/wears for. Prices are
+    // NEVER written here — buildCircleScript reads ITEMS[id].value, so a
+    // value change in data/items.js re-prices every generated script
+    // automatically (the old hardcoded blocks had already drifted: sleeves
+    // gated at 60 vs value 45). `lane` is the skill category the worn piece
+    // trains; `purpose` maps to circle-requirement rows (Nth weapon lanes,
+    // armor slots, shield); `priority` orders the emitter (cheapest /
+    // most-gating first). Guilds without a ledger just skip kit emission.
+    gearLedger: [
+      { id: 'padded_cloth', purpose: '1st-armor', lane: 'light_armor', priority: 1 },
+      { id: 'helm', purpose: '2nd-armor', lane: 'chain_armor', priority: 2 },
+      { id: 'club', purpose: '4th-weapon', lane: 'blunt', priority: 3 },
+      { id: 'shield_wood', purpose: 'shield', lane: 'shield_usage', priority: 4 },
+      { id: 'leather_sleeves', purpose: 'armor-stack', lane: 'light_armor', priority: 5 },
+      { id: 'leather_boots', purpose: 'armor-stack', lane: 'light_armor', priority: 6 },
+      { id: 'leather_pants', purpose: 'armor-stack', lane: 'light_armor', priority: 7 },
+    ],
     // Free ability slots at a given circle — used by the circle script to
     // learn only what can actually stick. barbarianSlots = 1 + floor(c/2).
     abilitySlots: (circle) => 1 + Math.floor(circle / 2),
@@ -665,6 +683,13 @@ export const VARIANTS = {
     survivalFirst: true,
     diff: ['survivalFirst'],
     hypothesis: 'Sean, 2026-09-04: battle is solved — prioritize survival leveling and measure its time ratio. The generated hunt gains a BURST block (forage x2, hunt, track — unconditional-exp wilds verbs) gated on script var 5; the supervisor arms var 5 while any counted survival Nth slot is open and DISARMS it the moment all close (survivalBurstActive over the authoritative exp sheet). Expected: the burst needs only ~2-3 minutes of roundtime to lift foraging/perception/stealth past the rank-2/4 gates (vs the whole leg starved); kill rate dips only during the burst window. Measures the survival-vs-battle time ratio directly in gapsSamples + [burst] flip timestamps. One knob (survivalFirst) vs climbSkin.',
+  },
+  climbFinish: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, climb: true, survivalRetry: true,
+    finishKit: true, hallTrainCap: 4,
+    diff: ['finishKit', 'hallTrainCap'],
+    hypothesis: 'r1/r2 finding: shortfall pinned at 10 with 5 purchasable/study rows while the purse leaked 40-60s per line into rank-163-evasion "hall training" and re-buys of worn gear. finishKit converts the circle script to the gear-ledger standard: (1) teachable filter — the hall trains ONLY guild-teachable skills, capped at 4 lines, so lore (appraisal/scholarship) and over-trained lanes stop bleeding silver; (2) study detour — the hall→bazaar walk routes through the academy and fires the free `study` verb once per missing lore skill (the only zero-silver path to both 0/2 lore rows, never once used in 610 prior runs); (3) kit emitter — all purchasable pieces (club 112 = 4th weapon, padded cloth 40 + iron helm 120 = armor rows, wooden shield 70, stack pieces) emit from data via the gearLedger with live ITEMS values, worn-gated (the p9 re-buy leak) and purse-gated. Field exp at boost x20 then closes each worn lane in ~2-5 kills. Prediction: vltm (shortfall 10) reaches circle 2 within one 45-min resumed leg.',
   },
   edgedSkinRest50: {
     restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,

@@ -5,7 +5,8 @@
 import { ROOMS } from '../../data/world.js';
 import { creatureById } from '../../data/creatures.js';
 import { GUILD_SCRIPTS } from '../../data/guild-scripts.js';
-import { GUILDS, circleRequirementCandidates } from '../../data/guilds.js';
+import { GUILDS, circleRequirementCandidates, trainableSkills } from '../../data/guilds.js';
+import { ITEMS } from '../../data/items.js';
 
 const nounOf = (spawnId) => (creatureById(spawnId)?.name || spawnId).replace(/^(an?|the)\s+/i, '');
 
@@ -1179,6 +1180,54 @@ function trainListFromMissing(raw, guild, opts = {}) {
   return [...new Set(wanted)];
 }
 
+// GEAR EMITTER (script standard): one function stamps the whole kit's
+// buy/wear blocks from the guild's gearLedger. Replaces the five hand-copied
+// retry blocks (WEAPON_RETRY_*, HELM_RETRY, SHIELD_RETRY, STACKR_*) whose
+// prices were hardcoded into script text and already drifted from
+// data/items.js. Rules:
+//   - cost = ITEMS[id].value at generation time (never a literal)
+//   - `when(cap)` lets a row fire conditionally (e.g. only when a circle
+//     requirement row is actually missing — gap-driven fill)
+//   - wear:true emits a wear line (armor/shield); weapons fall through to
+//     the fight-loop wield logic so buy order never fights the rotation
+//   - labels are derived from the item id, so rows never collide
+const ITEM_VALUES = new Map(Object.entries(ITEMS).map(([id, def]) => [id, def.value]));
+function emitKitBuys(cap, L) {
+  const cfg = GUILD_SCRIPTS[cap.guild];
+  const ledger = (cfg?.gearLedger || []).slice().sort((a, b) => (a.priority || 99) - (b.priority || 99));
+  for (const row of ledger) {
+    if (row.when && !row.when(cap)) continue;
+    const item = ITEMS[row.id];
+    if (!item) continue; // ledger references a vanished item — skip, never crash
+    const noun = item.name.replace(/^(an?|the)\s+/i, '');
+    const tag = row.id.toUpperCase();
+    const cost = ITEM_VALUES.get(row.id) || 0;
+    // Worn-gate pattern: a DISTINCTIVE substring of the worn line, cut from
+    // the noun's TAIL (the p9-style re-buy bug) — "a sturdy oaken club" →
+    // gate on "oaken club"; "a pair of leather sleeves" → "leather sleeves".
+    // The whole-noun match fails whenever the shop noun and inventory label
+    // disagree on the leading article/adjective (they do: "round wooden
+    // shield" vs worn text). Tail substrings survive both wordings.
+    const gateNoun = noun.split(/\s+/).slice(-2).join(' ');
+    L.push(`KIT_${tag}:`);
+    if (cap.finishWear) {
+      // Armor/shield rows: skip when the piece is already worn (the p9 run
+      // re-bought worn padded cloth every trip — pure purse waste).
+      L.push(`  matchre KIT_NEXT_${tag} Worn:[\\s\\S]*${gateNoun}`);
+      L.push('  put inventory');
+      L.push('  matchwait 4');
+    }
+    L.push(`  iflt silver ${cost} KIT_NEXT_${tag}`);
+    L.push(`  put buy ${noun}`);
+    L.push('  wait');
+    if (cap.finishWear && item.type === 'armor') {
+      L.push(`  put wear ${noun}`);
+      L.push('  wait');
+    }
+    L.push(`KIT_NEXT_${tag}:`);
+  }
+}
+
 function buildCircleScript({ cap, fromArena, errands }) {
   const cfg = GUILD_SCRIPTS[cap.guild];
   const L = [];
@@ -1234,7 +1283,25 @@ function buildCircleScript({ cap, fromArena, errands }) {
   L.push('  put tdp');
   L.push('  wait');
   L.push('  pause 1');
-  const curriculum = cap.trainList?.length ? cap.trainList : (cfg.defaultTrain || []);
+  // TEACHABLE FILTER (cap.finishKit): the trainer only teaches guild
+  // primary/secondary(+guild skill). Every non-teachable line in the
+  // curriculum is a 40-60s silver spend on refusal prose (the r2 leg trained
+  // evasion rank 163 to rank 8-need repeatedly while appraisal sat behind a
+  // `train appraisal` the hall cannot honor). finishKit routes non-teachable
+  // skills to their field/study sources instead: lore -> `study` (free,
+  // Academy), everything else just drops (field handles it).
+  let curriculum = cap.trainList?.length ? cap.trainList : (cfg.defaultTrain || []);
+  if (cap.finishKit) {
+    const teachable = new Set(trainableSkills(GUILDS[cap.guild]));
+    const blocked = curriculum.filter((s) => !teachable.has(s));
+    curriculum = curriculum.filter((s) => teachable.has(s));
+    cap.studySkills ||= blocked.filter((s) => cfg.trainSets?.lore?.includes(s));
+    // Cap the hall drain: rank-overfed lanes (evasion 163 vs need 6) waste
+    // the purse that the kit emitter is about to need. Missing-first order
+    // (trainListFromMissing already ranks blockers first) x cap 4 keeps the
+    // visit cheap.
+    curriculum = curriculum.slice(0, cap.hallTrainCap || 8);
+  }
   for (const skill of curriculum.slice(0, 8)) {
     L.push(`  put train ${skill}`);
     L.push('  wait');
@@ -1259,11 +1326,43 @@ function buildCircleScript({ cap, fromArena, errands }) {
   L.push('  matchwait');
   L.push('  goto BACK');
   L.push('BACK:');
+  // STUDY DETOUR (cap.finishKit): lore rows (appraisal/scholarship) cannot be
+  // hall-trained (not guild skills — `train appraisal` at the barbarian hall
+  // is refusal prose at 40-60s a line) but the free `study` verb at the
+  // Academy/temple grants BOTH per read. Legs before r2 never once routed
+  // through there, so the two 0/2 lore rows sat at 0 for the whole c2 push
+  // while the purse went to rank-163 evasion "training". Walk hall ->
+  // study room, read once per missing lore skill, then continue to the
+  // bazaar for errands. `study` has RT 4; the wait handles it.
+  // When no lore skill is missing, the supervisor never sets studySkills
+  // and the detour is skipped entirely (zero cost on clean legs).
+  // ROOM-SAFETY: studyPath only emits when its LAST step actually lands in
+  // the study room (a null/broken disk route must not dump `move undefined`
+  // lines — the bdas lesson). The bazaar walk is re-derived FROM the study
+  // room so the two legs chain; when that continuation is unreachable the
+  // whole detour is skipped (fall back to the plain hall→bazaar walk).
+  const studyGo = cap.finishKit && cap.studySkills?.length && errands?.studyPath?.length
+    && errands.studyRoom && errands.studyPath[errands.studyPath.length - 1]?.to === errands.studyRoom
+    && (cap.studyToBazaar = errands.studyToBazaar?.length ? errands.studyToBazaar : null);
+  if (studyGo) {
+    L.push(...moves(errands.studyPath));
+    L.push(`  ifne room ${errands.studyRoom} goto STUDY_DONE`);
+    for (const _s of cap.studySkills) {
+      L.push('  put study');
+      L.push('  wait');
+      L.push('  pause 1');
+    }
+    L.push('STUDY_DONE:');
+  }
   // Town errands: sell loot + bundle leftovers on the way home —
   // skins fund the weapon ladder (club → short sword → cavalry_sabre).
   let returnedViaErrands = false;
-  if (errands?.bazaarPath?.length) {
+  if (!studyGo && errands?.bazaarPath?.length) {
     L.push(...moves(errands.bazaarPath));
+  } else if (studyGo && cap.studyToBazaar) {
+    L.push(...moves(cap.studyToBazaar));
+  }
+  if (errands?.bazaarPath?.length || (studyGo && cap.studyToBazaar)) {
     // ROOM GATE: sell/bundle only where a shopkeeper actually stands.
     // Fallback hall trips and watchdog regenerations can fire this script
     // from anywhere (sewers_2, transit rooms); the nav moves get refused,
@@ -1386,6 +1485,21 @@ function buildCircleScript({ cap, fromArena, errands }) {
       L.push('  wait');
       L.push('  put wear wooden shield');
       L.push('  wait');
+    }
+    // KIT EMITTER (cap.finishKit — the script standard's first consumer):
+    // the whole purchasable kit (4th lane + armor stack + shield) stamps out
+    // of the guild's gearLedger with live ITEMS values, worn-gated and
+    // purse-gated. Replaces the five hand-copied blocks below when on;
+    // legacy blocks stay for older variants until each is migrated.
+    if (cap.finishKit) {
+      emitKitBuys(cap, L);
+      L.push('ERRAND_DONE:');
+      L.push('ERRAND_SKIPPED:');
+      if (errands.returnPath?.length) {
+        L.push(...moves(errands.returnPath));
+        returnedViaErrands = true;
+      }
+      return L.join('\n');
     }
     // ARMOR STACK retry (cap.armorStack): same economics as helmRetry — the
     // fresh-purse first visit can't afford the stack; hall trips pass here

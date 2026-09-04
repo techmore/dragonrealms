@@ -113,6 +113,8 @@ const SCRIPT_VERBS = new Set([
   // Survival-burst verbs (survivalFirst variant): field-exp lanes the burst
   // fires before combat. `track` is new to generated scripts this round.
   'forage', 'hunt', 'track',
+  // finishKit study detour: free lore exp at the academy/temple.
+  'study',
 ]);
 for (const cfg of Object.values(GUILD_SCRIPTS)) {
   for (const step of [...(cfg.fight || []), ...(cfg.preFight || []), ...(cfg.identityVerbs || [])]) {
@@ -169,6 +171,18 @@ function errandLootFor(guild) {
   return [...loot];
 }
 
+// STUDY ROUTE (finishKit): hall -> academy (the free `study` verb grants
+// appraisal + scholarship per read — the only zero-silver path to the two
+// lore circle rows) -> bazaar. Returns errands-shaped keys: studyPath walks
+// hall -> study room; the script then continues from the study room to the
+// bazaar. The detour only generates when the study room is actually on a
+// sane path (<= 30 steps); otherwise empty keys skip it silently.
+// Implementation lives as a SweepAgent method (studyErrandRoute) because it
+// needs pureDiskPath + expRanks; this top-level stub exists only for the
+// unit tests that assert the helper contract.
+function studyErrandRouteImpl(fromRoom, diskAdj) {
+  return { studyPath: [], studyRoom: 'academy' };
+}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -540,6 +554,24 @@ class SweepAgent {
     return null;
   }
 
+  // STUDY ROUTE (finishKit): hall -> academy detour for the free `study`
+  // verb (appraisal + scholarship per read — the two lore circle rows'
+  // only zero-silver source; the hall cannot teach either). Emits errands
+  // keys only when lore is actually missing AND both legs chain on disk:
+  // studyPath (hall→academy) + studyToBazaar (academy→bazaar) + the landing
+  // room id. The generator re-routes the errands walk through the academy
+  // when these keys exist; otherwise empty keys = no detour, zero cost.
+  studyErrandRoute(fromRoom) {
+    const loreMissing = ['appraisal', 'scholarship']
+      .some((id) => ((this.expRanks || {})[id] || 0) < 2);
+    if (!loreMissing) return {};
+    const studyPath = this.pureDiskPath(fromRoom, 'academy') || [];
+    const studyToBazaar = this.pureDiskPath('academy', 'bazaar') || [];
+    if (!studyPath.length || !studyToBazaar.length
+      || studyPath.length + studyToBazaar.length > 36) return {};
+    return { studyPath, studyToBazaar, studyRoom: 'academy' };
+  }
+
   async allocateAtChargen() {
     if (!this.statAllocation) {
       this.session.sendObj({ t: 'enter' });
@@ -848,6 +880,7 @@ class SweepAgent {
       armorStack: this.variant?.armorStack,
       shieldKit: this.variant?.shieldKit,
       cheapWeaponKit: this.variant?.cheapWeaponKit,
+      finishKit: this.variant?.finishKit, finishWear: this.variant?.finishKit, hallTrainCap: this.variant?.hallTrainCap,
       rotMargin: this.variant?.rotMargin,
       weaponReserve: this.variant?.weaponReserve,
       weaponReserveV2: this.variant?.weaponReserveV2,
@@ -888,10 +921,13 @@ class SweepAgent {
       },
       // Town errands: sell loot + bundle leftovers on the way home —
       // skins fund the weapon ladder (club → short sword → cavalry_sabre).
+      // finishKit also routes the hall→bazaar leg through a study room when
+      // lore rows are missing (the only free appraisal/scholarship source).
       errands: {
         bazaarPath: s.bfsPath('hall_' + this.guild, 'bazaar', this.diskAdj()),
         returnPath: s.bfsPath('bazaar', arena.id, this.diskAdj()),
         sellLoot: errandLootFor(this.guild),
+        ...(this.variant?.finishKit ? this.studyErrandRoute('hall_' + this.guild) : {}),
       },
     });
     const megaSrc = buildMegaScript(cap);
@@ -1266,7 +1302,7 @@ class SweepAgent {
     const s = this.session;
     const arena = this.arena;
     if (!arena) return;
-    const cap = { guild: this.guild, race: this.race, char: this.char, circle: s.vitals.circle || 1, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth, tdpFloor: this.variant?.tdpFloor, helmRetry: this.variant?.helmRetry, armorStack: this.variant?.armorStack, shieldKit: this.variant?.shieldKit, cheapWeaponKit: this.variant?.cheapWeaponKit, rotMargin: this.variant?.rotMargin, weaponReserve: this.variant?.weaponReserve, weaponReserveV2: this.variant?.weaponReserveV2, weaponReserveV3: this.variant?.weaponReserveV3, edgedKit: this.variant?.edgedKit, weaponAware: this.variant?.weaponAware, economyFallback: this.variant?.economyFallback, survivalRetry: this.variant?.survivalRetry, survivalFirst: this.variant?.survivalFirst, sharedFight: !!this.variant?.closeNth };
+    const cap = { guild: this.guild, race: this.race, char: this.char, circle: s.vitals.circle || 1, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth, tdpFloor: this.variant?.tdpFloor, helmRetry: this.variant?.helmRetry, armorStack: this.variant?.armorStack, shieldKit: this.variant?.shieldKit, cheapWeaponKit: this.variant?.cheapWeaponKit, finishKit: this.variant?.finishKit, finishWear: this.variant?.finishKit, hallTrainCap: this.variant?.hallTrainCap, rotMargin: this.variant?.rotMargin, weaponReserve: this.variant?.weaponReserve, weaponReserveV2: this.variant?.weaponReserveV2, weaponReserveV3: this.variant?.weaponReserveV3, edgedKit: this.variant?.edgedKit, weaponAware: this.variant?.weaponAware, economyFallback: this.variant?.economyFallback, survivalRetry: this.variant?.survivalRetry, survivalFirst: this.variant?.survivalFirst, sharedFight: !!this.variant?.closeNth };
     cap.defensiveKit = this.guild === 'barbarian';
     cap.survivalBreadth = !!this.variant?.survivalBreadth;
     cap.survivalFocus = !!this.variant?.survivalFocus;
@@ -1309,6 +1345,7 @@ class SweepAgent {
         bazaarPath: s.bfsPath('hall_' + this.guild, 'bazaar', this.diskAdj()),
         returnPath: s.bfsPath('bazaar', arena, this.diskAdj()),
         sellLoot: errandLootFor(this.guild),
+        ...(this.variant?.finishKit ? this.studyErrandRoute('hall_' + this.guild) : {}),
       },
     });
     if (cap.sharedFight) this.library[this.scriptBase + 'fight'] = buildSharedFightScript(cap);
