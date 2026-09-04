@@ -31,7 +31,8 @@ const guildNames = {
 };
 const MATRIX_CIRCLE = 10;
 const bandRows = Object.entries(tables).map(([gid, rows]) => {
-  const parts = rows.map((r) => {
+  // Circle-10 matrix: rank-0 rows gate only past circle 10, so they sit out.
+  const parts = rows.filter((r) => r.rank > 0).map((r) => {
     const requiredRank = r.rank * MATRIX_CIRCLE;
     return r.skill
       ? `${r.skill} ${requiredRank}${r.hard ? '*' : ''}`

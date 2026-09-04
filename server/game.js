@@ -21,6 +21,7 @@ import { economy } from './economy.js';
 import { wilds } from './wilds.js';
 import { quests } from './quests.js';
 import { status as statusView } from './status.js';
+import * as justice from './justice.js';
 import * as pvp from './pvp.js';
 import * as weather from './weather.js';
 import * as corpses from './corpses.js';
@@ -322,19 +323,8 @@ export class Game {
     if (p.room === 'jail') {
       const left = this.timeLeftInJail(p);
       if (left > 0) return { ok: false, msg: `The cell door is barred. ${left}s until your sentence is served (or "plead guilty").` };
-      // The judge's verdict: costs deducted on release (heat-scaled fine,
-      // harsher in strict zones). Unpaid costs become town debt.
-      const heat = p.crimeHeat || 0;
-      const zoneMult = this.justiceZone(p) === 'strict' ? 1.5 : 1;
-      const fine = Math.round((5 + heat * 5) * zoneMult);
-      const paid = Math.min(p.silver, fine);
-      p.silver -= paid;
-      if (paid < fine) p.debt = (p.debt || 0) + (fine - paid);
-      const hadWarrant = Boolean(p.warrant);
-      p.jailUntil = 0;
-      p.crimeHeat = 0;
-      p.warrant = null;
-      say(p, `The judge's verdict is read: ${fine} silvers in town costs. You pay ${paid}${paid < fine ? ` — the remaining ${fine - paid} silvers stand as town debt` : ''} and the cell door opens.${hadWarrant ? ' Your warrant is cleared.' : ''}`);
+      // The judge's verdict: costs deducted on release (see server/justice.js).
+      justice.releaseFromJail(this, p);
     }
     this.stopRest(p);
     p.hidden = false;
@@ -420,62 +410,15 @@ export class Game {
     return { ok: true, msg: `You attack ${target.name}!` };
   }
 
-  // A killing in town sets the law against you.
-  chargeMurder(p) {
-    p.warrant = { charge: 'murder', issuedAt: Date.now() };
-    p.pvpStance = 'open';
-    say(p, `\n\x1b[1mMURDER!\x1b[0m The Crossing has issued a WARRANT for your arrest. Guards will seize you on sight. "recall warrant" to read it, or "surrender" to turn yourself in.`);
-    this.persistPlayer(p);
-  }
-
-  // A wanted player who walks past a guard is taken. Debtors are garnished.
-  pursueWarrant(p) {
-    if (this.guardInRoom(p)) {
-      const debt = p.debt || 0;
-      if (!p.warrant && debt > 0) {
-        const take = Math.min(p.silver, Math.ceil(debt * 0.25));
-        if (take > 0) {
-          p.silver -= take;
-          p.debt = debt - take;
-          say(p, `A guard eyes you at the guardhouse ledger. "You still owe the town ${p.debt} silvers." He takes ${take} from your purse toward it.`);
-          this.persistPlayer(p);
-        }
-      }
-    }
-    if (!p.warrant || !this.guardInRoom(p)) return;
-    this.seizeWanted(p);
-  }
-
-  // The actual arrest: fine, cell, warrant stands until the plea.
-  seizeWanted(p) {
-    if (!p.warrant) return; // debtor walk-by: garnish only, no arrest
-    p.silver = Math.max(0, p.silver - Math.floor(p.silver * 0.3));
-    p.jailUntil = Date.now() + 120 * 1000;
-    p.room = 'jail';
-    p.hidden = false;
-    p.combatId = null;
-    const combat = this.combat.getFor(p);
-    if (combat) this.combat.disconnect(p);
-    say(p, `\nA guard claps a hand on your shoulder. "${p.warrant.charge.toUpperCase()} — the warrant is read, the cell is ready."\nYou are dragged to the Town Cells, lighter by a third of your purse.`);
-    this.look(p);
-    this.status(p);
-    this.persistPlayer(p);
-  }
-
-  surrenderToGuards(p) {
-    if (!p.warrant) return { ok: false, msg: 'You have no warrant outstanding.' };
-    const guards = this.guardInRoom(p);
-    p.room = 'jail';
-    p.jailUntil = Date.now() + 120 * 1000;
-    p.hidden = false;
-    const combat = this.combat.getFor(p);
-    if (combat) this.combat.disconnect(p);
-    say(p, `\nYou raise your hands. A guard steps forward and reads the warrant — ${p.warrant.charge.toUpperCase()}. "Turned yourself in, eh? The judge will hear you soon enough."\nYou are taken to the Town Cells.`);
-    this.look(p);
-    this.status(p);
-    this.persistPlayer(p);
-    return { ok: true, msg: 'You surrender to the law.' };
-  }
+  // ---------- Justice (delegates to server/justice.js) ----------
+  chargeMurder(p) { justice.chargeMurder(this, p); }
+  pursueWarrant(p) { justice.pursueWarrant(this, p); }
+  seizeWanted(p) { justice.seizeWanted(this, p); }
+  surrenderToGuards(p) { return justice.surrenderToGuards(this, p); }
+  arrest(p) { justice.arrest(this, p); }
+  guardInRoom(p) { return justice.guardInRoom(this, p); }
+  justiceZone(p) { return justice.justiceZone(this, p); }
+  timeLeftInJail(p) { return justice.timeLeftInJail(this, p); }
 
   defenderDefeated(defender, winner) {
     for (const s of Object.values(defender.skills)) {
@@ -548,45 +491,6 @@ export class Game {
 
     // Room messages carry structured exits/contents for the client panels.
     sayRaw(p, { t: 'room', msg: out, exits, roomId: p.room, contents });
-  }
-
-  // ---------- Justice ----------
-  guardInRoom(p) {
-    const room = roomById(p.room);
-    return Boolean(room && room.npcs && room.npcs.includes('guard'));
-  }
-
-  // Justice zones (DR-flavored, compressed): lawless wilds have no law to
-  // break; the Guild District judges harshly; everywhere settled is standard.
-  justiceZone(p) {
-    const room = roomById(p.room);
-    if (!room) return 'none';
-    if (this.isWild(room.id)) return 'none';
-    if (room.zone !== 'town' && room.zone !== 'riverhaven') return 'none';
-    if (room.id === 'guild_district') return 'strict';
-    return 'standard';
-  }
-
-  // A guard spots the theft: jail, confiscation, and a pending plea.
-  arrest(p) {
-    const taken = Math.floor(p.silver * 0.25);
-    p.silver -= taken;
-    p.crimeHeat = 0;
-    p.jailUntil = Date.now() + 90 * 1000;
-    p.room = 'jail';
-    p.hidden = false;
-    p.combatId = null;
-    const combat = this.combat.getFor(p);
-    if (combat) this.combat.disconnect(p);
-    say(p, `\nA guard seizes your arm! "Caught red-handed, thief."\nYou are dragged to the Town Cells. ${taken} silvers are confiscated.\nType "plead guilty" to pay your fine, or "plead innocent" to wait for the judge.`);
-    this.look(p);
-    this.status(p);
-    this.persistPlayer(p);
-  }
-
-  timeLeftInJail(p) {
-    if (!p.jailUntil) return 0;
-    return Math.max(0, Math.ceil((p.jailUntil - Date.now()) / 1000));
   }
 
   // ---------- Domain delegates (economy / wilds / quests / status) ----------

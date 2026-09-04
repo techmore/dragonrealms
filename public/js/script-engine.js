@@ -183,13 +183,17 @@ export function createRunner(src, args = [], io = {}) {
         // vars: cycle restarts recreate the runner and wipe every variable,
         // so any stored flip is wrong exactly when a new cycle begins.
         const sp = rest.split(/\s+/);
-        // %room falls back to the harness's ground-truth room callback when
-        // the [ROOM:...] token hasn't been injected yet (inject cadence lags
-        // the script's first room gate) — without this, every room gate
-        // mis-branches on an undefined var and agents strand where they stand
-        // (run4: 21 agents, 0 move commands, all wedged at the bazaar).
-        const val = sp[0] === 'room' && vars.room === undefined && io.roomNow
-          ? String(io.roomNow() ?? '')
+        // %room prefers the harness's ground-truth room callback when present.
+        // The token fallback matters only for engines without a callback.
+        // STALE-TOKEN FIX (r4): the sim harness injects [ROOM:...] with every
+        // prompt heartbeat, so vars.room used to hold the room from the LAST
+        // prompt — a walk to the bazaar left vars.room = the hall until the
+        // next heartbeat, and every `ifne room bazaar` gate mis-skipped the
+        // errands/kit/study blocks on exactly the trips that needed them.
+        // roomNow() is by definition the live room, so it wins whenever the
+        // harness provides it.
+        const val = sp[0] === 'room' && io.roomNow
+          ? String(io.roomNow() ?? vars.room ?? '')
           : String(vars[sp[0]] ?? '');
         const ref = sp[1] || '';
         const hit = cmd === 'ife' ? val === ref : val !== ref;

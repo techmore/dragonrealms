@@ -296,48 +296,64 @@ const CIRCLE_TABLES = {
     { nth: 1, set: 'lore', rank: 1, inc1130: 1 }, { nth: 2, set: 'lore', rank: 1, inc1130: 1 },
   ],
   bard: [
-    { nth: 1, set: 'armor', rank: 2 },
-    { skill: 'parry', rank: 2, hard: true },
-    { nth: 1, set: 'weapon', rank: 3 }, { nth: 2, set: 'weapon', rank: 2 },
-    { skill: 'performance', rank: 4, hard: true },
-    { skill: 'tactics', rank: 2 },
-    { nth: 1, set: 'lore', rank: 3 }, { nth: 2, set: 'lore', rank: 3 }, { nth: 3, set: 'lore', rank: 2 },
-    { nth: 1, set: 'magic', rank: 3 }, { nth: 2, set: 'magic', rank: 2 },
-    { nth: 3, set: 'magic', rank: 2 }, { nth: 4, set: 'magic', rank: 1 },
-    { nth: 1, set: 'survival', rank: 1 }, { nth: 2, set: 'survival', rank: 1 },
-    { nth: 3, set: 'survival', rank: 1 }, { nth: 4, set: 'survival', rank: 1 },
+    // Rows verified against docs/elanthipedia/Bard.md "Circle Requirements"
+    // (1-10 + 11-30 columns); inc1130 = the 11-30 per-circle increment.
+    { nth: 1, set: 'armor', rank: 2, inc1130: 2 },
+    { skill: 'parry', rank: 2, hard: true, inc1130: 3 },
+    { nth: 1, set: 'weapon', rank: 3, inc1130: 3 }, { nth: 2, set: 'weapon', rank: 2, inc1130: 3 },
+    { skill: 'performance', rank: 4, hard: true, inc1130: 4 },
+    { skill: 'tactics', rank: 2, inc1130: 3 },
+    { nth: 1, set: 'lore', rank: 3, inc1130: 3 }, { nth: 2, set: 'lore', rank: 3, inc1130: 3 }, { nth: 3, set: 'lore', rank: 2, inc1130: 2 },
+    { nth: 1, set: 'magic', rank: 3, inc1130: 3 }, { nth: 2, set: 'magic', rank: 2, inc1130: 2 },
+    { nth: 3, set: 'magic', rank: 2, inc1130: 2 }, { nth: 4, set: 'magic', rank: 1, inc1130: 2 },
+    { nth: 1, set: 'survival', rank: 1, inc1130: 2 }, { nth: 2, set: 'survival', rank: 1, inc1130: 1 },
+    { nth: 3, set: 'survival', rank: 1, inc1130: 1 }, { nth: 4, set: 'survival', rank: 1, inc1130: 1 },
   ],
   cleric: [
-    { skill: 'shield_usage', rank: 1, hard: true },
-    { nth: 1, set: 'armor', rank: 2 },
-    { skill: 'parry', rank: 2, hard: true },
-    { nth: 1, set: 'weapon', rank: 3 },
-    { nth: 1, set: 'lore', rank: 2 }, { nth: 2, set: 'lore', rank: 2 }, { nth: 3, set: 'lore', rank: 1 },
-    { skill: 'theurgy', rank: 3, hard: true },
-    { skill: 'attunement', rank: 2 },
-    { nth: 1, set: 'magic', rank: 4 }, { nth: 2, set: 'magic', rank: 4 }, { nth: 3, set: 'magic', rank: 3 },
-    { nth: 1, set: 'survival', rank: 1 }, { nth: 2, set: 'survival', rank: 1 },
-    { nth: 3, set: 'survival', rank: 1 }, { nth: 4, set: 'survival', rank: 1 },
+    // Source: docs/elanthipedia/Cleric.md. 4th Magic is band 0 in 1-10 but
+    // 3/circle from 11-30, so it rides a rank-0 row (active only past c10).
+    { skill: 'shield_usage', rank: 1, hard: true, inc1130: 2 },
+    { nth: 1, set: 'armor', rank: 2, inc1130: 2 },
+    { skill: 'parry', rank: 2, hard: true, inc1130: 3 },
+    { nth: 1, set: 'weapon', rank: 3, inc1130: 3 },
+    { nth: 1, set: 'lore', rank: 2, inc1130: 3 }, { nth: 2, set: 'lore', rank: 2, inc1130: 2 }, { nth: 3, set: 'lore', rank: 1, inc1130: 2 },
+    { skill: 'theurgy', rank: 3, hard: true, inc1130: 4 },
+    { skill: 'attunement', rank: 2, inc1130: 2 },
+    { nth: 1, set: 'magic', rank: 4, inc1130: 4 }, { nth: 2, set: 'magic', rank: 4, inc1130: 4 }, { nth: 3, set: 'magic', rank: 3, inc1130: 3 },
+    { nth: 4, set: 'magic', rank: 0, inc1130: 3 },
+    { nth: 1, set: 'survival', rank: 1, inc1130: 2 }, { nth: 2, set: 'survival', rank: 1, inc1130: 1 },
+    { nth: 3, set: 'survival', rank: 1, inc1130: 1 }, { nth: 4, set: 'survival', rank: 1, inc1130: 1 },
   ],
   empath: [
-    { skill: 'empathy', rank: 4, hard: true },
-    { skill: 'scholarship', rank: 3, hard: true },
-    { nth: 1, set: 'lore', rank: 3 }, { nth: 2, set: 'lore', rank: 2 }, { nth: 3, set: 'lore', rank: 2 },
-    { skill: 'first_aid', rank: 2, hard: true },
-    { skill: 'foraging', rank: 1 },
-    { nth: 1, set: 'magic', rank: 3 }, { nth: 2, set: 'magic', rank: 2 }, { nth: 3, set: 'magic', rank: 2 },
-    { nth: 1, set: 'survival', rank: 1 }, { nth: 2, set: 'survival', rank: 1 }, { nth: 3, set: 'survival', rank: 1 },
+    // Source: docs/elanthipedia/Empath.md. 4th Magic is band 0 in 1-10 but
+    // 2/circle from 11-30 (rank-0 row, active only past c10).
+    { skill: 'empathy', rank: 4, hard: true, inc1130: 5 },
+    { skill: 'scholarship', rank: 3, hard: true, inc1130: 3 },
+    { nth: 1, set: 'lore', rank: 3, inc1130: 3 }, { nth: 2, set: 'lore', rank: 2, inc1130: 3 }, { nth: 3, set: 'lore', rank: 2, inc1130: 2 },
+    { skill: 'first_aid', rank: 2, hard: true, inc1130: 3 },
+    { skill: 'foraging', rank: 1, inc1130: 1 },
+    { nth: 1, set: 'magic', rank: 3, inc1130: 3 }, { nth: 2, set: 'magic', rank: 2, inc1130: 3 }, { nth: 3, set: 'magic', rank: 2, inc1130: 3 },
+    { nth: 4, set: 'magic', rank: 0, inc1130: 2 },
+    { nth: 1, set: 'survival', rank: 1, inc1130: 2 }, { nth: 2, set: 'survival', rank: 1, inc1130: 2 }, { nth: 3, set: 'survival', rank: 1, inc1130: 1 },
   ],
   moonmage: [
-    { skill: 'scholarship', rank: 3, hard: true },
-    { nth: 1, set: 'lore', rank: 2 }, { nth: 2, set: 'lore', rank: 2 }, { nth: 3, set: 'lore', rank: 1 },
-    { skill: 'astrology', rank: 3, hard: true },
-    { nth: 1, set: 'magic', rank: 4 }, { nth: 2, set: 'magic', rank: 4 },
-    { nth: 3, set: 'magic', rank: 3 }, { nth: 4, set: 'magic', rank: 2 },
-    { nth: 1, set: 'survival', rank: 2, inc1130: 2 }, { nth: 2, set: 'survival', rank: 2, inc1130: 2 },
-    { nth: 3, set: 'survival', rank: 2 }, { nth: 4, set: 'survival', rank: 2 },
+    // Source: docs/elanthipedia/Moon Mage.md. 5th/6th Magic and 5th Survival
+    // are band 0 in 1-10 but nonzero from 11-30 (rank-0 rows, active past c10).
+    { skill: 'scholarship', rank: 3, hard: true, inc1130: 3 },
+    { nth: 1, set: 'lore', rank: 2, inc1130: 3 }, { nth: 2, set: 'lore', rank: 2, inc1130: 2 }, { nth: 3, set: 'lore', rank: 1, inc1130: 2 },
+    { skill: 'astrology', rank: 3, hard: true, inc1130: 4 },
+    { nth: 1, set: 'magic', rank: 4, inc1130: 4 }, { nth: 2, set: 'magic', rank: 4, inc1130: 4 },
+    { nth: 3, set: 'magic', rank: 3, inc1130: 4 }, { nth: 4, set: 'magic', rank: 2, inc1130: 3 },
+    { nth: 5, set: 'magic', rank: 0, inc1130: 3 }, { nth: 6, set: 'magic', rank: 0, inc1130: 3 },
+    { nth: 1, set: 'survival', rank: 2, inc1130: 3 }, { nth: 2, set: 'survival', rank: 2, inc1130: 3 },
+    { nth: 3, set: 'survival', rank: 2, inc1130: 2 }, { nth: 4, set: 'survival', rank: 2, inc1130: 2 },
+    { nth: 5, set: 'survival', rank: 0, inc1130: 2 },
   ],
   necromancer: [
+    // NOTE: docs/elanthipedia/Necromancer.md carries NO circle-requirements
+    // table (only a spell-slot progression), so these rows keep the 1-10 band
+    // ranks with the BANDS_11_30 fallback for 11-30. Treat necromancer
+    // circle 11+ gates as approximate until a source table is transcribed.
     { skill: 'thanatology', rank: 3, hard: true },
     { nth: 1, set: 'survival', rank: 4 }, { nth: 2, set: 'survival', rank: 4 },
     { nth: 3, set: 'survival', rank: 3 }, { nth: 4, set: 'survival', rank: 3 },
@@ -350,75 +366,86 @@ const CIRCLE_TABLES = {
     { nth: 1, set: 'armor', rank: 1 },
   ],
   paladin: [
-    { skill: 'conviction', rank: 3, hard: true },
-    { skill: 'defending', rank: 3, hard: true },
-    { skill: 'shield_usage', rank: 2 },
-    { nth: 1, set: 'armor', rank: 4 }, { nth: 2, set: 'armor', rank: 2 },
-    { skill: 'parry', rank: 3, hard: true },
-    { nth: 1, set: 'weapon', rank: 3 },
-    { skill: 'tactics', rank: 1 },
-    { skill: 'scholarship', rank: 1 },
-    { nth: 1, set: 'lore', rank: 2 }, { nth: 2, set: 'lore', rank: 1 }, { nth: 3, set: 'lore', rank: 1 },
-    { nth: 1, set: 'magic', rank: 1 }, { nth: 2, set: 'magic', rank: 1 }, { nth: 3, set: 'magic', rank: 1 },
-    { skill: 'evasion', rank: 2, hard: true },
-    { nth: 1, set: 'survival', rank: 1 }, { nth: 2, set: 'survival', rank: 1 },
-    { nth: 3, set: 'survival', rank: 1 }, { nth: 4, set: 'survival', rank: 1 },
+    // Source: docs/elanthipedia/Paladin.md. 2nd Weapon is band 0 in 1-10 but
+    // 2/circle from 11-30 (rank-0 row, active only past c10).
+    { skill: 'conviction', rank: 3, hard: true, inc1130: 4 },
+    { skill: 'defending', rank: 3, hard: true, inc1130: 3 },
+    { skill: 'shield_usage', rank: 2, inc1130: 2 },
+    { nth: 1, set: 'armor', rank: 4, inc1130: 5 }, { nth: 2, set: 'armor', rank: 2, inc1130: 3 },
+    { skill: 'parry', rank: 3, hard: true, inc1130: 3 },
+    { nth: 1, set: 'weapon', rank: 3, inc1130: 4 },
+    { nth: 2, set: 'weapon', rank: 0, inc1130: 2 },
+    { skill: 'tactics', rank: 1, inc1130: 2 },
+    { skill: 'scholarship', rank: 1, inc1130: 2 },
+    { nth: 1, set: 'lore', rank: 2, inc1130: 3 }, { nth: 2, set: 'lore', rank: 1, inc1130: 2 }, { nth: 3, set: 'lore', rank: 1, inc1130: 1 },
+    { nth: 1, set: 'magic', rank: 1, inc1130: 2 }, { nth: 2, set: 'magic', rank: 1, inc1130: 1 }, { nth: 3, set: 'magic', rank: 1, inc1130: 1 },
+    { skill: 'evasion', rank: 2, hard: true, inc1130: 3 },
+    { nth: 1, set: 'survival', rank: 1, inc1130: 2 }, { nth: 2, set: 'survival', rank: 1, inc1130: 1 },
+    { nth: 3, set: 'survival', rank: 1, inc1130: 1 }, { nth: 4, set: 'survival', rank: 1, inc1130: 1 },
   ],
   ranger: [
-    // wiki "Instinct" = First Aid under its ranger display name. Soft
-    // requirement: it demands its own ranks AND still counts toward the
-    // survival Nth pool ("can be used toward Nth survival requirements").
-    { skill: 'first_aid', rank: 2 },
-    { nth: 1, set: 'survival', rank: 4 }, { nth: 2, set: 'survival', rank: 4 },
-    { nth: 3, set: 'survival', rank: 3 }, { nth: 4, set: 'survival', rank: 3 },
-    { nth: 5, set: 'survival', rank: 3 }, { nth: 6, set: 'survival', rank: 2 },
-    { nth: 7, set: 'survival', rank: 2 }, { nth: 8, set: 'survival', rank: 2 },
-    { nth: 1, set: 'weapon', rank: 3 }, { nth: 2, set: 'weapon', rank: 1 },
-    { skill: 'parry', rank: 2, hard: true },
-    { nth: 1, set: 'armor', rank: 2 },
-    { skill: 'defending', rank: 1, hard: true },
-    { nth: 1, set: 'magic', rank: 1 }, { nth: 2, set: 'magic', rank: 1 }, { nth: 3, set: 'magic', rank: 1 },
-    { nth: 1, set: 'lore', rank: 1 },
+    // Source: docs/elanthipedia/Ranger.md. 2nd Armor and 2nd Lore are band 0
+    // in 1-10 but 1/circle from 11-30 (rank-0 rows, active only past c10).
+    // wiki "Instinct" = first_aid under its ranger display name (band 2).
+    { skill: 'first_aid', rank: 2, inc1130: 3 },
+    { nth: 1, set: 'survival', rank: 4, inc1130: 4 }, { nth: 2, set: 'survival', rank: 4, inc1130: 4 },
+    { nth: 3, set: 'survival', rank: 3, inc1130: 4 }, { nth: 4, set: 'survival', rank: 3, inc1130: 4 },
+    { nth: 5, set: 'survival', rank: 3, inc1130: 4 }, { nth: 6, set: 'survival', rank: 2, inc1130: 3 },
+    { nth: 7, set: 'survival', rank: 2, inc1130: 3 }, { nth: 8, set: 'survival', rank: 2, inc1130: 2 },
+    { nth: 1, set: 'weapon', rank: 3, inc1130: 3 }, { nth: 2, set: 'weapon', rank: 1, inc1130: 2 },
+    { skill: 'parry', rank: 2, hard: true, inc1130: 2 },
+    { nth: 1, set: 'armor', rank: 2, inc1130: 3 },
+    { nth: 2, set: 'armor', rank: 0, inc1130: 1 },
+    { skill: 'defending', rank: 1, hard: true, inc1130: 2 },
+    { nth: 1, set: 'magic', rank: 1, inc1130: 2 }, { nth: 2, set: 'magic', rank: 1, inc1130: 2 }, { nth: 3, set: 'magic', rank: 1, inc1130: 1 },
+    { nth: 1, set: 'lore', rank: 1, inc1130: 1 },
+    { nth: 2, set: 'lore', rank: 0, inc1130: 1 },
   ],
   thief: [
-    { skill: 'thievery', rank: 2 },
-    { skill: 'stealth', rank: 2 },
+    // Source: docs/elanthipedia/Thief.md (skillset spells "weapons").
+    { skill: 'thievery', rank: 2, inc1130: 3 },
+    { skill: 'stealth', rank: 2, inc1130: 2 },
     // wiki "Inner Magic" = Primary Magic under the thief skillset rename
     // (khri concentration), band 1 (@c10 = 10).
-    { skill: 'primary_magic', rank: 1, hard: true },
-    { nth: 1, set: 'survival', rank: 4 }, { nth: 2, set: 'survival', rank: 4 },
-    { nth: 3, set: 'survival', rank: 3 }, { nth: 4, set: 'survival', rank: 3 },
-    { nth: 5, set: 'survival', rank: 3 }, { nth: 6, set: 'survival', rank: 2 },
-    { nth: 7, set: 'survival', rank: 2 }, { nth: 8, set: 'survival', rank: 1 },
-    { nth: 1, set: 'weapon', rank: 3 }, { nth: 2, set: 'weapon', rank: 1 },
-    { skill: 'parry', rank: 1, hard: true },
-    { nth: 1, set: 'armor', rank: 2 },
+    { skill: 'primary_magic', rank: 1, hard: true, inc1130: 2 },
+    { nth: 1, set: 'survival', rank: 4, inc1130: 4 }, { nth: 2, set: 'survival', rank: 4, inc1130: 4 },
+    { nth: 3, set: 'survival', rank: 3, inc1130: 4 }, { nth: 4, set: 'survival', rank: 3, inc1130: 4 },
+    { nth: 5, set: 'survival', rank: 3, inc1130: 4 }, { nth: 6, set: 'survival', rank: 2, inc1130: 3 },
+    { nth: 7, set: 'survival', rank: 2, inc1130: 3 }, { nth: 8, set: 'survival', rank: 1, inc1130: 2 },
+    { nth: 1, set: 'weapon', rank: 3, inc1130: 3 }, { nth: 2, set: 'weapon', rank: 1, inc1130: 2 },
+    { skill: 'parry', rank: 1, hard: true, inc1130: 2 },
+    { nth: 1, set: 'armor', rank: 2, inc1130: 2 },
     // wiki "1st Magic" band 1 (@c10 = 10); "2nd Magic" is zero in the 1-10 band.
-    { nth: 1, set: 'magic', rank: 1 },
-    { nth: 1, set: 'lore', rank: 1, inc1130: 1 }, { nth: 2, set: 'lore', rank: 1, inc1130: 1 }, { nth: 3, set: 'lore', rank: 1 },
+    { nth: 1, set: 'magic', rank: 1, inc1130: 2 },
+    { nth: 1, set: 'lore', rank: 1, inc1130: 2 }, { nth: 2, set: 'lore', rank: 1, inc1130: 2 }, { nth: 3, set: 'lore', rank: 1, inc1130: 1 },
   ],
   trader: [
-    { nth: 1, set: 'armor', rank: 2 }, { nth: 2, set: 'armor', rank: 1 },
-    { nth: 1, set: 'weapon', rank: 1 },
-    { skill: 'trading', rank: 4, hard: true },
-    { skill: 'appraisal', rank: 3, hard: true },
-    { nth: 1, set: 'lore', rank: 3 }, { nth: 2, set: 'lore', rank: 2 }, { nth: 3, set: 'lore', rank: 2 },
-    { nth: 1, set: 'survival', rank: 3 }, { nth: 2, set: 'survival', rank: 2 },
-    { nth: 3, set: 'survival', rank: 2, inc1130: 2 }, { nth: 4, set: 'survival', rank: 1, inc1130: 1 },
-    { nth: 5, set: 'survival', rank: 1 }, { nth: 6, set: 'survival', rank: 1 },
+    // Source: docs/elanthipedia/Trader.md.
+    { nth: 1, set: 'armor', rank: 2, inc1130: 3 }, { nth: 2, set: 'armor', rank: 1, inc1130: 2 },
+    { nth: 1, set: 'weapon', rank: 1, inc1130: 2 },
+    { skill: 'trading', rank: 4, hard: true, inc1130: 5 },
+    { skill: 'appraisal', rank: 3, hard: true, inc1130: 3 },
+    { nth: 1, set: 'lore', rank: 3, inc1130: 3 }, { nth: 2, set: 'lore', rank: 2, inc1130: 3 }, { nth: 3, set: 'lore', rank: 2, inc1130: 2 },
+    { nth: 1, set: 'survival', rank: 3, inc1130: 3 }, { nth: 2, set: 'survival', rank: 2, inc1130: 3 },
+    { nth: 3, set: 'survival', rank: 2, inc1130: 3 }, { nth: 4, set: 'survival', rank: 1, inc1130: 2 },
+    { nth: 5, set: 'survival', rank: 1, inc1130: 2 }, { nth: 6, set: 'survival', rank: 1, inc1130: 1 },
   ],
   warmage: [
-    { skill: 'summoning', rank: 3, hard: true },
-    { skill: 'targeted_magic', rank: 4 },
-    { nth: 1, set: 'magic', rank: 4 }, { nth: 2, set: 'magic', rank: 4 }, { nth: 3, set: 'magic', rank: 3 },
-    { skill: 'parry', rank: 2, hard: true },
-    { nth: 1, set: 'weapon', rank: 3 },
-    { skill: 'scholarship', rank: 1 },
-    { nth: 1, set: 'lore', rank: 2 }, { nth: 2, set: 'lore', rank: 2 }, { nth: 3, set: 'lore', rank: 1 },
-    { skill: 'defending', rank: 1, hard: true },
-    { nth: 1, set: 'armor', rank: 2 },
-    { nth: 1, set: 'survival', rank: 1 }, { nth: 2, set: 'survival', rank: 1 },
-    { nth: 3, set: 'survival', rank: 1 }, { nth: 4, set: 'survival', rank: 1 },
+    // Source: docs/elanthipedia/Warrior Mage.md. 4th Magic and 2nd Weapon are
+    // band 0 in 1-10 but 3/circle from 11-30 (rank-0 rows, active past c10).
+    { skill: 'summoning', rank: 3, hard: true, inc1130: 4 },
+    { skill: 'targeted_magic', rank: 4, inc1130: 4 },
+    { nth: 1, set: 'magic', rank: 4, inc1130: 4 }, { nth: 2, set: 'magic', rank: 4, inc1130: 4 }, { nth: 3, set: 'magic', rank: 3, inc1130: 3 },
+    { nth: 4, set: 'magic', rank: 0, inc1130: 3 },
+    { skill: 'parry', rank: 2, hard: true, inc1130: 3 },
+    { nth: 1, set: 'weapon', rank: 3, inc1130: 4 },
+    { nth: 2, set: 'weapon', rank: 0, inc1130: 3 },
+    { skill: 'scholarship', rank: 1, inc1130: 1 },
+    { nth: 1, set: 'lore', rank: 2, inc1130: 2 }, { nth: 2, set: 'lore', rank: 2, inc1130: 2 }, { nth: 3, set: 'lore', rank: 1, inc1130: 2 },
+    { skill: 'defending', rank: 1, hard: true, inc1130: 1 },
+    { nth: 1, set: 'armor', rank: 2, inc1130: 2 },
+    { nth: 1, set: 'survival', rank: 1, inc1130: 1 }, { nth: 2, set: 'survival', rank: 1, inc1130: 1 },
+    { nth: 3, set: 'survival', rank: 1, inc1130: 1 }, { nth: 4, set: 'survival', rank: 1, inc1130: 1 },
   ],
 };
 
@@ -440,10 +467,12 @@ function needFor(band, circle, inc1130) {
 }
 
 // Per-circle increments for the 11-30 level band, keyed by the 1-10 band
-// value (DR's tables key the escalation to the same column, and every
-// Barbarian.md row's 11-30 value is a function of its 1-10 one — e.g. a
-// band-4 skill jumps 4→5/circle, a band-3 skill 3→4/circle). Source:
-// docs/elanthipedia/Barbarian.md "Circle Requirements" 1-30 columns.
+// value. This fallback now serves ONLY the necromancer table (Necromancer.md
+// carries no circle-requirements table, so its 11-30 shape is untranscribed);
+// every other guild carries per-row inc1130 from its own wiki page. The
+// mapping was derived from docs/elanthipedia/Barbarian.md — do NOT extend it
+// to new guilds without checking their page first (e.g. bard parry is 2→3,
+// not the fallback's 2→2; bard 1st weapon is 3→3, not 3→4).
 const BANDS_11_30 = { 1: 1, 2: 2, 3: 4, 4: 5 };
 
 function nthCandidates(guildId, table, set) {
@@ -474,7 +503,10 @@ export function circleRequirements(guild, skills, targetCircle) {
   // an at-a-glance have/need table — see public/js/req-table.js consumers.
   const rows = [];
   for (const r of table) {
-    if (!r.rank || r.rank <= 0) continue;
+    // Band-0 rows (rank: 0 + inc1130) exist only past circle 10 — e.g. a
+    // 4th Magic that is 0/circle in 1-10 but 3/circle in 11-30. Skip them
+    // at c10 and below so low-circle gates stay exactly as transcribed.
+    if (!(r.rank > 0) && !(n > 10 && r.inc1130 > 0)) continue;
     const need = needFor(r.rank, n, r.inc1130);
     if (r.skill) {
       const rank = (skills[r.skill] || {}).rank || 0;
@@ -498,7 +530,10 @@ export function circleRequirementSummary(guild, targetCircle) {
   const n = targetCircle;
   const out = [];
   for (const r of table) {
-    if (!r.rank || r.rank <= 0) continue;
+    // Band-0 rows (rank: 0 + inc1130) exist only past circle 10 — e.g. a
+    // 4th Magic that is 0/circle in 1-10 but 3/circle in 11-30. Skip them
+    // at c10 and below so low-circle gates stay exactly as transcribed.
+    if (!(r.rank > 0) && !(n > 10 && r.inc1130 > 0)) continue;
     const need = needFor(r.rank, n, r.inc1130);
     if (r.skill) out.push(`${r.skill}${r.hard ? ' (hard)' : ''} ${need}`);
     else out.push(`${nthLabel(r.nth)} ${r.set} ${need}`);
@@ -515,7 +550,10 @@ export function circleRequirementNeeds(guild, skills, targetCircle) {
   const n = targetCircle;
   const out = [];
   for (const r of table) {
-    if (!r.rank || r.rank <= 0) continue;
+    // Band-0 rows (rank: 0 + inc1130) exist only past circle 10 — e.g. a
+    // 4th Magic that is 0/circle in 1-10 but 3/circle in 11-30. Skip them
+    // at c10 and below so low-circle gates stay exactly as transcribed.
+    if (!(r.rank > 0) && !(n > 10 && r.inc1130 > 0)) continue;
     const need = needFor(r.rank, n, r.inc1130);
     if (r.skill) {
       const rank = (skills[r.skill] || {}).rank || 0;

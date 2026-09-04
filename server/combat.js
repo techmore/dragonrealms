@@ -5,6 +5,7 @@
 // server/combat-manager.js.
 import { roomById } from '../data/world.js';
 import { SKILLS, CATEGORIES } from '../data/skills.js';
+import { deathCryFor } from '../data/creatures.js';
 import {
   weaponOf, skillRank, effectiveRank, totalArmor, gainSkillExp, defenseSkillOf,
   countItems, removeItem, addItem, totalBurden, netBurden, maxStaminaEff, conditionMult, qualityMult,
@@ -357,10 +358,12 @@ say(t, text, 'combat');
         this.say('The wolf\'s spirit lingers — it bonds with you as a companion!');
       }
     }
-    // Hint with the creature's distinctive noun ("rat", not "sewer") — the
-    // skin matcher accepts any word of the name, but the noun is unambiguous.
-    const skinNoun = target.def.name.replace(/^(a|an|the) /, '').split(' ').pop();
-    this.say(`You fell ${target.def.name}! Its corpse slumps to the ground. Type "skin ${skinNoun}" to harvest it.`);
+    // DEATH PROSE (DR fidelity): the kill line is only the creature's
+    // species-flavored death — no "You fell X!" victory framing, no skin
+    // instructions bolted on (DR players learn the skin verb; the verb's own
+    // failure prose teaches the noun when needed). The coin line follows as
+    // its own combat line, as before.
+    this.say(`${cap(target.def.name)} ${deathCryFor(target.def)}`);
     const coins = target.def.circle * (2 + Math.floor(Math.random() * 4));
     this.player.silver += coins;
     this.say(`You pry ${coins} silvers from the corpse.`);

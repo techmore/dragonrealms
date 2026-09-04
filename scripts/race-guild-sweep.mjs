@@ -318,7 +318,15 @@ if (ARGS.includes('--all')) {
     JOIN accounts a ON a.id = c.account_id WHERE c.name = ?`).get(RESUME_CHAR);
   db.close();
   if (!row) { console.error(`no character named \"${RESUME_CHAR}\" in ${RESUME_DB}`); process.exit(1); }
-  wanted = [{ guild: row.guild, race: row.race, variant: RUN_TAG ? { name: RUN_TAG } : null,
+  // --variant <name> (when it names a REAL knob variant in VARIANTS) attaches
+  // that variant's knobs to the resumed leg; otherwise it was just the --tag
+  // alias. r3 lesson: "--variant climbFinish" silently became a tag-only
+  // variant — zero knobs, the leg ran baseline and the gate never moved.
+  const requestedVariant = String(flag('variant', '') || '').trim();
+  const knobs = VARIANTS[requestedVariant]
+    ? { name: requestedVariant, ...(VARIANTS[requestedVariant] || {}) }
+    : (RUN_TAG ? { name: RUN_TAG } : null);
+  wanted = [{ guild: row.guild, race: row.race, variant: knobs,
     resumeChar: row.name, resumeUser: row.username }];
   MODE = 'spawn';
   if (!Number.isFinite(MINUTES)) MINUTES = 10;
@@ -567,8 +575,10 @@ class SweepAgent {
     if (!loreMissing) return {};
     const studyPath = this.pureDiskPath(fromRoom, 'academy') || [];
     const studyToBazaar = this.pureDiskPath('academy', 'bazaar') || [];
+    // Cap 44: the real disk walk hall_barbarian→academy→bazaar is 22+16=38
+    // steps — a 36 cap silently skipped the detour on every trip (r4).
     if (!studyPath.length || !studyToBazaar.length
-      || studyPath.length + studyToBazaar.length > 36) return {};
+      || studyPath.length + studyToBazaar.length > 44) return {};
     return { studyPath, studyToBazaar, studyRoom: 'academy' };
   }
 

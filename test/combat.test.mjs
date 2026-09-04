@@ -10,10 +10,23 @@ import {
 // the suite teleports without waiting for restock.
 import { findPath } from '../data/grid.js';
 import { roundtimeLeft } from '../server/player.js';
+import { DEATH_CRIES, deathCryFor, CREATURES } from '../data/creatures.js';
 function walk(game, p, to) {
   for (const step of findPath(p.room, to)) game.move(p, step);
   reviveRoomSpawns(game, p.room);
 }
+
+test('every creature has a DR-style death cry; no victory framing', () => {
+  for (const def of Object.values(CREATURES)) {
+    const cry = deathCryFor(def);
+    assert.ok(cry && cry.length > 8, `${def.id} resolves a non-empty cry`);
+    assert.match(cry, /\.$/, `${def.id}'s cry ends the sentence`);
+    assert.doesNotMatch(cry, /skin|corpse|You fell/i, `${def.id} cry carries no meta instructions`);
+  }
+  // kind resolution: beast → falls..., undead → unravels... (shade is undead-first)
+  assert.match(deathCryFor(CREATURES.rat), /falls to the ground and lies still/);
+  assert.match(deathCryFor(CREATURES.shade), /unravels/);
+});
 
 
 before(() => setupGame());
@@ -112,7 +125,7 @@ test('full gameplay: alloc, shop, combat, skin, sell', async () => {
   let safety = 0;
   while (game.combat.getFor(p) && safety++ < 400) combat.tick();
   assert.equal(game.combat.getFor(p), null, 'combat should end');
-  const killed = ws.msgs.filter((m) => m.t === 'combat' && /You fell/.test(m.msg));
+  const killed = ws.msgs.filter((m) => m.t === 'combat' && /lies still|crumples|is gone/.test(m.msg));
   assert.ok(killed.length >= 1, 'should have killed a creature');
 
   // exp gained

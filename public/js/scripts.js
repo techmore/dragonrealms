@@ -68,7 +68,9 @@ export const DEFAULT_SCRIPTS = {
   hunt: `# Swing on a creature until it falls (DR roundtime-aware).
 #   .hunt sewer rat
 hunt:
-  match done You fell
+  match done lies still
+  match done crumples
+  match done is gone
   matchre retry /wait \\d+ second/
   put attack %1
   matchwait
@@ -76,7 +78,7 @@ hunt:
 retry:
   goto hunt
 done:
-  echo The %1 fell. Harvest it with "skin %1".
+  echo The %1 lies still. Harvest it with "skin %1".
   exit`,
   rest: `# Rest until the recovery completes.
 #   .rest

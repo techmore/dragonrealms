@@ -12,7 +12,7 @@ export const DEFAULT_HIGHLIGHTS = [
   { id: 'gems', pattern: 'emerald|sapphire|diamond|garnet', color: 'amber', bold: true },
   { id: 'wait', pattern: 'You must wait', color: 'red', bold: true },
   { id: 'paths', pattern: 'Obvious paths|Obvious exits', color: 'dim', bold: false },
-  { id: 'fell', pattern: 'You fell |You are overcome|are defeated', color: 'red', bold: true },
+  { id: 'fell', pattern: 'You fell |You are overcome|are defeated|lies still\\.|crumples to the ground|is gone\\.', color: 'red', bold: true },
   { id: 'mindlock', pattern: 'mind lock|nearly locked', color: 'amber', bold: true },
   { id: 'tdp', pattern: 'TDPs|gain \\d+ TDPs', color: 'green', bold: true },
 ];

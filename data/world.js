@@ -744,7 +744,7 @@ export const ROOMS = {
     exits: { n: 'woods_2', e: 'deep_2' },
   },
   deep_2: {
-    id: 'deep_2', zone: 'deepwoods', name: 'Troll Mounds', spawns: ['troll', 'shadowpaw'],
+    id: 'deep_2', zone: 'deepwoods', name: 'Troll Mounds', spawns: ['troll', 'troll'],
     desc: 'Great mounds of earth and broken stone heave under moss. The trolls den here. A dark path leads east into ruins.',
     exits: { w: 'deep_1', e: 'black_1' },
   },
@@ -761,7 +761,7 @@ export const ROOMS = {
     exits: { w: 'camp_path', n: 'camp_den' },
   },
   camp_den: {
-    id: 'camp_den', zone: 'camp', name: 'Captain\'s Den', spawns: ['bandit_captain', 'bandit_chieftain'],
+    id: 'camp_den', zone: 'camp', name: 'Captain\'s Den', spawns: ['bandit_captain', 'bandit_captain'],
     desc: 'A cave mouth draped in looted finery. The bandit captain rules from a crude throne of crates. Faint heat rises from a deeper shaft.',
     exits: { s: 'camp_hollow', d: 'cinder_1' },
   },
@@ -773,7 +773,7 @@ export const ROOMS = {
     exits: { up: 'camp_den', n: 'cinder_2' },
   },
   cinder_2: {
-    id: 'cinder_2', zone: 'cinder', name: 'Cinder Gorge', spawns: ['cinder_lizard', 'fire_drake', 'cinder_drake_king'],
+    id: 'cinder_2', zone: 'cinder', name: 'Cinder Gorge', spawns: ['cinder_lizard', 'fire_drake', 'fire_drake'],
     desc: 'A great gorge of black basalt crossed by a natural bridge of fused stone. Drakes wheel overhead through the ash.',
     exits: { s: 'cinder_1' },
   },

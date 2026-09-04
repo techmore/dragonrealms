@@ -90,9 +90,14 @@ function buildSharedFightScript(cap) {
   // the jump lands at SKINME below, which skins the fresh corpse (%1 noun).
   // Matcher ordering: first match wins — register corpse BEFORE the
   // 'creature gone' matchers the body itself uses.
+  // Register the matcher BEFORE the fight sequence; the jump lands at SKINME
+  // below, which skins the fresh corpse (%1 noun). Pattern: DR-authentic
+  // death cries (2026-09-04) all end "lies still." / "crumples to the
+  // ground." / "is gone." — match the shared tail "lies still|crumples|
+  // is gone" instead of the old "corpse slumps" (which no longer exists).
   const skinGuild = (cfg.survivalSkills || cfg.trainSets?.survival || []).includes('skinning');
   if (skinGuild) {
-    L.push('  matchre SKINME corpse slumps');
+    L.push('  matchre SKINME lies still|crumples to|is gone');
   }
   const sigAt = cfg.signature?.probe === 'ability' ? cfg.signatureAfter : undefined;
   cfg.fight.forEach((step, i) => {
@@ -1295,7 +1300,11 @@ function buildCircleScript({ cap, fromArena, errands }) {
     const teachable = new Set(trainableSkills(GUILDS[cap.guild]));
     const blocked = curriculum.filter((s) => !teachable.has(s));
     curriculum = curriculum.filter((s) => teachable.has(s));
-    cap.studySkills ||= blocked.filter((s) => cfg.trainSets?.lore?.includes(s));
+    // Derive from the blocked set every build (not ||=): an early build with an
+    // all-teachable trainList cached [] forever, and later trips with lore in
+    // the curriculum never gained the study detour (r6: sells+kit fine, study
+    // never fired, lore 0/2 both stuck). The detour is stateless per-trip.
+    cap.studySkills = blocked.filter((s) => cfg.trainSets?.lore?.includes(s));
     // Cap the hall drain: rank-overfed lanes (evasion 163 vs need 6) waste
     // the purse that the kit emitter is about to need. Missing-first order
     // (trainListFromMissing already ranks blockers first) x cap 4 keeps the
@@ -1336,14 +1345,14 @@ function buildCircleScript({ cap, fromArena, errands }) {
   // bazaar for errands. `study` has RT 4; the wait handles it.
   // When no lore skill is missing, the supervisor never sets studySkills
   // and the detour is skipped entirely (zero cost on clean legs).
-  // ROOM-SAFETY: studyPath only emits when its LAST step actually lands in
-  // the study room (a null/broken disk route must not dump `move undefined`
-  // lines — the bdas lesson). The bazaar walk is re-derived FROM the study
-  // room so the two legs chain; when that continuation is unreachable the
-  // whole detour is skipped (fall back to the plain hall→bazaar walk).
+  // ROOM-SAFETY: pureDiskPath guarantees each hop is a real disk edge and the
+  // route terminates at the study room, so the gate needs no per-step .to
+  // shape check (the path objects carry {dir, via}, not {dir, to} — a .to
+  // comparison silently failed EVERY trip and kept the study detour dead).
+  // When the study→bazaar continuation is unreachable the whole detour is
+  // skipped (fall back to the plain hall→bazaar walk).
   const studyGo = cap.finishKit && cap.studySkills?.length && errands?.studyPath?.length
-    && errands.studyRoom && errands.studyPath[errands.studyPath.length - 1]?.to === errands.studyRoom
-    && (cap.studyToBazaar = errands.studyToBazaar?.length ? errands.studyToBazaar : null);
+    && errands.studyRoom && (cap.studyToBazaar = errands.studyToBazaar?.length ? errands.studyToBazaar : null);
   if (studyGo) {
     L.push(...moves(errands.studyPath));
     L.push(`  ifne room ${errands.studyRoom} goto STUDY_DONE`);
@@ -1375,10 +1384,17 @@ function buildCircleScript({ cap, fromArena, errands }) {
     L.push(`  ifne room bazaar goto ERRAND_SKIPPED`);
     L.push('ERRAND_SELL:');
     for (const loot of errands.sellLoot || []) {
-      L.push(`  matchre ERRAND_DONE not interested|do not have|Sell what|no shopkeeper|does not buy`);
+      // Per-item guard (not a shared ERRAND_DONE jump): "you do not have
+      // that" on an un-carried loot item used to jump the WHOLE block to
+      // ERRAND_DONE, silently skipping the bundle pass AND the entire kit
+      // emitter behind it (r5: 4 sells, then straight home — the first
+      // successful sell was also the last line that ran). A missing item
+      // now falls through to the next sell instead.
+      L.push(`  matchre SELL_NEXT_${loot.toUpperCase().replace(/[^A-Z0-9]/g, '_')} not interested|do not have|Sell what|no shopkeeper|does not buy`);
       L.push(`  put sell ${loot}`);
       L.push('  wait');
       L.push('  pause 0.5');
+      L.push(`SELL_NEXT_${loot.toUpperCase().replace(/[^A-Z0-9]/g, '_')}:`);
     }
     L.push('ERRAND_BUNDLE:');
     for (const loot of errands.sellLoot || []) {

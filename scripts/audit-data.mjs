@@ -29,6 +29,12 @@ while ((m = re.exec(tbl))) {
 }
 
 const SETS = new Set(['weapon', 'armor', 'survival', 'lore', 'magic', 'supernatural']);
+// Rare ids by value (RARES is zone-keyed): legal as replacements, illegal in spawns.
+const RARE_IDS = new Set(Object.values(RARES).map((r) => r.id));
+// Intentional one-way exits (vehicle/verb geography, test-pinned where noted).
+const ONE_WAY_OK = new Set([
+  'pier>rh_square', // Amusement Pier barge: free outbound leg; return is the paid ferry (fidelity.test.mjs:637)
+]);
 const issues = [];
 
 for (const g of Object.values(GUILDS)) {
@@ -46,7 +52,7 @@ for (const [gid, rows] of Object.entries(tables)) {
   for (const r of rows) {
     if (r.skill && !SKILLS[r.skill]) issues.push(`circle table ${gid} -> missing skill ${r.skill}`);
     if (r.set && !SETS.has(r.set)) issues.push(`circle table ${gid} -> unknown set ${r.set}`);
-    if (r.nth && (!r.set || !r.rank)) issues.push(`circle table ${gid} -> malformed nth row`);
+    if (r.nth && (!r.set || r.rank === undefined)) issues.push(`circle table ${gid} -> malformed nth row`);
   }
 }
 for (const [id, it] of Object.entries(ITEMS)) {
@@ -76,20 +82,38 @@ for (const [rid, room] of Object.entries(ROOMS)) {
   if (room.id !== rid) issues.push(`room key ${rid} disagrees with id ${room.id}`);
   if (!ZONES[room.zone]) issues.push(`room ${rid} -> zone ${room.zone} invalid`);
   for (const npcId of room.npcs || []) if (!NPCS[npcId]) issues.push(`room ${rid} -> npc ${npcId} missing`);
-  for (const spawn of room.spawns || []) if (!CREATURES[spawn]) issues.push(`room ${rid} -> creature ${spawn} missing`);
+  for (const spawn of room.spawns || []) {
+    if (!CREATURES[spawn] && !RARE_IDS.has(spawn)) issues.push(`room ${rid} -> creature ${spawn} missing`);
+    // Rares appear only as 8% zone replacements (stockCreatures skips unknown
+    // base ids): listing one in spawns silently deletes that spawn slot.
+    else if (RARE_IDS.has(spawn)) issues.push(`room ${rid} -> rare ${spawn} listed as a regular spawn (slot never stocks; use a base creature)`);
+  }
   for (const [dir, target] of Object.entries(room.exits || {})) {
     if (!ROOMS[target]) issues.push(`room ${rid} -> exit ${dir} -> ${target} missing`);
-    else if (!Object.values(ROOMS[target].exits || {}).includes(rid)) issues.push(`room ${rid} -> exit to ${target} not reciprocal`);
+    else if (!Object.values(ROOMS[target].exits || {}).includes(rid) && !ONE_WAY_OK.has(`${rid}>${target}`)) issues.push(`room ${rid} -> exit to ${target} not reciprocal`);
   }
 }
 
 // Every room must be navigable from at least one character-creation origin.
 // Reciprocal references alone do not catch an internally connected island.
+// Exits are not the only links: verb travel counts too (a pure-exits BFS
+// false-flagged the Thieves' Passage pair as unreachable). Sources:
+// server/commands/world.js ferry() routes + passage() PASSAGE_WAYS_OUT,
+// data/world.js PASSAGE_ENTRANCE flags.
+const VERB_LINKS = [
+  ['docks', 'rh_ferry'], ['rh_ferry', 'docks'], // ferry barge, 20s fare
+  ['passage_ravens', 'pass_hub'], ['passage_swithen', 'pass_hub'], // slip in
+  ['pass_hub', 'passage_ravens'], ['pass_hub', 'passage_swithen'], // chalk signs out
+  ['pass_hub', 'pass_den'], ['pass_den', 'pass_hub'], // bolt-hole (also exits)
+];
+const verbOut = {};
+for (const [a, b] of VERB_LINKS) (verbOut[a] = verbOut[a] || []).push(b);
 const reachable = new Set(['square', 'rh_square'].filter((id) => ROOMS[id]));
 const frontier = [...reachable];
 while (frontier.length) {
-  const room = ROOMS[frontier.shift()];
-  for (const target of Object.values(room.exits || {})) {
+  const rid = frontier.shift();
+  const room = ROOMS[rid];
+  for (const target of [...Object.values(room.exits || {}), ...(verbOut[rid] || [])]) {
     if (!reachable.has(target) && ROOMS[target]) {
       reachable.add(target);
       frontier.push(target);

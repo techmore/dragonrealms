@@ -104,7 +104,7 @@ export const ITEMS = {
   // Creature loot (skins). Tier variants keep the curve honest: a c3
   // great_rat pelt outsells its c1 cousin, and a fire drake's scales are
   // worth more than the lizard's (economy audit F3).
-  lout_vest:     { id: 'lout_vest', name: 'a stained vest', type: 'armor', slot: 'chest', value: 14, defense: 2, desc: 'A beer-stained leather vest, more bravado than protection.' },
+  lout_vest:     { id: 'lout_vest', name: 'a stained vest', type: 'armor', slot: 'chest', skill: 'light_armor', armor: 6, value: 14, desc: 'A beer-stained leather vest, more bravado than protection.' },
   rat_pelt:      { id: 'rat_pelt', name: 'a rat pelt', type: 'misc', slot: null, value: 8, desc: 'A scrappy grey pelt.' },
   dire_rat_pelt: { id: 'dire_rat_pelt', name: 'a great rat pelt', type: 'misc', slot: null, value: 22, desc: 'A thick, battle-scarred pelt off a sewer giant. Tougher stock than the common rat.' },
   crab_shell:    { id: 'crab_shell', name: 'a mud crab shell', type: 'misc', slot: null, value: 10, desc: 'A broad green-brown shell, still smelling of the reeds.' },

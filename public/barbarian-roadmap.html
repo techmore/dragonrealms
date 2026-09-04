@@ -43,15 +43,14 @@ Companion pages: <a href="/sim-architecture.html">Sim architecture</a> · Sims d
 Last updated 2026-09-04.</p>
 
 <div class="callout">
-  <b>What changed this arc (muse-c20 p1→p10, r1→r3):</b> circle-2 shortfall went
-  <b>84 → 10 ranks</b> (88.1% of the gate closed — best ever), on ONE persistent character
-  (<code>vltm</code>) across resumed 45-min legs. The five structural bugs that ate six prior arcs are
-  fixed server- and script-side: refused-roar roundtime pinning, skin-before-corpse, watchdog eating the
-  post-kill window, survival lanes never scheduled, and the purse leaking into rank-163 "hall training".
-  Skinning went 0 → 18 (five legs at literal zero), silver flows, and the last 10 ranks are all
-  purchasable/study-able. The wall is now <b>silver income and exp imbalance</b> — both have named fixes
-  in flight (<code>climbFinish</code> leg running; crier-quest loop measured at ~30 silver/min vs
-  hunting's ~1.7/min).
+  <b>*** FIRST CIRCLE-UP *** (2026-09-04, 22:38):</b> <code>vltm</code> reached
+  <b>circle 2 at 13m10s</b> into leg r7b (run <code>syir</code>) — the first in the project's
+  history, after 600+ runs. 46 kills @ 61/h (best ever), 3691 ranks, 0 deaths. The arc that
+  got here: shortfall 84 → 12 → 10 → 9 → 7 → 4 → 1 → <b>0</b>, driven by the refused-roar RT
+  fix, corpse-jump skinning, the survival interleave, <code>--resume</code> compounding legs
+  on one character, the gear-ledger kit emitter (club/padded cloth/helm bought and worn),
+  and the Academy <code>study</code> detour (both lore rows — the path was dead until a
+  <code>pureDiskPath</code> shape bug was fixed). Circle 3 gate already at 125/126.
 </div>
 
 <h2>Current status</h2>
@@ -70,7 +69,7 @@ rank, kit, and silver balance intact, so legs compound instead of restarting fro
   <tr><td>Kills/hour</td><td class="num">36</td><td class="num">49</td><td><span class="metric-good">solved</span></td></tr>
   <tr><td>Skinning ranks (was 0 in every run ever)</td><td class="num">0</td><td class="num">18</td><td><span class="pill done">fixed</span></td></tr>
   <tr><td>Deaths per leg</td><td class="num">2–10</td><td class="num">0</td><td><span class="metric-good">solved</span></td></tr>
-  <tr><td>Circle-ups</td><td class="num">0</td><td class="num">0</td><td><span class="pill next">the wall — 10 ranks, all purchasable</span></td></tr>
+  <tr><td>Circle-ups</td><td class="num">0</td><td class="num"><b>1 — circle 2 @ 13m10s (syir)</b></td><td><span class="pill done">landed</span></td></tr>
 </table>
 <p>
 The exact remaining list on <code>vltm</code>: 4th weapon 0/2 (buy club, 112s), 1st armor 4/6
@@ -175,8 +174,10 @@ and the circle-20 wall (teaching bands) has a mechanism aimed at it. Remaining s
   <tr><td><b>corpse-jump skinning</b> (script-gen, commits 8d0f92c+40c40c5)</td><td>Skin fired before the corpse existed; the only reliable window is the kill prose itself. Fight body registers <code>matchre SKINME corpse slumps</code> BEFORE the gone-matchers; triple-fire beats the kill-blow RT (attempt 3 parks and lands).</td><td class="metric-good">skinning 0 (project-wide, every run ever) → 15 in one leg; 15/25 skins landed (p10)</td></tr>
   <tr><td><b>survival-first standing interleave</b></td><td>Burst-on-arrival fired once (16 sends vs 700+ combat). Redesigned per Sean: a survival verb before every target check in the SCAN loop, out-of-combat gated, supervisor valve auto-disarms when the lanes close; 75s kill-activity watchdog guard.</td><td class="metric-good">all four survival slots closed mid-leg (p10): 1st 13, 2nd 10, 3rd 5, 4th 3/2; foraging 14, first_aid 10</td></tr>
   <tr><td><b><code>--resume &lt;char&gt;</code></b></td><td>Every 45-min leg threw away a near-circle-2 character — the 602-run history's biggest structural waste. Resume re-enters via the existing <code>doCharSelect</code> path with ranks/kits/silver intact.</td><td class="metric-good">r1: shortfall HELD at 10, ranks 530→814, 0 deaths; r2: ranks→1136. Legs now compound.</td></tr>
-  <tr><td><b><code>climbFinish</code> + gear-ledger standard</b> (this arc)</td><td>Shortfall pinned at 10 with 5 purchasable/study rows while the purse leaked into rank-163 evasion drills and worn-gear re-buys. New standard: <code>gearLedger</code> rows priced from ITEMS at generation time; teachable-only hall training (cap 4); Academy <code>study</code> detour for both lore rows; worn-gated, purse-gated kit emitter.</td><td class="metric-warn">in flight (r3) — kit emitter + study detour verified in generated output; awaiting the first hall trip to fire in a live leg</td></tr>
-  <tr><td><b>Crier-quest silver loop</b> (measured, not yet built)</td><td>Kill-quests pay 70–75s (rats = the agent's existing target), 8 steps from the sewers; hunting income is ~1.7/min vs ~30/min via quests; deliver/recover quests also bank appraisal exp (lore!).</td><td>queued as the final kaizen — the 6-minute finish depends on it</td></tr>
+  <tr><td><b><code>climbFinish</code> + gear-ledger standard</b></td><td>Shortfall pinned at 10 with 5 purchasable/study rows while the purse leaked into rank-163 evasion drills and worn-gear re-buys. New standard: <code>gearLedger</code> rows priced from ITEMS at generation time; teachable-only hall training (cap 4); Academy <code>study</code> detour for both lore rows; worn-gated, purse-gated kit emitter.</td><td class="metric-good">r7b (syir): kit bought+warn (club→4th weapon, padded cloth→1st armor 148, helm→2nd armor), both lore rows closed via study, <b>0 deaths</b></td></tr>
+  <tr><td><b>Resume + engine fixes r3→r7b</b></td><td>Six bugs found live: (1) <code>--variant</code> on resume was a <code>--tag</code> alias — knob-less legs; (2) stale <code>[ROOM:...]</code> token beat live room in ife/ifne gates — bazaar errands skipped every trip; (3) shared per-sell <code>ERRAND_DONE</code> jump skipped bundle+kit on first "do not have"; (4) study-route cap 36 &lt; real 38-step walk; (5) <code>studySkills ||=</code> cached stale []; (6) <code>pureDiskPath</code> returns <code>{dir,via}</code> not <code>{dir,to}</code> — the studyGo gate failed every trip (the study-killer).</td><td class="metric-good">all six fixed with repro tests; errands/study/kit chain fully live</td></tr>
+  <tr><td><b>*** FIRST CIRCLE-UP ***</b> (r7b, run syir)</td><td>Full chain: resume + climbFinish kit + study detour + survival interleave. 46 kills @ 61/h (best ever), 3691 ranks, 0 deaths.</td><td class="metric-good">*** CIRCLE-UP → circle 2 at 13m10s *** — first in project history; c3 gate already 125/126 (99.2%)</td></tr>
+  <tr><td><b>Crier-quest silver loop</b> (measured, not yet built)</td><td>Kill-quests pay 70–75s (rats = the agent's existing target), 8 steps from the sewers; hunting income is ~1.7/min vs ~30/min via quests; deliver/recover quests also bank appraisal exp (lore!).</td><td>queued as the next kaizen</td></tr>
 </table>
 
 <h2>Open risks &amp; honest caveats</h2>

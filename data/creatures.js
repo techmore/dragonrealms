@@ -1,5 +1,34 @@
 // Creature catalog for hunting grounds (clean-room).
 
+// DEATH CRIES (clean-room, 2026-09-04): DR never announces a kill as a
+// victory ("You fell X!") — the creature simply dies in species-flavored
+// prose on its own combat line ("The musk hog falls to the ground and lies
+// still." / "A grass eel thrashes about wildly for a few seconds, then lies
+// still." / "Gasping out in terror, a sleazy lout crumples to the ground.").
+// Sources: docs/elanthipedia Devitalize/Eagle's Cry/Carrion Call/Burn/
+// Strange Arrow/Hand of Tenemlor examples (messaging examples, verbatim
+// patterns re-expressed here for our species). Keyed by kind so new species
+// inherit a cry automatically; a creature may override with its own
+// `deathCry` (a verb phrase completing "<Name> <cry>"). The kill line is
+// ONLY this prose — no score-keeping, no skin instructions bolted on.
+export const DEATH_CRIES = {
+  beast: 'falls to the ground and lies still.',
+  vermin: 'curls in on itself and lies still.',
+  humanoid: 'crumples to the ground with a last gasp.',
+  undead: 'unravels into wisps of cold mist and is gone.',
+  spirit: 'fades to nothing with a fading sigh.',
+  construct: 'shudders, gears winding down, and lies still.',
+};
+
+// Resolve a creature's death cry: explicit override first, then its kinds in
+// order, then the humanoid default. Never returns empty (callers append it
+// to combat prose).
+export function deathCryFor(def) {
+  if (def.deathCry) return def.deathCry;
+  for (const k of def.kinds || []) if (DEATH_CRIES[k]) return DEATH_CRIES[k];
+  return DEATH_CRIES.humanoid;
+}
+
 export const CREATURES = {
   rat: {
     id: 'rat', name: 'a sewer rat', plural: 'sewer rats', circle: 1, kinds: ['beast'],
