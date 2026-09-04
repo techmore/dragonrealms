@@ -1654,11 +1654,12 @@ class SweepAgent {
       // the pre-combat check below fired BETWEEN the kill blow and the fight
       // body's trip/skin steps — restartCycle discarded the nested subroutine
       // mid-kill and the corpse was never skinned (sdhq 2026-09-04: 5 kills,
-      // 10 skin sends, all pre-kill, zero post-kill). lastKillAt < 45s or
-      // combat active → the agent is working; leave it alone.
+      // 10 skin sends, all pre-kill, zero post-kill). lastKillAt < 75s or
+      // combat active → the agent is working; leave it alone. (75s: a 90s
+      // room-stand with a kill at t+47 still must not fire — p9.)
       if (this.session.vitals.room && Date.now() - this.lastRoomChangeAt > 90000
         && !this.session.vitals.inCombat
-        && Date.now() - (this.lastKillAt || 0) > 45000) {
+        && Date.now() - (this.lastKillAt || 0) > 75000) {
       const st = this.runner?.state || {};
       this.appendLog(`[watchdog] parked 90s — regenerating cycle from here [room ${this.session.vitals.room} script ${this.curName} mode ${st.mode}/${st.pc} hp ${this.session.vitals.hp}/${this.session.vitals.maxhp} refusals ${this.refusals || 0}]`);
       this.lastRoomChangeAt = Date.now();

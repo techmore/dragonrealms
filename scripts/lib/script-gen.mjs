@@ -112,11 +112,17 @@ function buildSharedFightScript(cap) {
   if (skinGuild) {
     // SKINME (jumped from the corpse matcher): skin now while the corpse is
     // fresh, then fall through to the shared tail (rotate/forage/exp).
-    // Failed prose ('no such corpse', fumble) is harmless and continues.
+    // THREE attempts: the kill blow's attack-RT (2s light) is live when the
+    // prose arrives, so attempt 1 is refused blind and attempt 2 races the
+    // re-arm (both send before the first refusal lands — sdhq/p9). Attempt 3
+    // parks on the settled rtUntil and lands. Failed prose is harmless.
     L.push('SKINME:');
     L.push('  put skin %1');
     L.push('  wait');
-    if (cap.survivalRetry) L.push('  put skin %1', '  wait');
+    L.push('  put skin %1');
+    L.push('  wait');
+    L.push('  put skin %1');
+    L.push('  wait');
     // Clear the matcher so a second kill prose in this cycle doesn't re-jump
     // (matches list is consumed on hit — re-registration is unnecessary: the
     // matcher was consumed when it fired. Next body cycle re-registers it.)
