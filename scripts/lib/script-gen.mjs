@@ -629,7 +629,19 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
       L.push(`  matchre TG_${key} ^(?![\\s\\S]*${noun} is here)`);
       L.push(`  matchre FN_${key} ${noun} is here`);
       L.push('  matchwait 4');
-      L.push(`TG_${key}:`, '  goto SCAN');
+      // TG (target GONE) = the kill moment for this species: skin the corpse
+      // before returning to SCAN. The old body fired skin mid-sequence while
+      // the creature was still alive — every send answered "no such corpse"
+      // (sdhq/kxuh: 31 sends, 0 skins, 0 ranks). The corpse rots in 60s, so
+      // this gate is the only reliable skin window. Failed-skin prose
+      // ('no such corpse') is harmless and falls through to SCAN.
+      L.push(`TG_${key}:`);
+      if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('skinning')) {
+        L.push(`  put skin ${noun}`);
+        L.push('  wait');
+        if (cap.survivalRetry) L.push(`  put skin ${noun}`, '  wait');
+      }
+      L.push('  goto SCAN');
       L.push(`FN_${key}:`, `  putrun ${cap.scriptBase}fight "${noun.replace(/"/g, '')}"`, '  goto SCAN');
     }
   } else for (const sp of species) {

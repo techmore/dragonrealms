@@ -526,9 +526,13 @@ export function createRunner(src, args = [], io = {}) {
     // Diagnostics for supervisors: why is this script sitting still?
     get state() {
       const f = cur();
-      if (!f) return { mode: 'done', depth: 0, pc: -1, pendingMatches: 0 };
+      if (!f) return { mode: 'done', depth: 0, pc: -1, pendingMatches: 0,
+        rtUntil: s.rtUntil, pendingRtLine: s.pendingRtLine };
       return { mode: s.mode, depth: frames.length - 1, pc: f.pc,
-        pendingMatches: s.matches.length };
+        pendingMatches: s.matches.length,
+        rtUntil: Math.max(0, s.rtUntil - Date.now()),
+        pendingRtLine: s.pendingRtLine || null,
+        retryLine: s.retryLine || null };
     },
   };
 }

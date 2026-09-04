@@ -1649,8 +1649,16 @@ class SweepAgent {
     // Parked too long: regenerate paths from the current room. If we keep
       // regenerating into the same stuck state (dead-end geography), walk to
       // the bazaar hub instead — every town road connects there eventually.
+      // GUARD: never fire while a fight was recently active. A standing fight
+      // in one room shows zero room-change for its whole duration (30-90s), so
+      // the pre-combat check below fired BETWEEN the kill blow and the fight
+      // body's trip/skin steps — restartCycle discarded the nested subroutine
+      // mid-kill and the corpse was never skinned (sdhq 2026-09-04: 5 kills,
+      // 10 skin sends, all pre-kill, zero post-kill). lastKillAt < 45s or
+      // combat active → the agent is working; leave it alone.
       if (this.session.vitals.room && Date.now() - this.lastRoomChangeAt > 90000
-        && !this.session.vitals.inCombat) {
+        && !this.session.vitals.inCombat
+        && Date.now() - (this.lastKillAt || 0) > 45000) {
       const st = this.runner?.state || {};
       this.appendLog(`[watchdog] parked 90s — regenerating cycle from here [room ${this.session.vitals.room} script ${this.curName} mode ${st.mode}/${st.pc} hp ${this.session.vitals.hp}/${this.session.vitals.maxhp} refusals ${this.refusals || 0}]`);
       this.lastRoomChangeAt = Date.now();
