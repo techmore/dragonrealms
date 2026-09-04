@@ -9,6 +9,7 @@ import {
 // Revives the destination room's spawns — C1 makes kills deplete rooms, and
 // the suite teleports without waiting for restock.
 import { findPath } from '../data/grid.js';
+import { roundtimeLeft } from '../server/player.js';
 function walk(game, p, to) {
   for (const step of findPath(p.room, to)) game.move(p, step);
   reviveRoomSpawns(game, p.room);
@@ -355,6 +356,57 @@ test('maneuvers: disarm, trip, shield-bash resolve in combat', async () => {
   game.removePlayer(p);
 });
 
+test('trip banks tactics exp (barbarian hunt-loop field training)', async () => {
+  // The barbarian fight loop's trailing trip is the guild's only tactics
+  // source. Assert on expPools (gainSkillExp banks there; ranks move on
+  // pulses), not on skills.tactics.exp or the return value.
+  const acc = await auth.registerAccount('Triptest', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Tripwire', race: 'human', guild: 'barbarian' });
+  const p = loadPlayer(charId);
+  p.ws = fakeWs();
+  game.addPlayer(p);
+
+  walk(game, p, 'sewers_1'); // sewers
+  const { CREATURES } = await import('../data/creatures.js');
+  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.rat));
+  const creature = game.creaturesIn(p.room)[0];
+  handleCommand(game, p, `attack ${creature.def.id}`);
+  const combat = game.combat.getFor(p);
+  assert.ok(combat);
+  combat.tick(); // let it start
+
+  const before = p.expPools.tactics || 0;
+  handleCommand(game, p, 'trip rat');
+  assert.ok((p.expPools.tactics || 0) > before, 'trip banks tactics exp even on a failed attempt');
+
+  while (game.combat.getFor(p)) combat.tick();
+  game.removePlayer(p);
+});
+
+test('appraise banks appraisal exp (barbarian hunt-loop lore training)', async () => {
+  const acc = await auth.registerAccount('Apprtest', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Appraiser', race: 'human', guild: 'barbarian' });
+  const p = loadPlayer(charId);
+  p.ws = fakeWs();
+  game.addPlayer(p);
+
+  walk(game, p, 'sewers_1'); // sewers
+  const { CREATURES } = await import('../data/creatures.js');
+  game.roomCreatures.get(p.room).push(game.makeCreature(CREATURES.rat));
+  const creature = game.creaturesIn(p.room)[0];
+  handleCommand(game, p, `attack ${creature.def.id}`);
+  const combat = game.combat.getFor(p);
+  assert.ok(combat);
+  combat.tick(); // let it start
+
+  const before = p.expPools.appraisal || 0;
+  handleCommand(game, p, 'appraise rat');
+  assert.ok((p.expPools.appraisal || 0) > before, 'appraise banks appraisal exp mid-fight');
+
+  while (game.combat.getFor(p)) combat.tick();
+  game.removePlayer(p);
+});
+
 test('inner fire: berserk costs, burns out, kills recharge, pulses cap passively', async () => {
   const acc = await auth.registerAccount('Furyforge', 's3cretword');
   const charId = createCharacter(acc.accountId, { name: 'Furyforge', race: 'gortog', guild: 'barbarian' });
@@ -460,6 +512,13 @@ test('barbarian abilities: slots, paths, forms, roars, and masteries', async () 
   const timerBefore = creature2.timer;
   handleCommand(game, p, 'roar screech rat');
   assert.ok(creature2.timer > timerBefore, 'screech slows the foe');
+  // A REFUSED roar must not charge roundtime: the fight body roars every
+  // cycle, so a refused roar pinning 3s RT cascade-refused the post-kill
+  // trip/skin block (kfog 2026-09-04 — zero skins all run, harness-proven).
+  // The rage is already active here → refused → RT must stay 0.
+  p.roundtime = 0; p.rtUntil = 0;
+  handleCommand(game, p, 'roar everilds_rage');
+  assert.ok(roundtimeLeft(p) === 0, 'refused roar charges no roundtime');
   while (game.combat.getFor(p)) game.combat.getFor(p).tick();
 
   // Voice regenerates on pulses; Duelist raises the passive inner fire cap.

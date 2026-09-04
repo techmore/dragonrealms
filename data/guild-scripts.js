@@ -11,8 +11,18 @@
 export const GUILD_SCRIPTS = {
   barbarian: {
     magic: false,
-    // Weapon swing + barb expertise study; roar/berserk are fidelity probes.
-    fight: ['put attack %target', 'put analyze'],
+    // Weapon swing + barb expertise study + a brawling trip: maneuvers are
+    // the ONLY tactics-exp source (server/combat.js maneuver(), +12 even on
+    // a failed attempt), and the hunt loop previously fired none — tactics
+    // sat at a structural 0/2. Trip is the safe maneuver: brawling-based,
+    // no shield needed (bash refuses without one), stamina-gated with no
+    // roundtime, 8s cooldown so at most one lands per fight. It trails the
+    // block so combat always exists when it fires.
+    // Appraise was trialed here and REVERTED (lore run pwxx): 6-9 appraises
+    // per 15m moved appraisal to rank 1 only, while the 4s roundtime per
+    // fight cost roughly a third of the kill pace (20-24/h vs 28-40/h).
+    // Lore closes cheaper via hall training; the fight loop keeps trip only.
+    fight: ['put attack %target', 'put analyze', 'put trip %target'],
     preFight: [],            // roar needs an active fight — see signatureAfter
     // Where the signature ability goes in the fight loop. Two failure modes to
     // thread between, both measured:
@@ -79,10 +89,9 @@ export const GUILD_SCRIPTS = {
       // field-passive only, +2 per melee swing (server/combat.js). Listed so
       // the curriculum names every hard gate; refusal prose is harmless.
       // HALL-TRAINING NOTES: expertise is hall-closable (`train expertise`
-      // works); inner_fire/parry/tactics are refused — inner_fire and parry
-      // accrue in the field (abilities/taking hits), but tactics trains ONLY
-      // via combat maneuvers (disarm/trip/bash) which no hunt loop fires —
-      // known field-verb gap, flagged for a future maneuver step.
+      // inner_fire/parry/tactics are refused — inner_fire and parry
+      // accrue in the field (abilities/taking hits); tactics accrues via the
+      // trip step in the fight loop (maneuvers are its only exp source).
       'melee_mastery'],
     // Abilities to learn on each guild-hall trip, in priority order. Taught
     // only at the hall (server/commands/combat.js learn()), and slots are
@@ -634,6 +643,28 @@ export const VARIANTS = {
     shieldKit: true, cheapWeaponKit: true,
     diff: ['cheapWeaponKit'],
     hypothesis: 'ShieldLadder stalled on the 2nd/3rd weapon lanes because the shield-first purse gate left only the dagger equipped. Buy a stocked affordable multi-lane starter kit first—dagger, sling, club, staff—then attempt the shield, so field rotation closes 2nd/3rd weapon and survival ranks before expensive upgrades.',
+  },
+  climb: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    shieldKit: true, cheapWeaponKit: true, climb: true,
+    diff: ['climb'],
+    hypothesis: 'Rank-aware arena pick (teaching bands): creature exp collapses past a spawn teaches-high (floor 0.15), so high-rank agents farming beginner rooms starve while the circle-based weight gate keeps them there. With climb on, the supervisor prefers the nearest room that still teaches the best weapon lane at full rate and orders the occupancy ladder by teaching headroom first, distance second. Safety gate unchanged (no suicide rooms). v2: overrides capped to an 8-move walk — v1 sent a circle-1 agent 17 rooms through populated sewers for headroom 5 and death-looped ×10. Expect no difference at low ranks and a growing pace gap once weapon lanes pass their beginner teaches-high (~rank 7+).',
+  },
+  climbSkin: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    shieldKit: true, cheapWeaponKit: true, climb: true, survivalRetry: true,
+    diff: ['survivalRetry'],
+    hypothesis: 'muse-c20p1 (mrbx) closed 72/84 of circle 2 in 45 min with ZERO skinning ranks: all 41 post-kill `skin` sends were RT-refused ("You must wait 3 seconds") and dropped — the verb fired blind during the killing blow\'s roundtime, so the refusal hit a non-parked line the engine does not re-apply, and the corpse rotted. Same race ate the forage/hunt slot. Consequence chain: no skinning exp (4th survival starves), no pelts to sell (silver 12-32 → lore + 4th-weapon hall trains unfunded). survivalRetry double-fires skin and the forage/hunt slot per kill: attempt 1 may be refused blind, but its refusal re-arms the engine RT deadline so attempt 2 parks and lands. Extra cost ≈ one RT per verb during the 25s respawn dead-time (near-free); recovery ≈ the whole survival+silver lane. One knob vs climb.',
+  },
+  climbSurvivalFirst: {
+    restPct: 35, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    shieldKit: true, cheapWeaponKit: true, climb: true, survivalRetry: true,
+    survivalFirst: true,
+    diff: ['survivalFirst'],
+    hypothesis: 'Sean, 2026-09-04: battle is solved — prioritize survival leveling and measure its time ratio. The generated hunt gains a BURST block (forage x2, hunt, track — unconditional-exp wilds verbs) gated on script var 5; the supervisor arms var 5 while any counted survival Nth slot is open and DISARMS it the moment all close (survivalBurstActive over the authoritative exp sheet). Expected: the burst needs only ~2-3 minutes of roundtime to lift foraging/perception/stealth past the rank-2/4 gates (vs the whole leg starved); kill rate dips only during the burst window. Measures the survival-vs-battle time ratio directly in gapsSamples + [burst] flip timestamps. One knob (survivalFirst) vs climbSkin.',
   },
   edgedSkinRest50: {
     restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,

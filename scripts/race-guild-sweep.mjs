@@ -31,13 +31,13 @@ import { mkdirSync, appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 import { createHash, randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { join, basename } from 'node:path';
+import { join, basename, dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { openSweepsDb, insertSweep } from './lib/sweeps-db.mjs';
 import { classifyStall, verdictLabel } from './lib/stall-detect.mjs';
 import { pad, median, fmtMin, fmtMs } from './lib/report-utils.mjs';
 import { refreshLiveIndex } from './lib/live-index.mjs';
-import { circleRequirements, circleRequirementNeeds } from '../data/guilds.js';
+import { circleRequirements, circleRequirementNeeds, circleRequirementCandidates } from '../data/guilds.js';
 // Display-name -> skill-id map for parsing `exp` output. showExp() prints the
 // human label ("Parry Ability", "Melee Mastery"), not the id.
 const { SKILLS } = await import('../data/skills.js');
@@ -97,6 +97,34 @@ const { ROOMS } = await import('../data/world.js');
 const { creatureById } = await import('../data/creatures.js');
 const { GUILD_SCRIPTS, RACE_MATRIX, VARIANTS } = await import('../data/guild-scripts.js');
 const { nounOf, moves, buildHuntScript, buildWeaponRotationScript, buildSharedFightScript, buildCircleScript, buildMegaScript, reversePath, trainListFromMissing } = await import('./lib/script-gen.mjs');
+// Fidelity-log verb allowlist, derived from the guild script definitions so a
+// new scripted verb is automatically traceable (the old hand-written regex
+// silently dropped `learn`, `tend`, and `trip` in turn — each looked like a
+// broken feature until allowlisted in a follow-up commit). Static entries
+// cover supervisor/hall verbs no fight array names.
+const SCRIPT_VERBS = new Set([
+  'tdptrain', 'train', 'flee', 'rest', 'stand', 'circle', 'buy', 'wear',
+  'remove', 'wield', 'learn', 'drink', 'effects', 'stealth', 'skin',
+  'withdraw', 'sell', 'bundle', 'exp', 'tend',
+  // Valid script verbs no current fight array names (yet): maneuvers and
+  // guild abilities a future loop step may fire. Kept so the trace never
+  // goes blind on a verb the game accepts.
+  'disarm', 'bash', 'meditate', 'form',
+  // Survival-burst verbs (survivalFirst variant): field-exp lanes the burst
+  // fires before combat. `track` is new to generated scripts this round.
+  'forage', 'hunt', 'track',
+]);
+for (const cfg of Object.values(GUILD_SCRIPTS)) {
+  for (const step of [...(cfg.fight || []), ...(cfg.preFight || []), ...(cfg.identityVerbs || [])]) {
+    const verb = String(step).replace(/^put\s+/, '').split(/\s+/)[0];
+    if (verb && !verb.startsWith('%')) SCRIPT_VERBS.add(verb);
+  }
+  if (cfg.signature?.cmd) {
+    const verb = String(cfg.signature.cmd).replace(/^put\s+/, '').split(/\s+/)[0];
+    if (verb && !verb.startsWith('%')) SCRIPT_VERBS.add(verb);
+  }
+}
+const VERB_ALLOWLIST_RE = new RegExp(`^(${[...SCRIPT_VERBS].sort().join('|')})`);
 const { WireSession, stripAnsi, trackMove, trackRefusedMove } = await import('./lib/wire-session.mjs');
 const { createRunner } = await import('../public/js/script-engine.js');
 
@@ -199,6 +227,11 @@ let wanted = [];            // [{guild, race, variant?}]
 let MODE = 'sweep';         // 'sweep' | 'benchmark' | 'spawn'
 const BENCH_GUILD = flag('benchmark', null);
 const SPAWN_SPEC = flag('spawn', null);
+// --resume <char>: continue an existing character (account + char resolved
+// from the game DB at RESUME_DB). One agent, spawn-mode flow otherwise.
+const RESUME_CHAR = String(flag('resume', '') || '').trim();
+const RESUME_DB = process.env.DR_DB_PATH
+  || join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'store', 'dragonrealms.db');
 // Benchmarks default to one worker so time-to-circle remains a clean
 // script-pacing measurement. `--concurrency N` intentionally opts into a
 // crowded-world trial: the MUD supports multiple WS sessions, but agents then
@@ -259,6 +292,24 @@ if (ARGS.includes('--all')) {
   if (!Number.isFinite(MINUTES)) MINUTES = DEFAULT_BENCH_MINUTES;
   const batches = Math.ceil(wanted.length / BENCH_CONCURRENCY);
   log(`benchmark mode: ${g} × [${pick.join(', ')}] × ${races.join(',')} → ${wanted.length} runs in ${batches} batch${batches === 1 ? '' : 'es'} (concurrency ${BENCH_CONCURRENCY}), ${MINUTES}m cap each, target circle ${CIRCLE_TARGET}, boost x${BOOST}, stats ${STAT_POLICY}${ARGS.includes('--race-matrix') ? ' (race matrix)' : ''}`);
+} else if (RESUME_CHAR) {
+  // Resume-a-run: continue an EXISTING character instead of burning a fresh
+  // level-1 each leg (the 602-run history's biggest structural waste — a
+  // 45-min probe ended 12 shortfall from circling and had no way to continue).
+  // The char's guild/race/circle come from the GAME DB (source of truth);
+  // WireSession already resumes an existing char whenever the account knows
+  // its name, so the only new state is the account/char binding.
+  const db = new DatabaseSync(RESUME_DB, { readOnly: true });
+  const row = db.prepare(`SELECT c.name, c.race, c.guild, c.circle, a.username FROM characters c
+    JOIN accounts a ON a.id = c.account_id WHERE c.name = ?`).get(RESUME_CHAR);
+  db.close();
+  if (!row) { console.error(`no character named \"${RESUME_CHAR}\" in ${RESUME_DB}`); process.exit(1); }
+  wanted = [{ guild: row.guild, race: row.race, variant: RUN_TAG ? { name: RUN_TAG } : null,
+    resumeChar: row.name, resumeUser: row.username }];
+  MODE = 'spawn';
+  if (!Number.isFinite(MINUTES)) MINUTES = 10;
+  if (!Number.isFinite(CIRCLE_TARGET)) CIRCLE_TARGET = row.circle + 1;
+  log(`resume mode: ${row.name} (${row.race} ${row.guild}, circle ${row.circle}) → target c${CIRCLE_TARGET}, ${MINUTES}m cap`);
 } else if (SPAWN_SPEC) {
   // Spawn-a-run: exactly one agent with current defaults — no flag archaeology.
   const [g, race = 'human'] = SPAWN_SPEC.split(',').map((s) => s.trim());
@@ -301,7 +352,7 @@ class SweepAgent {
     return out;
   }
 
-  constructor({ guild, race, variant = null, repeat = 1 }) {
+  constructor({ guild, race, variant = null, repeat = 1, resumeChar = null, resumeUser = null }) {
     this.guild = guild;
     this.race = race;
     this.repeat = repeat || 1;
@@ -339,9 +390,21 @@ class SweepAgent {
     const agentTag = '-' + SweepAgent.nextTag();
     this.agentTag = agentTag.slice(1);
 
-    this.char = (('Sw' + guild[0].toUpperCase() + guild.slice(1).replace(/[^a-zA-Z]/g, '')
-      + race[0].toUpperCase() + race.slice(1).replace(/[^a-zA-Z]/g, '')).replace(/[^a-zA-Z]/g, '').slice(0, 15 - vTag.length - agentTag.length)
-    ) + vTag + agentTag + '-' + RUN_ID;
+    // RESUME (--resume <char>): reuse the existing character AND its account.
+    // The original account username is recoverable from the char name shape
+    // only for fresh runs, so the resume branch looks it up from the game DB
+    // instead — pass (username) through wanted.resumeUser resolved upstream.
+    if (resumeChar) {
+      this.resumeChar = resumeChar;
+      this.char = resumeChar;
+      this.user = resumeUser || null;
+      this.agentTag = 'resume';
+    }
+    if (!this.char) {
+      this.char = (('Sw' + guild[0].toUpperCase() + guild.slice(1).replace(/[^a-zA-Z]/g, '')
+        + race[0].toUpperCase() + race.slice(1).replace(/[^a-zA-Z]/g, '')).replace(/[^a-zA-Z]/g, '').slice(0, 15 - vTag.length - agentTag.length)
+      ) + vTag + agentTag + '-' + RUN_ID;
+    }
     // ONE ACCOUNT PER AGENT. A sweep burns one character per run, so sharing
     // a per-RUN account capped the whole sweep at MAX_CHARS runs: the
     // overflow agents got "This account already has N characters" at
@@ -356,9 +419,11 @@ class SweepAgent {
     // letters, so reserve those and shorten guild/race to fit.
     const aTag = agentTag.slice(1); // drop the leading hyphen
     const mkUser = (g, r) => `sw_${g}_${r}_${aTag}${RUN_ID}`.toLowerCase();
-    this.user = mkUser(guild, race);
-    if (this.user.length > 24) this.user = mkUser(guild.slice(0, 4), race.slice(0, 4));
-    if (this.user.length > 24) this.user = `sw_${aTag}${RUN_ID}`.toLowerCase();
+    if (!this.user) {
+      this.user = mkUser(guild, race);
+      if (this.user.length > 24) this.user = mkUser(guild.slice(0, 4), race.slice(0, 4));
+      if (this.user.length > 24) this.user = `sw_${aTag}${RUN_ID}`.toLowerCase();
+    }
 
     this.scriptBase = guild.slice(0, 6); // e.g. "warmag", "barbar"
     this.session = new WireSession({
@@ -498,6 +563,21 @@ class SweepAgent {
     // through to bestAny (any reachable room) so an agent is never left with
     // no hunting grounds — overlap then is the lesser evil to a dead agent.
     const exclude = CLAIMED_ARENAS;
+    // CLIMB: rank-aware arena pick (teaching bands). Creature exp collapses
+    // past a spawn's teaches-high (server/combat.js teachingFactor, floor
+    // 0.15), so a high-rank agent farming beginner rooms starves while the
+    // circle-based weight gate below keeps it there. With climb on, prefer
+    // the nearest room that still teaches the agent's best weapon lane at
+    // full rate; if every safe room is outgrown, take the least-bad one.
+    const climb = !!this.variant?.climb;
+    const topWeapon = climb ? this.topWeaponRank() : 0;
+    let bestClimb = null;
+    // CLIMB v2 (death-loop lesson, run xwox): the override once sent a
+    // circle-1 agent on a 17-move trek through populated sewers for headroom
+    // 5 — it died en route ×10 while regen re-picked the same far room.
+    // Teaching headroom is worthless past a walk the agent survives, so only
+    // rooms within a short walk can override the nearest pick.
+    const CLIMB_MAX_PATH = 8;
     for (const id of Object.keys(ROOMS)) {
       if (!(ROOMS[id].spawns || []).length) continue;
       if (exclude.has(id)) continue;
@@ -512,9 +592,60 @@ class SweepAgent {
         return c && (c.circle || 1) > myCircle + this.arenaBand;
       });
       if (tooStrong) continue;
+      if (climb) {
+        const headroom = this.roomTeachHeadroom(id, topWeapon);
+        const cand = { id, path: p, headroom };
+        if (p.length <= CLIMB_MAX_PATH && (!bestClimb || headroom > bestClimb.headroom ||
+          (headroom === bestClimb.headroom && p.length < bestClimb.path.length))) bestClimb = cand;
+      }
       if (!best || p.length < best.path.length) best = { id, path: p };
     }
+    if (climb && bestClimb && bestClimb.headroom > (best ? this.roomTeachHeadroom(best.id, topWeapon) : -Infinity)) {
+      this.appendLog(`[climb] rank ${topWeapon} weapon → ${bestClimb.id} (headroom ${bestClimb.headroom}) over nearest ${(best || bestAny || {}).id}`);
+      return { id: bestClimb.id, path: bestClimb.path };
+    }
     return best || bestAny;
+  }
+
+  // Best weapon-lane rank from authoritative exp-sheet ranks (expRanks win;
+  // vitals.skills mirrors them). Falls back to 0 when no exp has parsed yet.
+  topWeaponRank() {
+    let pool = [];
+    try { pool = circleRequirementCandidates(GUILDS[this.guild], 'weapon'); } catch { pool = []; }
+    const ranks = this.expRanks || this.session.vitals.skills || {};
+    const num = (v) => (v && typeof v === 'object' ? Number(v.rank) || 0 : Number(v) || 0);
+    let top = 0;
+    for (const id of pool) top = Math.max(top, num(ranks[id]));
+    if (!pool.length) {
+      for (const v of Object.values(ranks)) top = Math.max(top, num(v));
+    }
+    return top;
+  }
+
+  // Survival-burst liveness (survivalFirst variant, kaizen): ON until every
+  // circle-gating survival slot is closed, OFF after. Field survival exp is
+  // cheap (~6/attempt, rank 4 needs ~800) — the burst needs maybe 2-3 minutes
+  // of roundtime; keep spending it only while a counted slot is still open.
+  // Reads the same authoritative expRanks the gap tracker uses.
+  survivalBurstActive() {
+    const need = this.circleGapNeeds?.survival;
+    if (!need || !need.length) return false; // no open survival slot: battle ratio wins
+    const ranks = this.expRanks || this.session.vitals.skills || {};
+    const num = (v) => (v && typeof v === 'object' ? Number(v.rank) || 0 : Number(v) || 0);
+    return need.some((n) => num(ranks[n.id]) < n.need);
+  }
+
+  // Teaching headroom of a room for a weapon rank: max over spawns of
+  // (teaches-high − rank). ≥0 means the room still teaches at full rate.
+  roomTeachHeadroom(roomId, rank) {
+    let head = -Infinity;
+    for (const sid of ROOMS[roomId].spawns || []) {
+      const c = creatureById(sid);
+      if (!c) continue;
+      const hi = c.teaches ? c.teaches[1] : (c.circle || 1) * 3;
+      head = Math.max(head, hi - rank);
+    }
+    return head;
   }
 
   // Nearest K spawn rooms within our weight class, each with a baked BFS path
@@ -526,6 +657,8 @@ class SweepAgent {
   candidateRooms(from, k = 5) {
     const myCircle = this.session.vitals.circle || 1;
     const scored = [];
+    const climb = !!this.variant?.climb;
+    const topWeapon = climb ? this.topWeaponRank() : 0;
     for (const id of Object.keys(ROOMS)) {
       if (!(ROOMS[id].spawns || []).length) continue;
       const p = this.session.bfsPath(from, id, this.diskAdj());
@@ -535,9 +668,12 @@ class SweepAgent {
         return c && (c.circle || 1) > myCircle + this.arenaBand;
       });
       if (tooStrong) continue;
-      scored.push({ id, path: p, len: p.length });
+      scored.push({ id, path: p, len: p.length, headroom: climb ? this.roomTeachHeadroom(id, topWeapon) : 0 });
     }
-    scored.sort((a, b) => a.len - b.len);
+    // Climb orders the ladder by teaching headroom first (rooms that still
+    // teach at full rate lead), distance second — the occupancy ladder then
+    // settles in the best-teaching empty room, not merely the nearest.
+    scored.sort((a, b) => (climb ? (b.headroom - a.headroom) : 0) || (a.len - b.len));
     return scored.slice(0, k).map((r) => ({ id: r.id, fromHere: r.path }));
   }
 
@@ -719,6 +855,8 @@ class SweepAgent {
       edgedKit: this.variant?.edgedKit,
       weaponAware: this.variant?.weaponAware,
       economyFallback: this.variant?.economyFallback,
+      survivalRetry: this.variant?.survivalRetry,
+      survivalFirst: this.variant?.survivalFirst,
       rotationSubscript: !!this.variant?.closeNth,
       sharedFight: !!this.variant?.closeNth,
     };
@@ -820,6 +958,14 @@ class SweepAgent {
           : /^(exp|tdp|info|skills|look)\b/.test(line) ? 'info'
           : /^(buy|sell|bundle|withdraw|wear|wield|remove)\b/.test(line) ? 'errands' : 'other';
         this.commandCounts[bucket] += 1;
+        // Re-arm the survivalFirst burst flag on EVERY fresh runner: a new
+        // runner starts with empty vars, so the one-shot arm-on-flip in the
+        // GAPS interval loses its state here (gkvj leg: burst armed once at
+        // 1m, then 13 watchdog restarts each dropped the flag and the BURST
+        // block never ran again — hunt/track sends stayed 0 all leg).
+        if (this.variant?.survivalFirst && this.survivalBurstArmed === '1') {
+          this.runner.setVar?.('5', '1');
+        }
         if (/^wield\b/.test(line)) {
           this.kitParts.weapon = true;
           const weapon = line.replace(/^wield\s+/, '').trim().toLowerCase();
@@ -835,13 +981,11 @@ class SweepAgent {
         if (/^(tdptrain|train)\b/.test(line)) {
           this.recordMilestone('training_loop', 'guild training command executed');
         }
-        // Verb allowlist for the fidelity log. Anything omitted here is still
-        // SENT — it just leaves no trace, which makes "did my change fire?"
-        // unanswerable from the log. `learn` was missing, so a working
-        // ability-learn step looked like it never ran (grep count 0) even
-        // though the script provably contained it and the walk completed.
-        // Keep this list in sync when adding scripted verbs.
-        if (process.env.SWEEP_DEBUG || /^(attack|tdptrain|train|flee|rest|stand|circle|buy|wear|remove|wield|prepare|cast|khri|enchant|backstab|analyze|roar|meditate|form|learn|drink|effects|stealth|hide|skin|withdraw|sell|bundle|exp|tend)/.test(line)) {
+        // Verb allowlist for the fidelity log (VERB_ALLOWLIST_RE, derived from
+        // GUILD_SCRIPTS at module scope). Anything omitted is still SENT —
+        // it just leaves no trace, which makes "did my change fire?"
+        // unanswerable from the log.
+        if (process.env.SWEEP_DEBUG || VERB_ALLOWLIST_RE.test(line)) {
 
           this.appendLog(`script> ${line}`);
           log(`[${this.guild}/${this.race}] > ${line}`);
@@ -1122,7 +1266,7 @@ class SweepAgent {
     const s = this.session;
     const arena = this.arena;
     if (!arena) return;
-    const cap = { guild: this.guild, race: this.race, char: this.char, circle: s.vitals.circle || 1, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth, tdpFloor: this.variant?.tdpFloor, helmRetry: this.variant?.helmRetry, armorStack: this.variant?.armorStack, shieldKit: this.variant?.shieldKit, cheapWeaponKit: this.variant?.cheapWeaponKit, rotMargin: this.variant?.rotMargin, weaponReserve: this.variant?.weaponReserve, weaponReserveV2: this.variant?.weaponReserveV2, weaponReserveV3: this.variant?.weaponReserveV3, edgedKit: this.variant?.edgedKit, weaponAware: this.variant?.weaponAware, economyFallback: this.variant?.economyFallback, sharedFight: !!this.variant?.closeNth };
+    const cap = { guild: this.guild, race: this.race, char: this.char, circle: s.vitals.circle || 1, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth, tdpFloor: this.variant?.tdpFloor, helmRetry: this.variant?.helmRetry, armorStack: this.variant?.armorStack, shieldKit: this.variant?.shieldKit, cheapWeaponKit: this.variant?.cheapWeaponKit, rotMargin: this.variant?.rotMargin, weaponReserve: this.variant?.weaponReserve, weaponReserveV2: this.variant?.weaponReserveV2, weaponReserveV3: this.variant?.weaponReserveV3, edgedKit: this.variant?.edgedKit, weaponAware: this.variant?.weaponAware, economyFallback: this.variant?.economyFallback, survivalRetry: this.variant?.survivalRetry, survivalFirst: this.variant?.survivalFirst, sharedFight: !!this.variant?.closeNth };
     cap.defensiveKit = this.guild === 'barbarian';
     cap.survivalBreadth = !!this.variant?.survivalBreadth;
     cap.survivalFocus = !!this.variant?.survivalFocus;
@@ -1628,6 +1772,22 @@ class SweepAgent {
       const what = m.replace(/ at least rank.*$/, '');
       return { what, need, have, short: Math.max(0, need - have) };
     });
+    // Survival-burst feed (survivalFirst): export which survival slots are
+    // still open, as {id, need} per missing Nth-set survival row, resolved to
+    // the exact pool member sitting at that Nth position (the slot the gate
+    // counts). Reshaped each call so circling advances the target cleanly.
+    try {
+      const pool = circleRequirementCandidates({ id: this.guild }, 'survival');
+      const open = [];
+      for (const m of parsed.filter((x) => /^\d+(st|nd|rd|th) survival/.test(x.what))) {
+        const nth = Number(m.what.match(/^(\d+)/)[1]);
+        const ranked = pool.map((id) => ({ id, rank: Number((shaped[id] || {}).rank || 0) }))
+          .sort((a, b) => b.rank - a.rank);
+        const slot = ranked[nth - 1];
+        if (slot) open.push({ id: slot.id, need: m.need });
+      }
+      this.circleGapNeeds = { survival: open };
+    } catch { /* telemetry only — never break the gap line */ }
     const shortfall = parsed.reduce((s, g) => s + g.short, 0);
     const gatedTotal = (res.rows || []).reduce((s, r) => s + Number(r.need || 0), 0);
     const gatedProgress = Math.max(0, gatedTotal - shortfall);
@@ -2018,6 +2178,19 @@ class SweepAgent {
       const line = this.gapsLine();
       if (!line) return;
       this.appendLog(line);
+      // survivalFirst burst valve (kaizen, one variable): arm the generated
+      // script's var 5 while a counted survival slot is open, disarm once all
+      // close. gapsLine() refreshes this.circleGapNeeds just above, so the
+      // flag tracks the authoritative exp-sheet ranks with zero extra wire
+      // traffic. Log each flip so the burst window is measurable in the log.
+      if (this.variant?.survivalFirst) {
+        const want = this.survivalBurstActive() ? '1' : '';
+        if (this.runner && this.survivalBurstArmed !== want) {
+          this.runner.setVar?.('5', want);
+          this.survivalBurstArmed = want;
+          this.appendLog(`[burst] survival lanes ${want ? 'OPEN — burst armed' : 'CLOSED — burst disarmed, kill pace resumes'} (${(this.circleGapNeeds?.survival || []).map((n) => `${n.id}<${n.need}`).join(', ') || 'none'})`);
+        }
+      }
       const s = this.sampleGaps(line);
       if (s) {
         this.appendLog(this.expRateLine(s));

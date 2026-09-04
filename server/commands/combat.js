@@ -376,8 +376,13 @@ function barbarianAbility(ctx, kind) {
     e.def.id === targetName || e.def.name.includes(targetName) || e.def.plural.includes(targetName)
   )?.uid;
   const res = combat.useAbility(def, target);
-  setRoundtime(p, kind === 'meditation' ? 8 : kind === 'form' ? 5 : 3);
-  if (!res.ok) emit(res.msg);
+  // Roundtime charges only a LANDED ability. A refused one ("the rage already
+  // burns", voice spent, no free slots) must not lock the agent out of its
+  // follow-up verbs — the generated fight body roars every cycle, so a
+  // refused roar pinning 3s RT cascade-refused trip/skin after it and the
+  // whole survival+silver lane starved (kfog 2026-09-04, harness-proven).
+  if (res.ok) setRoundtime(p, kind === 'meditation' ? 8 : kind === 'form' ? 5 : 3);
+  else emit(res.msg);
 }
 
 function barbarianTech(ctx, abilityId) {

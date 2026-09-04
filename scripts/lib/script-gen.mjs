@@ -98,6 +98,12 @@ function buildSharedFightScript(cap) {
   });
   if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('skinning')) {
     L.push('  put skin %1', '  wait');
+    // survivalRetry (climbSkin): the first skin usually fires blind during the
+    // killing blow's roundtime — the server refuses it and the engine drops a
+    // BLIND verb's line instead of parking it (muse-c20p1: 41 refusals, 0
+    // skins, whole run). The refusal arms the engine RT deadline, so this
+    // second attempt parks and actually lands in the respawn dead-time.
+    if (cap.survivalRetry) L.push('  put skin %1', '  wait');
   }
   if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('first_aid')) {
     L.push('  iflt bleed 1 goto NOTEND');
@@ -120,6 +126,9 @@ function buildSharedFightScript(cap) {
     // combat feeding the foraging survival-Nth slot.
     L.push('  put forage');
     L.push('  wait');
+    // survivalRetry (climbSkin): first send races the skin RT above; the
+    // second parks on the re-armed deadline (see buildSharedFightScript).
+    if (cap.survivalRetry) L.push('  put forage', '  wait');
   }
   L.push('  put exp', '  wait', '  exit');
   return L.join('\n');
@@ -128,6 +137,44 @@ function buildSharedFightScript(cap) {
 // hunt.dr: arm check -> travel to arena -> scan/fight loop with guild verbs,
 // mana gating for casters, rest when hurt. %target substitution happens in
 // the generated text itself (one FIGHT label per species).
+//
+// Occupancy ladder: check each candidate room for other hunters and settle
+// in the first empty one. One label per room (PICK_ROOM_<i>): hub-gate the
+// leg, walk it, look, then branch on %pcount — occupied rooms trampoline
+// home (RETURN_TO_HUB_<i>, emitted at the script's end) and the next leg
+// starts from there. A fully occupied ladder patrols instead of stacking;
+// REANCHOR catches drift (notably the bazaar) back into the ladder.
+function buildOccupancyLadder({ cap, arena, ladder }) {
+  const L = [];
+  for (let i = 0; i < ladder.length; i++) {
+    const c = ladder[i];
+    L.push(`PICK_ROOM_${i}:`);
+    L.push(`  ifne room ${arena.id} goto ${i + 1 < ladder.length ? `PICK_ROOM_${i + 1}` : 'PICK_ROOM_DONE'}`);
+    if (c.fromHere?.length) L.push(...moves(c.fromHere));
+    L.push('  put look');
+    L.push('  matchwait 4');
+    if (i + 1 < ladder.length) {
+      L.push(`  ifgt pcount 0 goto RETURN_TO_HUB_${i}`);
+    }
+  }
+  L.push('PICK_ROOM_DONE:');
+  if (ladder.length) {
+    if (cap.weaponReserveV2) L.push('  ifgt pcount 0 goto SCAN');
+    else L.push('  ifgt pcount 0 goto OCCUPIED_PATROL');
+  }
+  L.push(`  ifne room ${arena.id} goto REANCHOR`);
+  L.push('  goto SCAN');
+  L.push('REANCHOR:');
+  if (arena.fromArmed?.length) {
+    L.push('  ifne room bazaar goto SCAN');
+    L.push(...moves(arena.fromArmed));
+    L.push('  goto PICK_ROOM_0');
+  } else {
+    L.push('  goto SCAN');
+  }
+  return L;
+}
+
 function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
   const cfg = GUILD_SCRIPTS[cap.guild];
   const L = [];
@@ -484,65 +531,61 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
   // tolerance for refused legs is unchanged — this only fixes the case that
   // previously had NO branch at all: the occupied fall-through.)
   const ladder = candidates.length ? candidates : [];
-  for (let i = 0; i < ladder.length; i++) {
-    const c = ladder[i];
-    L.push(`PICK_ROOM_${i}:`);
-    // HUB GATE (bjuv/ouik fix): every leg route is rooted at the arena hub,
-    // but the ladder re-enters from wherever the previous leg/drift left the
-    // agent. A hub-rooted route executed from any other room refuses on its
-    // FIRST move and the ladder chains into the next hub-rooted leg — the
-    // observed n-n-n/n/up/s-s-e infinite refusal loop. Gate each leg on
-    // %room === hub: if we are not at the hub, skip this leg's moves entirely
-    // (the next gate either applies or also skips; SCAN at the end runs
-    // wherever we stand, which is always a legal hunting spot because SCAN
-    // matches the union of every candidate's species).
-    L.push(`  ifne room ${arena.id} goto ${i + 1 < ladder.length ? `PICK_ROOM_${i + 1}` : 'PICK_ROOM_DONE'}`);
-    if (c.fromHere?.length) L.push(...moves(c.fromHere));
-    L.push('  put look');
-    // matchwait (not wait) so the occupancy check resolves on timeout even
-    // if the server sends no immediate prompt — same proven form as SCAN.
-    L.push('  matchwait 4');
-    if (i + 1 < ladder.length) {
-      // Occupied: go home (hub) first, then start the next leg from there.
-      L.push(`  ifgt pcount 0 goto RETURN_TO_HUB_${i}`);
-    }
-  }
-  // If every candidate was occupied, do not fall through and hunt alongside
-  // somebody. Step back to the hub and restart the ladder so the next scan
-  // can claim an empty room as soon as one opens. This is cooperative only:
-  // no room is locked and other players are never denied entry.
-  L.push('PICK_ROOM_DONE:');
-  if (ladder.length) {
-    // A fully occupied ladder must not deadlock a worker indefinitely. The
-    // reserve-v2 candidate is specifically measuring weapon acquisition, so
-    // after one complete patrol it hunts in-place and keeps earning EXP.
-    // Other variants retain strict empty-room preference for comparison.
-    if (cap.weaponReserveV2) L.push('  ifgt pcount 0 goto SCAN');
-    else L.push('  ifgt pcount 0 goto OCCUPIED_PATROL');
-  }
-  // REANCHOR safety net: every path above that finds itself somewhere OTHER
-  // than the hub lands here via the hub gates. SCAN is only a legal hunting
-  // spot at a candidate room — an agent that drifted (or armed) in the BAZAAR
-  // used to scan the bazaar forever (run4: 0 moves across 21 agents). If we
-  // are not at the hub but ARE at the bazaar, replay the bazaar->hub walk and
-  // re-enter the ladder; anywhere else, bail to SCAN and let the supervisor
-  // breakers re-path.
-  L.push(`  ifne room ${arena.id} goto REANCHOR`);
-  L.push('  goto SCAN');
-  L.push('REANCHOR:');
-  if (arena.fromArmed?.length) {
-    L.push('  ifne room bazaar goto SCAN');
-    L.push(...moves(arena.fromArmed));
-    L.push('  goto PICK_ROOM_0');
-  } else {
-    L.push('  goto SCAN');
-  }
+  L.push(...buildOccupancyLadder({ cap, arena, ladder }));
   // An EMPTY candidate room (or PICK_ROOM_DONE reached empty) falls through
   // here — the trampolines live at the very end of the script so nothing
   // above can fall into them by accident.
+  // survivalFirst (Sean, 2026-09-04 — REVISED after gkvj): the one-shot burst
+  // at cycle start was still survival-LAST — the standing loop ate the clock
+  // (16 survival sends vs ~700 combat sends in one leg) and the lanes sat at
+  // 1/4 and 0/2. The posture is now STANDING INTERLEAVE: every SCAN pass runs
+  // the survival pair (forage/hunt alternating via if_6, same flag as the
+  // post-kill slot) BEFORE looking for a target, plus the arrival burst for
+  // the far lanes (track/perception). Combat remains the filler between
+  // survival passes, not the other way around. The `if_5` flag still gates
+  // everything: the supervisor arms it while any counted survival slot is
+  // open (survivalBurstActive() over the authoritative exp sheet) and disarms
+  // the moment all close — then pure kill pace resumes automatically.
+  if (cap.survivalFirst) {
+    L.push('BURST:');
+    L.push('  if_5 goto BURST_GO');
+    L.push('  goto BURST_DONE');
+    L.push('BURST_GO:');
+    L.push('  put forage');
+    L.push('  wait');
+    L.push('  put forage');
+    L.push('  wait');
+    L.push('  put hunt');
+    L.push('  wait');
+    L.push('  put track');
+    L.push('  wait');
+    L.push('BURST_DONE:');
+  }
   L.push('SCAN:');
   L.push('  pause 2');
   L.push('  iflt hp 40 goto REST');
+  // STANDING survival interleave (see note above): two survival verbs per
+  // SCAN pass, alternating forage/hunt on if_6, gated on the same if_5 valve
+  // AND on being out of combat (%combat mirror) — forage/hunt during a live
+  // fight just burn 5s refusals. These are unconditional-exp wilds verbs;
+  // while the room waits for a respawn (~25s) this is dead time survival
+  // reclaims from combat idling.
+  if (cap.survivalFirst) {
+    L.push('  if_5 goto SURV_A');
+    L.push('  goto SCAN_NOEXP');
+    L.push('SURV_A:');
+    L.push('  ifge combat 1 goto SCAN_NOEXP');
+    L.push('  if_6 goto SURV_HUNT');
+    L.push('  setvariable 6 1');
+    L.push('  put forage');
+    L.push('  wait');
+    L.push('  goto SURV_NEXT');
+    L.push('SURV_HUNT:');
+    L.push('  setvariable 6');
+    L.push('  put hunt');
+    L.push('  wait');
+    L.push('SURV_NEXT:');
+  }
     // `exp` is information-only, but probing it on every scan floods the
     // wire when an arena is empty or a runner is parked (348 probes in one
     // 40m leg). Alternate probes: the supervisor also receives the merged
@@ -652,6 +695,9 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
     if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('skinning')) {
       L.push(`  put skin ${noun}`);
       L.push('  wait');
+      // survivalRetry: second attempt lands after the first one's refusal
+      // re-armed the RT deadline (see buildSharedFightScript rationale).
+      if (cap.survivalRetry) L.push(`  put skin ${noun}`, '  wait');
     }
     // POST-KILL TRAINING SLOT (muse-e follow-up): two earlier forage
     // placements measured 0 sends — empty-scan branches never execute because
@@ -666,11 +712,15 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
       L.push('  setvariable 6 1');
       L.push('  put forage');
       L.push('  wait');
+      // survivalRetry: forage carries its own 5s RT — the first send races the
+      // skin RT above and is refused blind; the re-armed deadline parks this.
+      if (cap.survivalRetry) L.push('  put forage', '  wait');
       L.push(`  goto POSTVERB_${key}`);
       L.push(`POSTHUNT_${key}:`);
       L.push('  setvariable 6');
       L.push('  put hunt');
       L.push('  wait');
+      if (cap.survivalRetry) L.push('  put hunt', '  wait');
       L.push(`POSTVERB_${key}:`);
     }
     // FIRST AID field training — tend bleeding wounds between kills.
@@ -1361,4 +1411,4 @@ function reversePath(path) {
   return [...path].reverse().map((e) => ({ dir: OPPOSITE[e.dir] || e.dir }));
 }
 
-export { nounOf, moves, buildHuntScript, buildWeaponRotationScript, buildSharedFightScript, buildCircleScript, buildMegaScript, reversePath, OPPOSITE, trainListFromMissing };
+export { nounOf, moves, buildHuntScript, buildOccupancyLadder, buildWeaponRotationScript, buildSharedFightScript, buildCircleScript, buildMegaScript, reversePath, OPPOSITE, trainListFromMissing };

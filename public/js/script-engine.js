@@ -516,6 +516,13 @@ export function createRunner(src, args = [], io = {}) {
     stop() { s.done = true; s.matches = []; },
     get running() { return !s.done; },
     get depth() { return frames.length; },
+    // Supervisor override for a named script variable (DR `setvariable` from
+    // outside the run). Used by the survivalFirst burst: the sweep arms var 5
+    // while a counted survival slot is open and disarms it once all close, so
+    // the generated BURST block re-fires (or stops) without regenerating the
+    // library mid-leg.
+    setVar(name, value) { vars[String(name)] = value; },
+    getVar(name) { return vars[String(name)]; },
     // Diagnostics for supervisors: why is this script sitting still?
     get state() {
       const f = cur();
