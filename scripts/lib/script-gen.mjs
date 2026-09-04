@@ -80,6 +80,19 @@ function buildWeaponRotationScript(cap) {
 function buildSharedFightScript(cap) {
   const cfg = GUILD_SCRIPTS[cap.guild];
   const L = ['# shared fight body — target noun is %1', 'FIGHT:'];
+  // CORPSE-JUMP (sdhq/p8 finding): the kill prose arrives 2-8s AFTER the
+  // attack send (the swing resolves on the server tick) — by then the body
+  // has already fired skin (creature still alive: 'no such corpse') and the
+  // outer loop's TG-gate only runs if NO other creature of the species
+  // remains (2-rat rooms never drain). So the ONLY reliable skin window is
+  // the kill prose itself. Register the matcher BEFORE the fight sequence;
+  // the jump lands at SKINME below, which skins the fresh corpse (%1 noun).
+  // Matcher ordering: first match wins — register corpse BEFORE the
+  // 'creature gone' matchers the body itself uses.
+  const skinGuild = (cfg.survivalSkills || cfg.trainSets?.survival || []).includes('skinning');
+  if (skinGuild) {
+    L.push('  matchre SKINME corpse slumps');
+  }
   const sigAt = cfg.signature?.probe === 'ability' ? cfg.signatureAfter : undefined;
   cfg.fight.forEach((step, i) => {
     L.push('  ' + step.replace(/%target/g, '%1'));
@@ -96,14 +109,17 @@ function buildSharedFightScript(cap) {
       }
     }
   });
-  if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('skinning')) {
-    L.push('  put skin %1', '  wait');
-    // survivalRetry (climbSkin): the first skin usually fires blind during the
-    // killing blow's roundtime — the server refuses it and the engine drops a
-    // BLIND verb's line instead of parking it (muse-c20p1: 41 refusals, 0
-    // skins, whole run). The refusal arms the engine RT deadline, so this
-    // second attempt parks and actually lands in the respawn dead-time.
+  if (skinGuild) {
+    // SKINME (jumped from the corpse matcher): skin now while the corpse is
+    // fresh, then fall through to the shared tail (rotate/forage/exp).
+    // Failed prose ('no such corpse', fumble) is harmless and continues.
+    L.push('SKINME:');
+    L.push('  put skin %1');
+    L.push('  wait');
     if (cap.survivalRetry) L.push('  put skin %1', '  wait');
+    // Clear the matcher so a second kill prose in this cycle doesn't re-jump
+    // (matches list is consumed on hit — re-registration is unnecessary: the
+    // matcher was consumed when it fired. Next body cycle re-registers it.)
   }
   if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('first_aid')) {
     L.push('  iflt bleed 1 goto NOTEND');
