@@ -1238,6 +1238,15 @@ function buildCircleScript({ cap, fromArena, errands }) {
   const L = [];
   L.push(`# ${cap.scriptBase}circle — guild hall trip (+ town errands)`);
   L.push('HALLTRIP:');
+  // OVERLOAD BREAK (r10-r14): hoarded gems (~19 burden) refuse every move,
+  // and the drop used to live in TRAIN — which only runs AFTER the hall
+  // walk it was supposed to enable. Catch-22: can't walk to town to sell,
+  // can't sell to lose the weight. `drop garnet` has no burden gate and
+  // gems respawn from loot, so shed FIRST, before any movement.
+  if (cap.finishKit) {
+    L.push('  put drop garnet');
+    L.push('  wait');
+  }
   if (fromArena.hall?.length) L.push(...moves(fromArena.hall));
   // Learn guild abilities while standing in the hall (they are taught ONLY
   // here — server/commands/combat.js learn()). Agents previously reached the
@@ -1280,6 +1289,16 @@ function buildCircleScript({ cap, fromArena, errands }) {
   L.push('  echo CIRCLE_UP_OK');
   L.push('  exit');
   L.push('TRAIN:');
+  // OVERLOAD PRE-CLEAR (r10-r13): 75+ hoarded gems (~19 burden vs ~1.5
+  // allowance) refuse EVERY move — the agent cannot walk to the town shops
+  // where selling happens. Catch-22 broken here: `drop garnet` has no
+  // burden gate, shedding just enough to walk. Gems are the safe thing to
+  // drop (they respawn from creature loot; nothing else in the pack is
+  // both heavy and replaceable).
+  if (cap.finishKit) {
+    L.push('  put drop garnet');
+    L.push('  wait');
+  }
   // TDPs are an INFO/stat currency in this game, never a skill-EXP shortcut.
   // Skill ranks come from EXP/field activity or ordinary guild training. When
   // a circle blocker is trainable by the guild, spend silver on that skill at
@@ -1357,6 +1376,16 @@ function buildCircleScript({ cap, fromArena, errands }) {
     L.push(...moves(errands.studyPath));
     L.push(`  ifne room ${errands.studyRoom} goto STUDY_DONE`);
     for (const _s of cap.studySkills) {
+      // THREE reads per missing lore skill: one study banks ~6.4 exp (×boost),
+      // but rank 2→3 needs ~202 — a single read per trip never converts through
+      // the pool-drain lag (r9: appraisal pinned 2/3 across two trips). Three
+      // reads ≈ 3× the bank, still under 15s of RT inside the detour.
+      L.push('  put study');
+      L.push('  wait');
+      L.push('  pause 1');
+      L.push('  put study');
+      L.push('  wait');
+      L.push('  pause 1');
       L.push('  put study');
       L.push('  wait');
       L.push('  pause 1');
@@ -1454,7 +1483,12 @@ function buildCircleScript({ cap, fromArena, errands }) {
     // + sling) waited for a 112s+ watchdog re-entry instead of converting
     // pelt silver on the next hall trip. Labels stay disjoint from the
     // cheap/edged retry blocks via the mutually exclusive cap gates.
-    if (cap.defensiveKit && !cap.cheapWeaponKit && !cap.edgedKit && !cap.shieldKit) {
+    // SUPPRESSED under finishKit (r12): the kit emitter already covers every
+    // lane with live prices, and these legacy blocks lack the bazaar room
+    // gate — they fired 'buy club' in the SEWERS on every trip ('no
+    // shopkeeper here', pure noise) while the real bazaar buy was gated on
+    // shop stock. finishKit's ledger is the single buyer.
+    if (cap.defensiveKit && !cap.cheapWeaponKit && !cap.edgedKit && !cap.shieldKit && !cap.finishKit) {
       const defaultLanes = [
         ['DAGGER', 'dagger', 25],
         ['CLUB', 'club', 112],
@@ -1476,7 +1510,7 @@ function buildCircleScript({ cap, fromArena, errands }) {
     // so the gate can never fire on leg one (kjvh evidence: 1x buy padded
     // cloth armor, 0x buy iron helm, 2nd armor pinned 1/2). Every hall trip
     // passes the bazaar for errands with BANKED loot silver — retry here.
-    if (cap.helmRetry) {
+    if (cap.helmRetry && !cap.finishKit) {
       L.push('HELM_RETRY:');
       L.push(`  iflt silver 130 ${cap.shieldKit ? 'SHIELD_RETRY' : 'ERRAND_DONE'}`);
       L.push('  matchre ERRAND_DONE Worn:[\\s\\S]*helm');
@@ -1509,6 +1543,23 @@ function buildCircleScript({ cap, fromArena, errands }) {
     // legacy blocks stay for older variants until each is migrated.
     if (cap.finishKit) {
       emitKitBuys(cap, L);
+      // GEM STOP (errands.gemLoot): gems sell ONLY at the quartermaster
+      // (market_end). Walk bazaar→market_end, sell each gem id once, walk
+      // back. Room-gated like the bazaar block; falls through harmlessly
+      // when the agent is elsewhere (watchdog re-paths).
+      if (errands.gemLoot?.length && errands.gemPath?.length && errands.gemBack?.length) {
+        L.push(...moves(errands.gemPath));
+        L.push(`  ifne room ${errands.gemRoom} goto GEM_DONE`);
+        for (const gem of errands.gemLoot) {
+          L.push(`  matchre GEM_NEXT_${gem.toUpperCase().replace(/[^A-Z0-9]/g, '_')} not interested|do not have|Sell what|no shopkeeper|does not buy`);
+          L.push(`  put sell ${gem}`);
+          L.push('  wait');
+          L.push('  pause 0.5');
+          L.push(`GEM_NEXT_${gem.toUpperCase().replace(/[^A-Z0-9]/g, '_')}:`);
+        }
+        L.push('GEM_DONE:');
+        L.push(...moves(errands.gemBack));
+      }
       L.push('ERRAND_DONE:');
       L.push('ERRAND_SKIPPED:');
       if (errands.returnPath?.length) {

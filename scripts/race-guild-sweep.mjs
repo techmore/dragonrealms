@@ -158,6 +158,7 @@ function errandLootFor(guild) {
     for (const id of npc.buys || []) bought.add(id);
   }
   const loot = new Set();
+  const gems = new Set();
   for (const def of Object.values(CREATURES)) {
     if ((def.circle || 1) > 4) continue; // early-game errands only
     for (const id of def.loot || []) {
@@ -167,8 +168,15 @@ function errandLootFor(guild) {
       // vendor buys and nothing bundleable).
       if ((def.lootTags || []).includes('skins') && bought.has(id) && ITEMS[id]?.type === 'misc') loot.add(id);
     }
+    // GEMS (r10): creatures flagged `gems` drop stones only the
+    // quartermaster buys (60-320s each). 75 hoarded garnets = ~19 burden
+    // (~4500s of value) sat unsold — no bazaar shop buys gems, so a
+    // bazaar 'sell garnet' always failed and the load eventually REFUSED
+    // moves ("You are overloaded!"). Returned SEPARATELY (gems) so the
+    // errands can route a quartermaster stop; never in the bazaar list.
+    for (const id of def.gems || []) if (bought.has(id) && ITEMS[id]?.type === 'misc') gems.add(id);
   }
-  return [...loot];
+  return { loot: [...loot], gems: [...gems] };
 }
 
 // STUDY ROUTE (finishKit): hall -> academy (the free `study` verb grants
@@ -570,8 +578,16 @@ class SweepAgent {
   // room id. The generator re-routes the errands walk through the academy
   // when these keys exist; otherwise empty keys = no detour, zero cost.
   studyErrandRoute(fromRoom) {
+    // Lore rows need 2 at c2, 3 at c3+ (inc1130 bands) — resolve the real need
+    // from the live requirement table instead of the hardcoded c2 value.
+    let loreNeed = 2;
+    try {
+      const shaped = Object.fromEntries(Object.entries({ ...(this.session.vitals.skills || {}), ...(this.expRanks || {}) }).map(([id, rank]) => [id, { rank }]));
+      const rows = circleRequirements({ id: this.guild }, shaped, (this.session.vitals.circle || 1) + 1).rows || [];
+      for (const r of rows) if (/2nd lore/.test(r.label)) loreNeed = Math.max(loreNeed, r.need);
+    } catch { /* fallback below */ }
     const loreMissing = ['appraisal', 'scholarship']
-      .some((id) => ((this.expRanks || {})[id] || 0) < 2);
+      .some((id) => ((this.expRanks || {})[id] || 0) < loreNeed);
     if (!loreMissing) return {};
     const studyPath = this.pureDiskPath(fromRoom, 'academy') || [];
     const studyToBazaar = this.pureDiskPath('academy', 'bazaar') || [];
@@ -936,7 +952,16 @@ class SweepAgent {
       errands: {
         bazaarPath: s.bfsPath('hall_' + this.guild, 'bazaar', this.diskAdj()),
         returnPath: s.bfsPath('bazaar', arena.id, this.diskAdj()),
-        sellLoot: errandLootFor(this.guild),
+        sellLoot: errandLootFor(this.guild).loot,
+        gemLoot: errandLootFor(this.guild).gems,
+        // GEM OUTLET (r11): gems are bought by the QUARTERMASTER at
+        // market_end, not by any bazaar shop — a bazaar 'sell garnet'
+        // always failed and 75 hoarded stones (~19 burden) eventually
+        // REFUSED moves (overload). gemPath/gemBack route a gem-sell
+        // stop into the errands; gemRoom is the room-gate id.
+        gemPath: s.bfsPath('bazaar', 'market_end', this.diskAdj()),
+        gemBack: s.bfsPath('market_end', 'bazaar', this.diskAdj()),
+        gemRoom: 'market_end',
         ...(this.variant?.finishKit ? this.studyErrandRoute('hall_' + this.guild) : {}),
       },
     });
@@ -1118,6 +1143,17 @@ class SweepAgent {
     if (/^(You cannot go that way|You are overloaded|You must wait|Creatures block your path|You are in the stocks|The cell door is barred|Go where)/.test(stripAnsi(text))) {
       this.refusals = (this.refusals || 0) + 1;
       this.refusalTimes.push(Date.now());
+      // OVERLOAD BREAK (r10-r15): hoarded gems (~19 burden) refuse EVERY
+      // move, and the in-script drop kept getting eaten by runner restarts
+      // (RT-parked line lost between park and apply). The supervisor acts
+      // directly on the refusal itself: shed gems here, immediately, with
+      // no script round-trip. One drop per overload refusal, rate-limited.
+      if (/^You are overloaded/.test(stripAnsi(text))
+        && Date.now() - (this.lastOverloadDropAt || 0) > 2000) {
+        this.lastOverloadDropAt = Date.now();
+        this.appendLog('[overload] shedding gems (supervisor drop, 20)');
+        void this.session.cmd('drop garnet 20');
+      }
       // RT-refusal storm tracking: a live combat stalemate (e.g. swinging at
       // something we can't damage, or a corpse still flagged in-combat)
       // produces an endless "You must wait N seconds" cadence with no kill.
@@ -1354,7 +1390,11 @@ class SweepAgent {
       errands: {
         bazaarPath: s.bfsPath('hall_' + this.guild, 'bazaar', this.diskAdj()),
         returnPath: s.bfsPath('bazaar', arena, this.diskAdj()),
-        sellLoot: errandLootFor(this.guild),
+        sellLoot: errandLootFor(this.guild).loot,
+        gemLoot: errandLootFor(this.guild).gems,
+        gemPath: s.bfsPath('bazaar', 'market_end', this.diskAdj()),
+        gemBack: s.bfsPath('market_end', 'bazaar', this.diskAdj()),
+        gemRoom: 'market_end',
         ...(this.variant?.finishKit ? this.studyErrandRoute('hall_' + this.guild) : {}),
       },
     });
