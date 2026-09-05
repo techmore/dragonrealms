@@ -13,7 +13,7 @@ const DIRS = {
   u: 'up', d: 'down', up: 'up', down: 'down',
 };
 
-const WILD_ZONES = new Set(['woods', 'marsh', 'deepwoods', 'camp', 'sewers']);
+const WILD_ZONES = new Set(['woods', 'marsh', 'deepwoods', 'camp', 'sewers', 'fields', 'wilds']);
 
 export const wilds = {
   isWild(roomId) {
