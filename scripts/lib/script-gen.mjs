@@ -765,6 +765,11 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
     if (cap.guild === 'barbarian') {
       L.push(`  if_6 goto POSTHUNT_${key}`);
       L.push('  setvariable 6 1');
+      // RT-SETTLED (fresh17 lesson — same fix as the shared fight tail):
+      // forage/hunt right after the skin block race skin's 2-4s roundtime
+      // and burn both sends on refusals (foraging exp 0 across every fresh
+      // leg). pause 5 clears the worst table RT before the survival pair.
+      L.push('  pause 5');
       L.push('  put forage');
       L.push('  wait');
       // survivalRetry: forage carries its own 5s RT — the first send races the
