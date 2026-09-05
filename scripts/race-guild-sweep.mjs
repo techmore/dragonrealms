@@ -481,6 +481,7 @@ class SweepAgent {
     this.trainList = null;
     this.killsAtVisit = 0;
     this.lastFleeAt = 0;
+    this.fledAt = 0;        // armed by "break away and sprint" prose (see onRoom)
     this.lastTendAt = 0;
     this.scriptsSaved = false;
     this.circleTimes = [];    // [{circle, ms}] wall-clock from enter to EACH circle-up
@@ -763,6 +764,29 @@ class SweepAgent {
           // A real room change is progress: it disproves "parked" verdicts.
           this.roomChangedAt = this.lastRoomChangeAt;
           this.lastProgressAt = this.lastRoomChangeAt;
+          // POST-FLEE RECOVERY (guuh/fresh8 strand loop): a successful flee
+          // ("break away and sprint") DROPS the agent in a random adjacent
+          // region (observed: west_gate, 'stagger back through the gate').
+          // The displaced script keeps firing its next lines in the new room;
+          // every room-gated leg skips, so the agent exp/forage-loops in a
+          // creature-less town room until the 45s town-strand breaker fires —
+          // then the escape walk re-enters the SAME arena, the fight re-drains
+          // HP, the flee displaces AGAIN. ~90s per cycle. Instead: the moment
+          // a break-away lands us anywhere but the claimed arena (or its walk
+          // corridors), abort the displaced script and regenerate from the
+          // landing room right away.
+          if (this.fledAt && this.arena && !this.restarting && this.runner &&
+              this.session.vitals.room && this.session.vitals.room !== this.arena) {
+            this.fledAt = 0;
+            this.appendLog(`[flee-landing] ${this.session.vitals.room} (arena ${this.arena}) — regenerating from here`);
+            this.restarting = true;
+            this.runner?.stop();
+            this.curName = null;
+            this.regenerateFromHere();
+            this.restarting = false;
+            if (this.library && !this.done) this.startCycle(this.library[this.scriptBase + 'mega'], this.scriptBase + 'mega');
+            return;
+          }
         }
         if (this.runner) this.runner.feed(stripAnsi(m.msg), 'room');
       },
@@ -1148,6 +1172,11 @@ class SweepAgent {
       this.lastKillAt = Date.now();
       this.rtRefusalStreak = 0;
     }
+    // ARM POST-FLEE RECOVERY (see onRoom flee-landing): "You break away and
+    // sprint for safety!" is the flee SUCCESS prose — the next room message
+    // is the random landing room. A second arm before any landing just
+    // refreshes the flag; harmless.
+    if (/break away and sprint/.test(stripAnsi(text))) this.fledAt = Date.now();
     if (/You sell |You bundle |You have bundled/i.test(stripAnsi(text))) {
       this.recordMilestone('economy_loop', 'loot converted into usable funds');
     }
