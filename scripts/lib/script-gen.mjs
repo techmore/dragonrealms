@@ -1258,8 +1258,11 @@ function emitKitBuys(cap, L) {
     L.push(`KIT_${tag}:`);
     if (cap.finishWear) {
       // Armor/shield rows: skip when the piece is already worn (the p9 run
-      // re-bought worn padded cloth every trip — pure purse waste).
-      L.push(`  matchre KIT_NEXT_${tag} Worn:[\\s\\S]*${gateNoun}`);
+      // re-bought worn padded cloth every trip — pure purse waste) OR already
+      // carried (fresh22: the wear line raced a roundtime refusal, the piece
+      // sat in the pack, and the next trip's Worn-only gate re-bought it —
+      // 60s wasted on a second pair of sleeves).
+      L.push(`  matchre KIT_NEXT_${tag} Worn:[\\s\\S]*${gateNoun}|carrying:[\\s\\S]*${gateNoun}`);
       L.push('  put inventory');
       L.push('  matchwait 4');
     }
@@ -1267,6 +1270,12 @@ function emitKitBuys(cap, L) {
     L.push(`  put buy ${noun}`);
     L.push('  wait');
     if (cap.finishWear && item.type === 'armor') {
+      // Double wear send: the first races the buy's RT and is refused blind;
+      // the engine's per-refusal retry re-applies at the deadline (the same
+      // pattern as skin/tend). A single wear line left pieces in the pack
+      // all leg (fresh22).
+      L.push(`  put wear ${noun}`);
+      L.push('  wait');
       L.push(`  put wear ${noun}`);
       L.push('  wait');
     }
