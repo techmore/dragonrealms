@@ -404,6 +404,14 @@ export function createRunner(src, args = [], io = {}) {
         }
       }
     }
+    if (s.mode === 'prompt' && isPrompt) { s.mode = null; advance(); return; }
+    // INJECT-SWALLOW BUG (fresh-proof run cblb): heartbeat injects are prompt-
+    // shaped state mirrors with NO room prose — but they still hit the matcher,
+    // so any ABSENCE detector (TG_*: "noun is not in this text") fires instantly
+    // and declares the target gone before the real room message ever lands.
+    // 0 kills in a 45-minute fresh leg. 'wait'-parked scripts already resolved
+    // above; everything else must not prose-match an inject.
+    if (isPrompt === 'inject') return;
     if (s.matches.length && text && typeof text === 'string') {
       const hit = s.matches.find((m) =>
         m.re ? m.re.test(text) : m.text && text.toLowerCase().includes(m.text));

@@ -334,6 +334,8 @@ test('ifgt branches on a greater-than comparison of live vars', () => {
   const r = createRunner(src, [], { send: (l) => out.push(l) });
   r.start();
   assert.deepEqual(out, [], 'blocked before prompt');
+  // Inject feeds mirror %vars (pcount) but never prose-match (they'd false-fire
+  // absence detectors — cblb). 'wait' resolves on the prompt-shaped inject.
   feed(r, 'HP: 50/50  Circle 1  [PLAYERS:2]', 'inject'); // 2 other players
   assert.deepEqual(out, ['relocate'], 'occupied -> relocate branch');
   const out2 = [];
