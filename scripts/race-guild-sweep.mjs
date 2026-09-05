@@ -1440,6 +1440,11 @@ class SweepAgent {
     cap.leaveCombatOnLock = !!this.variant?.leaveCombatOnLock;
     cap.skipCircle = !!this.skipCircle;
     cap.rotationSubscript = !!this.variant?.closeNth;
+    // TDP STAT-SPEND: the route keys go into errands (below), but the spend
+    // knobs (stat + exact pair count) belong on cap — buildCircleScript reads
+    // cap.tdpSpendStat. Fresh13 lesson: keys only in errands = block silently
+    // absent from the generated circle script.
+    Object.assign(cap, this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()));
     this.library[this.scriptBase + 'hunt'] = buildHuntScript({
       cap,
       hallPath: s.bfsPath(arena, 'hall_' + this.guild, this.diskAdj()),
