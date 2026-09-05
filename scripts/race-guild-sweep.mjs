@@ -1715,6 +1715,34 @@ class SweepAgent {
         return;
       }
     }
+    // PURSE-TRIGGERED HALL TRIP (fresh-proof kaizen): the fallback timer walks
+    // the hall on a 4-minute clock, but the kit emitter's buys are purse-gated —
+    // fresh5 sat on 65–107 silver for 12+ minutes while padded cloth (40s) and
+    // the armor stack (30–45s each) were buyable the whole time. The bazaar
+    // errands fire sells THEN kit buys on every trip, so ANY trip with a purse
+    // ≥ the cheapest outstanding ledger row converts silver into gate ranks
+    // immediately. Trigger: silver ≥ 40 (padded cloth, priority 1) and at
+    // least one kill since the last visit (there may be loot to sell).
+    const purseNeed = (v2.silver != null && v2.silver >= 40
+      && this.kills > this.killsAtVisit);
+    if (huntingLeg && !v2.inCombat && purseNeed
+      && Date.now() - this.lastHallAt > 45000) {
+      this.recordMilestone('hall_handoff', `purse-triggered hall trip at circle ${v2.circle || 1} (silver ${v2.silver})`, { circle: v2.circle || 1, reason: 'purse-trigger', silver: v2.silver });
+      log(`[${this.guild}/${this.race}] hall trip (purse trigger, silver ${v2.silver})`);
+      this.appendLog(`[hall-trip] purse trigger (silver ${v2.silver})`);
+      this.killsAtVisit = this.kills;
+      this.lastHallAt = Date.now();
+      this.skipCircle = true;
+      if (this.lastCircleBlockText) {
+        const refreshed = trainListFromMissing(this.lastCircleBlockText, this.guild,
+          { targetNth: !!this.variant?.closeNth, ranks: this.expRanks || v2.skills || {} });
+        if (refreshed.length) this.trainList = refreshed;
+      }
+      this.trainOffset = 0;
+      this.regenerateScripts();
+      this.startCycle(this.library[this.scriptBase + 'circle'], this.scriptBase + 'circle');
+      return;
+    }
     // Every guild needs a periodic hall visit: Barbarian skill training and
     // ability learning are required for circle gates too. The old guard
     // accidentally excluded all non-economy Barbarian variants, leaving

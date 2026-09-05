@@ -100,6 +100,22 @@ function buildSharedFightScript(cap) {
     L.push('  matchre SKINME lies still|crumples to|is gone');
   }
   const sigAt = cfg.signature?.probe === 'ability' ? cfg.signatureAfter : undefined;
+  // RE-ATTACK LOOP (fresh-proof kaizen 2): one swing per visit can't kill a
+  // same-circle creature (great_rat at c1 needs 2-3), and the old body left
+  // the fight after the verb dance (~12s of RT pacing) to re-SCAN — paying
+  // the full look/match round-trip between swings. Loop instead: after the
+  // verb block, re-look; if the noun is STILL here, swing again (bounded at
+  // 4 rounds so an undamageable target can't wedge the body).
+  for (let round = 1; round <= 4; round++) {
+    L.push(`REATTACK_${round}:`);
+    L.push('  put look');
+    L.push(`  matchre SKINME lies still|crumples to|is gone`);
+    L.push(`  matchre SWING_${round} ${'%1'} is here`);
+    L.push('  matchwait 5');
+    L.push(`SWING_${round}:`);
+    L.push('  put attack %1');
+    L.push('  wait');
+  }
   cfg.fight.forEach((step, i) => {
     L.push('  ' + step.replace(/%target/g, '%1'));
     L.push('  wait');
