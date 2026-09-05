@@ -610,6 +610,24 @@ class SweepAgent {
     return { studyPath, studyToBazaar, studyRoom: 'academy' };
   }
 
+  // CRIER INCOME LOOP (the income-wall fix): the town crier (market_way, 3
+  // moves from the bazaar) assigns kill/recover/skin quests that the standing
+  // hunt loop completes WITHOUT any extra work — rats/kobolds are the c1
+  // kill pool, we skin every kill, recover needs 50% per kill. `quest` is
+  // assign-or-claim in one verb (server/commands/world.js:541: a done quest
+  // claims immediately, then the same verb assigns the next). Claim pays
+  // ~70-75s per cycle; a 45m leg with 4-6 town trips converts ~70s of claim
+  // income each — the helm/club/shield wishlist (302s) becomes fundable.
+  // Emits route keys (crierPath/crierBack/crierRoom) only when both legs
+  // chain on disk; the generator stamps the block after the kit emitter.
+  crierErrandRoute() {
+    const crierGo = this.pureDiskPath('bazaar', 'market_way') || [];
+    const crierBack = this.pureDiskPath('market_way', 'bazaar') || [];
+    if (!crierGo.length || !crierBack.length
+      || crierGo.length + crierBack.length > 12) return {};
+    return { crierPath: crierGo, crierBack, crierRoom: 'market_way' };
+  }
+
   // TDP STAT-SPEND POLICY (queued kaizen): TDPs buy PERMANENT stats at the
   // Fane (`train <stat>` twice; cost = max(10, floor(stat×0.6))). Unspent
   // TDPs are dead weight — vltm parked with 11,682. Policy: at hall-trip
@@ -1046,6 +1064,7 @@ class SweepAgent {
         gemRoom: 'market_end',
         ...(this.variant?.finishKit ? this.studyErrandRoute('hall_' + this.guild) : {}),
         ...(this.variant?.finishKit ? this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()) : {}),
+        ...(this.variant?.finishKit ? this.crierErrandRoute() : {}),
       },
     });
     const megaSrc = buildMegaScript(cap);
@@ -1494,6 +1513,7 @@ class SweepAgent {
         gemRoom: 'market_end',
         ...(this.variant?.finishKit ? this.studyErrandRoute('hall_' + this.guild) : {}),
         ...(this.variant?.finishKit ? this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()) : {}),
+        ...(this.variant?.finishKit ? this.crierErrandRoute() : {}),
       },
     });
     if (cap.sharedFight) this.library[this.scriptBase + 'fight'] = buildSharedFightScript(cap);

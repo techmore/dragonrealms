@@ -1636,6 +1636,21 @@ function buildCircleScript({ cap, fromArena, errands }) {
         L.push('GEM_DONE:');
         L.push(...moves(errands.gemBack));
       }
+      // CRIER STOP (errands.crierPath): the town crier at market_way (3 moves
+      // off the bazaar) is assign-or-claim in one verb — a done quest claims
+      // (~70-75s) and the SAME verb assigns the next, so the standing hunt
+      // loop (rats/kobolds = the c1 kill pool, skins every kill) completes
+      // quests without extra field work. This is the income-wall fix: claim
+      // income funds the helm/club/shield wishlist the loot economy can't.
+      // Room-gated; falls through harmlessly from a non-market_way landing.
+      if (errands.crierPath?.length && errands.crierBack?.length) {
+        L.push(...moves(errands.crierPath));
+        L.push(`  ifne room ${errands.crierRoom} goto CRIER_DONE`);
+        L.push('  put quest');
+        L.push('  wait');
+        L.push('CRIER_DONE:');
+        L.push(...moves(errands.crierBack));
+      }
       L.push('ERRAND_DONE:');
       L.push('ERRAND_SKIPPED:');
       if (errands.returnPath?.length) {
