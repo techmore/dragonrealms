@@ -308,6 +308,27 @@
     </nav>
 
     <style>
+      /* ---- calm layer: visual-noise budget (2026-09-05 UX pass) ----
+         Standards: one border per surface (sections keep theirs; inner tiles
+         use tint only), badges/buttons are borderless until state demands a
+         border, and no fact is stated twice on one screen. */
+      .live-metric, .exp-model, .reqitem, .k-step, .stat, .badge-card,
+      .decision-card, .agpanel, .split, .ki-check {
+        border-color: transparent;
+      }
+      .badge { border-color: transparent; background: rgba(255,255,255,.05); }
+      .badge.live, .badge.grade-A, .badge.grade-B, .badge.grade-C,
+      .badge.grade-D, .badge.grade-F, .badge.death { border-color: inherit; }
+      #runs-guilds .btn, .seg button { border-color: transparent; background: rgba(255,255,255,.03); }
+      #runs-guilds .btn:hover, .seg button:hover { border-color: var(--line); }
+      #runs-guilds .btn.on, .seg button.on { border-color: var(--amber); }
+      .chip { border-color: transparent; }
+      /* Experiment facts collapse to one quiet sentence-case line. */
+      #experiment .exp-facts { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+      #experiment .exp-facts b { color: var(--text); }
+    </style>
+
+    <style>
       /* section-group dividers */
       .group-label { display:flex; align-items:center; gap:12px;
         margin:28px 0 4px; color:var(--dim); font-size:11px;
@@ -1131,17 +1152,24 @@
         });
       }
       // 2. Log files with no summary rows at all still appear (raw scripts).
-      // Filenames are fidelity-<guild>[-<variant>]-<race>: race is the final
-      // dash-segment (must be one actually seen in summaries), guild is the
-      // FIRST segment — the naive /(.+)-([a-z]+)/ captured the middle
-      // variant too and invented guilds like 'barbarian-baseline'.
+      // Filenames are fidelity-<guild>[-<variant>]-<race>[-<runid>][-<agent>]:
+      // the run-id/agent tail tags are 4-letter alphibetic tokens, NOT races
+      // — run-id (nmxf) and resume-agent (iiii/iiij) suffixes both matched
+      // the old last-segment race rule, so benchmark/repeat logs decorated
+      // with nothing and rendered as dash-rows under an "ad-hoc" label.
+      // Parse the trailing tag tokens off, then resolve guild/race from the
+      // segment data; any log whose tail still doesn't name a known race
+      // keeps its summary-free row (name-only, sorted last).
       const knownRaces = new Set(summaries.map((s) => s.race).filter(Boolean));
       for (const run of logs) {
         let m = null;
         if (/^fidelity-/.test(run)) {
           const seg = run.slice('fidelity-'.length).split('-');
-          const race = seg[seg.length - 1];
-          if (knownRaces.has(race)) m = [run, seg[0], race];
+          // Strip trailing 4-letter tag tokens (run id, then resume-agent tag).
+          const segs = [...seg];
+          while (segs.length > 2 && /^[a-z]{4}$/.test(segs[segs.length - 1])) segs.pop();
+          const race = segs[segs.length - 1];
+          if (knownRaces.has(race)) m = [run, segs[0], race];
         }
         if (m && seenLogKeys.has(`${m[1]}:${m[2]}`)) continue;
         const s = m ? latest.get(`${m[1]}:${m[2]}`) : null;
@@ -1186,15 +1214,9 @@
           renderRuns();
         }));
       }
-      const legend = $('guild-legend');
-      if (legend) legend.innerHTML = `<span class="gi" title="Barbarian">${SWORD_SVG} Barbarian</span>` +
-        `<span class="gi" title="Warmage">${WAND_SVG} Warmage</span>` +
-        `<span class="gi" title="Paladin">${PALADIN_SVG} Paladin</span>` +
-        `<span class="gi" title="Ranger">${RANGER_SVG} Ranger</span>` +
-        `<span class="gi" title="Thief">${THIEF_SVG} Thief</span>` +
-        `<span class="gi" title="Empath">${EMPATH_SVG} Empath</span>` +
-        `<span class="gi" title="Necromancer">${NECRO_SVG} Necromancer</span>` +
-        `<span class="sub">guild shown as an icon where one exists</span>`;
+      // Guild legend removed (2026-09-05 calm pass): the filter chips in the
+      // row above already pair each icon with its name — a second icon wall
+      // 40px lower was pure duplication.
     }
 
     function runRowHtml(r) {
@@ -1312,6 +1334,9 @@
       if (RUNS_GUILD) rows = rows.filter((r) => String(r.guild || '').toLowerCase() === RUNS_GUILD.toLowerCase());
       rows.sort((a, b) => {
         const va = a[SORT.k], vb = b[SORT.k];
+        // Rows missing the sort key always sink to the bottom regardless of
+        // direction — the null-guard must not inherit the desc flip (log-only
+        // rows used to wall off the top of the Evidence table).
         if (va == null && vb == null) return 0;
         if (va == null) return 1;
         if (vb == null) return -1;
@@ -1342,11 +1367,18 @@
         for (const r of rows) (groups[r.guild || '?'] ||= []).push(r);
         // Stable, deterministic group order (alphabetical). Sorting by
         // recency re-ordered whole sections whenever a new run landed —
-        // rows visibly jumped around the board mid-read.
-        const guildOrder = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+        // rows visibly jumped around the board mid-read. Guild groups sort
+        // first; the '?' group (name-only logs with no parsed guild —
+        // sim-* / warmage-KaizenMage* logs) always sorts last so a wall of
+        // dash-rows never leads the table.
+        const guildOrder = Object.keys(groups)
+          .filter((g) => g !== '?').sort((a, b) => a.localeCompare(b));
+        if (groups['?']) guildOrder.push('?');
         for (const g of guildOrder) {
           const gRows = groups[g];
-          parts.push(`<tr class="grp"><td colspan="13">${guildIcon(g, { text: true })} <span class="sub">${gRows.length} run${gRows.length === 1 ? '' : 's'}</span></td></tr>`);
+          // A '?' group means log-only rows with no parsed guild — a header
+          // for that reads as noise; the rows themselves carry the name.
+          if (g !== '?') parts.push(`<tr class="grp"><td colspan="13">${guildIcon(g, { text: true })} <span class="sub">${gRows.length} run${gRows.length === 1 ? '' : 's'}</span></td></tr>`);
           for (const r of gRows) {
             if (shown >= RUN_VISIBLE) break;
             parts.push(runRowHtml(r));
@@ -2052,12 +2084,15 @@
       const rawB = RUNS.filter((r) => r.guild === g && r.variant === vb);
       const cohort = compatibleCohort(rawA, rawB);
       const ra = cohort.a, rb = cohort.b;
+      // Whole-table trust level: the sparser side's run count. Per-row chips
+      // appear only where a metric has LESS evidence than the table norm.
+      const cohortMinN = Math.min(ra.length, rb.length) || null;
       const cohortNote = cohort.verified
-        ? `<div class="note" style="margin-bottom:8px;color:var(--green)">✓ Matched cohort: ${esc(cohort.key.replaceAll('|', ' · '))}. Excluded ${rawA.length + rawB.length - ra.length - rb.length} incompatible runs.</div>`
-        : '<div class="note" style="margin-bottom:8px;color:var(--red)">⚠ Cohort unverified: these legacy rows do not record every condition (race · target · boost · cap · mode · arena · script schema · code revision · starting state). Directional only; do not promote from this comparison.</div>';
+        ? `<div class="note" style="margin-bottom:8px;color:var(--green)">✓ Matched cohort — ${esc(cohort.key.replaceAll('|', ' · '))}. ${rawA.length + rawB.length - ra.length - rb.length} incompatible runs excluded.</div>`
+        : '<div class="note" style="margin-bottom:8px;color:var(--amber)">⚠ Legacy rows — conditions (race · target · boost · cap · mode · arena · schema · revision) not fully recorded; directional only, do not promote from this.</div>';
       body.innerHTML = cohortNote + `<table class="tbl"><thead><tr>
         <th>Metric</th><th>${esc(va)} <span class="sub">(med · n=${ra.length})</span></th>
-        <th>${esc(vb)} <span class="sub">(med · n=${rb.length})</span></th><th>Δ</th><th>Trust</th>
+        <th>${esc(vb)} <span class="sub">(med · n=${rb.length})</span><th></th><th></th>
       </tr></thead><tbody>` +
         CMP_METRICS.map((m) => {
           const A = ra.map(m.val), B = rb.map(m.val);
@@ -2077,15 +2112,21 @@
           const f = (x) => (m.fmt ? m.fmt(x) : x);
           const nA = A.filter((x) => x != null).length, nB = B.filter((x) => x != null).length;
           const hasAny = [...A, ...B].some((x) => x != null);
+          // Trust chip only when the two sides differ — an identical chip on
+          // all twelve rows is noise, not information.
+          const minN = Math.min(nA, nB) || null;
+          const trustCell = !hasAny ? '<span class="conf conf-noise">—</span>'
+            : (minN === cohortMinN && nA === nB) ? ''
+            : confChip(minN);
           return `<tr>
             <td title="${esc(m.tip || '')}">${esc(m.label)}</td>
             <td>${hasAny ? (ma == null ? '<span class="sub">n/a</span>' : f(ma)) : '<span class="sub" title="field absent from this run\'s summary row — absent ≠ zero">not recorded</span>'}</td>
             <td>${hasAny ? (mb == null ? '<span class="sub">n/a</span>' : f(mb)) : '<span class="sub">not recorded</span>'}</td>
             <td class="${dCls}" title="${delta == null ? 'not computable' : (m.higher ? 'A higher is better' : 'lower is better') + '; % change toward whoever wins'}">${delta == null ? '—' : (delta > 0 ? '+' : '') + delta + '%'}</td>
-            <td>${hasAny ? confChip(Math.min(nA, nB) || null) : '<span class="conf conf-noise">—</span>'}</td>
+            <td>${trustCell}</td>
           </tr>`;
         }).join('') + '</tbody></table>'
-        + `<div class="note" style="margin-top:8px">Δ% normalised per row (+ always means ${esc(va)} ahead). Rows where either side never recorded the field are marked <b>not recorded</b> — that is missing telemetry, not a zero.</div>`;
+        + `<div class="note" style="margin-top:8px">Δ% normalised per row (+ always means ${esc(va)} ahead). Trust applies to the whole table${cohortMinN ? ` — ${cohortMinN} runs behind the sparser side` : ''}; per-row chips appear only where a metric has less evidence. "not recorded" = missing telemetry, not a zero.</div>`;
     }
 
     /* ================= character tracker ================= */
@@ -2443,15 +2484,20 @@
                 <span class="sub">${p.status === 'queued' ? 'waits for prior leg' : esc(p.char || '')}</span>
               </div>`;
             }).join('');
-            el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-bottom:10px">
-                <div class="note"><span class="sub">QUESTION</span><br><b>Does ${esc(candidate)} beat ${esc(control)}?</b></div>
-                <div class="note"><span class="sub">SUCCESS RULE</span><br><b>${esc(m.decisionRule || 'Use repeated, matched results.')}</b></div>
-                <div class="note"><span class="sub">PROGRESS</span><br><b>${m.completedLegs || 0}/${m.totalLegs} done · ${m.status === 'complete' ? 'complete' : '~' + fmtClock(remaining) + ' left'}</b></div>
-              </div>
+            // One quiet facts line: what's being asked, how it's judged, where
+            // it stands. Replaces the QUESTION/SUCCESS RULE/PROGRESS tile row
+            // and the run-id strip, which restated the same facts.
+            const expFacts = `<div class="exp-facts"><b>${esc(candidate)}</b> vs <b>${esc(control)}</b> · ${esc(m.decisionRule || 'matched repeats, promote on the leveling outcome')} · <b>${m.completedLegs || 0}/${m.totalLegs}</b> legs done · ${m.status === 'complete' ? 'complete' : '~' + fmtClock(remaining) + ' left'} · target c${esc(m.targetCircle ?? '?')} · ${m.concurrency > 1 ? `crowded ×${esc(m.concurrency)}` : 'controlled ×1'} · run-id ${esc(m.runId)}</div>`;
+            // Single-model experiments don't need a model card — the facts
+            // line and the NOW leg row already say everything (the card was a
+            // third restatement). Two+ models keep the comparison grid.
+            const plan = Array.isArray(m.plan) ? m.plan : [];
+            const modelCount = new Set(plan.map((p) => p.variant)).size;
+            const modelsHtml = modelCount >= 2 ? renderExperimentModels(m) : '';
+            el.innerHTML = `${expFacts}
               <div class="lp2" style="max-width:none;margin-bottom:8px"><i style="width:${progress}%"></i></div>
-              ${renderRunningModels() || renderLiveFallback()}${renderExperimentModels(m)}
-              <div style="margin-top:10px">${planRows}</div>
-              <div class="sub" style="margin-top:8px">run-id ${esc(m.runId)} · circle ${m.targetCircle} target · boost ×${m.boost} · stats ${esc(m.statPolicy || 'legacy')} · ${m.concurrency > 1 ? `${m.concurrency} concurrent sims · crowded-world measurement` : 'controlled one-sim pacing'}</div>`;
+              ${renderRunningModels() || renderLiveFallback()}${modelsHtml}
+              <div style="margin-top:10px">${planRows}</div>`;
             const activeCount = (m.plan || []).filter((p) => p.status === 'running').length;
             stateEl.textContent = m.status === 'complete'
               ? `${m.totalLegs}/${m.totalLegs} legs complete`
