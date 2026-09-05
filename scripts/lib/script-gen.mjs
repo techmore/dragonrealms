@@ -146,15 +146,6 @@ function buildSharedFightScript(cap) {
     // (matches list is consumed on hit — re-registration is unnecessary: the
     // matcher was consumed when it fired. Next body cycle re-registers it.)
   }
-  if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('first_aid')) {
-    // TEND placement (fresh15 lesson): a tend sent immediately after the
-    // attack sequence lands INSIDE the swing's live roundtime — 184 RT
-    // refusals this leg and first_aid exp 0.0 all leg (DB: exp=0). After the
-    // forage leg below the RT is settled, so tend there; the %bleed gate
-    // keeps no-wound cycles free.
-    L.push('  iflt bleed 1 goto NOTEND');
-    L.push('TEND:', '  put tend', '  wait', '  pause 1', '  put tend', '  wait', 'NOTEND:');
-  }
   if (cfg.signature && cfg.signature.probe === 'ability' && cfg.signatureAfter === undefined) {
     L.push(`  put ${cfg.signature.cmd.replace(/%target/g, '%1')}`, '  wait');
   }
@@ -165,24 +156,21 @@ function buildSharedFightScript(cap) {
     L.push(`  put ${cfg.signature.cmd.replace(/%target/g, '%1')}`, '  wait');
   }
   for (const v of cfg.identityVerbs || []) L.push(`  put ${v}`, '  wait');
+  // SURVIVAL TAIL — RT-SETTLED (fresh15 lesson): skin's light RT (~4s) is
+  // still live through rotate, so a tend/forage sent right after it burns
+  // on refusals (184 in fresh15; first_aid AND foraging banked exp=0 all
+  // leg). pause 3 clears the deadline; every survival send below then
+  // banks. Wounds persist (clotTick needs 3+ min out of combat), so the
+  // settled lane still finds the bleeders.
+  L.push('  pause 3');
   if (cap.guild === 'barbarian') {
-    // Same respawn-wait forage as the inline fight blocks (see hunt.dr):
-    // the subroutine returns to SCAN next, so this RT is spent outside
-    // combat feeding the foraging survival-Nth slot.
     L.push('  put forage');
     L.push('  wait');
-    // survivalRetry (climbSkin): first send races the skin RT above; the
-    // second parks on the re-armed deadline (see buildSharedFightScript).
     if (cap.survivalRetry) L.push('  put forage', '  wait');
   }
-  // TEND AFTER FORAGE (fresh15 lesson, see the gated block above): this is
-  // the settled-RT tend lane. The bleed-gated block right after SKINME was
-  // landing inside swing RT (184 refusals, first_aid exp 0 all leg); here,
-  // after the forage wait, the roundtime has expired and a bled-through
-  // fight's wound is still open (clotTick needs 3+ minutes out of combat).
   if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('first_aid')) {
-    L.push('  iflt bleed 1 goto NOTEND2');
-    L.push('TEND2:', '  put tend', '  wait', '  pause 1', '  put tend', '  wait', 'NOTEND2:');
+    L.push('  iflt bleed 1 goto NOTEND');
+    L.push('TEND:', '  put tend', '  wait', '  pause 1', '  put tend', '  wait', 'NOTEND:');
   }
   if (cap.closeNth) L.push(`  putrun ${cap.scriptBase}rotate`);
   L.push('  put exp', '  wait', '  exit');
