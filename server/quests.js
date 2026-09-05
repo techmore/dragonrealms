@@ -34,7 +34,10 @@ export const quests = {
 
   questCreatureFor(p) {
     const tiers = [
-      { upTo: 2, pool: ['rat', 'kobold'] },
+      // marsh_hog joins the c1 pool: the band-1 fields arena spawns hogs +
+      // kobolds — a rat-only assignment starves in an arena that never spawns
+      // rats (kmle lesson: one quest assigned in 60m, zero claims).
+      { upTo: 2, pool: ['rat', 'kobold', 'marsh_hog'] },
       { upTo: 4, pool: ['goblin', 'wolf'] },
       { upTo: 6, pool: ['wisp', 'bandit', 'great_rat'] },
       { upTo: 99, pool: ['wisp', 'bandit', 'troll', 'sewer_viper'] },
@@ -180,14 +183,18 @@ say(p, `The crier's work is underway — ${q.count - q.skinned} more creature(s)
     if (q.kind === 'recover') { if (gainSkillExp(p, 'appraisal', 8)) skillExp = ' Your Appraisal improved!'; }
     if (q.kind === 'skin') { if (gainSkillExp(p, 'skinning', 10)) skillExp = ' Your Skinning improved!'; }
     p.silver += silver;
-    const fromLeader = q.source === 'leader';
-    if (fromLeader && p.guild.guildSkill && SKILLS[p.guild.guildSkill]) gainSkillExp(p, p.guild.guildSkill, 20);
+    // Guild-skill rewards only exist for guild members: a guildless player
+    // cannot take leader tasks (askLeader guards below), but an old quest
+    // could outlive a /gm guild reset — guard instead of crashing.
+    const guildSkill = p.guild?.guildSkill;
+    const fromLeader = q.source === 'leader' && Boolean(guildSkill);
+    if (fromLeader && SKILLS[guildSkill]) gainSkillExp(p, guildSkill, 20);
     p.quest = null;
     game.persistPlayer(p);
     this.pushQuest(p);
     unlockAchievement(p, 'first_quest');
     if (fromLeader) {
-      return { ok: true, msg: `Your guild leader nods. "Work well done." You pocket ${silver} silvers and your ${SKILLS[p.guild.guildSkill].name} sharpens.${skillExp}` };
+      return { ok: true, msg: `Your guild leader nods. "Work well done." You pocket ${silver} silvers and your ${SKILLS[guildSkill].name} sharpens.${skillExp}` };
     }
     const kindLine = q.kind === 'deliver' ? 'The parcel is delivered, the town runs a little smoother.' : q.kind === 'recover' ? 'The trinket is returned to its owner.' : q.kind === 'skin' ? 'The hides are stacked and salted.' : 'Good hunting.';
     return { ok: true, msg: `The crier hands you ${silver} silvers. "${kindLine}"${skillExp}` };
