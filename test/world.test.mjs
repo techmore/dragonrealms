@@ -153,6 +153,9 @@ test('forage works in wild zones but not town', async () => {
   p.ws = ws;
   game.addPlayer(p);
 
+  // Ranger chars start on pine_needle_path (a WILDS room by design) — forage
+  // must genuinely refuse only in town rooms, so walk to the bazaar first.
+  walk(game, p, 'bazaar');
   const resTown = game.forage(p);
   assert.equal(resTown.ok, false, 'no foraging in town');
 
