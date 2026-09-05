@@ -542,6 +542,12 @@ export function createRunner(src, args = [], io = {}) {
       if (s.retryLine !== undefined && s.retryLine !== null) {
         const line = s.retryLine;
         s.retryLine = null;
+        // Blind-refusal budget resets once the retried line is re-applied:
+        // the budget is per-refusal, not per-run. Without this, the FIRST
+        // RT refusal anywhere arms retryOnce forever and every later blind
+        // verb (forage/tend in the settled tail) is silently dropped on its
+        // next refusal (fresh17-20: foraging exp 0 across all legs).
+        s.retryOnce = false;
         out(line);
         s.mode = 'room';
         return;
