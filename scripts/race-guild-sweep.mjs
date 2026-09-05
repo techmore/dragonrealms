@@ -1137,7 +1137,11 @@ class SweepAgent {
       setTimeout(() => this.restartCycle(), 3000);
       return;
     }
-    if (/dies|slumps|lifeless|stops moving|collapses/.test(text)) {
+    // Kill prose = the DR-style death cries (data/creatures.js DEATH_CRIES):
+    // "falls to the ground and lies still", "crumples to the ground", "is
+    // gone". The old victory-era list (slumps/stops moving) no longer matches
+    // the cries — kills read 0 for legs full of real kills (psbi).
+    if (/lies still|crumples|is gone|dies|slumps|lifeless|stops moving|collapses/.test(text)) {
       this.kills += 1;
       if (this.kills === 1) this.recordMilestone('first_kill', 'first creature defeated');
       this.lastProgressAt = Date.now();
@@ -1433,7 +1437,12 @@ class SweepAgent {
     // Fresh characters (circle 1) flee earlier: a single death early in a run
     // costs gear + TDP pool and spirals into the D grades seen in grading.
     const fleeAt = (v.circle || 1) <= 1 ? 0.45 : 0.28;
-    if (v.maxhp && v.inCombat && v.hp / v.maxhp < fleeAt && Date.now() - this.lastFleeAt > 6000) {
+    // Rate limit shrinks with danger: at ≥30% a 6s gap is safe, but at <30%
+    // a refused first flee + 6s wait = death (guzk/rysr pattern: 19 HP →
+    // refused → dead before the second attempt). Below 30% the gap is 1.5s.
+    const fracNow = v.hp / v.maxhp;
+    const fleeGap = fracNow < 0.3 ? 1500 : 6000;
+    if (v.maxhp && v.inCombat && fracNow < fleeAt && Date.now() - this.lastFleeAt > fleeGap) {
       this.lastFleeAt = Date.now();
       this.appendLog(`[interlock] HP ${v.hp}/${v.maxhp} — fleeing`);
       void this.session.cmd('flee');
