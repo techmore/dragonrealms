@@ -954,14 +954,18 @@
     });
     // Keep the evidence table as the first scan target; the plot remains one
     // click away for trend inspection.
+    // Default view is Monitor (2026-09-05: Sean picked answer-first). The
+    // old Evidence default hid the hero + launch entirely, so the page led
+    // with a 400-row table — and every view-switch was "remembered", so a
+    // stray Evidence click made EVERY later visit open on the table.
     let initialView = 'overview';
     try {
-      // one-time migration: clear any stale pre-Evidence-default view choice
-      if (sessionStorage.getItem('dr_sims_rev') !== '1') {
+      // one-time migration: clear any stale pre-Monitor-default view choice
+      if (sessionStorage.getItem('dr_sims_rev') !== '2') {
         sessionStorage.removeItem('dr_sims_view');
-        sessionStorage.setItem('dr_sims_rev', '1');
+        sessionStorage.setItem('dr_sims_rev', '2');
       }
-      initialView = sessionStorage.getItem('dr_sims_view') || 'evidence';
+      initialView = sessionStorage.getItem('dr_sims_view') || 'overview';
     } catch {}
     setWorkspaceView(initialView);
     // Native macOS menu-bar shortcut: open the compact EXP-focused view
