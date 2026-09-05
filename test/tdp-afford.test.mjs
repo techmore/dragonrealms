@@ -190,7 +190,7 @@ test('town errands leg: sells loot at the bazaar, bundles leftovers, walks home'
   const seg = src.slice(backIdx);
   assert.match(seg, /move n/, 'walks to the bazaar');
   assert.match(seg, /put sell rat_pelt/, 'sells the pelt');
-  assert.match(seg, /matchre ERRAND_DONE/, 'bails out when nothing is left to sell');
+  assert.match(seg, /matchre SELL_NEXT_RAT_PELT/, 'per-item guard bails only that item when nothing is left to sell');
   assert.match(seg, /put bundle rat_pelt/, 'bundles leftovers so burden never blocks moves');
   // ROOM GATE (qvgp fix): sell/bundle only fire standing AT the bazaar —
   // fallback hall trips generated from the wrong origin used to dump the
