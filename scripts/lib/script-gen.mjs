@@ -841,6 +841,9 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
       // WANDER's forage almost never fires because populated arenas match a
       // FIGHT first; this slot fires once per kill, costs one 5s RT outside
       // combat, and feeds the starved foraging survival-Nth slot.
+      // RT-SETTLED (fresh17-19 lesson): the last swing's RT outlives the
+      // look; pause 5 clears it so the forage banks instead of refusing.
+      L.push('  pause 5');
       L.push('  put forage');
       L.push('  wait');
     }
@@ -854,6 +857,8 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
       // at placing forage here never fired (0 sends across 23 kills). It
       // replaces the idle `pause 3` at a net +2s per chained kill and feeds
       // the starved foraging survival-Nth slot with boost-multiplied exp.
+      // RT-SETTLED: same swing-RT race as above.
+      L.push('  pause 5');
       L.push('  put forage');
       L.push('  wait');
     } else {
