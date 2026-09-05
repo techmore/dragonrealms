@@ -578,22 +578,28 @@ class SweepAgent {
   // studyPath (hall→academy) + studyToBazaar (academy→bazaar) + the landing
   // room id. The generator re-routes the errands walk through the academy
   // when these keys exist; otherwise empty keys = no detour, zero cost.
-  studyErrandRoute(fromRoom) {
-    // Lore rows need 2 at c2, 3 at c3+ (inc1130 bands) — resolve the real need
-    // from the live requirement table instead of the hardcoded c2 value.
+  // Lore rows need 2 at c2, 3 at c3+ (inc1130 bands) — resolved from the live
+  // requirement table, not a hardcoded c2 value. Tactics rides the combat
+  // lane, not study: every successful trip/bash maneuver banks tactics exp
+  // (server/combat.js maneuver path), so the standing hunt loop closes it.
+  loreNeedNow() {
     let loreNeed = 2;
     try {
       const shaped = Object.fromEntries(Object.entries({ ...(this.session.vitals.skills || {}), ...(this.expRanks || {}) }).map(([id, rank]) => [id, { rank }]));
       const rows = circleRequirements({ id: this.guild }, shaped, (this.session.vitals.circle || 1) + 1).rows || [];
       for (const r of rows) if (/2nd lore/.test(r.label)) loreNeed = Math.max(loreNeed, r.need);
     } catch { /* fallback below */ }
-    // Tactics rides the combat lane, not study: every successful trip/bash
-    // maneuver banks tactics exp (server/combat.js maneuver path), so the
-    // standing hunt loop closes it — no extra walk. c7's tactics 7 was the
-    // one 6→7 rank lag; more trips = more ranks (r21 closed it mid-leg).
-    const loreMissing = ['appraisal', 'scholarship']
-      .some((id) => ((this.expRanks || {})[id] || 0) < loreNeed);
-    if (!loreMissing) return {};
+    return loreNeed;
+  }
+
+  loreMissingNow() {
+    const need = this.loreNeedNow();
+    return ['appraisal', 'scholarship']
+      .some((id) => ((this.expRanks || {})[id] || 0) < need);
+  }
+
+  studyErrandRoute(fromRoom) {
+    if (!this.loreMissingNow()) return {};
     const studyPath = this.pureDiskPath(fromRoom, 'academy') || [];
     const studyToBazaar = this.pureDiskPath('academy', 'bazaar') || [];
     // Cap 44: the real disk walk hall_barbarian→academy→bazaar is 22+16=38
@@ -601,6 +607,42 @@ class SweepAgent {
     if (!studyPath.length || !studyToBazaar.length
       || studyPath.length + studyToBazaar.length > 44) return {};
     return { studyPath, studyToBazaar, studyRoom: 'academy' };
+  }
+
+  // TDP STAT-SPEND POLICY (queued kaizen): TDPs buy PERMANENT stats at the
+  // Fane (`train <stat>` twice; cost = max(10, floor(stat×0.6))). Unspent
+  // TDPs are dead weight — vltm parked with 11,682. Policy: at hall-trip
+  // time, if the balance clears a spend (≥ 4 points at the CURRENT stat
+  // cost), divert the circle script through the Fane and raise con first
+  // (+2 maxHp/pt via recalcDerived — survivability is the fresh-char
+  // accelerant: more HP = fewer flee events = longer fights = more kills),
+  // then str (+0.12 dmg/pt per swing + 1 maxHp). Points are computed HERE
+  // (supervisor holds live tdp + stat) and baked as an exact train count —
+  // the engine's %tdp token afford-gates each pair so a mid-block pool
+  // exhaustion falls through harmlessly instead of spamming refusals.
+  // CHAINING: the block runs at the TOP of BACK (agent still in the hall),
+  // before the study detour. When lore is missing the fane→academy leg feeds
+  // straight into the study walk; otherwise fane→bazaar feeds the errands.
+  tdpSpendRoute(fromRoom, loreMissing) {
+    const v = this.session.vitals;
+    const tdp = Number.isFinite(v.tdp) ? v.tdp : null;
+    if (!Number.isFinite(tdp) || tdp < 48) return {}; // < 4 cheap points — skip the 20-move detour
+    const stat = (v.circle || 1) <= 5 ? 'con' : 'str';
+    // Live stat value is not in vitals; use the chargen base as the floor and
+    // let the server's own refusal prose cap the spend (harmless).
+    const statNow = (this.statAllocation?.[stat] ?? 10) + 10; // chargen alloc + c1 circle bonus baseline
+    const points = Math.min(10, Math.floor(tdp / Math.max(10, Math.floor(statNow * 0.6))));
+    if (points < 4) return {};
+    const faneGo = this.pureDiskPath(fromRoom, 'fane') || [];
+    // Return leg depends on the chain: through the academy when lore still
+    // needs reads (study detour follows), else straight to the bazaar errands.
+    const faneBack = this.pureDiskPath('fane', loreMissing ? 'academy' : 'bazaar') || [];
+    // 20 moves each way ≈ 40 total — same budget rule as the study detour
+    // (the r4 lesson: a too-tight cap silently kills the detour forever).
+    if (!faneGo.length || !faneBack.length
+      || faneGo.length + faneBack.length > 50) return {};
+    this.appendLog(`[tdp-spend] ${tdp} TDPs — fane leg: ${stat} ×${points}`);
+    return { fanePath: faneGo, faneBack, faneRoom: 'fane', tdpSpendStat: stat, tdpSpendPoints: points };
   }
 
   async allocateAtChargen() {
@@ -996,6 +1038,7 @@ class SweepAgent {
         gemBack: s.bfsPath('market_end', 'bazaar', this.diskAdj()),
         gemRoom: 'market_end',
         ...(this.variant?.finishKit ? this.studyErrandRoute('hall_' + this.guild) : {}),
+        ...(this.variant?.finishKit ? this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()) : {}),
       },
     });
     const megaSrc = buildMegaScript(cap);
@@ -1438,6 +1481,7 @@ class SweepAgent {
         gemBack: s.bfsPath('market_end', 'bazaar', this.diskAdj()),
         gemRoom: 'market_end',
         ...(this.variant?.finishKit ? this.studyErrandRoute('hall_' + this.guild) : {}),
+        ...(this.variant?.finishKit ? this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()) : {}),
       },
     });
     if (cap.sharedFight) this.library[this.scriptBase + 'fight'] = buildSharedFightScript(cap);

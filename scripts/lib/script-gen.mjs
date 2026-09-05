@@ -1378,6 +1378,32 @@ function buildCircleScript({ cap, fromArena, errands }) {
   L.push('  matchwait');
   L.push('  goto BACK');
   L.push('BACK:');
+  // FANE SPEND (cap.tdpSpendStat): TDPs buy PERMANENT stats at the Fane
+  // (`train <stat>` twice to commit; cost = max(10, floor(stat×0.6))).
+  // The supervisor computed the affordable point count from the live balance
+  // and baked it as tdpSpendPoints. `train` alternates arm/commit server-side,
+  // so an even stream of train calls spends exactly that many points; the
+  // %tdp afford gate (iflt tdp 12) drops the remaining pairs when the pool
+  // runs dry mid-block (12 = cost floor 10 + headroom). Runs at the TOP of
+  // BACK while the agent still stands in the hall; the return leg is chained
+  // by the supervisor — fane→academy when the study detour follows, else
+  // fane→bazaar for the errands. Room-gated like every errand block: from a
+  // non-fane landing the walk falls through harmlessly.
+  if (cap.tdpSpendStat && cap.tdpSpendPoints && errands.fanePath?.length && errands.faneBack?.length) {
+    L.push(...moves(errands.fanePath));
+    L.push(`  ifne room ${errands.faneRoom} goto FANE_DONE`);
+    for (let i = 0; i < cap.tdpSpendPoints; i++) {
+      L.push('  iflt tdp 12 FANE_DONE');
+      L.push('  put train ' + cap.tdpSpendStat);
+      L.push('  wait');
+      L.push('  pause 1');
+      L.push('  put train ' + cap.tdpSpendStat);
+      L.push('  wait');
+      L.push('  pause 1');
+    }
+    L.push('FANE_DONE:');
+    L.push(...moves(errands.faneBack));
+  }
   // STUDY DETOUR (cap.finishKit): lore rows (appraisal/scholarship) cannot be
   // hall-trained (not guild skills — `train appraisal` at the barbarian hall
   // is refusal prose at 40-60s a line) but the free `study` verb at the
