@@ -437,6 +437,19 @@
         <summary><b>How to read a benchmark</b><span>matched runs, medians, and promotion gates</span></summary>
         <div class="explan-body">An A/B is a set of matched runs by guild, race, boost, target circle, and code revision. The default is one worker at a time for clean pacing; <code>--concurrency N</code> is a deliberate crowded-world test. Compare medians and the promotion gate only within the same concurrency setting. Median-of-repeats beats any single run; legs with &lt;2 completions are noise-prone.</div>
       </details>
+      <script>
+        // The explainer is reference material, not a headline: collapsed by
+        // default, and an explicit open is remembered across reloads.
+        try {
+          if (localStorage.getItem('dr-sims-explan-open') !== '1') {
+            const d = document.getElementById('explan');
+            if (d) d.removeAttribute('open');
+          }
+          document.getElementById('explan')?.addEventListener('toggle', (e) => {
+            try { localStorage.setItem('dr-sims-explan-open', e.target.open ? '1' : '0'); } catch {}
+          });
+        } catch {}
+      </script>
       <style>
         #experiment .leg { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
           padding:6px 4px; border-top:1px dashed var(--line); font-size:12px; }
@@ -906,8 +919,8 @@
     $('leaderboard').after($('runs'));
 
     const VIEW_SECTIONS = {
-      overview: ['champion', 'experiment', 'launch', 'roadmaps'],
-      decide: ['kaizen', 'compare', 'leaderboard'],
+      overview: ['champion', 'experiment', 'launch'],
+      decide: ['kaizen', 'compare', 'leaderboard', 'build-badges'],
       evidence: ['experiment', 'runs'],
       deep: ['tracker', 'lab', 'scripts-section', 'kaizen-investigation'],
       roadmaps: ['roadmaps'],
@@ -1860,6 +1873,8 @@
         val: $('ch-val'), hours: $('ch-hours'), runs: $('ch-runs'),
         circle: $('ch-circle'), trust: $('ch-trust'), next: $('ch-next') };
       const hero = $('champion');
+      const chFacts = hero?.querySelector('.ch-facts');
+      const chRate = hero?.querySelector('.ch-rate');
       // A live experiment owns the hero slot (renderActiveHeader writes it);
       // the best-result card only appears when the board is quiet.
       if (!rv || window.__simsLiveExperiment) {
@@ -1871,6 +1886,8 @@
         return;
       }
       if (hero) hero.hidden = false;
+      if (chFacts) chFacts.style.display = '';
+      if (chRate) chRate.style.display = '';
       const hoursTxt = rv.hours >= 1 ? rv.hours.toFixed(1) + 'h' : Math.round(rv.hours * 60) + 'm';
       const n = rv.runs.length;
       const trust = n >= 8 ? 'strong' : n >= 5 ? 'decent' : n >= 3 ? 'thin' : 'noise';
@@ -2363,10 +2380,19 @@
       const eye = $('ch-eyebrow'), name = $('ch-name'), meta = $('ch-meta'), next = $('ch-next');
       const hero = $('champion');
       if (hero) hero.hidden = false;
+      // The C/46 tier block + hours/runs/circle/trust facts describe the
+      // best HISTORICAL variant; headlining a live experiment they read as
+      // wrong-attributed noise, so a live hero is identity + Now line only.
+      const liveChFacts = hero?.querySelector('.ch-facts');
+      const liveChRate = hero?.querySelector('.ch-rate');
+      if (liveChFacts) liveChFacts.style.display = 'none';
+      if (liveChRate) liveChRate.style.display = 'none';
       if (eye) eye.textContent = 'Kaizen in flight · live experiment';
       if (name) name.textContent = `${m.guild || 'sim'} · ${m.targetCircle ? `Circle ${m.targetCircle} gate` : 'benchmark'}`;
       if (meta) meta.textContent = `${m.runId} · ${m.race || running?.race || 'matched race'} · ${m.concurrency > 1 ? `crowded ×${m.concurrency}` : 'controlled ×1'} · boost ×${m.boost ?? 0}`;
-      if (next) next.innerHTML = `<b>Now:</b> ${running ? `leg ${running.index}/${m.totalLegs} · ${esc(running.variant)}` : 'preparing next leg'}${queued ? ` · next ${esc(queued.variant)}` : ''}. Results will be compared against the matching historical best when complete.`;
+      if (next) next.innerHTML = running
+        ? `<b>Now:</b> leg ${running.index}/${m.totalLegs} · ${esc(running.variant)} · results land here when the leg finishes`
+        : `<b>Now:</b> preparing next leg`;
     }
     const EXP_LIVE_OPEN = new Set();
     const EXP_TABLE_OPEN = new Set();
