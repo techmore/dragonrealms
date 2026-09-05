@@ -1441,7 +1441,7 @@ class SweepAgent {
     // a refused first flee + 6s wait = death (guzk/rysr pattern: 19 HP →
     // refused → dead before the second attempt). Below 30% the gap is 1.5s.
     const fracNow = v.hp / v.maxhp;
-    const fleeGap = fracNow < 0.3 ? 1500 : 6000;
+    const fleeGap = fracNow < 0.3 ? 700 : 6000;
     if (v.maxhp && v.inCombat && fracNow < fleeAt && Date.now() - this.lastFleeAt > fleeGap) {
       this.lastFleeAt = Date.now();
       this.appendLog(`[interlock] HP ${v.hp}/${v.maxhp} — fleeing`);
