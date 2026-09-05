@@ -343,7 +343,7 @@
     <div class="group-label" id="g-now">Now — what's in flight &amp; what to run</div>
 
     <!-- ===================== HERO: the answer, first ===================== -->
-    <section id="champion" class="champ-hero">
+    <section id="champion" class="champ-hero" hidden>
       <div class="ch-left">
         <div class="dsub" id="ch-eyebrow">Best verified result · scoped to a matched cohort</div>
         <div class="ch-name" id="ch-name">…</div>
@@ -1855,11 +1855,18 @@
       const el = { eye: $('ch-eyebrow'), name: $('ch-name'), meta: $('ch-meta'), tier: $('ch-tier'),
         val: $('ch-val'), hours: $('ch-hours'), runs: $('ch-runs'),
         circle: $('ch-circle'), trust: $('ch-trust'), next: $('ch-next') };
-      if (!rv) {
-        if (el.name) { el.name.textContent = 'No benchmark data yet'; }
-        if (el.meta) el.meta.textContent = 'run a sweep (CLI or above) to populate the champion card';
+      const hero = $('champion');
+      // A live experiment owns the hero slot (renderActiveHeader writes it);
+      // the best-result card only appears when the board is quiet.
+      if (!rv || window.__simsLiveExperiment) {
+        if (hero) hero.hidden = true;
+        if (!rv) {
+          if (el.name) { el.name.textContent = 'No benchmark data yet'; }
+          if (el.meta) el.meta.textContent = 'run a sweep (CLI or above) to populate the champion card';
+        }
         return;
       }
+      if (hero) hero.hidden = false;
       const hoursTxt = rv.hours >= 1 ? rv.hours.toFixed(1) + 'h' : Math.round(rv.hours * 60) + 'm';
       const n = rv.runs.length;
       const trust = n >= 8 ? 'strong' : n >= 5 ? 'decent' : n >= 3 ? 'thin' : 'noise';
@@ -2345,10 +2352,13 @@
     // manifest; older runs fall back to inference from recent summary rows.
     const LEG_CAP_MIN = 30;
     function renderActiveHeader(m) {
-      if (!m || m.status !== 'running') return;
+      if (!m || m.status !== 'running') { window.__simsLiveExperiment = false; return; }
+      window.__simsLiveExperiment = true;
       const running = (m.plan || []).find((p) => p.status === 'running');
       const queued = (m.plan || []).find((p) => p.status === 'queued');
       const eye = $('ch-eyebrow'), name = $('ch-name'), meta = $('ch-meta'), next = $('ch-next');
+      const hero = $('champion');
+      if (hero) hero.hidden = false;
       if (eye) eye.textContent = 'Kaizen in flight · live experiment';
       if (name) name.textContent = `${m.guild || 'sim'} · ${m.targetCircle ? `Circle ${m.targetCircle} gate` : 'benchmark'}`;
       if (meta) meta.textContent = `${m.runId} · ${m.race || running?.race || 'matched race'} · ${m.concurrency > 1 ? `crowded ×${m.concurrency}` : 'controlled ×1'} · boost ×${m.boost ?? 0}`;
@@ -2464,8 +2474,14 @@
           if (refreshSeq !== liveBoardRefreshSeq) return;
           const ageMs = Date.now() - Date.parse(m.updatedAt || 0);
           if (m?.runId && (m.status === 'complete' || ageMs < 5 * 60000)) {
+            // Hero owns identity + the "now" story (renderActiveHeader);
+            // the board keeps only progress + the live card. A single-leg
+            // plan adds no information beyond the live card, so the leg
+            // table renders only when there is more than one leg.
             renderActiveHeader(m);
-            const variants = [...new Set((m.plan || []).map((p) => p.variant))];
+            const plan = Array.isArray(m.plan) ? m.plan : [];
+            const multiLeg = plan.length > 1;
+            const variants = [...new Set(plan.map((p) => p.variant))];
             const candidate = variants[1] || variants[0] || 'candidate';
             const control = variants[0] || 'control';
             const remaining = Math.max(0, Number(m.estimatedRemainingMinutes) || 0);
@@ -2473,7 +2489,7 @@
               ? `${Math.floor(mins / 60)}h ${Math.round(mins % 60)}m`
               : `${Math.round(mins)}m`;
             const progress = m.totalLegs ? Math.round((m.completedLegs || 0) / m.totalLegs * 100) : 0;
-            const planRows = (m.plan || []).map((p) => {
+            const planRows = multiLeg ? plan.map((p) => {
               const marker = p.status === 'running' ? 'NOW' : p.status === 'complete' ? 'DONE'
                 : p.index === Number(m.currentLeg || 0) + 1 ? 'NEXT' : 'QUEUED';
               return `<div class="leg">
@@ -2483,21 +2499,24 @@
                 ${p.status === 'running' ? `<div class="lp2"><i style="width:45%"></i></div>` : ''}
                 <span class="sub">${p.status === 'queued' ? 'waits for prior leg' : esc(p.char || '')}</span>
               </div>`;
-            }).join('');
-            // One quiet facts line: what's being asked, how it's judged, where
-            // it stands. Replaces the QUESTION/SUCCESS RULE/PROGRESS tile row
-            // and the run-id strip, which restated the same facts.
-            const expFacts = `<div class="exp-facts"><b>${esc(candidate)}</b> vs <b>${esc(control)}</b> · ${esc(m.decisionRule || 'matched repeats, promote on the leveling outcome')} · <b>${m.completedLegs || 0}/${m.totalLegs}</b> legs done · ${m.status === 'complete' ? 'complete' : '~' + fmtClock(remaining) + ' left'} · target c${esc(m.targetCircle ?? '?')} · ${m.concurrency > 1 ? `crowded ×${esc(m.concurrency)}` : 'controlled ×1'} · run-id ${esc(m.runId)}</div>`;
+            }).join('') : '';
+            // One quiet facts line (A-vs-B, judge rule, ETA, run-id). On a
+            // single-leg run the variants are identical, so lead with the
+            // variant name instead of "X vs X".
+            const singleVariant = variants.length === 1;
+            const ask = singleVariant
+              ? `<b>${esc(variants[0] || 'benchmark')}</b>`
+              : `<b>${esc(candidate)}</b> vs <b>${esc(control)}</b>`;
+            const expFacts = `<div class="exp-facts">${ask} · ${esc(m.decisionRule || 'matched repeats, promote on the leveling outcome')} · <b>${m.completedLegs || 0}/${m.totalLegs}</b> legs done · ${m.status === 'complete' ? 'complete' : '~' + fmtClock(remaining) + ' left'} · target c${esc(m.targetCircle ?? '?')} · ${m.concurrency > 1 ? `crowded ×${esc(m.concurrency)}` : 'controlled ×1'} · run-id ${esc(m.runId)}</div>`;
             // Single-model experiments don't need a model card — the facts
             // line and the NOW leg row already say everything (the card was a
             // third restatement). Two+ models keep the comparison grid.
-            const plan = Array.isArray(m.plan) ? m.plan : [];
-            const modelCount = new Set(plan.map((p) => p.variant)).size;
+            const modelCount = variants.length;
             const modelsHtml = modelCount >= 2 ? renderExperimentModels(m) : '';
             el.innerHTML = `${expFacts}
               <div class="lp2" style="max-width:none;margin-bottom:8px"><i style="width:${progress}%"></i></div>
               ${renderRunningModels() || renderLiveFallback()}${modelsHtml}
-              <div style="margin-top:10px">${planRows}</div>`;
+              ${multiLeg ? `<div style="margin-top:10px">${planRows}</div>` : ''}`;
             const activeCount = (m.plan || []).filter((p) => p.status === 'running').length;
             stateEl.textContent = m.status === 'complete'
               ? `${m.totalLegs}/${m.totalLegs} legs complete`
