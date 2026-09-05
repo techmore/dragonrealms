@@ -159,10 +159,10 @@ function buildSharedFightScript(cap) {
   // SURVIVAL TAIL — RT-SETTLED (fresh15 lesson): skin's light RT (~4s) is
   // still live through rotate, so a tend/forage sent right after it burns
   // on refusals (184 in fresh15; first_aid AND foraging banked exp=0 all
-  // leg). pause 3 clears the deadline; every survival send below then
-  // banks. Wounds persist (clotTick needs 3+ min out of combat), so the
-  // settled lane still finds the bleeders.
-  L.push('  pause 3');
+  // leg). pause 5 clears the worst table RT (ranged/heavy 4s + margin);
+  // every survival send below then banks. Wounds persist (clotTick needs
+  // 3+ min out of combat), so the settled lane still finds the bleeders.
+  L.push('  pause 5');
   if (cap.guild === 'barbarian') {
     L.push('  put forage');
     L.push('  wait');
