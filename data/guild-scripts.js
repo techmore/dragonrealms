@@ -687,7 +687,7 @@ export const VARIANTS = {
   climbFinish: {
     restPct: 35, hallEvery: 4, arenaBand: 1, hallFallbackMs: 240000,
     closeNth: true, tdpFloor: 4, climb: true, survivalRetry: true,
-    finishKit: true, hallTrainCap: 4,
+    finishKit: true, hallTrainCap: 2,
     diff: ['arenaBand', 'finishKit', 'hallTrainCap'],
     hypothesis: 'r1/r2 finding: shortfall pinned at 10 with 5 purchasable/study rows while the purse leaked 40-60s per line into rank-163-evasion "hall training" and re-buys of worn gear. finishKit converts the circle script to the gear-ledger standard: (1) teachable filter — the hall trains ONLY guild-teachable skills, capped at 4 lines, so lore (appraisal/scholarship) and over-trained lanes stop bleeding silver; (2) study detour — the hall→bazaar walk routes through the academy and fires the free `study` verb once per missing lore skill (the only zero-silver path to both 0/2 lore rows, never once used in 610 prior runs); (3) kit emitter — all purchasable pieces (club 112 = 4th weapon, padded cloth 40 + iron helm 120 = armor rows, wooden shield 70, stack pieces) emit from data via the gearLedger with live ITEMS values, worn-gated (the p9 re-buy leak) and purse-gated. Field exp at boost x20 then closes each worn lane in ~2-5 kills. Prediction: vltm (shortfall 10) reaches circle 2 within one 45-min resumed leg.',
   },

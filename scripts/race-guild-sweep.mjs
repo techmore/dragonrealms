@@ -482,6 +482,7 @@ class SweepAgent {
     this.killsAtVisit = 0;
     this.lastFleeAt = 0;
     this.fledAt = 0;        // armed by "break away and sprint" prose (see onRoom)
+    this.faneHold = false;  // kit-before-fane: purse-triggered trips skip the fane leg
     this.lastTendAt = 0;
     this.scriptsSaved = false;
     this.circleTimes = [];    // [{circle, ms}] wall-clock from enter to EACH circle-up
@@ -624,6 +625,9 @@ class SweepAgent {
   // before the study detour. When lore is missing the fane→academy leg feeds
   // straight into the study walk; otherwise fane→bazaar feeds the errands.
   tdpSpendRoute(fromRoom, loreMissing) {
+    // KIT-BEFORE-FANE: purse-triggered trips set faneHold — the purse there
+    // is for the ledger (club 112s, shield 70s), not stats.
+    if (this.faneHold) return {};
     const v = this.session.vitals;
     const tdp = Number.isFinite(v.tdp) ? v.tdp : null;
     // Threshold 150 + cap 5 (fresh14 tuning): the 40-move fane detour every
@@ -1791,6 +1795,7 @@ class SweepAgent {
       } catch { /* unknown guild — fall through to timer trigger */ }
       if (ready?.ok) {
         this.skipCircle = false;
+        this.faneHold = false; // requirements trip: the fane leg may ride
         this.recordMilestone('requirements_met', `circle-${(v2.circle || 1) + 1} requirement ledger reached zero`, { target: (v2.circle || 1) + 1 });
         log(`[${this.guild}/${this.race}] hall trip: circle-${(v2.circle || 1) + 1} requirements MET by mindstate ranks`);
         this.appendLog(`[hall-trip] requirements met (${(v2.circle || 1) + 1}) — circling`);
@@ -1816,6 +1821,12 @@ class SweepAgent {
       this.recordMilestone('hall_handoff', `purse-triggered hall trip at circle ${v2.circle || 1} (silver ${v2.silver})`, { circle: v2.circle || 1, reason: 'purse-trigger', silver: v2.silver });
       log(`[${this.guild}/${this.race}] hall trip (purse trigger, silver ${v2.silver})`);
       this.appendLog(`[hall-trip] purse trigger (silver ${v2.silver})`);
+      // KIT-BEFORE-FANE (fresh21 lesson): a purse-triggered trip means there
+      // is silver to convert into gate ranks — the fane detour riding the
+      // same trip spent that purse on stats while the club (112s) and shield
+      // (70s) stayed unbought all leg. The fane leg rides only trips that
+      // are NOT silver-motivated (requirements-met / fallback).
+      this.faneHold = true;
       this.killsAtVisit = this.kills;
       this.lastHallAt = Date.now();
       this.skipCircle = true;
@@ -1838,6 +1849,7 @@ class SweepAgent {
       this.recordMilestone('hall_handoff', `fallback hall trip at circle ${v2.circle || 1}`, { circle: v2.circle || 1, reason: 'fallback-timer' });
       log(`[${this.guild}/${this.race}] hall trip (fallback timer)`);
       this.appendLog(`[hall-trip] fallback timer`);
+      this.faneHold = false; // fallback trips are not silver-motivated
       this.killsAtVisit = this.kills;
       this.lastHallAt = Date.now();
       this.skipCircle = true;
