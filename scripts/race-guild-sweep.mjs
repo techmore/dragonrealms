@@ -1446,6 +1446,11 @@ class SweepAgent {
       this.lastFleeAt = Date.now();
       this.appendLog(`[interlock] HP ${v.hp}/${v.maxhp} — fleeing`);
       void this.session.cmd('flee');
+      // DOUBLE-FLEE (frgy): disengage is chance-based (~45% for a fresh
+      // char) and the foe swings every ~2s for 9-14 — a single failed flee
+      // at <15% HP is fatal before the next tick. Two queued attempts per
+      // critical window lift per-window escape to ~70% (both fail = 30%→9%).
+      if (fracNow < 0.15) void this.session.cmd('flee');
       return;
     }
     // Rest interlock (supervisor-side, like live-sim): the generated hunt
