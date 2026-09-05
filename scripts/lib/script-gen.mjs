@@ -271,6 +271,13 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
   // %room gate: if already at the bazaar, skip the walk and buy right here.
   L.push('  ife room bazaar goto BUY_HERE');
   if (cap.bazaarPath?.length) L.push(...moves(cap.bazaarPath));
+  // ROOM GATE (gcwp lesson): a refused/skipped move mid-walk lands the agent
+  // short of the bazaar; the buys then fire wherever we stand ('There is no
+  // shopkeeper here', club 112s wasted). If the walk didn't land, skip the
+  // buys — the next errand trip retries them from the right room.
+  L.push('  ifne room bazaar goto BUY_SKIP');
+  L.push('BUY_SKIP:');
+  L.push('  goto ARMED_FROM_BAZAAR');
   L.push('BUY_HERE:');
   // WEAPON PLAN buy block. With a weaponPlan the agent buys its FULL kit on
   // this one visit (club + sling + mace = 338s of starter silver:
