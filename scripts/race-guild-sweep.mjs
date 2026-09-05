@@ -586,6 +586,10 @@ class SweepAgent {
       const rows = circleRequirements({ id: this.guild }, shaped, (this.session.vitals.circle || 1) + 1).rows || [];
       for (const r of rows) if (/2nd lore/.test(r.label)) loreNeed = Math.max(loreNeed, r.need);
     } catch { /* fallback below */ }
+    // Tactics rides the combat lane, not study: every successful trip/bash
+    // maneuver banks tactics exp (server/combat.js maneuver path), so the
+    // standing hunt loop closes it — no extra walk. c7's tactics 7 was the
+    // one 6→7 rank lag; more trips = more ranks (r21 closed it mid-leg).
     const loreMissing = ['appraisal', 'scholarship']
       .some((id) => ((this.expRanks || {})[id] || 0) < loreNeed);
     if (!loreMissing) return {};
@@ -645,9 +649,14 @@ class SweepAgent {
       // Prefer hunting grounds within our weight class: a c1 character sent
       // against c5 spawns dies in RT-locked cycles (live-sim pitfall).
       // arenaBand widens/narrows that spread (benchmark variants).
+      // DEATH-TIGHTENING (r22): the band shrinks one circle per death this
+      // leg (floor 0) — 6 deaths at deep_2 (wraiths circle 7 vs c6 agent,
+      // band 2) was a flee-wander-buy spiral with 0 kills. One death should
+      // already pull the agent back to same-circle spawns.
+      const band = Math.max(0, this.arenaBand - this.deaths);
       const tooStrong = ROOMS[id].spawns.some((sid) => {
         const c = creatureById(sid);
-        return c && (c.circle || 1) > myCircle + this.arenaBand;
+        return c && (c.circle || 1) > myCircle + band;
       });
       if (tooStrong) continue;
       if (climb) {
@@ -1442,7 +1451,14 @@ class SweepAgent {
     // (diversity-yahj died in the bazaar at 85/171 HP). If not bleeding,
     // tend is pointless; if bleeding, tend before resting. Free of RT when
     // out of combat; harmless 'no wounds' prose otherwise.
-    if ((v.bleeding || []).length && Date.now() - (this.lastTendAt || 0) > 4000) {
+    // SCRIPT-BUSY GUARD (r18): tend arms its own roundtime (3-4s); firing it
+    // while a generated script is mid-step (a study/train/attack inside 8s)
+    // feeds the script's next RT verb straight into "You must wait 4
+    // seconds" — r18 lost all three study reads this way. The hunt script's
+    // own %bleed gate re-tends after the fight; the interlock only covers
+    // script-silent windows.
+    const scriptBusy = this.runner && Date.now() - (this.lastSendAt || 0) < 8000;
+    if ((v.bleeding || []).length && !scriptBusy && Date.now() - (this.lastTendAt || 0) > 4000) {
       this.lastTendAt = Date.now();
       this.appendLog(`[interlock] bleeding after escape (${v.bleeding.join(', ')}) — tending`);
       void this.session.cmd('tend');
@@ -2764,7 +2780,10 @@ const experimentWatchToken = (() => {
   } catch { return null; }
 })();
 function writeExperimentState(status, currentIndex = -1, completedLegs = 0, activeIndexes = []) {
-  if (MODE !== 'benchmark') return;
+  // Benchmark AND resume legs both write manifests: the Sims page discovers
+  // runs through experiment-index.json, and resume legs (the c2→c20 climb)
+  // were invisible there because only benchmark mode ever wrote one.
+  if (MODE !== 'benchmark' && MODE !== 'spawn') return;
   const current = currentIndex >= 0 ? wanted[currentIndex] : null;
   const repeatsPerVariant = Math.max(1, ...wanted.map((w) => w.repeat || 1));
   const requiredFinishes = Math.max(1, Math.ceil(repeatsPerVariant * 2 / 3));
@@ -2774,7 +2793,10 @@ function writeExperimentState(status, currentIndex = -1, completedLegs = 0, acti
   const body = {
     runId: RUN_ID, status, mode: MODE,
     startedAt: experimentStartedAt, updatedAt: new Date().toISOString(),
-    guild: BENCH_GUILD, targetCircle: CIRCLE_TARGET, boost: BOOST,
+    guild: BENCH_GUILD || wanted[0]?.guild || null,
+    race: wanted[0]?.race || null,
+    resumeChar: wanted[0]?.resumeChar || null,
+    targetCircle: CIRCLE_TARGET, boost: BOOST,
     worldPort: experimentWorldPort,
     watchToken: experimentWatchToken,
     minutesPerLeg: MINUTES, totalLegs: agents.length, completedLegs,
@@ -2817,7 +2839,7 @@ function writeExperimentState(status, currentIndex = -1, completedLegs = 0, acti
 // batch looked frozen for its entire duration even though all worker logs
 // were active. This heartbeat is metadata-only and does not touch the game.
 let experimentSnapshot = { currentIndex: 0, completedLegs: 0, activeIndexes: [] };
-const experimentHeartbeat = MODE === 'benchmark'
+const experimentHeartbeat = MODE === 'benchmark' || MODE === 'spawn'
   ? setInterval(() => writeExperimentState('running', experimentSnapshot.currentIndex,
     experimentSnapshot.completedLegs, experimentSnapshot.activeIndexes), 15000)
   : null;

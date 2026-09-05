@@ -951,6 +951,13 @@ say(t, text, 'combat');
     this.specialCd.analyze = 5;
     this.analyzeCombo = Math.min(3, this.analyzeCombo + 1);
     const leveled = gainSkillExp(p, 'expertise', 10);
+    // Tactics trains on tactical assessment (clean-room, DragonRealms.md:
+    // "Tactics ... studying how the battle flows"). Without this the
+    // barbarian's ONLY tactics source is successful trips — and at c6+ the
+    // spawn pool (wraith/wisp defense 22-26 vs brawling ~2) makes trip
+    // chance ~3%, so tactics pinned 6/7 for 20+ minutes while the gate sat
+    // at 293/294. Every analyze reads the fight; small bank per read.
+    const tacLeveled = gainSkillExp(p, 'tactics', 6);
     if (this.analyzeCombo >= 3) {
       this.analyzeCombo = 0;
       // Expertise extends the analyzed window (+1 tick per 10 ranks, cap +10)
@@ -958,9 +965,9 @@ say(t, text, 'combat');
       const exp = skillRank(p, 'expertise');
       this.analyzeTicks = 10 + Math.min(10, Math.floor(exp / 10));
       this.analyzeBonus = 1 + Math.min(0.1, exp * 0.001);
-      this.say(`You finish your ${kind} combo — with expert skill you end the attack and maneuver into a better position! Your blows will strike truer!`);
+      this.say(`You finish your ${kind} combo — with expert skill you end the attack and maneuver into a better position! Your blows will strike truer!${tacLeveled ? ' Your Tactics improved!' : ''}`);
     } else {
-      this.say(`You study the flow of battle (${kind} combo ${this.analyzeCombo}/3).${leveled ? ' Your Expertise improved!' : ''}`);
+      this.say(`You study the flow of battle (${kind} combo ${this.analyzeCombo}/3).${leveled ? ' Your Expertise improved!' : ''}${tacLeveled ? ' Your Tactics improved!' : ''}`);
     }
     return { ok: true, msg: '' };
   }

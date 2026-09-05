@@ -40,43 +40,74 @@
 <h1>&#128009; Barbarian Scripting Roadmap</h1>
 <p class="sub">Kaizen status of the barbarian progression sim — where we are, what's measured, what's next.
 Companion pages: <a href="/sim-architecture.html">Sim architecture</a> · Sims dashboard at <a href="/sims.html">/sims.html</a> · <a href="/warmage-roadmap.html">Warmage roadmap</a> · <a href="/ROADMAP.html">full roadmap</a>.
-Last updated 2026-09-04.</p>
+Last updated 2026-09-05.</p>
 
 <div class="callout">
-  <b>*** FIRST CIRCLE-UP *** (2026-09-04, 22:38):</b> <code>vltm</code> reached
-  <b>circle 2 at 13m10s</b> into leg r7b (run <code>syir</code>) — the first in the project's
-  history, after 600+ runs. 46 kills @ 61/h (best ever), 3691 ranks, 0 deaths. The arc that
-  got here: shortfall 84 → 12 → 10 → 9 → 7 → 4 → 1 → <b>0</b>, driven by the refused-roar RT
-  fix, corpse-jump skinning, the survival interleave, <code>--resume</code> compounding legs
-  on one character, the gear-ledger kit emitter (club/padded cloth/helm bought and worn),
-  and the Academy <code>study</code> detour (both lore rows — the path was dead until a
-  <code>pureDiskPath</code> shape bug was fixed). Circle 3 gate already at 125/126.
+  <b>*** CLIMB IS LIVE: c2→c6 in one day *** (2026-09-05):</b> after the first
+  circle-up ever (c2 @ 13m10s, r7b), the resume machine compounded: <b>c3 at 6m06s,
+  c4 at 8m05s (same leg, r17)</b>, then <b>c5 at 8m (r19)</b>, <b>c6 at 2m49s
+  (r20)</b> — circle 6, 83 skills, ~6900 ranks, deaths near zero. The remaining wall
+  is <b>tactics</b> (a lore row needing rank = circle number): its only exp source was
+  successful trips, and the c6+ spawn pool (wraith/wisp, defense 22–26 vs brawling ~2)
+  makes trip chance ~3% — tactics pinned 6/7 for 20+ min while the gate sat at
+  293/294. Fixed 2026-09-05: <code>analyze</code> now banks tactics exp per read
+  (clean-room: DR's Tactics trains on studying how the battle flows), and the fight
+  loop analyzes every kill. The <em>method</em> that got here is stable — see
+  "The approach that compounds" below.
 </div>
 
 <h2>Current status</h2>
 <p>
 The per-leg throwaway problem is dead: <code>--resume &lt;char&gt;</code> re-enters the world with every
-rank, kit, and silver balance intact, so legs compound instead of restarting from rank 0. The
-<code>zrmn</code>-era walls (spawn starvation, bazaar wedges) were solved by
-<code>DR_SPAWN_MULT</code> sweep density + the arena ladder — best kill rate is now <b>49/h</b>
-(old typical 24–32). What gates circle 2 today is a short, named shopping list.
+rank, kit, and silver balance intact, so legs compound instead of restarting from rank 0. Kill rate is
+40–82/h depending on spawn pool (boost ×20); every circle gate from 2 through 7 has closed on this
+character. What gates each circle now is a short, named shopping list, and the machine clears it
+autonomously. vltm today: <b>circle 6</b>, 83 skills, ~6,900 ranks, TDP pool ~10,500 (stat-spend audit
+queued — see below).
 </p>
 <table>
-  <tr><th>Metric (best measured)</th><th class="num">Prior best</th><th class="num">Current (p10→r2)</th><th></th></tr>
-  <tr><td>Circle-2 shortfall (of 84 ranks)</td><td class="num">35</td><td class="num">10</td><td><span class="pill now">10 ranks left</span></td></tr>
-  <tr><td>Gated progress (84-rank gate)</td><td class="num">58%</td><td class="num">88.1%</td><td><span class="metric-good">record</span></td></tr>
-  <tr><td>Total ranks (persistent char)</td><td class="num">372</td><td class="num">1371+</td><td><span class="metric-good">resume compounding</span></td></tr>
-  <tr><td>Kills/hour</td><td class="num">36</td><td class="num">49</td><td><span class="metric-good">solved</span></td></tr>
-  <tr><td>Skinning ranks (was 0 in every run ever)</td><td class="num">0</td><td class="num">18</td><td><span class="pill done">fixed</span></td></tr>
-  <tr><td>Deaths per leg</td><td class="num">2–10</td><td class="num">0</td><td><span class="metric-good">solved</span></td></tr>
-  <tr><td>Circle-ups</td><td class="num">0</td><td class="num"><b>1 — circle 2 @ 13m10s (syir)</b></td><td><span class="pill done">landed</span></td></tr>
+  <tr><th>Metric (best measured)</th><th class="num">Pre-arc best</th><th class="num">Current (2026-09-05)</th><th></th></tr>
+  <tr><td>Circle-ups</td><td class="num">0 in 600+ runs</td><td class="num"><b>5 (c2,3,4,5,6)</b></td><td><span class="pill done">landed</span></td></tr>
+  <tr><td>Fastest leg to next circle</td><td class="num">—</td><td class="num">2m49s (c6, r20)</td><td><span class="metric-good">record</span></td></tr>
+  <tr><td>Total ranks (persistent char)</td><td class="num">372</td><td class="num">~6,900</td><td><span class="metric-good">compounding</span></td></tr>
+  <tr><td>Kills/hour</td><td class="num">36</td><td class="num">40–82 (pool-dependent)</td><td><span class="metric-good">solved</span></td></tr>
+  <tr><td>Gear lanes (weapons/armor worn)</td><td class="num">0 worn beyond starter</td><td class="num">club + padded cloth + helm + shield + sleeves auto-bought</td><td><span class="pill done">standard</span></td></tr>
+  <tr><td>Deaths per leg</td><td class="num">2–10</td><td class="num">0–2</td><td><span class="metric-good">rare</span></td></tr>
 </table>
-<p>
-The exact remaining list on <code>vltm</code>: 4th weapon 0/2 (buy club, 112s), 1st armor 4/6
-(padded cloth 40s), 2nd armor 0/2 (iron helm 120s), 1st lore 0/2 + 2nd lore 0/2
-(<code>study</code> at the Academy — free, and the only source: the barbarian hall cannot teach
-appraisal/scholarship). ~370 silver closes everything; field exp then feeds each worn lane at boost ×20.
-</p>
+
+<h2>The approach that compounds — how a leg works now</h2>
+<p>Every <code>--resume</code> leg with the <code>climbFinish</code> variant runs the same
+six-part loop; each part is independently measured and versioned, and the whole climb is
+data-driven from <code>gearLedger</code> rows + the circle requirement tables:</p>
+<table>
+  <tr><th>Phase</th><th>What happens</th><th>Key mechanism</th></tr>
+  <tr><td><b>1 · Hunt</b></td><td>SCAN loop kills + skins + forages in the teaching-matched arena; survival verbs interleaved between target checks while the survival slots are short.</td><td>survival-first interleave; corpse-jump SKINME (matcher on DR death cries: <i>lies still / crumples / is gone</i>)</td></tr>
+  <tr><td><b>2 · Readiness check</b></td><td>Supervisor evaluates the next circle's requirement table against mindstate+exp ranks on every kill — no timers needed.</td><td><code>circleRequirements</code> vs live ranks; <code>[gaps]</code>/<code>[reqs]</code> telemetry lines</td></tr>
+  <tr><td><b>3 · Hall trip</b></td><td>When the gate is close or the TDP floor is met: walk to the guild hall, <code>learn</code> new abilities, <code>train</code> only guild-teachable skills with a real gap (cap 4 lines).</td><td><code>trainableSkills</code> filter; TDP floor; teachable-only = no more 40–60s refusals on unteachable lore</td></tr>
+  <tr><td><b>4 · Study detour</b></td><td>If lore rows (appraisal/scholarship) are short: detour to the Academy and <code>study</code> ×3 per missing skill (one read ≈ 6.4 exp ×boost; rank conversion lags, hence three).</td><td><code>studyErrandRoute</code>; lore need read from the requirement table (2 @ c2 → 7 @ c7)</td></tr>
+  <tr><td><b>5 · Town errands</b></td><td>Bazaar: sell every lootable skin + bundle leftovers (burden guard); kit emitter buys the next missing <code>gearLedger</code> row (worn-gated, purse-gated); gem stop sells creature gems at the quartermaster.</td><td>per-item sell guards (<code>SELL_NEXT_*</code>); KIT emitter; gems → separate quartermaster leg</td></tr>
+  <tr><td><b>6 · Circle</b></td><td>Back at the hall: <code>circle</code> the moment requirements are met; supervisor retries immediately after any rank movement.</td><td><code>goto CIRCLE_AGAIN</code> drain-loop; requirements-met trigger walks the hall for you</td></tr>
+</table>
+
+<div class="callout">
+  <b>Overload lesson (r10–r17):</b> gems hoard weight (~19 burden vs ~1.5 allowance) and a
+  burdened agent cannot walk to the shops that would sell them — a true catch-22. Fix was
+  three-part: gems as a separate quartermaster errand (purse went 256 → 814 on gem sales),
+  a supervisor-level <code>drop garnet 20</code> on overload refusals (in-script drops die to
+  runner restarts), and suppressing the legacy ungated buy blocks under <code>finishKit</code>.
+  After the fix: c3 <b>and</b> c4 circled in one 8-minute leg.
+</div>
+
+<h2>What's fixed vs what's next</h2>
+<table>
+  <tr><th>Bucket</th><th>Status</th><th>Detail</th></tr>
+  <tr><td><b>Silver income</b></td><td><span class="pill done">solved for now</span></td><td>Skin sales + <b>gem sales</b> (quartermaster, 60–320s each) fund every kit need through c7. The crier-quest loop (~30/min, also banks lore) is measured but still unbuilt — it becomes important when c8+ gear prices outpace gems.</td></tr>
+  <tr><td><b>Lore rows</b></td><td><span class="pill done">working</span></td><td>Academy study detour + triple reads; appraisal + scholarship both close every circle. Tactics is a separate story (see below).</td></tr>
+  <tr><td><b>Tactics wall (c7+)</b></td><td><span class="pill now">fresh fix, verifying</span></td><td>Tactics exp only banked on successful trips — ~3% chance vs c6+ spawns. Fix: <code>analyze</code> banks 6 tactics exp per read (DR: Tactics trains on studying the flow of battle). Fight loop already analyzes every kill, so the bank doubles.</td></tr>
+  <tr><td><b>Exp imbalance (Sean's call)</b></td><td><span class="pill next">audit queued</span></td><td>evasion 1,067 vs need ~24 — passives gain forever at full rate while gate rows need action. Teaching bands should scale with the requirement's rank. Total ranks (6,900) are now ~13× the gated need — junk-rank tax compounds every circle.</td></tr>
+  <tr><td><b>TDP → stat spend</b></td><td><span class="pill next">audit queued (Sean's request)</span></td><td>TDP pool sits at ~10,500 unspent. Options: stat raises (agi→trip chance, wis→learning speed) vs banking ranks. Needs a spend policy: which stats actually unblock gates vs vanity.</td></tr>
+  <tr><td><b>Death recovery</b></td><td><span class="metric-warn">monitoring</span></td><td>0–2 deaths/leg at c5–c7 (wraith hits hard). The post-flee tend + rest interleave holds; watch for a rerun of the bleed-out failure mode at higher circles.</td></tr>
+</table>
 
 <h2>The remaining blocker buckets</h2>
 <table>
@@ -127,19 +158,20 @@ and the circle-20 wall (teaching bands) has a mechanism aimed at it. Remaining s
 </p>
 
 <h2>Long-term goals</h2>
-<h3>Near term — first circle-up <span class="pill now">active focus</span></h3>
+<h3>Near term — circle 7 → 10 <span class="pill now">active focus</span></h3>
 <ul>
-  <li><strong>Close the last 10 ranks (vltm):</strong> the <code>climbFinish</code> leg is running — teachable-filtered hall training, Academy study detour for both lore rows, gear-ledger kit buys (club/padded cloth/iron helm). Then resume legs accumulate silver until the buys fire.</li>
-  <li><strong>Silver engine — the crier quests:</strong> 70–75s per kill-quest (rats already the target), ~30 silver/min vs hunting's ~1.7/min, plus appraisal exp per claim. One generator block, never once used in 600+ runs. Measured candidate for the 6-minute finish (Sean's target).</li>
-  <li><strong>Gear-ledger script standard (built 2026-09-04):</strong> every purchasable piece is one declarative row (<code>gearLedger</code> in data/guild-scripts.js) priced from <code>ITEMS[id].value</code> at generation time — no hardcoded prices (the old blocks had already drifted: sleeves gated at 60 vs value 45), no copy-paste blocks per guild. Circle-3+ becomes data-only.</li>
-  <li><strong>Exp-imbalance audit (Sean's call):</strong> map each lane's exp income vs its circle need; propose the smallest teaching-band change (passives should back off ~2× past their need). Evasion 163 vs need 6 is the poster child.</li>
+  <li><strong>Verify the tactics fix (r22):</strong> <code>analyze</code>-banked tactics exp should close c7's rank-7 need within one leg; if conversion lags, extend the triple-read pattern to tactics (a second academy verb or a study-grade repeat).</li>
+  <li><strong>TDP → stat spend policy (Sean's request):</strong> ~10,500 TDPs banked unspent. Audit which stat raises actually convert to gate speed (agi → trip/brawling chance; wis → study/training rate) and encode a spend curve into the hall trip.</li>
+  <li><strong>Crier-quest silver loop:</strong> ~30 silver/min plus appraisal exp per claim; becomes the silver engine when c8+ gear prices outpace gem income. One generator block; never once used in 600+ runs.</li>
+  <li><strong>Exp-imbalance audit (Sean's call):</strong> teaching bands should scale with the requirement's rank — evasion at 1,067 ranks is still gaining at full rate. Until then the junk-rank tax compounds every circle.</li>
+  <li><strong>Gear-ledger standard (built, holding):</strong> every purchasable piece is one declarative <code>gearLedger</code> row priced from <code>ITEMS[id].value</code> at generation time. Circle-8+ needs only new rows, not new code.</li>
 </ul>
 
-<h3>Mid term — efficient circling machine</h3>
+<h3>Mid term — the c10 push and variance</h3>
 <ul>
-  <li><strong>Variance collapse:</strong> median run within ~20% of best; kill regressions + nav wedges caught via sweeps.db trend tracking.</li>
-  <li><strong>Circle 3–5 without redesign:</strong> script regeneration already retargets curricula; verify slot counts, ability unlocks, wider creature bands keep up unattended.</li>
-  <li><strong>Variant graduation rule:</strong> a variant replaces baseline when it wins on shortfall-closure rate across ≥6 runs; losing variants dropped per the "no strength" rule.</li>
+  <li><strong>Circles 7–10 without redesign:</strong> the resume machine closes each gate autonomously now; verify ability unlocks (c8+), wider creature bands, and the arena ladder keep pace unattended.</li>
+  <li><strong>Variance collapse:</strong> median leg within ~20% of best; kill regressions + nav wedges caught via sweeps.db trend tracking.</li>
+  <li><strong>Variant graduation rule:</strong> a variant replaces baseline when it wins on shortfall-closure rate across ≥6 runs; losing variants dropped per the "no strength" rule. <code>climbFinish</code> is the current baseline by this rule.</li>
 </ul>
 
 <h3>Long term — generalizes to every guild</h3>
@@ -177,15 +209,21 @@ and the circle-20 wall (teaching bands) has a mechanism aimed at it. Remaining s
   <tr><td><b><code>climbFinish</code> + gear-ledger standard</b></td><td>Shortfall pinned at 10 with 5 purchasable/study rows while the purse leaked into rank-163 evasion drills and worn-gear re-buys. New standard: <code>gearLedger</code> rows priced from ITEMS at generation time; teachable-only hall training (cap 4); Academy <code>study</code> detour for both lore rows; worn-gated, purse-gated kit emitter.</td><td class="metric-good">r7b (syir): kit bought+warn (club→4th weapon, padded cloth→1st armor 148, helm→2nd armor), both lore rows closed via study, <b>0 deaths</b></td></tr>
   <tr><td><b>Resume + engine fixes r3→r7b</b></td><td>Six bugs found live: (1) <code>--variant</code> on resume was a <code>--tag</code> alias — knob-less legs; (2) stale <code>[ROOM:...]</code> token beat live room in ife/ifne gates — bazaar errands skipped every trip; (3) shared per-sell <code>ERRAND_DONE</code> jump skipped bundle+kit on first "do not have"; (4) study-route cap 36 &lt; real 38-step walk; (5) <code>studySkills ||=</code> cached stale []; (6) <code>pureDiskPath</code> returns <code>{dir,via}</code> not <code>{dir,to}</code> — the studyGo gate failed every trip (the study-killer).</td><td class="metric-good">all six fixed with repro tests; errands/study/kit chain fully live</td></tr>
   <tr><td><b>*** FIRST CIRCLE-UP ***</b> (r7b, run syir)</td><td>Full chain: resume + climbFinish kit + study detour + survival interleave. 46 kills @ 61/h (best ever), 3691 ranks, 0 deaths.</td><td class="metric-good">*** CIRCLE-UP → circle 2 at 13m10s *** — first in project history; c3 gate already 125/126 (99.2%)</td></tr>
-  <tr><td><b>Crier-quest silver loop</b> (measured, not yet built)</td><td>Kill-quests pay 70–75s (rats = the agent's existing target), 8 steps from the sewers; hunting income is ~1.7/min vs ~30/min via quests; deliver/recover quests also bank appraisal exp (lore!).</td><td>queued as the next kaizen</td></tr>
+  <tr><td><b>Gem errand + overload break (r10→r17)</b></td><td>Gems hoarded ~19 burden (vs ~1.5 allowance) and refused every move — the agent couldn't walk to the shops that would sell them. Fix: gems are their own quartermaster errand (only shop that buys them), supervisor-level <code>drop garnet 20</code> on overload refusals, legacy ungated buys suppressed under <code>finishKit</code>.</td><td class="metric-good">moves unblocked; purse 256 → 814 on gem sales; c3+c4 circled in one 8m leg (r17)</td></tr>
+  <tr><td><b>Script-busy tend guard + blind-RT retry (r18→r19)</b></td><td>The interlock's <code>tend</code> armed its own roundtime mid-script, feeding every <code>study</code> straight into "You must wait 4 seconds" — all three reads lost per trip. Fix: interlock skips tend while a script send is &lt;8s old; the engine re-applies a blind RT-refused verb once at the parsed boundary.</td><td class="metric-good">study reads land; c5 circled at 8m (r19)</td></tr>
+  <tr><td><b>Crier-quest silver loop</b> (measured, not yet built)</td><td>Kill-quests pay 70–75s (rats = the agent's existing target), 8 steps from the sewers; hunting income is ~1.7/min vs ~30/min via quests; deliver/recover quests also bank appraisal exp (lore!).</td><td>queued as the next kaizen (matters at c8+ gear prices)</td></tr>
+  <tr><td><b>analyze → tactics (2026-09-05)</b></td><td>Tactics exp only banked on successful trips; vs c6+ wraith/wisp (defense 22–26, trip chance ~3%) tactics pinned 6/7 for 20+ min while the gate sat 293/294. <code>analyze</code> now banks 6 tactics exp per read (clean-room: DR Tactics trains on studying the battle flow).</td><td>verifying in r22+ (gate hit 294/294 within one leg of the fix)</td></tr>
+  <tr><td><b>Sims-page live manifests (2026-09-05)</b></td><td>Resume legs never wrote experiment manifests (<code>MODE==='spawn'</code> bailed) — the Sims dashboard's live header and board never showed the climb runs; guild was <code>null</code> even when they did.</td><td class="metric-good">spawn legs write + heartbeat manifests; live EXP boards visible at /sims.html</td></tr>
+  <tr><td><b>Death cries (DR fidelity, 2026-09-04)</b></td><td>"You fell X!" victory framing removed; kill prose is now species-flavored DR-style (<i>"falls to the ground and lies still."</i>) from a per-kind <code>DEATH_CRIES</code> table; skin matcher + client hunt script + highlights updated in lockstep.</td><td class="metric-good">fidelity clean-room verified against the local Elanthipedia archive</td></tr>
 </table>
 
 <h2>Open risks &amp; honest caveats</h2>
 <ul>
-  <li><strong>No circle-up has ever happened</strong> — the grade ladder and all pacing projections remain unvalidated against the actual event. Best recorded circle-2 is still the pre-kaizen 32.9 min. Shortfall 10 is the closest approach ever (88.1% of the gate).</li>
-  <li><strong>Exp imbalance is the new structural risk (Sean, 2026-09-04):</strong> passives (evasion 163, fitness 159) gain at full rate forever while the gate rows need deliberate action. If the teaching-band audit doesn't land, every future circle pays a widening junk-rank tax — total ranks are no longer a proxy for progress (1371 ranks vs 88% gated).</li>
-  <li><strong>Silver math is thin:</strong> ~370s needed, resume legs bank ~30–90s each after kit spends. The crier-quest loop (~30/min, never used in 600+ runs) is unproven live; skin sales (~4/pelt) plus kill coins currently lose to kit costs on any leg with a death.</li>
-  <li><strong>Run variance is wide</strong> (kills/hour spread ~2×) with few repeats; medians are thin. Kaizen A/Bs use one-variable changes for exactly this reason.</li>
+  <li><strong>Tactics is the c7+ wall (fresh fix):</strong> every circle now needs tactics rank = circle number, and its only exp source was successful trips — ~3% vs c6+ spawns. The <code>analyze</code> fix banks exp per read, but if rank conversion lags the pool-drain curve the way lore did, expect one slow leg at c8 before the triple-read pattern applies to it too (watch this space).</li>
+  <li><strong>Exp imbalance is compounding (Sean, 2026-09-04):</strong> passives (evasion 1,067, fitness 915) gain at full rate forever while the gate rows need deliberate action. Total ranks (~6,900) are ~13× the gated need — the junk-rank tax widens every circle and total ranks are no longer a proxy for progress. The teaching-band audit (passives back off past their need) is the game-side fix candidate.</li>
+  <li><strong>TDP pool sits unspent (~10,500):</strong> the machine banks TDPs but has no stat-spend policy. Whether agi (trip chance), wis (learning speed), or discipline converts best into gate speed is unmeasured — queued audit.</li>
+  <li><strong>Deaths at c5+ (0–2/leg):</strong> wraith-class hits + bleed-outs. The post-flee tend/rest interleave holds so far; a third death in one leg should trigger a closer look at the c7+ arena ladder.</li>
+  <li><strong>Silver math now holds but is gem-dependent:</strong> gems fund the kit through c7; if gem drops thin at c8+ spawn pools, the crier-quest loop (~30/min, also banks lore) becomes the next silver engine.</li>
   <li><strong>Measurement has repeatedly lied to us</strong> — truncated fidelity logs, mindstate omissions, latched wedge detectors. The DB + harness probes are ground truth; grep counts alone are not. Catalogued in <a href="/sim-architecture.html">sim architecture §7</a>.</li>
 </ul>
 
