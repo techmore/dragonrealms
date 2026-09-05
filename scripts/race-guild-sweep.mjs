@@ -626,12 +626,15 @@ class SweepAgent {
   tdpSpendRoute(fromRoom, loreMissing) {
     const v = this.session.vitals;
     const tdp = Number.isFinite(v.tdp) ? v.tdp : null;
-    if (!Number.isFinite(tdp) || tdp < 48) return {}; // < 4 cheap points — skip the 20-move detour
+    // Threshold 150 + cap 5 (fresh14 tuning): the 40-move fane detour every
+    // trip cost ~11% of the leg's ranks for the +35% HP bar — right trade for
+    // a long climb, wrong for a 30-minute gate leg. Spend ~once per two trips.
+    if (!Number.isFinite(tdp) || tdp < 150) return {};
     const stat = (v.circle || 1) <= 5 ? 'con' : 'str';
     // Live stat value is not in vitals; use the chargen base as the floor and
     // let the server's own refusal prose cap the spend (harmless).
     const statNow = (this.statAllocation?.[stat] ?? 10) + 10; // chargen alloc + c1 circle bonus baseline
-    const points = Math.min(10, Math.floor(tdp / Math.max(10, Math.floor(statNow * 0.6))));
+    const points = Math.min(5, Math.floor(tdp / Math.max(10, Math.floor(statNow * 0.6))));
     if (points < 4) return {};
     const faneGo = this.pureDiskPath(fromRoom, 'fane') || [];
     // Return leg depends on the chain: through the academy when lore still
