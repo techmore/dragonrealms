@@ -113,7 +113,12 @@ export function handleCommand(game, p, input, depth = 0, opts = {}) {
   if (handler) {
     // Roundtime gate (real sessions only): RT actions are refused while the
     // timer runs. Movement was already handled above and stays free.
-    if (opts.applyRT && RT_BLOCK.has(cmd) && roundtimeLeft(p) > 0) {
+    // EXCEPTION (fresh-char deaths, guzk): 'flee' below 30% HP is exempt —
+    // the interlock's flee cadence cannot express "wait out RT, then flee",
+    // and three refused flee cycles at 20 HP/s chew = death every time. DR's
+    // desperation flight is evasion-gated (disengage chance), not RT-gated.
+    const desperateFlee = cmd === 'flee' && p.maxHp > 0 && p.hp / p.maxHp < 0.3;
+    if (opts.applyRT && RT_BLOCK.has(cmd) && !desperateFlee && roundtimeLeft(p) > 0) {
       return emit(`You must wait ${roundtimeLeft(p)} second${roundtimeLeft(p) === 1 ? '' : 's'} before you can do that.`);
     }
     handler(ctx);
