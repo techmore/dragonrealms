@@ -891,6 +891,12 @@
       deep: ['tracker', 'lab', 'scripts-section', 'kaizen-investigation'],
       roadmaps: ['roadmaps'],
     };
+    // Pollers consult this to skip render work for sections that are hidden.
+    // Data still refreshes for shared sources (runs/summary feed the champion
+    // hero on every view), but pane-specific heavy renders (lab charts,
+    // leaderboard rebuilds) only run when their pane is on screen.
+    let ACTIVE_VIEW = 'overview';
+    const viewShows = (...ids) => ids.some((id) => (VIEW_SECTIONS[ACTIVE_VIEW] || []).includes(id));
     const VIEW_COPY = {
       overview: 'live state and next action',
       decide: 'promotion gate and matched comparison',
@@ -900,6 +906,7 @@
     };
     function setWorkspaceView(view) {
       if (!VIEW_SECTIONS[view]) view = 'overview';
+      ACTIVE_VIEW = view;
       const visible = new Set(VIEW_SECTIONS[view]);
       for (const ids of Object.values(VIEW_SECTIONS)) for (const id of ids) {
         const el = $(id); if (el) el.dataset.viewHidden = visible.has(id) ? 'false' : 'true';
@@ -913,7 +920,12 @@
       try { sessionStorage.setItem('dr_sims_view', view); } catch {}
     }
     document.querySelectorAll('.sims-nav button[data-view]').forEach((b) =>
-      b.addEventListener('click', () => setWorkspaceView(b.dataset.view)));
+      b.addEventListener('click', () => {
+        setWorkspaceView(b.dataset.view);
+        // Pane data loads on arrival: the lab poll skips background fetches
+        // while Deep is hidden, so switching views must trigger its load.
+        if (b.dataset.view === 'deep') loadLab();
+      }));
     $('launch-toggle').addEventListener('click', () => {
       const collapsed = $('launch').classList.toggle('launch-collapsed');
       $('launch-toggle').setAttribute('aria-expanded', String(!collapsed));
@@ -975,6 +987,63 @@
       } catch { return { code: 0, ok: false, d: null }; }
     }
 
+    // ---- shared fetch cache: dedupe + reuse across pollers ----
+    // Three independent boot paths used to fetch the 5.5 MB summary
+    // concurrently on every page load, and the 30s pollers re-downloaded it
+    // in full even when nothing appended. fetchCached() collapses
+    // simultaneous requests for the same URL into one and serves the cached
+    // body until the file's Last-Modified moves (checked with a cheap HEAD).
+    // Text files also keep byte offsets for append-only tailing.
+    const fetchMemo = new Map(); // url -> { body, at, lm, size, pending }
+    async function fetchCached(url, { ttlMs = 0, tail = false } = {}) {
+      let m = fetchMemo.get(url);
+      if (!m) {
+        m = { body: '', at: 0, lm: '', size: 0, pending: null };
+        fetchMemo.set(url, m);
+      }
+      // Concurrent callers share the in-flight request — three boot paths
+      // used to fetch the summary three times in parallel on page open.
+      if (m.pending) return m.pending;
+      if (ttlMs && m.at && Date.now() - m.at < ttlMs) return m.body;
+      const pending = (async () => {
+        try {
+          if (m.at) {
+            try {
+              const head = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+              const lm = head.headers.get('last-modified') || '';
+              const size = Number(head.headers.get('content-length'));
+              if (m.lm && lm === m.lm && size === m.size) { m.at = Date.now(); return m.body; }
+              // Append-only file (jsonl/log): when it grew, pull just the
+              // suffix instead of re-downloading the whole 5+ MB.
+              if (tail && m.lm && Number.isFinite(size) && size > m.size) {
+                const r = await fetch(url, { cache: 'no-store', headers: { Range: `bytes=${m.size}-` } });
+                if (r.status === 206) {
+                  const chunk = await r.text();
+                  m.body += chunk;
+                  const total = Number((r.headers.get('content-range') || '').split('/')[1]);
+                  m.size = Number.isFinite(total) ? total : m.size + chunk.length;
+                  m.lm = lm; m.at = Date.now();
+                  return m.body;
+                }
+                // 200 (no Range support) or 416 → fall through to full refetch.
+              }
+            } catch { m.at = Date.now(); return m.body; } // hiccup: keep last body
+          }
+          const r = await fetch(url, { cache: 'no-store' });
+          const body = await r.text();
+          m.body = body;
+          m.lm = r.headers.get('last-modified') || '';
+          m.size = Number(r.headers.get('content-length')) || body.length;
+          m.at = Date.now();
+          return body;
+        } finally {
+          m.pending = null;
+        }
+      })();
+      m.pending = pending;
+      return pending;
+    }
+
     function fmtAge(ts) {
       if (!ts) return '—';
       const s = Math.max(0, (Date.now() - ts) / 1000);
@@ -996,14 +1065,18 @@
     let RUN_VISIBLE = 25;
 
     async function loadRuns() {
-      let logs = [];
-      try { logs = await fetch('/live/index.json', { cache: 'no-store' }).then((r) => r.json()) || []; } catch {}
-      let summaries = [];
-      try {
-        const txt = await fetch('/live/fidelity-summary.jsonl', { cache: 'no-store' }).then((r) => r.text());
-        summaries = txt.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-      } catch {}
-
+      // fidelity-summary.jsonl is append-only and has grown past 5 MB;
+      // rendering the full history rebuilt a 600+ row table every poll and
+      // re-downloaded the whole file each time. Cap the parsed rows: the
+      // dashboard is an operator view of recent + benchmark-relevant runs,
+      // not a total archive (the DB keeps the complete history).
+      const SUMMARY_ROW_CAP = 400;
+      const [logs, txt] = await Promise.all([
+        fetch('/live/index.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []),
+        fetchCached('/live/fidelity-summary.jsonl', { ttlMs: 15000, tail: true }).catch(() => ''),
+      ]);
+      const summaries = txt.split('\n').filter(Boolean).slice(-SUMMARY_ROW_CAP)
+        .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
       // Latest summary row per guild×race key — used ONLY to decorate log files.
       const latest = new Map();
       for (const s of summaries) latest.set(`${s.guild}:${s.race}`, s);
@@ -1357,11 +1430,14 @@
       // log — resolved via the row's logName (the actual file on disk),
       // not the display name.
       LOG_TEXT = '';
+      RAW_LEN = 0;
       $('logwrap').textContent = 'loading…';
       const logFile = r.logName || r.run;
       if (!/\(no log\)$/.test(logFile)) {
         try {
-          LOG_TEXT = stripAnsi(await fetch('/live/' + encodeURIComponent(logFile) + '.log', { cache: 'no-store' }).then((x) => x.text()));
+          const raw = await fetch('/live/' + encodeURIComponent(logFile) + '.log', { cache: 'no-store' }).then((x) => x.text());
+          RAW_LEN = raw.length; // byte offset for Range polling (raw file, pre-strip)
+          LOG_TEXT = stripAnsi(raw);
         } catch { LOG_TEXT = ''; }
       }
       renderLog();
@@ -1386,26 +1462,44 @@
     }
 
     // Live badge refresh while a run's log keeps appending.
+    // The log can be multi-MB; a 3s full GET + full re-render both cost
+    // far more than the update they deliver. Poll a HEAD for size/mtime and
+    // a suffix Range for appended bytes only; render only on new content.
+    // Offsets are tracked against the RAW file (pre-stripAnsi) because Range
+    // positions are file positions — stripped text has a different length
+    // whenever the log carries ANSI codes.
     let DETAIL_TIMER = null;
+    let RAW_LEN = 0; // raw bytes of the selected log already seen
     function pollDetail() {
       clearInterval(DETAIL_TIMER);
       if (!SELECTED) return;
       DETAIL_TIMER = setInterval(async () => {
         if (!SELECTED || /\(no log\)$/.test(SELECTED)) return;
         try {
-          const head = await fetch('/live/' + encodeURIComponent(SELECTED) + '.log', { method: 'HEAD', cache: 'no-store' });
-          const age = Date.now() - Number(head.headers.get('last-modified') || 0);
+          const logUrl = '/live/' + encodeURIComponent(SELECTED) + '.log';
+          const head = await fetch(logUrl, { method: 'HEAD', cache: 'no-store' });
+          const total = Number(head.headers.get('content-length'));
+          const lastMod = Date.parse(head.headers.get('last-modified') || 0);
+          if (!Number.isFinite(total)) return;
+          const age = Date.now() - lastMod;
           $('d-state').innerHTML = age < 15000 ? '<span class="badge live">● appending</span>' : `idle · last write ${Math.round(age / 1000)}s ago`;
-          const atBottom = $('logwrap').scrollTop + $('logwrap').clientHeight >= $('logwrap').scrollHeight - 40;
-          const fresh = stripAnsi(await fetch('/live/' + encodeURIComponent(SELECTED) + '.log', { cache: 'no-store' }).then((x) => x.text()));
-          if (fresh.length !== LOG_TEXT.length) {
-            LOG_TEXT = fresh;
-            renderLog();
-            drawSpark();
-            if (!atBottom) {} else $('logwrap').scrollTop = $('logwrap').scrollHeight;
+          if (total <= RAW_LEN) return; // nothing appended
+          const r = await fetch(logUrl, { cache: 'no-store', headers: { Range: `bytes=${RAW_LEN}-` } });
+          if (r.status !== 206 && r.status !== 200) return;
+          const raw = await r.text();
+          if (r.status === 200) { // server ignored Range: full refresh
+            RAW_LEN = raw.length;
+            LOG_TEXT = stripAnsi(raw);
+          } else {
+            RAW_LEN += raw.length;
+            LOG_TEXT += stripAnsi(raw);
           }
+          renderLog();
+          drawSpark();
+          const el = $('logwrap');
+          el.scrollTop = el.scrollHeight;
         } catch { $('d-state').textContent = ''; }
-      }, 3000);
+      }, 5000);
     }
 
     /* ================= pacing spark ================= */
@@ -2028,7 +2122,7 @@
     async function drawSkillDeltas(charName, host) {
       let hist = [];
       try {
-        const txt = await fetch('/live/sims-history.jsonl', { cache: 'no-store' }).then((r) => r.text());
+        const txt = await fetchCached('/live/sims-history.jsonl', { ttlMs: 30000 });
         hist = txt.split('\n').filter(Boolean).map((l) => JSON.parse(l))
           .filter((h) => h.char === charName).sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
       } catch {}
@@ -2038,7 +2132,10 @@
         .map(([id, s]) => ({ id, rank: s.rank,
           delta: s.rank - ((prev.topSkills || {})[id]?.rank ?? s.rank) }))
         .sort((a, b) => Math.abs(b.delta - a.delta * 0) || b.rank - a.rank);
+      const old = document.getElementById('skill-deltas');
+      if (old) old.remove();
       const el = document.createElement('div');
+      el.id = 'skill-deltas';
       el.innerHTML = `<h3 style="margin:14px 0 6px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:normal">Rank change since previous run (${esc(String(prev.ts || '').slice(0, 10))} → ${esc(String(last.ts || '').slice(0, 10))}) · total ranks ${prev.totalRanks} → <b style="color:var(--amber)">${last.totalRanks}</b> (${last.totalRanks >= prev.totalRanks ? '+' : ''}${last.totalRanks - prev.totalRanks})</h3>
         <table class="skilltbl"><thead><tr><th>Skill</th><th>Rank now</th><th>Δ</th></tr></thead>
         <tbody>${rows.slice(0, 12).map((r) => `
@@ -2047,17 +2144,19 @@
         </tbody></table>`;
       host.appendChild(el);
     }
-    /* ---- level-over-time trend from fidelity-summary.jsonl ---- */
+    // ---- level-over-time trend from fidelity-summary.jsonl ----
     // Every sweep run appends a summary row per char; plotting circle (and
     // total kills/trains) across those rows shows progression between runs.
     async function drawTrend(charName) {
+      let old = document.getElementById('trend');
+      if (old) old.remove();
       const host = document.createElement('div');
       host.id = 'trend';
       document.getElementById('tracker').prepend(host);
       let hist = [];
       try {
-        const txt = await fetch('/live/fidelity-summary.jsonl', { cache: 'no-store' }).then((r) => r.text());
-        hist = txt.split('\n').filter(Boolean).map((l) => JSON.parse(l))
+        const txt = await fetchCached('/live/fidelity-summary.jsonl', { ttlMs: 15000 });
+        hist = txt.split('\n').filter(Boolean).slice(-400).map((l) => JSON.parse(l))
           .filter((s) => s.char === charName && s.ts)
           .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
       } catch {}
@@ -2198,6 +2297,7 @@
       renderLeaderboard();
       renderKaizenInvestigation();
     }
+
     // ---- experiment board: leg-by-leg status of the in-flight A/B ----
     // A "leg" = one summary row (finished run) carrying a run_id. Benchmark
     // launches plan legs as variant×repeats. New runs publish an explicit
@@ -2526,7 +2626,17 @@
     loadRuns();          // runs table immediately (existing behavior)
     bootRuns();          // leaderboard after RUNS land
     loadLeaderboard().then(() => { renderCompareOptions(); renderCompare(); });
-    setInterval(() => { loadRuns().then(() => { renderLeaderboard(); renderKaizenInvestigation(); }); }, 30000);
+    // Poll via setInterval (self-throttling) and only rebuild the leaderboard
+    // panes when one is actually on screen — a leaderboard rebuild is a full
+    // table render and no one is watching it from the Monitor view.
+    setInterval(() => {
+      loadRuns().then(() => {
+        if (viewShows('leaderboard', 'kaizen', 'compare', 'runs', 'experiment')) {
+          renderLeaderboard();
+          renderKaizenInvestigation();
+        }
+      });
+    }, 30000);
     bootRuns().then(renderExperimentBoard); // board needs RUNS; first paint after load
     setInterval(renderExperimentBoard, 30000);  // experiment board refresh
     // deep link: /sims.html?char=Name
@@ -2818,8 +2928,22 @@
     }
     $('lab-refresh').addEventListener('click', loadLab);
     $('lab-char').addEventListener('change', renderLab);
-    loadLab();
-    setInterval(loadLab, 30000);
+    // The 1.9 MB lab.json is only rendered in the Deep-dive view, so fetch it
+    // on first Deep arrival (initialView deep loads it here; every other view
+    // loads it from the nav click) and refresh on that view's poll ticks.
+    let labDirty = false;
+    if (initialView === 'deep') {
+      loadLab();
+    } else {
+      labDirty = true;
+    }
+    setInterval(() => {
+      if (viewShows('lab')) {
+        if (labDirty) { labDirty = false; loadLab(); }
+      } else {
+        labDirty = true;
+      }
+    }, 30000);
 
     /* ================= scripts pane ================= */
     // What a config IS (knob table from /api/gm/scripts — single source of
@@ -2905,6 +3029,8 @@
     let liveTimer = null;
     let liveCards = {}; // name -> { el, lastSize }
     let liveSizes = {}; // name -> last seen byte size (ghost-run detection)
+    let liveBodies = {}; // name -> last fetched log text (Range-append baseline)
+    let liveLines = {};  // name -> { text, lines } parse cache (split is not free at MB scale)
     let liveExpPulse = {}; // name -> { key, lastAt } for EXP ALL freshness
     let LIVE_ACTIVE = [];  // names confirmed actively appending (loadLive sets it)
     let liveTexts = {};    // latest full log per active name (also feeds speedrun splits)
@@ -3194,10 +3320,10 @@
       // Running indicator now lives in the page header (tab UI has no dot slot).
       const navDot = $('sims-live-flag');
 
-      // Detect running sims by file growth + completion markers. Fetch all
-      // candidate logs concurrently; the old serial loop made first paint
-      // wait on every historical log, especially over Tailscale/mobile.
-      const initialLogText = {};
+      // Detect running sims by file growth + completion markers. index-meta
+      // gives sizes/mtimes for every log in one request; only logs that look
+      // active are touched at all, and their appended bytes come back via a
+      // Range suffix rather than a full re-download.
       const headers = logMetadata ? logMetadata.map((entry) => {
         const name = entry.name;
         const len = Number(entry.size) || 0;
@@ -3219,13 +3345,32 @@
         const grew = prev !== undefined && len > prev;
         return fresh || grew;
       });
-      const detected = await Promise.all(activeCandidates.map(async ({ name }) => {
+      const detected = await Promise.all(activeCandidates.map(async ({ name, lastMod, len }) => {
         try {
-          const r = await fetch(LIVE + name + '.log', { cache: 'no-store' });
-          const text = await r.text();
-          initialLogText[name] = text;
+          let text = liveBodies[name] || '';
+          // Fetch only what appended since the last poll (Range suffix);
+          // liveBodies is seeded by the first full fetch below. A 416 means
+          // nothing appended since our offset — the run is still live, so
+          // fall through to the liveness check with the cached text.
+          const lastLen = text.length;
+          let resp = null;
+          if (lastLen > 0) {
+            resp = await fetch(LIVE + name + '.log', { cache: 'no-store', headers: { Range: `bytes=${lastLen}-` } });
+            if (resp.status === 206) {
+              text += await resp.text();
+            } else if (resp.status === 200) {
+              text = await resp.text(); // server without Range: full refresh
+            } else if (resp.status !== 416) {
+              return null; // vanished or errored; keep previous state
+            }
+          }
+          if (!text) {
+            resp = await fetch(LIVE + name + '.log', { cache: 'no-store' });
+            if (!resp.ok) return null;
+            text = await resp.text();
+          }
+          liveBodies[name] = text;
           const lines = text.split('\n').filter(Boolean);
-          const last = lines[lines.length - 1] || '';
           // A finished log ends with its final progress/result lines, not
           // necessarily the FINISHED/VERDICT console line. Scope terminal
           // detection to the newest run segment so completed concurrent
@@ -3236,7 +3381,6 @@
           // A log counts as "running" only when it is BOTH unfinished AND
           // actively appending (modified in the last 2 min) — killed runs'
           // logs freeze mid-run and would otherwise live forever.
-          const lastMod = Date.parse(r.headers.get('last-modified') || 0);
           const fresh = Number.isFinite(lastMod) && (Date.now() - lastMod) < 120000;
           // Ghost-run guard: a killed sim (pkill) freezes its log with no
           // terminal line, so a fresh mtime alone looks "running" for up to
@@ -3326,21 +3470,30 @@
           liveCards[name].el.remove();
           delete liveCards[name];
           delete liveExpPulse[name];
+          delete liveBodies[name]; // free the multi-MB text of dead runs
+          delete liveLines[name];
         }
       }
 
       // Tail each log
+      let liveChanged = false;
       for (const name of running) {
         const card = liveCards[name];
         try {
-          // Reuse the liveness response for the first paint instead of
-          // fetching the same log a second time.
-          const text = initialLogText[name] ?? await fetch(LIVE + name + '.log', { cache: 'no-store' }).then((r) => r.text());
+          // Reuse the text assembled during liveness detection (Range-append
+          // into liveBodies) — no second fetch of the same bytes.
+          const text = liveBodies[name] || '';
+          if (!text) continue;
           // Logs are append-only across benchmark repeats. The split clock
           // must never inherit a prior character's first kill or circle.
           const runStart = text.lastIndexOf('=== sweep run ');
           const runText = runStart >= 0 ? text.slice(runStart) : text;
           liveTexts[name] = runText;
+          // Regex scans over the whole run text are the per-poll CPU cost;
+          // skip the re-parse entirely when nothing appended since last time.
+          const prev = liveLines[name];
+          if (prev && prev.text === text) continue;
+          liveChanged = true;
           const runKey = /^=== sweep run (\S+)/.exec(runText)?.[1] || '';
           if (runKey && liveRunKeys[name] !== runKey) {
             liveRunKeys[name] = runKey;
@@ -3377,6 +3530,7 @@
               : 'GM token needed — open Sims from the Admin dashboard first';
           }
           const lines = text.split('\n').filter(Boolean);
+          liveLines[name] = { text, lines };
           const last = lines[lines.length - 1] || '';
           const state = card.el.querySelector('[data-role="state"]');
           const log = card.el.querySelector('[data-role="log"]');
@@ -3552,10 +3706,10 @@
       }
       // Milestone display intentionally disabled; EXP telemetry remains live.
       // renderMilestones();
-      renderSpeedrunBoard();
+      if (liveChanged) renderSpeedrunBoard();
       // The experiment board consumes the same live telemetry, so refresh it
       // immediately instead of waiting for its slower 30s manifest interval.
-      void renderExperimentBoard();
+      if (liveChanged) void renderExperimentBoard();
     }
 
     // ---- single-page layout: no tabs, one scroll ----

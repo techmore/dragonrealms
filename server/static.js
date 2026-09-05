@@ -1,5 +1,6 @@
 // Static file serving for the web client. Pure handler factory — unit-testable
 // without booting the game.
+import { createReadStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { existsSync, statSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
@@ -44,7 +45,39 @@ export function createStaticHandler(publicDir) {
       if (type.startsWith('text/')) headers['Cache-Control'] = 'no-store';
       // Live logs' clients (sims.html) key liveness on Last-Modified — a log
       // that stopped appending is a dead run, not an active one.
-      headers['Last-Modified'] = statSync(filePath).mtime.toUTCString();
+      const stat = statSync(filePath);
+      headers['Last-Modified'] = stat.mtime.toUTCString();
+      headers['Accept-Ranges'] = 'bytes';
+      // HEAD answers from the stat alone — a full readFile of a multi-MB log
+      // just to learn its size/mtime stalled the game tick for nothing.
+      if (req.method === 'HEAD') {
+        headers['Content-Length'] = String(stat.size);
+        res.writeHead(200, headers);
+        res.end();
+        return;
+      }
+      // Range requests (bytes=from-): the sims dashboard tails append-only
+      // logs by asking for the suffix after the byte offset it last saw, so
+      // a 4 MB log appends cost bytes instead of a full re-download.
+      // (Suffix form "bytes=-N" is not needed by any client; start-form is.)
+      const range = /^bytes=(\d+)-$/.exec(req.headers.range || '');
+      if (range) {
+        const start = Number(range[1]);
+        if (start >= stat.size) {
+          res.writeHead(416, { 'Content-Type': type, 'Content-Range': `bytes */${stat.size}` });
+          res.end();
+          return;
+        }
+        res.writeHead(206, {
+          ...headers,
+          'Content-Range': `bytes ${start}-${stat.size - 1}/${stat.size}`,
+          'Content-Length': String(stat.size - start),
+        });
+        createReadStream(filePath, { start })
+          .on('error', () => { try { res.destroy(); } catch {} })
+          .pipe(res);
+        return;
+      }
       // Async: a synchronous read here stalls the entire event loop —
       // game ticks included — on every page load. Headers go out only after
       // the read succeeds: a failed read (EISDIR, EACCES, deleted mid-flight)
