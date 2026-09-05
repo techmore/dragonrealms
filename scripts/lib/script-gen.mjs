@@ -1107,7 +1107,12 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
     }
     L.push('SURV_DONE:');
   }
-  if (!cap.survivalBreadth) { L.push('  put forage', '  wait'); }
+  if (!cap.survivalBreadth) {
+    // RT-SETTLED (fresh17/18 lesson): WANDER fires right after a fight
+    // cycle ended (creature wandered off — no kill, no skin RT cleared);
+    // the swing RT is still live and the forage burns on refusal.
+    L.push('  pause 5', '  put forage', '  wait');
+  }
   L.push('  pause 4');
   L.push('  goto SCAN');
   L.push('REST:');
