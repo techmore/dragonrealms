@@ -38,9 +38,11 @@ export function createRunner(src, args = [], io = {}) {
     rtUntil: 0,          // wall clock until roundtime clears (WAIT semantics)
     lastRtSeen: null,    // last prompt RT value — only re-arm when it changes
     pendingRtLine: null, // verb parked by WAIT semantics, applies at rtUntil
+    lastOutLine: null,   // last verb line sent — BLIND RT refusal re-applies it
+    retryOnce: false,    // blind-refusal retry budget (one re-apply per refusal)
   };
   const say = io.say || (() => {});
-  const out = io.send || (() => {});
+  const out = io.send || ((line) => { s.lastOutLine = line; });
   const sub = (line) => String(line).replace(/%(\w+)/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
 
   function execOne(line) {
@@ -386,6 +388,20 @@ export function createRunner(src, args = [], io = {}) {
           s.timerAt = s.rtUntil;
           return;
         }
+        // BLIND RT refusal (r18): the verb already left (pendingRtLine was
+        // cleared on send) — typically an out-of-engine command (supervisor
+        // tend) armed server roundtime between our rtUntil check and the
+        // send. The verb is LOST unless we re-apply it at the parsed
+        // boundary. Re-send the last line we sent through out(); retryOnce
+        // guards against a verb that can NEVER apply (refuse → retry →
+        // refuse → give up and continue).
+        if (!s.pendingRtLine && s.mode !== 'room' && s.retryOnce !== true) {
+          s.retryOnce = true;
+          s.retryLine = s.lastOutLine;
+          s.mode = 'timer';
+          s.timerAt = s.rtUntil;
+          return;
+        }
       }
     }
     if (s.matches.length && text && typeof text === 'string') {
@@ -425,6 +441,19 @@ export function createRunner(src, args = [], io = {}) {
     if (s.mode === 'room' && text && typeof text === 'string'
       && /overloaded|in the stocks|cell door is barred/i.test(text)
       && s.lastMove !== undefined) {
+      // OVERLOAD → in-script shed: if the script defines SHED_GEMS, route
+      // there (the generated hunt body drops a gem stack inline, then
+      // returns to SCAN which re-derives everything) instead of merely
+      // abandoning the move chain and wandering burdened. A script without
+      // the label keeps the old abandon behavior.
+      if (/overloaded/i.test(text) && cur().labels.SHED_GEMS !== undefined) {
+        s.skipMoves = false;
+        s.lastMove = undefined;
+        s.mode = null;
+        s.pc = cur().labels.SHED_GEMS;
+        advance();
+        return;
+      }
       s.skipMoves = true;
       s.lastMove = undefined;
       s.mode = null;

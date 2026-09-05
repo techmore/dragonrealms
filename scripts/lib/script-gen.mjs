@@ -1108,6 +1108,17 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
     L.push('  wait');
   }
   L.push('  goto SCAN');
+  // SELF-SUFFICIENT SHED (Sean's standard: the script, not the supervisor):
+  // hoarded gems refuse every move and only the quartermaster buys them, so
+  // a burdened agent starves away from town. In-script: on an overload
+  // refusal during movement, drop ONE gem stack inline (catch-22 breaker),
+  // then continue. The supervisor keeps its faster break, but a fresh char
+  // running this library alone survives without it.
+  L.push('SHED_GEMS:');
+  L.push('  put drop garnet 20');
+  L.push('  wait');
+  L.push('  setvariable sheddone 1');
+  L.push('  goto SCAN');
   // RETURN_TO_HUB_<i> trampolines (O20): an occupied candidate jumps here,
   // replays its just-walked path in reverse back to the arena hub, then
   // starts the next hub-rooted leg. Only legs WITH a successor get one (the
