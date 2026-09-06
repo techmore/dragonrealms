@@ -1699,6 +1699,7 @@ function buildCircleScript({ cap, fromArena, errands }) {
       }
       // CRIER STOP: moved ABOVE the kit emitter (emitCrierStop) — the claim
       // must land in the purse BEFORE the buy lines read silver (aadd).
+      L.push('WALKFAIL:'); // engine abandons failed move chains HERE (anpo)
       L.push('ERRAND_DONE:');
       L.push('ERRAND_SKIPPED:');
       if (errands.returnPath?.length) {

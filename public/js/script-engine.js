@@ -474,6 +474,19 @@ export function createRunner(src, args = [], io = {}) {
     // until an external supervisor restarts it.
     if (s.mode === 'room' && s.moveDeadline && Date.now() >= s.moveDeadline) {
       s.moveDeadline = null;
+      // WALKFAIL LANDING (anpo lesson): a mid-walk refusal desyncs every
+      // later baked move (moves are relative) — running the post-walk block
+      // from the wrong room sells/quests/buys nothing and looks like a dead
+      // stop for the rest of the leg. When the script stamps a WALKFAIL
+      // label, abandon the chain THERE (the block's own fall-through) so
+      // the remaining stops keep their origin guards intact.
+      if (cur().labels.WALKFAIL !== undefined) {
+        s.lastMove = undefined;
+        s.mode = null;
+        s.pc = cur().labels.WALKFAIL;
+        advance();
+        return;
+      }
       s.skipMoves = true;
       s.lastMove = undefined;
       s.mode = null;
@@ -486,6 +499,14 @@ export function createRunner(src, args = [], io = {}) {
       && /cannot go that way/i.test(text) && s.lastMove !== undefined) {
       onRefusedMove?.(s.lastMove);
       s.moveFails = 0;
+      // WALKFAIL LANDING (anpo lesson — see the watchdog twin above).
+      if (cur().labels.WALKFAIL !== undefined) {
+        s.lastMove = undefined;
+        s.mode = null;
+        s.pc = cur().labels.WALKFAIL;
+        advance();
+        return;
+      }
       s.skipMoves = true;
       s.lastMove = undefined;
       s.mode = null;
@@ -505,6 +526,14 @@ export function createRunner(src, args = [], io = {}) {
         return;
       }
       s.moveFails = 0;
+      // WALKFAIL LANDING (anpo lesson — see the watchdog twin above).
+      if (cur().labels.WALKFAIL !== undefined) {
+        s.lastMove = undefined;
+        s.mode = null;
+        s.pc = cur().labels.WALKFAIL;
+        advance();
+        return;
+      }
       s.skipMoves = true; // abandon the chain; react to what blocked us
       s.lastMove = undefined;
       s.mode = null;
