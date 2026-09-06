@@ -1631,6 +1631,12 @@ function buildCircleScript({ cap, fromArena, errands }) {
       // back. Room-gated like the bazaar block; falls through harmlessly
       // when the agent is elsewhere (watchdog re-paths).
       if (errands.gemLoot?.length && errands.gemPath?.length && errands.gemBack?.length) {
+        // ORIGIN GUARD (uvjq lesson): the gem walk is baked from the bazaar;
+        // a mis-land poisons BOTH stops (the sells skip, then gemBack walks
+        // from the wrong room and the crier stop's origin guard skips too).
+        // Gate the walk on actually standing at the bazaar; and only walk
+        // back from market_end when the sells actually ran.
+        L.push('  ifne room bazaar goto GEM_DONE');
         L.push(...moves(errands.gemPath));
         L.push(`  ifne room ${errands.gemRoom} goto GEM_DONE`);
         for (const gem of errands.gemLoot) {
@@ -1641,7 +1647,6 @@ function buildCircleScript({ cap, fromArena, errands }) {
           L.push(`GEM_NEXT_${gem.toUpperCase().replace(/[^A-Z0-9]/g, '_')}:`);
         }
         L.push('GEM_DONE:');
-        L.push(...moves(errands.gemBack));
       }
       // CRIER STOP (errands.crierPath): the town crier at market_way (3 moves
       // off the bazaar) is assign-or-claim in one verb — a done quest claims
