@@ -1647,6 +1647,11 @@ function buildCircleScript({ cap, fromArena, errands }) {
           L.push(`GEM_NEXT_${gem.toUpperCase().replace(/[^A-Z0-9]/g, '_')}:`);
         }
         L.push('GEM_DONE:');
+        // gemBack is safe INSIDE the sells-ran path: the origin guard above
+        // means we only reach here from market_end, so the return leg lands
+        // at the bazaar — which is exactly what the crier stop's origin
+        // guard below requires.
+        L.push(...moves(errands.gemBack));
       }
       // CRIER STOP (errands.crierPath): the town crier at market_way (3 moves
       // off the bazaar) is assign-or-claim in one verb — a done quest claims
