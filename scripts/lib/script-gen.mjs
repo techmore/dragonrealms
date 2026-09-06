@@ -1651,6 +1651,12 @@ function buildCircleScript({ cap, fromArena, errands }) {
       // income funds the helm/club/shield wishlist the loot economy can't.
       // Room-gated; falls through harmlessly from a non-market_way landing.
       if (errands.crierPath?.length && errands.crierBack?.length) {
+        // ORIGIN GUARD (uvjq lesson — same class as the gcwp buy gate): the
+        // crier walk is baked from the BAZAAR; if the preceding gem stop's
+        // return leg mis-landed, walking n,n,n from elsewhere lands nowhere
+        // near the crier and the stop silently no-ops all leg. Only walk
+        // when actually standing at the bazaar.
+        L.push('  ifne room bazaar goto CRIER_DONE');
         L.push(...moves(errands.crierPath));
         L.push(`  ifne room ${errands.crierRoom} goto CRIER_DONE`);
         // Starved-assignment abandon (supervisor-computed): the current
