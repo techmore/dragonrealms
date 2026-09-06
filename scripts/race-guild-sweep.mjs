@@ -115,6 +115,10 @@ const SCRIPT_VERBS = new Set([
   'forage', 'hunt', 'track',
   // finishKit study detour: free lore exp at the academy/temple.
   'study',
+  // Crier income loop (fresh25+): `quest` is assign-or-claim; without it in
+  // the allowlist the stop's sends were invisible and the missing crier
+  // prose looked like a dead block for two legs.
+  'quest', 'deliver', 'claim', 'echo',
 ]);
 for (const cfg of Object.values(GUILD_SCRIPTS)) {
   for (const step of [...(cfg.fight || []), ...(cfg.preFight || []), ...(cfg.identityVerbs || [])]) {

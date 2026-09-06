@@ -1680,6 +1680,9 @@ function buildCircleScript({ cap, fromArena, errands }) {
         }
         L.push('  put quest');
         L.push('  wait');
+        // Trace beacon: the allowlist now shows quest sends, but this marks
+        // the stop REACHED (the room gate above passed) vs silently skipped.
+        L.push('  echo CRIER_VISITED');
         L.push('CRIER_DONE:');
         L.push(...moves(errands.crierBack));
       }
