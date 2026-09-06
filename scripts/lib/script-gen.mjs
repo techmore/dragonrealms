@@ -1290,6 +1290,44 @@ function emitKitBuys(cap, L) {
   }
 }
 
+// CRIER STOP (errands.crierPath): the town crier at market_way is
+// assign-or-claim in one verb — a done quest claims (~70-75s) and the SAME
+// verb assigns the next, so the standing hunt loop (rats/kobolds = the c1
+// kill pool, skins every kill) completes quests without extra field work.
+// This is the income-wall fix: claim income funds the helm/club/shield
+// wishlist the loot economy can't. Emitted BEFORE the kit buys so the claim
+// lands in the purse before the buy lines read silver (aadd lesson).
+// Room-gated; falls through harmlessly from a non-market_way landing.
+function emitCrierStop(errands, L) {
+  if (!errands.crierPath?.length || !errands.crierBack?.length) return;
+  // ORIGIN GUARD (uvjq lesson — same class as the gcwp buy gate): the
+  // crier walk is baked from the BAZAAR; a mis-land walk lands nowhere
+  // near the crier and the stop silently no-ops all leg. Only walk when
+  // actually standing at the bazaar. crierBack lives INSIDE the guarded
+  // path (the xecc lesson): an unpaired return leg after a skipped guard
+  // walks from whatever room the agent actually occupies and strands
+  // every later stop.
+  L.push('  ifne room bazaar goto CRIER_DONE');
+  L.push(...moves(errands.crierPath));
+  L.push(`  ifne room ${errands.crierRoom} goto CRIER_DONE`);
+  // Starved-assignment abandon (supervisor-computed): the current quest's
+  // creature spawns nowhere near the arena — clear it first so `quest`
+  // assigns a fresh (completable) one. Harmless prose when the assignment
+  // is fine ("Quest: <desc>" is the reply to a bare quest; abandon on
+  // no-quest is refusal prose).
+  if (errands.crierAbandon) {
+    L.push('  put quest abandon');
+    L.push('  wait');
+  }
+  L.push('  put quest');
+  L.push('  wait');
+  // Trace beacon: the allowlist now shows quest sends, but this marks the
+  // stop REACHED (the room gate above passed) vs silently skipped.
+  L.push('  echo CRIER_VISITED');
+  L.push(...moves(errands.crierBack));
+  L.push('CRIER_DONE:');
+}
+
 function buildCircleScript({ cap, fromArena, errands }) {
   const cfg = GUILD_SCRIPTS[cap.guild];
   const L = [];
@@ -1625,6 +1663,12 @@ function buildCircleScript({ cap, fromArena, errands }) {
     // purse-gated. Replaces the five hand-copied blocks below when on;
     // legacy blocks stay for older variants until each is migrated.
     if (cap.finishKit) {
+      // CRIER STOP FIRST (aadd lesson — income before spend): the claim
+      // pays ~110s ON the trip, but the kit emitter reads the purse AFTER
+      // the sells — trips kept arriving with 76-110s: enough for cheap
+      // rows, never for the 120s helm. Claim BEFORE the buys and the
+      // helm row finally sees a 150-200s purse.
+      emitCrierStop(errands, L);
       emitKitBuys(cap, L);
       // GEM STOP (errands.gemLoot): gems sell ONLY at the quartermaster
       // (market_end). Walk bazaar→market_end, sell each gem id once, walk
@@ -1653,44 +1697,8 @@ function buildCircleScript({ cap, fromArena, errands }) {
         // guard below requires.
         L.push(...moves(errands.gemBack));
       }
-      // CRIER STOP (errands.crierPath): the town crier at market_way (3 moves
-      // off the bazaar) is assign-or-claim in one verb — a done quest claims
-      // (~70-75s) and the SAME verb assigns the next, so the standing hunt
-      // loop (rats/kobolds = the c1 kill pool, skins every kill) completes
-      // quests without extra field work. This is the income-wall fix: claim
-      // income funds the helm/club/shield wishlist the loot economy can't.
-      // Room-gated; falls through harmlessly from a non-market_way landing.
-      if (errands.crierPath?.length && errands.crierBack?.length) {
-        // ORIGIN GUARD (uvjq lesson — same class as the gcwp buy gate): the
-        // crier walk is baked from the BAZAAR; if the preceding gem stop's
-        // return leg mis-landed, walking n,n,n from elsewhere lands nowhere
-        // near the crier and the stop silently no-ops all leg. Only walk
-        // when actually standing at the bazaar. crierBack lives INSIDE the
-        // guarded path (the xecc lesson): an unpaired return leg after a
-        // skipped guard walks from whatever room the agent actually
-        // occupies and strands every later stop.
-        L.push('  ifne room bazaar goto CRIER_DONE');
-        L.push(...moves(errands.crierPath));
-        L.push(`  ifne room ${errands.crierRoom} goto CRIER_DONE`);
-        // Starved-assignment abandon (supervisor-computed): the current
-        // quest's creature spawns nowhere near the arena — clear it first so
-        // `quest` assigns a fresh (completable) one. Harmless prose when the
-        // assignment is fine ("Quest: <desc>" is the reply to a bare quest;
-        // abandon on no-quest is refusal prose).
-        if (errands.crierAbandon) {
-          L.push('  put quest abandon');
-          L.push('  wait');
-        }
-        L.push('  put quest');
-        L.push('  wait');
-        // Trace beacon: the allowlist now shows quest sends, but this marks
-        // the stop REACHED (the room gate above passed) vs silently skipped.
-        L.push('  echo CRIER_VISITED');
-        // crierBack INSIDE the guarded path (xecc lesson — paired with the
-        // origin guard above; after CRIER_DONE the walk must NOT fire).
-        L.push(...moves(errands.crierBack));
-        L.push('CRIER_DONE:');
-      }
+      // CRIER STOP: moved ABOVE the kit emitter (emitCrierStop) — the claim
+      // must land in the purse BEFORE the buy lines read silver (aadd).
       L.push('ERRAND_DONE:');
       L.push('ERRAND_SKIPPED:');
       if (errands.returnPath?.length) {
