@@ -1665,7 +1665,10 @@ function buildCircleScript({ cap, fromArena, errands }) {
         // crier walk is baked from the BAZAAR; if the preceding gem stop's
         // return leg mis-landed, walking n,n,n from elsewhere lands nowhere
         // near the crier and the stop silently no-ops all leg. Only walk
-        // when actually standing at the bazaar.
+        // when actually standing at the bazaar. crierBack lives INSIDE the
+        // guarded path (the xecc lesson): an unpaired return leg after a
+        // skipped guard walks from whatever room the agent actually
+        // occupies and strands every later stop.
         L.push('  ifne room bazaar goto CRIER_DONE');
         L.push(...moves(errands.crierPath));
         L.push(`  ifne room ${errands.crierRoom} goto CRIER_DONE`);
@@ -1683,8 +1686,10 @@ function buildCircleScript({ cap, fromArena, errands }) {
         // Trace beacon: the allowlist now shows quest sends, but this marks
         // the stop REACHED (the room gate above passed) vs silently skipped.
         L.push('  echo CRIER_VISITED');
-        L.push('CRIER_DONE:');
+        // crierBack INSIDE the guarded path (xecc lesson — paired with the
+        // origin guard above; after CRIER_DONE the walk must NOT fire).
         L.push(...moves(errands.crierBack));
+        L.push('CRIER_DONE:');
       }
       L.push('ERRAND_DONE:');
       L.push('ERRAND_SKIPPED:');
