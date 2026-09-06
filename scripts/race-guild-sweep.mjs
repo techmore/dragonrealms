@@ -119,6 +119,10 @@ const SCRIPT_VERBS = new Set([
   // the allowlist the stop's sends were invisible and the missing crier
   // prose looked like a dead block for two legs.
   'quest', 'deliver', 'claim', 'echo',
+  // Worn-gate probe (ctxz lesson): the KIT blocks open with `put inventory`
+  // — with the verb unlogged the helm block's skip/sell path was invisible
+  // and looked like the emitter never stamped it.
+  'inventory',
 ]);
 for (const cfg of Object.values(GUILD_SCRIPTS)) {
   for (const step of [...(cfg.fight || []), ...(cfg.preFight || []), ...(cfg.identityVerbs || [])]) {
