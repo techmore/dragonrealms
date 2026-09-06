@@ -1876,7 +1876,14 @@ class SweepAgent {
     // immediately. Trigger: silver ≥ 40 (padded cloth, priority 1) and at
     // least one kill since the last visit (there may be loot to sell).
     const purseNeed = (v2.silver != null && v2.silver >= 40
-      && this.kills > this.killsAtVisit);
+      && this.kills > this.killsAtVisit)
+      // HELM HOLD (xecc lesson): the club+shield rows closed this leg but
+      // the helm (120s) never did — trips fired at ≥40 and the buy cadence
+      // kept bleeding the purse before it could bank 120. When the 2nd-armor
+      // row (iron helm) is still unworn, keep hunting past 40 and hold the
+      // trip until the purse can actually close that row (fallback timer
+      // still forces a trip at its own cadence, so this can't wedge).
+      && !(!v2.helmWorn && v2.silver < 120);
     // CLAIM-DUE override: a completed-but-unclaimed crier quest is ~110s of
     // silver sitting in the journal — trip NOW regardless of purse size or
     // fresh-kill requirement (the crier stop also assigns the next quest).

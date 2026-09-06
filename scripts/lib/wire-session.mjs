@@ -320,6 +320,11 @@ export class WireSession {
         // refused/lost wear then starved the 1st-armor gate silently.
         v.armorWorn = Object.values(m.slots || {})
           .some((list) => (list || []).some((i) => /padded|leather|studded|chain|brigandine|plate/i.test(i.name)));
+        // HELM HOLD ledger (xecc lesson): the head slot's worn names, so the
+        // sweep's purse trigger knows whether the 120s helm row is still
+        // open without parsing prose. A player reading their hands bar sees
+        // the same truth.
+        v.helmWorn = (m.slots?.head || []).some((i) => /helm|cap|hood|visor/i.test(i.name || ''));
         break;
       }
       case 'msg': case 'combat': case 'notice': {
