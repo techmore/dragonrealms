@@ -734,6 +734,19 @@ class SweepAgent {
     const climb = !!this.variant?.climb;
     const topWeapon = climb ? this.topWeaponRank() : 0;
     let bestClimb = null;
+    // QUEST-AWARE PIN (anpo lesson): the crier's kill assignment pays only
+    // when THAT creature dies — the standing arena loop kills whatever
+    // spawns, so a 'Slay 4 kobolds' assignment starves while the agent
+    // farms rats one band over. Parse the target once; any in-weight-class
+    // room that spawns it wins the pick outright (the claim, ~75s, is the
+    // whole point of the income loop).
+    let questTarget = null;
+    const qv0 = this.session.vitals.quest;
+    if (qv0 && !qv0.done && qv0.desc) {
+      const m = /(?:lost to the|more) ([a-z ]+?)(?: of the wilds|\.|$)/i.exec(qv0.desc);
+      questTarget = m ? m[1].trim().toLowerCase() : null;
+    }
+    let questArena = null;
     // CLIMB v2 (death-loop lesson, run xwox): the override once sent a
     // circle-1 agent on a 17-move trek through populated sewers for headroom
     // 5 — it died en route ×10 while regen re-picked the same far room.
@@ -759,6 +772,13 @@ class SweepAgent {
         return c && (c.circle || 1) > myCircle + band;
       });
       if (tooStrong) continue;
+      if (questTarget) {
+        const names = (ROOMS[id].spawns || []).map((s) => creatureById(s)).filter(Boolean)
+          .flatMap((c) => [c.name?.toLowerCase(), c.plural?.toLowerCase(), c.id?.replace(/_/g, ' ')]);
+        if (names.includes(questTarget) || names.includes(questTarget.replace(/s$/, ''))) {
+          if (!questArena || p.length < questArena.path.length) questArena = { id, path: p };
+        }
+      }
       if (climb) {
         const headroom = this.roomTeachHeadroom(id, topWeapon);
         const cand = { id, path: p, headroom };
@@ -766,6 +786,10 @@ class SweepAgent {
           (headroom === bestClimb.headroom && p.length < bestClimb.path.length))) bestClimb = cand;
       }
       if (!best || p.length < best.path.length) best = { id, path: p };
+    }
+    if (questArena && (questArena.path.length <= CLIMB_MAX_PATH + 4)) {
+      this.appendLog(`[quest-pin] assignment "${questTarget}" spawns at ${questArena.id} — arena pinned (claim income)`);
+      return questArena;
     }
     if (climb && bestClimb && bestClimb.headroom > (best ? this.roomTeachHeadroom(best.id, topWeapon) : -Infinity)) {
       this.appendLog(`[climb] rank ${topWeapon} weapon → ${bestClimb.id} (headroom ${bestClimb.headroom}) over nearest ${(best || bestAny || {}).id}`);
