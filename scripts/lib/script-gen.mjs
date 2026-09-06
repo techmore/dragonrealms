@@ -218,7 +218,7 @@ function buildOccupancyLadder({ cap, arena, ladder }) {
   return L;
 }
 
-function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
+function buildHuntScript({ cap, arena, hallPath, candidates = [], questTarget = null }) {
   const cfg = GUILD_SCRIPTS[cap.guild];
   const L = [];
   L.push(`# ${cap.scriptBase}hunt — ${cfg.magic ? 'caster' : 'weapon'} loop for ${cap.char}`);
@@ -658,6 +658,18 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [] }) {
   }
   const species = [...new Set([arena.id, ...candidates.map((c) => c.id)]
     .flatMap((id) => ROOMS[id]?.spawns || []))];
+  // QUEST-PRIORITY MATCHER ORDER (anpo lesson): matchre registrations are
+  // first-match-wins at scan time, so a hog registered before the quest's
+  // kobold swallows every scan — the assignment starves while hogs die.
+  // When the crier's target is among the species, hoist it to the front.
+  if (questTarget) {
+    const i = species.findIndex((sp) => {
+      const c = creatureById(sp);
+      const names = [c?.name?.toLowerCase(), c?.plural?.toLowerCase(), sp.replace(/_/g, ' ')];
+      return names.includes(questTarget) || names.includes(questTarget.replace(/s$/, ''));
+    });
+    if (i > 0) species.unshift(species.splice(i, 1)[0]);
+  }
   // Register matchers BEFORE 'put look': 'put' returns immediately, so the
   // room message from look can land before later matchre lines register —
   // the prose would be dropped and every scan would time out.

@@ -717,6 +717,16 @@ class SweepAgent {
     await this.session.cmd('enter');
   }
 
+  // Current crier assignment's kill target (plural noun), parsed from the
+  // journal push prose — shared by the arena pin and the hunt script's
+  // matcher priority. Null when no active kill assignment.
+  questTargetNow() {
+    const q = this.session.vitals.quest;
+    if (!q || q.done || !q.desc) return null;
+    const m = /(?:lost to the|more) ([a-z ]+?)(?: of the wilds|\.|$)/i.exec(q.desc);
+    return m ? m[1].trim().toLowerCase() : null;
+  }
+
   nearestSpawnRoom(from) {
     let best = null, bestAny = null;
     const myCircle = this.session.vitals.circle || 1;
@@ -1107,6 +1117,11 @@ class SweepAgent {
       // three-room pocket. Difficulty filtering still excludes unsafe rooms;
       // the ladder simply retains up to eight safe, reachable alternatives.
       candidates: this.candidateRooms(arena.id, 8),
+      // Quest-priority target (anpo lesson): when the crier's kill target is
+      // among the arena's species, the hunt registers its matcher FIRST so
+      // the standing loop fights the assignment creature before hogs/etc —
+      // the assignment completes and the claim pays.
+      questTarget: this.questTargetNow(),
     });
     const circleSrc = buildCircleScript({
       cap,
@@ -1542,6 +1557,8 @@ class SweepAgent {
     Object.assign(cap, this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()));
     this.library[this.scriptBase + 'hunt'] = buildHuntScript({
       cap,
+      // Quest-priority target (anpo lesson) — see the startCycle call site.
+      questTarget: this.questTargetNow(),
       hallPath: s.bfsPath(arena, 'hall_' + this.guild, this.diskAdj()),
       arena: {
         id: arena,
