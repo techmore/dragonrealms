@@ -1340,6 +1340,24 @@ function emitCrierStop(errands, L) {
   L.push('CRIER_DONE:');
 }
 
+// DELIVER STOP (errands.deliverPath): a courier assignment pays after the
+// parcel reaches its NPC — walk to the target room, say "deliver", walk
+// back. Guarded exactly like the crier stop (origin guard, room gate,
+// paired return inside the guarded path). Emitted right after the crier
+// stop: assign/claim first, drop the parcel second, then the kit buys read
+// the fullest purse the trip can assemble.
+function emitDeliverStop(errands, L) {
+  if (!errands.deliverPath?.length || !errands.deliverBack?.length || !errands.deliverRoom) return;
+  L.push('  ifne room bazaar goto DELIVER_DONE');
+  L.push(...moves(errands.deliverPath));
+  L.push(`  ifne room ${errands.deliverRoom} goto DELIVER_DONE`);
+  L.push('  put deliver');
+  L.push('  wait');
+  L.push('  echo DELIVER_VISITED');
+  L.push(...moves(errands.deliverBack));
+  L.push('DELIVER_DONE:');
+}
+
 function buildCircleScript({ cap, fromArena, errands }) {
   const cfg = GUILD_SCRIPTS[cap.guild];
   const L = [];
@@ -1681,6 +1699,10 @@ function buildCircleScript({ cap, fromArena, errands }) {
       // rows, never for the 120s helm. Claim BEFORE the buys and the
       // helm row finally sees a 150-200s purse.
       emitCrierStop(errands, L);
+      // DELIVER STOP (fresh38 lesson): courier parcels need their own
+      // guarded stop; otherwise the agent carries the parcel all leg and
+      // the ~52s courier pay never converts.
+      emitDeliverStop(errands, L);
       emitKitBuys(cap, L);
       // GEM STOP (errands.gemLoot): gems sell ONLY at the quartermaster
       // (market_end). Walk bazaar→market_end, sell each gem id once, walk

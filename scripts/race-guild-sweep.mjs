@@ -657,7 +657,26 @@ class SweepAgent {
         }
       }
     }
-    return { crierPath: crierGo, crierBack, crierRoom: 'market_way', crierAbandon: abandon };
+    return { crierPath: crierGo, crierBack, crierRoom: 'market_way', crierAbandon: abandon,
+      ...(this.deliverErrandRoute()) };
+  }
+
+  // DELIVER STOPS (fresh38): a 'courier' assignment pays after the parcel
+  // reaches its NPC (say "deliver" at the target room), then claim at the
+  // crier — ~52s of silver (40+30)×0.7 the loop can't otherwise convert.
+  // The generated crier stop alone leaves the parcel undelivered all leg
+  // (fresh38 aifm drew the fane-keeper parcel and just carried it). Bake a
+  // guarded walk when the target room is within reach of the bazaar.
+  deliverErrandRoute() {
+    const q = this.session.vitals.quest;
+    if (!q || q.done || q.kind !== 'deliver' || !q.target?.room) return {};
+    const go = this.pureDiskPath('bazaar', q.target.room) || [];
+    const back = this.pureDiskPath(q.target.room, 'bazaar') || [];
+    // The fane leg is 14+14 moves — worth it for ~52s, but only when it
+    // chains; a too-long or one-way route just skips (the stop falls
+    // through harmlessly like every other guarded stop).
+    if (!go.length || !back.length || go.length + back.length > 40) return {};
+    return { deliverPath: go, deliverBack: back, deliverRoom: q.target.room };
   }
 
   // TDP STAT-SPEND POLICY (queued kaizen): TDPs buy PERMANENT stats at the
