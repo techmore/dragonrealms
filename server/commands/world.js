@@ -521,7 +521,7 @@ function appraise(ctx) {
 }
 
 function quest(ctx) {
-  const { game, p, say, emit } = ctx;
+  const { game, p, arg1, say, emit } = ctx;
   if (!game.hasCrier(p) && !p.quest) {
     return emit('Ask the town crier for work — he stands in the town square.');
   }
