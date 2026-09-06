@@ -120,7 +120,7 @@ export class Game {
   // capped at a passive ceiling out of combat that grows with the skill.
   manaPulse() {
     for (const p of this.players.values()) {
-      if (p.guild.id === 'barbarian') {
+      if (p.guild?.id === 'barbarian') {
         const inCombat = Boolean(p.combatId);
         const duelist = (p.abilities || []).includes('duelist');
         const cap = inCombat ? 100 : Math.min(100, 30 + skillRank(p, 'inner_fire') * 0.7 + (duelist ? 25 : 0));
@@ -131,11 +131,11 @@ export class Game {
         if ((p.voice || 0) < VOICE_POOL) p.voice = Math.min(VOICE_POOL, (p.voice || 0) + 4);
         continue;
       }
-      if (!p.guild.magic || p.mana >= p.maxMana) continue;
-      let rate = manaRegenRate(p.guild.id) * Math.min(2.5, 0.5 + skillRank(p, 'attunement') * 0.005);
+      if (!p.guild?.magic || p.mana >= p.maxMana) continue;
+      let rate = manaRegenRate(p.guild?.id) * Math.min(2.5, 0.5 + skillRank(p, 'attunement') * 0.005);
       // Water-attuned warrior mages renew like the tide; the Meditation
       // technique steadies any magic guild's renewal.
-      if (p.guild.id === 'warmage' && p.element === 'water') rate *= 1.25;
+      if (p.guild?.id === 'warmage' && p.element === 'water') rate *= 1.25;
       if ((p.techniques || []).includes('meditation')) rate *= 1.2;
       const gain = Math.max(1, Math.floor(p.maxMana * rate));
       p.mana = Math.min(p.maxMana, p.mana + gain);
@@ -545,6 +545,7 @@ export class Game {
   questDeliver(p) { return quests.questDeliver(this, p); }
   questClaim(p) { return quests.questClaim(this, p); }
   questDescription(p) { return quests.questDescription(p); }
+  pushQuest(p) { quests.pushQuest(p); }
 
   // ---------- Parties (DR hunt credit) ----------
   partyInvite(p, targetName) { return pvp.partyInvite(this, p, targetName); }

@@ -1653,6 +1653,15 @@ function buildCircleScript({ cap, fromArena, errands }) {
       if (errands.crierPath?.length && errands.crierBack?.length) {
         L.push(...moves(errands.crierPath));
         L.push(`  ifne room ${errands.crierRoom} goto CRIER_DONE`);
+        // Starved-assignment abandon (supervisor-computed): the current
+        // quest's creature spawns nowhere near the arena — clear it first so
+        // `quest` assigns a fresh (completable) one. Harmless prose when the
+        // assignment is fine ("Quest: <desc>" is the reply to a bare quest;
+        // abandon on no-quest is refusal prose).
+        if (errands.crierAbandon) {
+          L.push('  put quest abandon');
+          L.push('  wait');
+        }
         L.push('  put quest');
         L.push('  wait');
         L.push('CRIER_DONE:');

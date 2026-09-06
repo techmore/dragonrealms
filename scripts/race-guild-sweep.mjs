@@ -626,7 +626,30 @@ class SweepAgent {
     const crierBack = this.pureDiskPath('market_way', 'bazaar') || [];
     if (!crierGo.length || !crierBack.length
       || crierGo.length + crierBack.length > 12) return {};
-    return { crierPath: crierGo, crierBack, crierRoom: 'market_way' };
+    // STARVED-QUEST DETECT (fresh28 lesson): a recover/kill assignment whose
+    // creature doesn't spawn in the current arena can NEVER complete — it
+    // blocks the whole loop (no new assignment until it's done). The journal
+    // push carries the description prose; parse the creature plural from it
+    // and compare against the arena's spawn list. Starved → the crier stop
+    // sends `quest abandon` first (server: 'quest abandon' clears the quest).
+    let abandon = false;
+    const q = this.session.vitals.quest;
+    if (q && !q.done && q.desc && this.arena) {
+      const spawns = (ROOMS[this.arena]?.spawns || []).map((s) => creatureById(s)).filter(Boolean);
+      const spawnNames = new Set(spawns.flatMap((c) => [c.name?.toLowerCase(), c.plural?.toLowerCase(), c.id?.replace(/_/g, ' ')]));
+      // Pull the creature-ish noun from the desc: "...lost to the <plural>
+      // of the wilds" / "Slay N more <plural>."
+      const m = /(?:lost to the|more) ([a-z ]+?)(?: of the wilds|\.|$)/i.exec(q.desc);
+      const target = m ? m[1].trim().toLowerCase() : null;
+      if (target && !spawnNames.has(target) && !spawnNames.has(target.replace(/s$/, ''))) {
+        abandon = true;
+        if (this.lastAbandonKey !== q.desc) {
+          this.lastAbandonKey = q.desc;
+          this.appendLog(`[quest-starved] "${target}" spawns nowhere near ${this.arena} — abandoning at the crier`);
+        }
+      }
+    }
+    return { crierPath: crierGo, crierBack, crierRoom: 'market_way', crierAbandon: abandon };
   }
 
   // TDP STAT-SPEND POLICY (queued kaizen): TDPs buy PERMANENT stats at the

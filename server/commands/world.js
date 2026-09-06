@@ -32,12 +32,13 @@ const HELP = `
   Death:     die in battle and you awaken at the temple — your gear lies with your corpse; search <corpse>, get <item> from corpse
   Shops:     list  |  buy <item> [qty]  |  sell <item> [qty]  |  deposit/withdraw <silvers>  |  vault/store/retrieve  |  pit  |  heal  |  auction offer/buy  (Auction Hall, north of the pit)
   Training:  train <skill>  (pay silvers to advance guild skills)  |  train <stat> twice (Fane of Training, south of Temple Row)  |  circle
+  Guilds:    join <guild>  (at a guild hall's leader: dir list guilds, walk there, swear your oath)
   TDPs:      tdp  |  raise <stat>  (INFO attributes only, at the Fane)
   Quests:    quest  |  claim  |  deliver  |  ask <leader> task
   Stances:   stance aggressive | defensive | guarded | balanced  (costs stance points)
   PvP:       duel <player> [blood|blow|pain] [reason] | accept/decline <player> | surrender | assault <player> (OPEN targets only) | recall warrant | pvp stance open|guarded|closed  (duels wilds only)
   Wilds:     forage  |  hunt  |  track  |  ladder [undead|skins|boxes...]  |  hide  |  ambush <creature>  |  rest  (recover)
-  Travel:    ferry  (Crossing docks <-> Riverhaven landing, 20 silvers)
+  Travel:    dir <place> [steps]  (town directions: dir bank, dir list shops)  |  ferry  (Crossing docks <-> Riverhaven landing, 20 silvers)
   Skills:    perform  |  appraise <item>  |  study  (temple library)
    Crafting:  craft <recipe>  (Tilted Retort)  |  forge <recipe>  (Ember Forge)  |  shape <recipe>  (Ember Forge, Engineering)  |  tailor <recipe>  (Needle & Thread, off West Road)
   Crime:     steal <npc>  (lift coin, town)  |  pick <strongbox>  |  plead guilty|innocent  (if jailed)
@@ -482,7 +483,7 @@ function standUp(ctx) {
 
 function perform(ctx) {
   const { game, p, emit } = ctx;
-  const n = p.guild.id === 'bard' ? 2 : 1;
+  const n = p.guild?.id === 'bard' ? 2 : 1;
   const leveled = gainSkillExp(p, 'performance', 5 * n);
   setRoundtime(p, 5);
   // Performance rank draws coin: passers-by tip what pleases their ear.
@@ -543,6 +544,13 @@ function quest(ctx) {
     emit(res.msg);
     return;
   }
+  if (arg1 === 'abandon') {
+    const desc = game.questDescription(p);
+    p.quest = null;
+    game.persistPlayer(p);
+    game.pushQuest(p);
+    return emit(`You tell the crier the work doesn't suit you. "${desc}" — struck from the ledger.`);
+  }
   say(`\nQuest: ${game.questDescription(p)}`);
 }
 
@@ -572,7 +580,7 @@ function askResponse(game, p, npc, topic) {
     case 'bank':
       return `\n${npc.greeting}\nUse "deposit <amount>" and "withdraw <amount>" to keep your silvers safe.`;
     case 'guild': {
-      const g = p.guild.id === npc.guild ? p.guild : guildById(npc.guild);
+      const g = p.guild?.id === npc.guild ? p.guild : guildById(npc.guild);
       const next = p.circle + 1;
       const req = circleRequirements(p.guild, p.skills, next);
       if (topic === 'circle') {
