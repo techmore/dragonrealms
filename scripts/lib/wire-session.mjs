@@ -30,7 +30,9 @@ export class WireSession {
     this.pass = pass;
     this.char = char;
     this.race = race;
-    this.guild = guild;
+    // guild may be null/omitted → guildless start (join at the hall). Sims
+    // always pass a guild, so automation keeps the instant-guild path.
+    this.guild = guild || null;
     this.ws = null;
     this.token = null;
     this.knownChar = null; // {charId} when the character already exists
@@ -238,9 +240,14 @@ export class WireSession {
           this.sendObj({ t: 'charselect', id: this.knownChar ? this.knownChar.charId : 'new' });
         });
         break;
-      case 'charcreate':
-        this.sendObj({ t: 'charcreate', name: this.char, race: this.race, guild: this.guild, city: 'crossing' });
+      case 'charcreate': {
+        // Omit the guild key entirely when guildless — the server treats an
+        // absent guild as "join later at the hall".
+        const createMsg = { t: 'charcreate', name: this.char, race: this.race, city: 'crossing' };
+        if (this.guild) createMsg.guild = this.guild;
+        this.sendObj(createMsg);
         break;
+      }
       case 'charalloc':
         // Callers that want a reproducible chargen build can allocate before
         // entering; legacy agents keep the original immediate-enter behavior.
@@ -381,6 +388,14 @@ export class WireSession {
             if (id) v.skills[id] = row.rank;
           }
           this.handlers.onSkills?.(v.skills);
+        }
+        // Quest journal push ({t:'quest', quest:{kind,done,...}}): mirror the
+        // done flag so the supervisor can force a town trip the moment a
+        // crier quest completes (the claim needs the agent AT the crier; a
+        // done-but-unclaimed quest is 110s of silver sitting idle).
+        if (m.t === 'quest' && m.quest) {
+          v.quest = m.quest;
+          this.handlers.onQuest?.(m.quest);
         }
         this.handlers.onOther?.(m);
     }

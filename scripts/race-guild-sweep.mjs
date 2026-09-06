@@ -483,6 +483,7 @@ class SweepAgent {
     this.lastFleeAt = 0;
     this.fledAt = 0;        // armed by "break away and sprint" prose (see onRoom)
     this.faneHold = false;  // kit-before-fane: purse-triggered trips skip the fane leg
+    this.claimDue = false;  // armed by the quest journal push (see onQuest)
     this.lastTendAt = 0;
     this.scriptsSaved = false;
     this.circleTimes = [];    // [{circle, ms}] wall-clock from enter to EACH circle-up
@@ -908,6 +909,19 @@ class SweepAgent {
       },
       onFatal: (reason) => this.finish(reason),
       onReconnect: (n) => this.appendLog(`[reconnect] attempt ${n}`),
+      // CLAIM-AWARE TRIP TRIGGER (the last fresh-c2 coin flip): the journal
+      // push arrives the instant a quest completes. A done-but-unclaimed
+      // quest is ~110s of silver sitting idle until the next natural town
+      // pass — force one now (the heartbeat's purse-trigger branch picks it
+      // up on the next tick, bypassing the silver>=40 check).
+      onQuest: (q) => {
+        if (q?.done && !this.claimDue) {
+          this.claimDue = true;
+          this.appendLog('[claim-due] quest complete — forcing a town trip to claim');
+          log(`[${this.guild}/${this.race}] quest complete — claim trip forced`);
+        }
+        if (q && !q.done) this.claimDue = false;
+      },
       // First mindstate feed (~seconds after enter, ranks near zero) seeds
       // the effort-without-progress detector's immutable baseline; later feeds refresh
       // vitals.skills which classifyStall compares against it. Also the
@@ -1836,6 +1850,27 @@ class SweepAgent {
     // least one kill since the last visit (there may be loot to sell).
     const purseNeed = (v2.silver != null && v2.silver >= 40
       && this.kills > this.killsAtVisit);
+    // CLAIM-DUE override: a completed-but-unclaimed crier quest is ~110s of
+    // silver sitting in the journal — trip NOW regardless of purse size or
+    // fresh-kill requirement (the crier stop also assigns the next quest).
+    if (this.claimDue && huntingLeg && !v2.inCombat) {
+      this.recordMilestone('hall_handoff', `claim-due trip at circle ${v2.circle || 1}`, { circle: v2.circle || 1, reason: 'claim-due' });
+      log(`[${this.guild}/${this.race}] hall trip (claim due)`);
+      this.appendLog(`[hall-trip] claim due — town trip forced`);
+      this.claimDue = false;
+      this.killsAtVisit = this.kills;
+      this.lastHallAt = Date.now();
+      this.skipCircle = true;
+      if (this.lastCircleBlockText) {
+        const refreshed = trainListFromMissing(this.lastCircleBlockText, this.guild,
+          { targetNth: !!this.variant?.closeNth, ranks: this.expRanks || v2.skills || {} });
+        if (refreshed.length) this.trainList = refreshed;
+      }
+      this.trainOffset = 0;
+      this.regenerateScripts();
+      this.startCycle(this.library[this.scriptBase + 'circle'], this.scriptBase + 'circle');
+      return;
+    }
     if (huntingLeg && !v2.inCombat && purseNeed
       && Date.now() - this.lastHallAt > 45000) {
       this.recordMilestone('hall_handoff', `purse-triggered hall trip at circle ${v2.circle || 1} (silver ${v2.silver})`, { circle: v2.circle || 1, reason: 'purse-trigger', silver: v2.silver });
