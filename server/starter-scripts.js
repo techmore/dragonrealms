@@ -60,12 +60,12 @@ function pushStarterScripts(session, player) {
       guild: guildId, race: raceId,
       char: player.name.replace(/[^A-Za-z]/g, '').slice(0, 16),
       scriptBase: 'auto',
-      bazaarPath: null, trainList: null, trainOffset: 0,
+      bazaarPath: genBfsPath(room, 'bazaar'), trainList: null, trainOffset: 0,
     };
     const scripts = {
       autohunt: buildHuntScript({
         cap,
-        arena: { id: arena, fromArmed: [], fromHere: genBfsPath(room, arena) },
+        arena: { id: arena, fromArmed: genBfsPath('bazaar', arena), fromHereOrigin: room, fromHere: genBfsPath(room, arena) },
       }),
       autocircle: buildCircleScript({
         cap,

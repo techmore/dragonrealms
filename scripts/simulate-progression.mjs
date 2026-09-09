@@ -1,5 +1,10 @@
-// Progression simulator: grinds a fresh character to circle 10 using the real
-// combat/exp/training systems, then reports pacing. Run: node scripts/simulate-progression.mjs [guild] [--boost N]
+// Progression simulator: grinds a fresh character to a target circle using the
+// real combat/exp/training systems, then reports pacing.
+// Run: node scripts/simulate-progression.mjs [guild] [--boost N] [--circle N]
+//   --circle defaults to 10 (historical behavior). Above 10 the run relies on
+//   real content; the catalog currently tops out at creature circle 10, so a
+//   --circle 20 probe advances to ~c11-12 then stops cleanly at the content
+//   ceiling (roadmap f210's "world gate") rather than grinding forever.
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -20,6 +25,11 @@ const GUILD = SIM_ARGS.find((arg) => !arg.startsWith('--')) || 'warmage';
 const BOOST = Math.min(100, Math.max(1, Math.floor(Number(
   SIM_ARGS[SIM_ARGS.indexOf('--boost') + 1],
 ) || 1)));
+// Target circle. Default 10 preserves historical behavior exactly; opt in to a
+// higher target with --circle N to probe past the content ceiling (f210).
+const TARGET = Math.max(1, Math.floor(Number(
+  SIM_ARGS[SIM_ARGS.indexOf('--circle') + 1],
+) || 10));
 
 // Mirror all output to the /jobs.html live viewer (public/live/sim-<guild>.log).
 const { liveJob } = await import('./live-log.mjs');
@@ -34,7 +44,10 @@ game.init();
 // background systems stay stopped.
 game.stop();
 
-// Hunt table by circle: [creatureId, room]
+// Hunt table by circle: [creatureId, room]. Content-bounded: the catalog stops
+// at creature circle 10 (black_2 dread_knight below), so a target above 10
+// re-farms the highest ground — the exact f210 "world gate". Appending c11-20
+// HUNTS rows here is part of that content work, not the engine.
 const HUNTS = [
   { min: 1, room: 'sewers_2', ids: ['rat', 'kobold'] },
   { min: 3, room: 'woods_1', ids: ['goblin', 'wolf'] },
@@ -45,6 +58,8 @@ const HUNTS = [
   { min: 9, room: 'black_2', ids: ['dread_knight'] },
 ];
 
+// Gear staging by circle. Similarly bounded: every in-catalog item req <= 10,
+// so past circle 10 there is no upgrade to buy (f210 world gate).
 const GEAR = [
   { min: 1, weapon: 'short_sword', armor: 'padded_cloth', shield: 'shield_wood' },
   { min: 3, weapon: 'steel_sword', armor: 'studded', shield: null },
@@ -80,6 +95,12 @@ let kills = 0;
 let silverEarned = 0;
 const startReal = Date.now();
 const circleTimes = { 1: 0 };
+// Stall detector (engaged only when the target exceeds the default content
+// band): counts consecutive hunts with no circle advance, so a target above
+// the world's content ceiling stops cleanly instead of grinding forever.
+let noCircleHunts = 0;
+const STALL_HUNTS = 2000;
+let outcome = 'reached';
 
 const report = (msg) => console.log(msg);
 
@@ -192,16 +213,20 @@ function tdpBoost() {
 }
 
 function tryCircle() {
-  if (p.circle >= 10) return true;
+  if (p.circle >= TARGET) return true;
   p.room = `hall_${GUILD}`;
+  const before = p.circle;
   handleCommand(game, p, "circle");
+  // A circle advance (even a partial one, e.g. 10->11 en route to 20) proves
+  // the loop is still making progress; reset the stall counter.
+  if (p.circle > before) noCircleHunts = 0;
   if (p.circle > 1 && !circleTimes[p.circle]) circleTimes[p.circle] = ticks;
-  return p.circle >= 10;
+  return p.circle >= TARGET;
 }
 
 let safety = 0;
-report(`=== Progression sim: ${p.guild.name} (${p.race.name}) -> circle 10${BOOST > 1 ? ` [boost x${BOOST}]` : ''} ===`);
-while (p.circle < 10 && safety++ < 30000) {
+report(`=== Progression sim: ${p.guild.name} (${p.race.name}) -> circle ${TARGET}${BOOST > 1 ? ` [boost x${BOOST}]` : ''} ===`);
+while (p.circle < TARGET && safety++ < 30000) {
   const hunt = huntFor(p.circle);
   if (hunts % 1000 === 0) {
     const missing = circleRequirements(p.guild, p.skills, p.circle + 1).missing.slice(0, 3).join('; ');
@@ -284,11 +309,17 @@ while (p.circle < 10 && safety++ < 30000) {
   trainAtGuild();
   tdpBoost();
   if (tryCircle()) break;
+  // Above the default content band, stop cleanly if no circle has advanced for
+  // STALL_HUNTS consecutive hunts — the f210 content ceiling, not the engine.
+  if (TARGET > 10 && ++noCircleHunts >= STALL_HUNTS) {
+    outcome = 'stalled';
+    break;
+  }
   p.room = hunt.room;
 }
 
 report(`\n=== Results (${p.guild.name}) ===`);
-report(`Circle reached: ${p.circle}`);
+report(`Circle reached: ${p.circle} (target ${TARGET})`);
 const hours = Math.floor((ticks / 3600) * 10) / 10;
 report(`Simulated time: ${Math.floor(ticks / 60)} minutes (${hours} hours)`);
 report(`Real time: ${Math.round((Date.now() - startReal) / 1000)}s`);
@@ -296,6 +327,16 @@ report(`Experience boost: x${BOOST}`);
 report(`Hunts: ${hunts}, kills: ${kills}, deaths: ${deaths}`);
 report(`Silver earned: ${silverEarned}, on hand: ${p.silver}`);
 report(`TDPs: ${p.tdp}`);
+if (outcome === 'stalled') {
+  const gate = Math.min(p.circle + 1, TARGET);
+  const missing = circleRequirements(p.guild, p.skills, gate).missing;
+  report(`Outcome: STALLED at circle ${p.circle} < target ${TARGET} — no circle advance in ${STALL_HUNTS} consecutive hunts at the top of the content ladder.`);
+  report(`Next-circle (${gate}) still missing (${missing.length}): ${missing.slice(0, 8).join(' | ') || 'none'} — the engine is fine; this is the f210 world gate (no c11-20 creatures/gear to train the ranks past ~40-45).`);
+} else if (p.circle >= TARGET) {
+  report(`Outcome: reached target circle ${p.circle}.`);
+} else {
+  report(`Outcome: safety limit reached at circle ${p.circle} below target ${TARGET}.`);
+}
 report(`Circle milestones (sim minutes):`);
 for (const [c, t] of Object.entries(circleTimes)) report(`  circle ${c}: ${Math.floor(t / 60)}m`);
 report(`Final primary ranks: ${p.guild.primary.map((s) => `${s}=${(p.skills[s] || {}).rank || 0}`).join(', ')}`);

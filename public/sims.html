@@ -546,7 +546,7 @@
           <button class="btn" id="launch-toggle" aria-expanded="false">configure ad-hoc run</button></span>
       </h2>
       <div class="controls">
-        <label for="ag-name" class="sub">name</label>
+        <p class="sub">Each launch creates a fresh character and account. Existing characters are never reused. Choose an unused name.</p><p id="ag-error" role="alert" class="sub"></p><label for="ag-name" class="sub">name</label>
         <input id="ag-name" type="text" spellcheck="false" autocomplete="off" style="min-width:150px">
         <label for="ag-race" class="sub">race</label>
         <select id="ag-race"></select>
@@ -555,7 +555,7 @@
         <label for="ag-minutes" class="sub">minutes</label>
         <input id="ag-minutes" type="number" min="1" max="720" value="30" style="width:64px">
         <label for="ag-circle" class="sub" title="sim stops itself when this circle is reached">target circle</label>
-        <input id="ag-circle" type="number" min="1" max="20" value="2" style="width:56px">
+        <input id="ag-circle" type="number" min="2" max="20" value="2" style="width:56px">
         <label for="ag-boost" class="sub" title="test-only server boost: multiplies skill exp, rank conversion, and rest recovery">exp boost <span class="sub">(test-only)</span></label>
         <select id="ag-boost">
           <option value="0">off</option>
@@ -2750,7 +2750,7 @@
       const browserStop = $('live-stop-browser');
       const syncBrowserStop = () => {
         if (!browserStop) return;
-        const live = SIMS.agents.filter((a) => a.ws && !a.stopping);
+        const live = SIMS.agents.filter((a) => (a.ws || a.starting) && !a.stopping);
         browserStop.disabled = live.length === 0;
         browserStop.textContent = live.length
           ? `⏸ Stop ${live.length} browser sim${live.length === 1 ? '' : 's'}`
@@ -2761,7 +2761,7 @@
       };
       syncBrowserStop();
       browserStop?.addEventListener('click', () => {
-        const live = SIMS.agents.filter((a) => a.ws && !a.stopping);
+        const live = SIMS.agents.filter((a) => (a.ws || a.starting) && !a.stopping);
         if (!live.length) { syncBrowserStop(); toast('No browser-launched sims are running.'); return; }
         for (const a of live) SIMS.stopAgent(a, 'stopped by GM');
         syncBrowserStop();
@@ -2772,36 +2772,20 @@
       setInterval(syncBrowserStop, 1000);
 
       function launchFromForm() {
-        let name = $('ag-name').value.trim();
-        if (!/^[A-Za-z]{2,20}$/.test(name)) {
-          // Auto-trim overlong composite names (Sw<Guild><Race> can exceed 20)
-          // rather than bouncing the launch — surface what we did.
-          const trimmed = name.replace(/[^A-Za-z]/g, '').slice(0, 20);
-          if (trimmed.length >= 2) {
-            toast(`Name too long (server max 20) — launching as "${trimmed}".`);
-            name = trimmed;
-            $('ag-name').value = trimmed;
-          } else {
-            toast('Agent name must be 2-20 letters.');
-            return;
-          }
-        }
-        if (SIMS.agents.some((a) => a.char === name && a.ws)) { toast(`${name} is already running.`); return; }
-        SIMS.launchAgent({
-          name,
-          race: $('ag-race').value,
-          guild: $('ag-guild').value,
-          minutes: Math.max(1, Number($('ag-minutes').value) || 10),
-          circleTarget: Math.max(2, Number($('ag-circle').value) || 2),
-          boost: Number($('ag-boost').value) || 0,
-          fleePct: Number($('ag-flee').value) / 100,
-          tickMs: Number($('ag-tick').value) || 1500,
-        });
+        $('ag-error').textContent = '';
+        try {
+          SIMS.launchAgent({
+            name: $('ag-name').value.trim(), race: $('ag-race').value, guild: $('ag-guild').value,
+            minutes: $('ag-minutes').value, circleTarget: $('ag-circle').value,
+            boost: $('ag-boost').value, fleePct: Number($('ag-flee').value) / 100,
+            tickMs: $('ag-tick').value,
+          });
+        } catch (error) { $('ag-error').textContent = error.message; }
       }
       $('ag-launch').addEventListener('click', launchFromForm);
       $('ag-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') launchFromForm(); });
       $('ag-stop').addEventListener('click', () => {
-        const live = SIMS.agents.filter((a) => a.ws);
+        const live = SIMS.agents.filter((a) => a.ws || a.starting);
         if (!live.length) { toast('No running sims.'); return; }
         for (const a of live) SIMS.stopAgent(a, 'stopped by GM');
       });
@@ -2869,7 +2853,14 @@
       SIMS.onRendered = () => {
         syncBrowserStop();
         if (!openPanelFor) return;
-        if (rosterEl.querySelector('.agpanel')) return;
+        const panel = rosterEl.querySelector('.agpanel');
+        if (panel) {
+          const agent = SIMS.find(openPanelFor);
+          panel.querySelectorAll('input, select, button').forEach(control => { control.disabled = !agent?.ws; });
+          const owner = rosterEl.querySelector(`.row[data-ag="${CSS.escape(openPanelFor)}"]`);
+          if (owner && panel.previousElementSibling !== owner) owner.after(panel);
+          return;
+        }
         const row = rosterEl.querySelector(`.row[data-ag="${CSS.escape(openPanelFor)}"]`);
         if (row && SIMS.find(openPanelFor)) {
           row.insertAdjacentHTML('afterend', buildPanel(SIMS.find(openPanelFor)));
@@ -2880,7 +2871,7 @@
       };
 
       rosterEl.addEventListener('click', (e) => {
-        if (e.target.closest('.agpanel')) return; // clicks inside the panel
+        if (e.target.closest('.agpanel, button')) return; // controls do not toggle the panel
         const row = e.target.closest('.row[data-ag]');
         if (!row) return;
         const name = row.dataset.ag;
