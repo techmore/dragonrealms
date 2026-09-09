@@ -1,0 +1,53 @@
+/* Field Desk: an isolated opt-in skin. Existing theme and window preferences win. */
+.field-preview-setting { border: 1px solid var(--line-strong); margin: 12px 0; padding: 12px; }
+.field-preview-setting legend { color: var(--amber); }
+.field-preview-setting p { color: var(--muted); font-size: 12px; line-height: 1.5; }
+#field-desk[hidden], #field-desk [hidden] { display: none !important; }
+body[data-interface="experimental"] #topbar { background: var(--panel); border-bottom: 1px solid var(--line-strong); }
+body[data-interface="experimental"] .tool { min-height: 36px; padding-inline: 9px; border-radius: 6px; }
+body[data-interface="experimental"] #story { background: var(--bg); }
+#field-desk { flex: 0 0 auto; padding: 18px 26px 14px; border-bottom: 1px solid var(--line-strong); background: var(--panel); }
+.field-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.field-eyebrow { font-size: 10px; color: var(--muted); letter-spacing: .14em; }
+.field-heading h2 { font: 26px var(--font-serif); color: var(--text); margin: 5px 0 0; }
+#field-desk p { margin: 6px 0 14px; color: var(--muted); font-size: 12px; }
+#field-desk button { background: var(--panel-raised); color: var(--text); border: 1px solid var(--line-strong); border-radius: 6px; padding: 8px 11px; min-height: 36px; cursor: pointer; font: inherit; font-size: 12px; }
+#field-desk button:hover { border-color: var(--amber); color: var(--amber); }
+.field-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.field-hint { display: block; color: var(--muted); font-size: 11px; margin-top: 12px; line-height: 1.5; }
+body[data-interface="experimental"] #terminal { padding: 22px 26px 32px; line-height: max(var(--lh), 1.6); }
+body[data-interface="experimental"] #terminal .block { max-width: 88ch; margin-bottom: 9px; }
+body[data-interface="experimental"] #terminal .room-title { font-family: var(--font-serif); font-size: 1.25em; padding-block: 6px; }
+body[data-interface="experimental"] #terminal .ch-combat { color: var(--muted); }
+body[data-interface="experimental"] #leftrail .rail-kicker { color: var(--muted); letter-spacing: .12em; }
+body[data-interface="experimental"] .dwin-collapse { min-width: 32px; min-height: 32px; }
+body[data-interface="experimental"] #inputbar { min-height: 56px; border-top: 2px solid var(--amber-soft); background: var(--panel-raised); }
+body[data-interface="experimental"] #cmd { font-size: max(16px, 1em); }
+body[data-interface="experimental"] :is(button,input,select):focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+@media (max-width: 820px) {
+  #field-desk { padding: 10px 14px; }
+  .field-heading h2 { font-size: 21px; }
+  #field-desk p, .field-hint { display: none; }
+  .field-actions { margin-top: 10px; gap: 5px; }
+  #field-desk button { min-height: 40px; padding: 7px 9px; }
+  body[data-interface="experimental"] #terminal { padding: 14px; }
+}
+
+/* Keep the optional guide from taking narration space on short screens. */
+#field-desk { padding: 12px 20px; }
+.field-heading h2 { font-size: 22px; }
+.field-reference { margin-top: 10px; }
+.field-reference summary { color: var(--muted); font-size: 12px; cursor: pointer; min-height: 28px; padding-block: 5px; }
+.field-reference[open] .field-actions { margin-top: 8px; }
+body[data-interface="experimental"] .gauge-label { font-size: 11px; }
+@media (max-width: 820px) {
+  #field-desk { padding: 9px 14px; }
+  .field-eyebrow { font-size: 9px; }
+  .field-heading h2 { font-size: 20px; }
+}
+@media (max-width: 820px) {
+  body[data-interface="experimental"] #leftrail { max-height: 146px; }
+  body[data-interface="experimental"] #leftrail > .dwin { flex-basis: 220px; height: 126px; }
+  body[data-interface="experimental"] #status-strip { grid-template-columns: minmax(0, 1fr); }
+  body[data-interface="experimental"] #status-strip .gauge { height: 16px; }
+}

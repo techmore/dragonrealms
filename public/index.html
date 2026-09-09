@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Dragon Realms — Crossing Terminal</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/experimental.css">
 </head>
 <body>
   <header id="topbar">
@@ -154,6 +155,19 @@
       </section>
     </aside>
     <div id="story" aria-label="Story stream">
+      <section id="field-desk" aria-label="Experimental Field Desk" hidden>
+        <div class="field-heading"><div><span class="field-eyebrow">EXPERIMENTAL INTERFACE</span><h2>Field Desk</h2></div><button id="field-classic" type="button">Back to Classic</button></div>
+        <details class="field-reference"><summary>Field references &amp; keyboard guide</summary>
+        <nav class="field-actions" aria-label="Field references">
+          <button type="button" data-field-panel="btn-exits">Room &amp; exits</button>
+          <button type="button" data-field-panel="btn-exp">Learning</button>
+          <button type="button" data-field-panel="btn-inv">Equipment</button>
+          <button type="button" data-field-panel="btn-scripts">Scripts</button>
+          <button type="button" id="field-help">Prepare “help”</button>
+        </nav>
+        <span class="field-hint">Commands go below · ↑ recalls history · Tab completes · Esc closes a panel</span>
+        </details>
+      </section>
       <div id="terminal" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false"></div>
     </div>
     <aside id="dock" aria-label="Field windows" hidden>
@@ -281,6 +295,10 @@
       <h3 id="settings-title">Settings</h3>
       <button id="settings-close" class="dock-btn" title="Close settings" aria-label="Close settings">&#215;</button>
     </div>
+    <fieldset class="field-preview-setting"><legend>Interface preview</legend>
+      <label><input id="set-experimental" type="checkbox"> Try Field Desk (experimental)</label>
+      <p>A quieter reading layout and larger controls. Turn off to restore Classic. Your windows, theme and scripts stay as configured.</p>
+    </fieldset>
     <details open>
       <summary>Appearance</summary>
       <label>Theme

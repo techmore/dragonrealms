@@ -1,4 +1,5 @@
 // Boot + wiring. Message routing lives in router.js.
+import { initFieldDesk } from './experimental.js';
 import { $ } from './util.js';
 import { onServerMessage, onDisconnect } from './net.js';
 import * as terminal from './terminal.js';
@@ -58,6 +59,7 @@ function onMessage(msg) {
 
 onServerMessage(onMessage);
 
+initFieldDesk();
 applySettings();
 automation.renderMacros();
 bindHighlightPanel();

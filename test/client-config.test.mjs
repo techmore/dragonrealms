@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { parseConfig, restoreConfig } from '../public/js/config.js';
 
 test('legacy and versioned configuration preserve gags and supported settings', () => {
-  const config = { dr_settings: { theme: 'green', channels: { combat: false }, colors: {}, statusstrip: null }, dr_gags_v1: [{ id: 'g1', pattern: 'noise' }] };
+  const config = { dr_settings: { theme: 'green', experimental: true, channels: { combat: false }, colors: {}, statusstrip: null }, dr_gags_v1: [{ id: 'g1', pattern: 'noise' }] };
   assert.deepEqual(parseConfig(JSON.stringify(config)), config);
   assert.deepEqual(parseConfig(JSON.stringify({ version: 1, config })), config);
 });

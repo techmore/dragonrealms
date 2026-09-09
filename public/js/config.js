@@ -18,7 +18,7 @@ const settingsChecks = {
   colors: (v) => dict(v, (c, k) => ['text', 'amber', 'green', 'dim'].includes(k) && /^#[0-9a-f]{6}$/i.test(c)),
   channels: (v) => dict(v, boolean),
 };
-for (const k of ['dpad', 'autoscroll', 'condensed', 'haptics', 'macrobar', 'exits', 'expblips', 'timestamps', 'soundAlerts']) settingsChecks[k] = boolean;
+for (const k of ['experimental', 'dpad', 'autoscroll', 'condensed', 'haptics', 'macrobar', 'exits', 'expblips', 'timestamps', 'soundAlerts']) settingsChecks[k] = boolean;
 
 const validators = {
   dr_settings: (v) => dict(v, (value, key) => Object.hasOwn(settingsChecks, key) && settingsChecks[key](value)),

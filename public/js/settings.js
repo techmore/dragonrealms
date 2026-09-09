@@ -5,7 +5,7 @@ import { $ } from './util.js';
 const SETTINGS_KEY = 'dr_settings';
 
 export const settings = Object.assign({
-  theme: 'dark', font: 14, dpad: true, colors: {},
+  experimental: false, theme: 'dark', font: 14, dpad: true, colors: {},
   fontFamily: 'mono', lineHeight: 1.45, autoscroll: true, condensed: true,
   statusstrip: null, haptics: true, macrobar: true, exits: true, expblips: true,
   timestamps: false,
@@ -51,6 +51,8 @@ export function closeSettings(returnFocus = false) {
 }
 
 export function applySettings() {
+  document.body.dataset.interface = settings.experimental === true ? 'experimental' : 'classic';
+  $('set-experimental').checked = settings.experimental === true;
   document.body.dataset.theme = settings.theme;
   document.body.dataset.font = settings.fontFamily;
   document.body.style.fontSize = settings.font + 'px';
@@ -91,10 +93,16 @@ export function applySettings() {
 const bind = (id, key) => {
   $(id).addEventListener('change', (e) => {
     settings[key] = e.target.checked;
+    if (key === 'experimental') {
+      const url = new URL(location.href);
+      url.searchParams.delete('ui');
+      history.replaceState(null, '', url);
+    }
     saveSettings();
     applySettings();
   });
 };
+bind('set-experimental', 'experimental');
 bind('set-dpad', 'dpad');
 bind('set-haptics', 'haptics');
 bind('set-autoscroll', 'autoscroll');
