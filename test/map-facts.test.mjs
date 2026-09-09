@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { ROOMS } from '../data/world.js';
-import { GRID, validateWorld, findPath, isDisplaced } from '../data/grid.js';
+import { GRID, validateWorld, findPath, isDisplaced, roomAt } from '../data/grid.js';
 import { MAP_FACTS, validateMapFacts } from '../data/map-facts.js';
 
 test('every room has derived grid coordinates', () => {
@@ -16,7 +16,7 @@ test('world graph and universal grid agree (reciprocal exits)', () => {
   assert.ok(ok, issues.join('\n'));
 });
 
-test('sourced Crossing geography facts hold (audit-verified)', () => {
+test('Crossing graph matches the saved reference-fact ledger', () => {
   const { ok, issues } = validateMapFacts(ROOMS, findPath);
   assert.ok(ok, issues.join('\n'));
 });
@@ -40,4 +40,32 @@ test('hierarchical addresses derive province:city:district:room', async () => {
   assert.ok(addressOf('rh_square').startsWith('zoluren:riverhaven:'), 'Riverhaven addresses its own city');
   assert.ok(addressOf('west_gate').includes(':west:'), 'West Gate sits in the west district');
   assert.equal(addressOf('nope_nope'), null, 'unknown rooms have no address');
+});
+
+
+test('every rendered room has a unique, reversible coordinate', () => {
+  const cells = new Set();
+  for (const [id, position] of Object.entries(GRID)) {
+    assert.ok(!cells.has(position.join(',')), `overlapping room: ${id}`);
+    cells.add(position.join(','));
+    assert.equal(roomAt(...position), id, `room lookup must preserve ${id}`);
+  }
+});
+
+test('Alchemy is east of Engineering, with reciprocal travel and one reference fact', () => {
+  assert.equal(ROOMS.engineering_soc.exits.e, 'alchemy_soc');
+  assert.equal(ROOMS.alchemy_soc.exits.w, 'engineering_soc');
+  assert.equal(MAP_FACTS.filter(f => [f.a, f.b].includes('alchemy_soc') && [f.a, f.b].includes('engineering_soc')).length, 1);
+});
+
+test('Barbarian landmarks remain reachable in both directions after map correction', () => {
+  for (const id of ['hall_barbarian', 'bazaar', 'forging_soc', 'engineering_soc', 'alchemy_soc', 'west_gate']) {
+    for (const [from, to] of [['square', id], [id, 'square']]) {
+      const route = findPath(from, to);
+      assert.ok(route, `${from} -> ${to}`);
+      let at = from;
+      for (const direction of route) at = ROOMS[at].exits[direction];
+      assert.equal(at, to);
+    }
+  }
 });

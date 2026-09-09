@@ -20,16 +20,12 @@ export const MAP_FACTS = [
   // "This building can be found 4 rooms west from the Crossing NE gate."
   { a: 'ne_gate', path: ['w', 'w', 'w', 'w'], b: 'enchanting_soc', src: 'Enchanting Society' },
   // "1 room east from the Engineering Society" (RanikMap1 errors).
-  { a: 'alchemy_soc', dir: 'e', b: 'engineering_soc', src: 'RanikMap1 errors (reversed: our chain puts alchemy west of engineering)' },
+  { a: 'engineering_soc', dir: 'e', b: 'alchemy_soc', src: 'RanikMap1 errors (saved text extraction; original image not reverified)' },
   // "3 rooms south from the Bard Guild" (Outfitting Society page).
   { a: 'hall_bard', near: 'outfitting_soc', steps: 3, src: 'Outfitting Society' },
   // "south of the Barbarian Guild" (Forging Society page) — 1 step.
   { a: 'hall_barbarian', dir: 's', b: 'forging_soc', src: 'Forging Society' },
-  // "1 room east from the Engineering Society" (RanikMap1 errors; the page's
-  // "2 rooms east of the Traders' Guild" conflicts with it — we keep the
-  // errors-list adjacency since the Traders' guild position itself is only
-  // approximate in our layout).
-  { a: 'alchemy_soc', dir: 'e', b: 'engineering_soc', src: 'RanikMap1 errors (reversed: our chain puts alchemy west of engineering)' },
+
 
   // ---- Guilds (guildhall pages) — clean-room adaptations of the cited
   //      directions to our street graph are noted per fact. ----

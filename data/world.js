@@ -599,17 +599,17 @@ export const ROOMS = {
   traders_road: {
     id: 'traders_road', zone: 'town', name: "Traders' Road", APPROXIMATE: true,
     desc: 'A merchant road of warehouses and wagon yards running west toward the Trader guild.',
-    exits: { w: 'engineering_soc', e: 'oxenwaithe_bridge' },
+    exits: { w: 'alchemy_soc', e: 'oxenwaithe_bridge' },
   },
   engineering_soc: {
     id: 'engineering_soc', zone: 'town', name: 'Engineering Society',
     desc: 'A hall of drafting tables, models and half-built mechanisms. Rangu\'s repair shop and a carving depot share the building.',
-    exits: { w: 'alchemy_soc', e: 'traders_road' }
+    exits: { e: 'alchemy_soc' }
   },
   alchemy_soc: {
     id: 'alchemy_soc', zone: 'town', name: 'Alchemy Society',
     desc: 'One room east of the Engineering Society stands the Alchemy Society, its entry thick with the smell of sulphur and dried herbs.',
-    exits: { e: 'engineering_soc', s: 'trader_alley' },
+    exits: { w: 'engineering_soc', e: 'traders_road', s: 'trader_alley' },
   },
   trader_alley: {
     id: 'trader_alley', zone: 'town', name: "Traders' Alley", APPROXIMATE: true,

@@ -5,13 +5,10 @@
 //
 // SINGLE SOURCE OF TRUTH: coordinates are DERIVED from the room graph in
 // data/world.js by breadth-first placement from each city's origin room.
-// An exit's destination always lands exactly one cell in the exit's
-// direction, so the map is geometrically truthful by construction — no hand-
-// maintained coordinate table to drift out of sync. Where two rooms would
-// claim the same cell (dense districts wrap onto themselves), the later room
-// is displaced to the nearest free cell deterministically; such rooms are
-// render-approximate but never affect movement (all gameplay walks the
-// actual exits).
+// First-visit BFS coordinates approximate compass geography. Cycles, portals
+// and collisions can prevent an edge from being one visual cell long. The
+// final placement reserves a unique cell per room and flags displaced rooms.
+// Gameplay and navigation always follow authored exits, never grid neighbors.
 //
 // ADDRESSING HIERARCHY — province > city > district > room:
 //   Each city owns a LOCAL grid space placed far apart via CITY_ORIGIN
@@ -134,17 +131,25 @@ const DISPLACED = new Set();
 for (const [city, local] of Object.entries(_localPos)) {
   const [ox, oy, oz] = CITY_ORIGIN[city];
   for (const [id, [x, y, z]] of Object.entries(local)) {
-    const g = [ox + x, oy + y, oz + z];
+    let g = [ox + x, oy + y, oz + z];
     const k = keyOf(g);
-    if (occupied.has(k)) DISPLACED.add(id);
-    else occupied.set(k, id);
+    if (occupied.has(k)) {
+      DISPLACED.add(id);
+      g = nearestFreeCell(g);
+    }
+    occupied.set(keyOf(g), id);
     GRID[id] = g;
   }
 }
 // Rooms unreachable from any seed still need coordinates (defensive).
 let nextSlot = 300;
 for (const id of Object.keys(ROOMS)) {
-  if (!GRID[id]) GRID[id] = [nextSlot++, 0, 0];
+  if (!GRID[id]) {
+    while (occupied.has(`${nextSlot},0,0`)) nextSlot++;
+    GRID[id] = [nextSlot++, 0, 0];
+    occupied.set(keyOf(GRID[id]), id);
+    DISPLACED.add(id);
+  }
 }
 
 // Hierarchical address: province:city:districtKey:roomId. Derived at runtime
@@ -235,8 +240,8 @@ function isPortal(roomId, dir, dest) {
   return PORTALS.has(`${roomId}:${dir}>${dest}`);
 }
 
-// Cross-check data/world.js against the grid. Because GRID is derived FROM
-// the exits, geometry can no longer disagree; what remains to verify is
+// Cross-check graph completeness. Render coordinates are approximate; this
+// check does not certify compass geometry or reference-map fidelity. Verify
 // completeness (every room gridded, every destination defined) and
 // reciprocity (each exit has its opposite), plus portal-exempt links.
 export function validateWorld(rooms) {

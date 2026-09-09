@@ -26,3 +26,14 @@ The configured external archive `~/elanthipedia-dump/` is absent on this machine
 6. Add tests against verified facts and representative end-to-end routes, not against coordinates copied from the implementation.
 
 No geography or simulator behavior was changed by this review. Validation: `node --test test/map-facts.test.mjs test/grid.test.mjs` — 6/6 passed (`/tmp/dr-map-review-tests.log`).
+
+
+## Implemented correction
+
+The Alchemy/Engineering relationship now follows the saved correction note: Engineering east → Alchemy; Alchemy west → Engineering. The adjacent Traders' Road connection now enters Alchemy, retaining a connected, reciprocal society district. The duplicated reversed fact was replaced with a single assertion whose provenance explicitly says the original image has not been reverified. This changes routes through that small district; generated scripts should regenerate from the current world graph.
+
+Grid placement now reserves unique final coordinates, relocates collisions deterministically, and registers fallback rooms in reverse lookup. All rooms round-trip through `roomAt(...GRID[id])`. Comments no longer claim that all edges are geometrically exact. Movement remains driven by authored exits, so coordinate relocation does not create new gameplay connections. Nine focused tests pass, including unique coordinates, reference direction and bidirectional routes for Town Green/Barbarian guild/bazaar/forging/societies/West Gate. The test file is `test/map-facts.test.mjs`; the earlier reference to `test/grid.test.mjs` was erroneous (that separate file does not exist).
+
+Unresolved fidelity scope: synthetic streets, compressed interiors and exact reference topology still require the approved original map/submaps. Searches of the project and Codex files did not find a replacement for the missing external archive. No speculative interiors or replacement city layout were introduced. No sims or shared-world restart were performed.
+
+Full validation after these corrections: 484/484 tests passed with no skips (`/tmp/dr-map-fix-tests.log`), plus syntax and data-reference checks.
