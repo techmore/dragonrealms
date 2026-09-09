@@ -3,6 +3,7 @@
 // session is deliberately never sufficient. Enable with DR_ENABLE_API=1 and
 // configure DR_GM_TOKEN.
 
+import { simRunRequest } from './sim-runs.js';
 import { roomById, ZONES, ROOMS } from '../data/world.js';
 import { addressOf } from '../data/grid.js';
 import { NPCS, npcById } from '../data/npcs.js';
@@ -46,6 +47,7 @@ export function gmRequest(req, res, game, { gmToken = process.env.DR_GM_TOKEN } 
   const which = parts[0];
 
   switch (which) {
+    case 'sim-runs': return simRunRequest(req, res);
     case 'summary': return gmSummary(res, game);
     case 'world': return gmWorld(res, game);
     case 'room': return gmRoom(res, game, parts[1]);

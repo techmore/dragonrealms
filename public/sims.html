@@ -541,11 +541,41 @@
 
     <!-- ===================== LAUNCH ===================== -->
     <section id="launch" class="launch-collapsed">
-      <h2>Launch a sim
-        <span class="right"><span class="sub" id="agstate">&#9675; none running</span>
-          <button class="btn" id="launch-toggle" aria-expanded="false">configure ad-hoc run</button></span>
+      <h2>Run a comparison
+        <span class="right"><button class="btn" id="launch-toggle" aria-expanded="false">configure ad-hoc run</button></span>
       </h2>
+      <div id="benchmark-launch" class="benchmark-launch">
+        <p><b>Barbarian · compare the new gap-study script</b></p>
+        <p class="sub">Runs baseline, Cheap Kit, and Gap Study together. Three fresh Gor’Tog characters · target Circle 5 · EXP ×20 · matched starting stats.</p>
+        <div class="benchmark-actions">
+          <label for="benchmark-minutes">Time limit per character
+            <span><input id="benchmark-minutes" type="number" min="1" max="120" step="1" value="30"> minutes</span>
+          </label>
+          <button class="btn" type="button" data-run-minutes="15">15 min</button>
+          <button class="btn" type="button" data-run-minutes="30">30 min · standard</button>
+          <button class="btn" type="button" data-run-minutes="60">60 min</button>
+        </div>
+        <p id="benchmark-preview" class="sub"></p>
+        <p class="sub">Continues if you close this page. Each character stops at its target or time limit. Results and timestamped EXP appear in the experiment cards above. Other durations form separate comparison groups.</p>
+        <div class="benchmark-actions">
+          <button class="btn" id="benchmark-start" type="button">Start comparison</button>
+          <button class="btn live-stop" id="benchmark-stop" type="button" disabled>Stop this comparison</button>
+          <a id="benchmark-log" hidden target="_blank" rel="noopener">Open run log</a>
+        </div>
+        <p id="benchmark-status" role="status" aria-live="polite">Checking run controls…</p>
+        <p id="benchmark-error" role="alert"></p>
+      </div>
+      <style>
+        .benchmark-launch { padding:16px; border:1px solid var(--line, #46505a); border-radius:8px; margin:12px 0; }
+        .benchmark-actions { display:flex; flex-wrap:wrap; align-items:end; gap:10px; }
+        .benchmark-actions label { display:flex; flex-direction:column; gap:6px; }
+        #benchmark-minutes { width:82px; padding:8px; }
+        #benchmark-error { color:#f5a69e; }
+        .benchmark-actions .btn { min-height:40px; }
+      </style>
+      <script type="module" src="/js/admin/sim-run-controls.js"></script>
       <div class="controls">
+        <p class="sub" id="agstate">&#9675; no browser agents running</p>
         <p class="sub">Each launch creates a fresh character and account. Existing characters are never reused. Choose an unused name.</p><p id="ag-error" role="alert" class="sub"></p><label for="ag-name" class="sub">name</label>
         <input id="ag-name" type="text" spellcheck="false" autocomplete="off" style="min-width:150px">
         <label for="ag-race" class="sub">race</label>

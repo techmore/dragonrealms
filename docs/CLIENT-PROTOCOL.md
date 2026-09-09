@@ -119,3 +119,21 @@ library until the user explicitly copies and saves a script to the current
 character. Character scripts remain on the server; browser-config export is not a
 backup of that character's server library. Deleting a character script does not
 cause an archived same-name copy to become runnable again.
+
+## Sims comparison controls
+
+The visible Sims run panel starts the three-worker Barbarian comparison
+(baseline, edgedSkinCheapKit, edgedSkinGapStudy) with a 1–120 minute cap.
+Thirty minutes is standard; custom durations belong to separate cohorts.
+The workers use Gor'Tog, paired-fixed-v1, Circle 5, boost 20, and publish
+normal sweep artifacts to public/live. Closing the page does not stop them.
+
+GM-authenticated GET/POST `/api/gm/sim-runs` exposes status and accepts
+`{action:"start",minutes:30}` or `{action:"stop"}`. Launch arguments are
+fixed server-side; requests cannot select executables, ports or paths.
+The launcher targets this server's port, rejects concurrent sweep processes,
+and stops only its own child. Each launch has a durable launcher log;
+its run ID is discovered from the experiment manifest. After a server
+restart, an existing sweep is reported as external and cannot be stopped
+by this control. The script cap remains active. These endpoints require
+the updated server to be restarted; open Sims from Admin for GM access.

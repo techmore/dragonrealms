@@ -176,3 +176,13 @@ test('GM DB browser cannot expose password or bearer-token material', async () =
     assert.ok(!text.includes(token), 'session bearer token absent from response');
   }
 });
+
+test('sim launcher requires GM authorization and validates limits before spawning', async () => {
+  const post = (credential, body) => fetch(base + '/api/gm/sim-runs', {
+    method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${credential}`},body:JSON.stringify(body),
+  });
+  assert.equal((await post(token,{action:'start',minutes:30})).status,403);
+  assert.equal((await post(GM_TOKEN,{action:'start',minutes:0})).status,400);
+  assert.equal((await post(GM_TOKEN,{action:'unknown'})).status,400);
+  assert.equal((await gmFetch('/sim-runs')).status,200);
+});
