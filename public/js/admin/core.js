@@ -71,11 +71,24 @@ function toast(msg) {
 // Persisted, and deep-linkable via #tab=<name> (the banner's "Enter token"
 // fix button deep-links to the Ops tab).
 function gotoTab(name) {
-  document.querySelectorAll('.tabs [data-tab]').forEach((b) =>
-    b.setAttribute('aria-selected', String(b.dataset.tab === name)));
-  document.querySelectorAll('.tabpanel').forEach((p) =>
-    p.hidden = p.dataset.pane !== name);
+  const tabs = [...document.querySelectorAll('.tabs [data-tab]')];
+  const panes = [...document.querySelectorAll('.tabpanel')];
+  if (!tabs.some((b) => b.dataset.tab === name) || !panes.some((p) => p.dataset.pane === name)) return false;
+  for (const b of tabs) {
+    const selected = b.dataset.tab === name;
+    b.id = 'admin-tab-' + b.dataset.tab;
+    b.setAttribute('aria-controls', 'admin-pane-' + b.dataset.tab);
+    b.setAttribute('aria-selected', String(selected));
+    b.tabIndex = selected ? 0 : -1;
+  }
+  for (const p of panes) {
+    p.id = 'admin-pane-' + p.dataset.pane;
+    p.setAttribute('role', 'tabpanel');
+    p.setAttribute('aria-labelledby', 'admin-tab-' + p.dataset.pane);
+    p.hidden = p.dataset.pane !== name;
+  }
   try { localStorage.setItem('dr_admin_tab', name); } catch {}
+  return true;
 }
 // Sims-page agent panels (js/admin/agents.js) may ask this page to surface
 // a message (e.g. "live watch needs DR_GM_TOKEN") instead of opening a tab.

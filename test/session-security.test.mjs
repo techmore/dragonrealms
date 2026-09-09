@@ -96,7 +96,7 @@ function openClient() {
             waiter.timer = setTimeout(() => {
               const pos = waiters.indexOf(waiter);
               if (pos >= 0) waiters.splice(pos, 1);
-              waitReject(new Error('Timed out waiting for WebSocket message.'));
+              waitReject(new Error('Timed out waiting for WebSocket message: ' + predicate.toString()));
             }, timeoutMs);
             waiters.push(waiter);
           });
@@ -213,6 +213,108 @@ test('disconnect preserves a valid session while explicit logout revokes it', as
 
   resumed.send({ t: 'logout' });
   await resumed.waitFor(isNoticeContaining('logged out'));
+  const loggedOut = await resumed.waitFor((msg) => msg.t === 'login_prompt' && msg.reason === 'logout');
+  assert.ok(loggedOut.features.includes('panels-v1'));
   assert.equal(validateSession(accountToken), null, 'explicit logout revokes the session');
   await resumed.close();
+});
+
+test('expired token has a machine-readable error without granting access', async () => {
+  const client = await openClient();
+  client.send({ t: 'token', token: 'expired-token' });
+  const response = await client.waitFor((msg) => msg.t === 'error');
+  assert.equal(response.code, 'SESSION_EXPIRED');
+  client.send({ t: 'panel_request', requestId: 'anonymous', panel: 'score' });
+  const panel = await client.waitFor((msg) => msg.t === 'panel_response');
+  assert.equal(panel.requestId, 'anonymous');
+  assert.equal(panel.ok, false);
+  await client.close();
+});
+
+test('panel requests are correlated, read-only, and do not expand aliases', async () => {
+  const account = await registerAccount('panelreader', 'panel-password');
+  const id = createCharacter(account.accountId, { name: 'Panelreader', race: 'human', guild: 'barbarian' });
+  const login = await loginAccount('panelreader', 'panel-password');
+  const client = await openClient();
+  client.send({ t: 'token', token: login.token });
+  await client.waitFor((msg) => msg.t === 'authed');
+  client.send({ t: 'charselect', id });
+  await client.waitFor((msg) => msg.t === 'enter');
+  const p = game.players.get(id);
+  const initialRoom = p.room;
+  p.aliases.score = 'n';
+  client.send({ t: 'panel_request', requestId: 'score-1', panel: 'score' });
+  const response = await client.waitFor((msg) => msg.t === 'panel_response');
+  assert.equal(response.requestId, 'score-1');
+  assert.equal(response.ok, true);
+  assert.match(response.lines.join('\n'), /Panelreader/);
+  assert.equal(p.room, initialRoom);
+  for (const panel of ['n', 'score; n', '__proto__']) {
+    client.send({ t: 'panel_request', requestId: panel, panel });
+    assert.equal((await client.waitFor((msg) => msg.t === 'panel_response')).ok, false);
+  }
+  assert.equal(p.room, initialRoom);
+  client.send({ t: 'input', line: 'say separate chat' });
+  const chat = await client.waitFor((msg) => msg.channel === 'say');
+  assert.match(chat.msg, /separate chat/);
+  assert.equal(chat.requestId, undefined);
+  await client.close();
+});
+
+test('leaving live watch restores login, creation, allocation, playing and selection screens', async () => {
+  const client = await openClient();
+  await client.waitFor((msg) => msg.t === 'login_prompt');
+  async function watchAndReturn(state, type) {
+    client.send({ t: 'spectate', name: target.name, gmToken: process.env.DR_GM_TOKEN });
+    await client.waitFor((msg) => msg.t === 'room' && msg.roomId === target.room);
+    assert.equal(watcherCount(target), 1);
+    client.send({ t: 'unspectate' });
+    const restored = await client.waitFor((msg) => msg.t === 'session_restore');
+    assert.equal(restored.state, state);
+    assert.equal(watcherCount(target), 0);
+    return client.waitFor((msg) => msg.t === type);
+  }
+  await watchAndReturn('login', 'login_prompt');
+  client.send({ t: 'register', u: 'restorewatcher', p: 'restore-pass-123' });
+  const authed = await client.waitFor((msg) => msg.t === 'authed');
+  await client.waitFor((msg) => msg.t === 'charcreate');
+  await watchAndReturn('charcreate', 'charcreate');
+  client.send({ t: 'charcreate', name: 'Restorewatcher', race: 'human', guild: 'barbarian' });
+  await client.waitFor((msg) => msg.t === 'charalloc');
+  client.send({ t: 'alloc', stat: 'str', amt: 5 });
+  const allocated = await client.waitFor((msg) => msg.t === 'charalloc');
+  const restored = await watchAndReturn('charcreate_playing', 'charalloc');
+  assert.equal(restored.msg, allocated.msg, 'allocation draft survives watching');
+  await client.waitFor((msg) => msg.t === 'charcreate');
+  client.send({ t: 'enter' });
+  await client.waitFor((msg) => msg.t === 'enter');
+  await client.waitFor((msg) => msg.t === 'room');
+  const own = [...game.players.values()].find((p) => p.name === 'Restorewatcher');
+  const corpses = own.corpses;
+  const entered = await watchAndReturn('playing', 'enter');
+  assert.equal(entered.resumed, true);
+  const room = await client.waitFor((msg) => msg.t === 'room');
+  assert.equal(room.roomId, own.room);
+  assert.equal(own.corpses, corpses, 'return does not re-enter/reset the player');
+  client.send({ t: 'token', token: authed.token });
+  await client.waitFor((msg) => msg.t === 'authed');
+  await client.waitFor((msg) => msg.t === 'charselect');
+  const selection = await watchAndReturn('charselect', 'charselect');
+  assert.match(selection.msg, /Restorewatcher/);
+  await client.close();
+});
+
+test('a missing watch target restores the original session and stops an old stream', async () => {
+  const client = await openClient();
+  await client.waitFor((msg) => msg.t === 'login_prompt');
+  client.send({ t: 'spectate', name: target.name, gmToken: process.env.DR_GM_TOKEN });
+  await client.waitFor((msg) => msg.t === 'room');
+  client.send({ t: 'spectate', name: 'NobodyOnlineByThisName' });
+  const error = await client.waitFor((msg) => msg.code === 'SPECTATE_FAILED');
+  assert.match(error.msg, /No adventurer/);
+  const restored = await client.waitFor((msg) => msg.t === 'session_restore');
+  assert.equal(restored.state, 'login');
+  await client.waitFor((msg) => msg.t === 'login_prompt');
+  assert.equal(watcherCount(target), 0);
+  await client.close();
 });

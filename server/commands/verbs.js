@@ -2,6 +2,7 @@
 // command modules don't chain imports (combat -> magic -> items ->
 // character): each verb lives here with its own dependencies, and the
 // per-module registries import from this one file.
+import { craftAffinity, knownCraftTechs } from '../crafting-policy.js';
 import { roomById } from '../../data/world.js';
 import { npcById } from '../../data/npcs.js';
 import {
@@ -27,15 +28,6 @@ export function loadWord(p) {
 
 const VERB_SKILL = { forge: 'forging', shape: 'engineering', tailor: 'outfitting', craft: 'alchemy', enchant: 'enchanting' };
 
-// Guild crafting affiliations (DR: free technique slots per discipline).
-const CRAFT_AFFINITY = {
-  forge: { barbarian: 3 },  // Weaponsmithing
-  shape: { trader: 2 },     // Engineering
-  tailor: { paladin: 3, ranger: 2 }, // Armorsmithing, Tailoring
-  craft: { empath: 2 },     // Remedies
-  enchant: { warmage: 2, moonmage: 2 }, // Artificing/Binding
-};
-
 const CRAFT_TECH_COST = 75;
 const ORDER_VERBS = {
   forge: { npc: 'the forge-master' },
@@ -44,14 +36,6 @@ const ORDER_VERBS = {
   craft: { npc: 'the herbalist' },
   enchant: { npc: 'the artificer' },
 };
-
-function craftAffinity(guildId, craft) {
-  return (CRAFT_AFFINITY[craft] && CRAFT_AFFINITY[craft][guildId]) || 0;
-}
-
-function knownCraftTechs(p, skill) {
-  return ((p.craftTechs || {})[skill]) || [];
-}
 
 export function stationVerbs(p) {
   if (p.room === 'forge') return ['forge'];
@@ -66,6 +50,7 @@ export function stationVerbs(p) {
 export function learnSpell(ctx) {
   const { game, p, arg1, emit } = ctx;
   const guild = p.guild;
+  if (!guild) return emit('You have no guild — join one at its hall before learning spells.');
   if (!guild.magic) return emit('Your guild forswears magic.');
   const spell = spellById(guild, arg1);
   if (!spell) {
@@ -97,7 +82,7 @@ export function craftTechnique(ctx) {
   const { game, p, arg1, arg2, emit } = ctx;
   const verbs = stationVerbs(p);
   const skills = [...new Set(verbs.map((v) => VERB_SKILL[v]))];
-  const slotsFor = (skill) => craftSlotsFor(skillRank(p, skill), craftAffinity(p.guild.id, verbOfSkill(skill)) > 0);
+  const slotsFor = (skill) => craftSlotsFor(skillRank(p, skill), p.guild ? craftAffinity(p.guild.id, verbOfSkill(skill)) > 0 : false);
   const verbOfSkill = (skill) => verbs.find((v) => VERB_SKILL[v] === skill);
 
   if (arg1 && arg1.toLowerCase() === 'learn') {

@@ -226,7 +226,8 @@
     <div class="chargen-card">
       <div class="form-kicker">NEW ADVENTURER</div>
       <h2 id="cg-title">Choose your path</h2>
-      <label>Name <input id="cg-name" maxlength="16" placeholder="e.g. Thornmoor" autocomplete="off"></label>
+      <label>Name <input id="cg-name" maxlength="20" aria-describedby="cg-name-hint cg-error" placeholder="e.g. Thornmoor" autocomplete="off"></label>
+      <p id="cg-name-hint" class="cg-flavor">Choose a name of 2–20 letters.</p>
       <div class="cg-choice-grid">
         <label>Race
           <select id="cg-race"></select>
@@ -244,6 +245,7 @@
         </select>
       </label>
       <button id="cg-submit">Create character</button>
+      <p id="cg-error" class="welcome-err" role="alert"></p>
       <pre id="cg-alloc" aria-live="polite"></pre>
       <div id="cg-alloc-row" class="cg-alloc-row" hidden>
         <select id="cg-stat" aria-label="Statistic"></select>
@@ -384,7 +386,7 @@
         <tbody>
           <tr><td><kbd>Enter</kbd></td><td>send the typed command</td></tr>
           <tr><td><kbd>&uarr;</kbd> / <kbd>&darr;</kbd></td><td>command history</td></tr>
-          <tr><td><kbd>Tab</kbd></td><td>complete a command or argument</td></tr>
+          <tr><td><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd></td><td>complete a command or argument / move to the previous control</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd> or <code>/search</code></td><td>search the scrollback</td></tr>
           <tr><td><kbd>End</kbd></td><td>jump back to live output</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td><td>font size up / down / reset</td></tr>

@@ -7,10 +7,13 @@ import { commands as items } from './items.js';
 import { commands as shops } from './shops.js';
 import { commands as character } from './character.js';
 import { commands as world } from './world.js';
+import { commands as directions } from './dir.js';
+import { commands as guildJoin } from './join.js';
 
 const COMMAND_MODULES = [
   ['combat', combat], ['magic', magic], ['items', items],
   ['shops', shops], ['character', character], ['world', world],
+  ['directions', directions], ['guildJoin', guildJoin],
 ];
 
 export function mergeCommandModules(modules) {
@@ -29,6 +32,18 @@ export function mergeCommandModules(modules) {
 }
 
 const REGISTRY = mergeCommandModules(COMMAND_MODULES);
+
+const PANEL_COMMANDS = new Set(['inventory', 'score', 'info', 'skills', 'exp', 'spells']);
+
+// Invoke only known read-only views, bypassing player aliases and chaining.
+// Their output is returned as one response, never captured from live traffic.
+export function readPanel(game, p, cmd) {
+  if (!PANEL_COMMANDS.has(cmd)) return { ok: false, error: 'Unknown character panel.' };
+  const lines = [];
+  const say = (text) => lines.push(String(text));
+  REGISTRY[cmd]({ game, p, cmd, args: [cmd], rest: '', arg1: undefined, arg2: undefined, say, emit: say });
+  return { ok: true, lines };
+}
 
 import { setRoundtime, roundtimeLeft, netBurden, say as sendLine } from '../player.js';
 
@@ -119,6 +134,11 @@ export function handleCommand(game, p, input, depth = 0, opts = {}) {
     // desperation flight is evasion-gated (disengage chance), not RT-gated.
     const desperateFlee = cmd === 'flee' && p.maxHp > 0 && p.hp / p.maxHp < 0.3;
     if (opts.applyRT && RT_BLOCK.has(cmd) && !desperateFlee && roundtimeLeft(p) > 0) {
+      const fight = cmd === 'flee' ? game.combat.getFor(p) : null;
+      if (fight?.player === p) {
+        fight.fleePending = true;
+        return emit('You stop swinging and prepare to flee when your roundtime ends.');
+      }
       return emit(`You must wait ${roundtimeLeft(p)} second${roundtimeLeft(p) === 1 ? '' : 's'} before you can do that.`);
     }
     handler(ctx);

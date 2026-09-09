@@ -22,7 +22,7 @@ function stanceDesc(name) {
 // ---------------- engagement ----------------
 function khri(ctx) {
   const { p, arg1, emit } = ctx;
-  if (p.guild.id !== 'thief') return emit('Only thieves weave khri.');
+  if (p?.guild?.id !== 'thief') return emit('Only thieves weave khri.');
   if (!arg1) {
     const active = Object.entries(p.khri || {}).filter(([, t]) => t > 0).map(([id]) => KHRI[id]?.name || id);
     const lines = Object.values(KHRI).map((k) => `  ${pad(k.name, 12)} ${k.cost} concentration — ${k.desc}`);
@@ -75,8 +75,8 @@ function target(ctx) {
 function hide(ctx) {
   const { game, p, emit } = ctx;
   if (!game.isWild(p.room)) return emit('There is nowhere to hide in town.');
-  if (p.combatId && p.guild.id !== 'thief') return emit('Only thieves can vanish into the chaos of a fight.');
-  const thief = p.guild.id === 'thief' ? 2 : 1;
+  if (p.combatId && p?.guild?.id !== 'thief') return emit('Only thieves can vanish into the chaos of a fight.');
+  const thief = p?.guild?.id === 'thief' ? 2 : 1;
   const leveled = gainSkillExp(p, 'hiding', 5 * thief);
   const leveled2 = gainSkillExp(p, 'stealth', 5 * thief);
   p.hidden = true;
@@ -117,7 +117,7 @@ function ambush(ctx) {
 
 function snipe(ctx) {
   const { game, p, arg1, emit } = ctx;
-  if (p.guild.id !== 'ranger') return emit('Only rangers know how to put a shaft through the heart.');
+  if (p?.guild?.id !== 'ranger') return emit('Only rangers know how to put a shaft through the heart.');
   if (!p.hidden) return emit('You must be hiding to snipe. Try "hide" first.');
   let combat = game.combat.getFor(p);
   if (combat && combat.defender === p) return emit('You are locked in an automatic duel.');
@@ -141,7 +141,7 @@ const SLIP_COOLDOWN_MS = 60 * 1000;
 
 function slip(ctx) {
   const { game, p, emit } = ctx;
-  if (p.guild.id !== 'ranger') return emit('Only rangers know how to slip away.');
+  if (p?.guild?.id !== 'ranger') return emit('Only rangers know how to slip away.');
   if (p.slipAt && Date.now() - p.slipAt < SLIP_COOLDOWN_MS) {
     const secs = Math.ceil((SLIP_COOLDOWN_MS - (Date.now() - p.slipAt)) / 1000);
     return emit(`You cannot vanish again so soon (${secs}s).`);
@@ -255,7 +255,7 @@ function stance(ctx) {
   const name = arg1.toLowerCase();
   if (!STANCES.includes(name)) return emit('Valid stances: aggressive, defensive, guarded, balanced.');
   const cost = STANCE_COSTS[name] || 0;
-  if (cost > pts) return emit(`You need ${cost} stance points for ${name}; you have ${pts}.${p.guild.id === 'barbarian' ? ' Barbarians gain +1 point per 60 Defending ranks.' : p.guild.id === 'ranger' ? ' Rangers gain points from their defense skills.' : ''}`);
+  if (cost > pts) return emit(`You need ${cost} stance points for ${name}; you have ${pts}.${p?.guild?.id === 'barbarian' ? ' Barbarians gain +1 point per 60 Defending ranks.' : p?.guild?.id === 'ranger' ? ' Rangers gain points from their defense skills.' : ''}`);
   p.stance = name;
   game.persistPlayer(p);
   emit(`You adopt a ${name} stance (${cost} point${cost === 1 ? '' : 's'}; ${pts - cost} remain). ${stanceDesc(name)}`);
@@ -317,7 +317,7 @@ function tend(ctx) {
 
 function berserk(ctx) {
   const { game, p, emit } = ctx;
-  if (p.guild.id !== 'barbarian') return emit('Only barbarians know the fury.');
+  if (p?.guild?.id !== 'barbarian') return emit('Only barbarians know the fury.');
   const combat = game.combat.getFor(p);
   if (!combat) return emit('The fury stirs only in battle.');
   combat.toggleBerserk();
@@ -328,7 +328,7 @@ function berserk(ctx) {
 // ---------------- barbarian arts ----------------
 function abilities(ctx) {
   const { p, say, emit } = ctx;
-  if (p.guild.id !== 'barbarian') return emit('Only barbarians wield inner fire abilities.');
+  if (p?.guild?.id !== 'barbarian') return emit('Only barbarians wield inner fire abilities.');
   const slots = barbarianSlots(p.circle);
   const used = (p.abilities || []).length;
   const rows = barbarianAbilitiesFor(p).map((a) => {
@@ -340,7 +340,8 @@ function abilities(ctx) {
 
 function learn(ctx) {
   const { game, p, arg1, emit } = ctx;
-  if (p.guild.magic) return learnSpell(ctx);
+  if (p?.guild?.magic) return learnSpell(ctx);
+  if (!p.guild) return emit('You have no guild — join one at its hall to learn its arts.');
   if (p.guild.id !== 'barbarian') return emit('Only barbarians learn inner fire abilities.');
   if (roomById(p.room).id !== 'hall_barbarian') return emit('Abilities are taught at the barbarian guildhall.');
   if (!arg1) return emit('Learn what? See "abilities".');
@@ -365,7 +366,7 @@ function learn(ctx) {
 
 function barbarianAbility(ctx, kind) {
   const { game, p, arg1, arg2, cmd, emit } = ctx;
-  if (p.guild.id !== 'barbarian') return emit('Only barbarians know these arts.');
+  if (p?.guild?.id !== 'barbarian') return emit('Only barbarians know these arts.');
   const def = arg1 ? barbarianAbilityById(arg1.toLowerCase()) : null;
   if (!def || def.kind !== kind) return emit(`Usage: ${cmd} <ability>. See "abilities".`);
   if (!(p.abilities || []).includes(def.id)) return emit(`You have not learned ${def.name}.`);
@@ -387,7 +388,7 @@ function barbarianAbility(ctx, kind) {
 
 function barbarianTech(ctx, abilityId) {
   const { game, p, emit } = ctx;
-  if (p.guild.id !== 'barbarian') return emit('Only barbarians know this art.');
+  if (p?.guild?.id !== 'barbarian') return emit('Only barbarians know this art.');
   const combat = game.combat.getFor(p);
   if (!combat) return emit('That takes battle around you.');
   const def = barbarianAbilityById(abilityId);
@@ -402,7 +403,7 @@ function barbarianTech(ctx, abilityId) {
 // mage's lash): works in combat, may need a named target.
 function barbarianUse(ctx, abilityId) {
   const { game, p, arg1, emit } = ctx;
-  if (p.guild.id !== 'barbarian') return emit('Only barbarians know this art.');
+  if (p?.guild?.id !== 'barbarian') return emit('Only barbarians know this art.');
   const combat = game.combat.getFor(p);
   if (!combat) return emit('That takes battle around you.');
   const def = barbarianAbilityById(abilityId);
@@ -422,7 +423,7 @@ function barbarianUse(ctx, abilityId) {
 
 function analyze(ctx) {
   const { game, p, arg1, emit } = ctx;
-  if (p.guild.id !== 'barbarian') return emit('Only barbarians know this art.');
+  if (p?.guild?.id !== 'barbarian') return emit('Only barbarians know this art.');
   const combat = game.combat.getFor(p);
   if (!combat) return emit('That takes battle around you.');
   const kind = (arg1 || 'flame').toLowerCase();
@@ -433,7 +434,7 @@ function analyze(ctx) {
 
 function belch(ctx) {
   const { p, emit } = ctx;
-  if (p.guild.id === 'barbarian') {
+  if (p?.guild?.id === 'barbarian') {
     emit(['You let out a belch that echoes off the walls, deep and satisfied.', 'A mighty belch rumbles out of you. The warchief would be proud.', 'You belch. Somewhere, a goblin takes it as a challenge.'][Math.floor(Math.random() * 3)]);
   } else {
     emit('You burp quietly and mumble an apology.');
@@ -442,9 +443,9 @@ function belch(ctx) {
 
 function shakeHand(ctx) {
   const { p, arg1, emit } = ctx;
-  if (p.guild.id === 'barbarian' && arg1) {
+  if (p?.guild?.id === 'barbarian' && arg1) {
     emit(`You seize ${arg1}'s hand in a grip like iron and grind it once, firmly. A proper barbarian greeting.`);
-  } else if (p.guild.id === 'barbarian') {
+  } else if (p?.guild?.id === 'barbarian') {
     emit('You shake your own hand, practicing the proper barbarian grip. It feels right.');
   } else {
     emit(arg1 ? `You shake hands with ${arg1}.` : 'You shake hands with the air. Perhaps greet someone first.');
@@ -453,7 +454,7 @@ function shakeHand(ctx) {
 
 function backstab(ctx) {
   const { game, p, emit } = ctx;
-  if (p.guild.id !== 'thief') return emit('Only thieves know this art.');
+  if (p?.guild?.id !== 'thief') return emit('Only thieves know this art.');
   const combat = game.combat.getFor(p);
   if (!combat) return emit('You need a target in combat.');
   combat.backstab();
@@ -462,7 +463,7 @@ function backstab(ctx) {
 
 function smite(ctx) {
   const { game, p, arg1, emit } = ctx;
-  if (p.guild.id !== 'paladin') return emit('Only paladins smite.');
+  if (p?.guild?.id !== 'paladin') return emit('Only paladins smite.');
   const soul = p.soul ?? 50;
   if (soul < 15) return emit(`Your soul is too dim to smite (${soul}). Pray at the temple or slay the undead to restore it.`);
   let combat = game.combat.getFor(p);
@@ -502,7 +503,7 @@ function smite(ctx) {
 
 function impede(ctx) {
   const { game, p, arg1, emit } = ctx;
-  if (p.guild.id !== 'warmage') return emit('Only warrior mages bind the elements.');
+  if (p?.guild?.id !== 'warmage') return emit('Only warrior mages bind the elements.');
   let combat = game.combat.getFor(p);
   if (combat && combat.defender === p) return emit('You are locked in an automatic duel.');
   let uid = combat ? combat.playerTarget : null;

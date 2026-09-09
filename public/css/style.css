@@ -1135,7 +1135,7 @@ body[data-theme="ember"] #terminal b { color: #f5ead6; }
 }
 .script-row button:hover { border-color: var(--red); }
 .script-add { margin-top: 10px; }
-.script-add input, .script-add select {
+.script-add input, .script-add select, .script-add textarea {
   width: 100%;
   background: var(--bg);
   color: var(--text);
@@ -1974,3 +1974,7 @@ body.in-combat #inputbar { border-top-color: color-mix(in srgb, var(--red) 65%, 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+.script-add textarea { resize: vertical; min-height: 110px; box-sizing: border-box; }
+.script-add label { display: block; margin: 6px 0 3px; }
+.script-add p { font-size: 12px; overflow-wrap: anywhere; }

@@ -1,9 +1,11 @@
 // Item commands: inventory, gear, consumables, corpses, crime, crafting.
 import { roomById } from '../../data/world.js';
 import { db } from '../db.js';
+import { craftAffinity, knownCraftTechs } from '../crafting-policy.js';
+import { finishCraft, claimWorkOrder } from '../crafting.js';
 import { ITEMS, itemById } from '../../data/items.js';
 import { RECIPES, recipeById } from '../../data/recipes.js';
-import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll, QUALITY_LADDER, CRAFT_TECHNIQUES, craftSlotsFor } from '../../data/forging.js';
+import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll, QUALITY_LADDER, CRAFT_TECHNIQUES } from '../../data/forging.js';
 import { ENCHANT_RECIPES, enchantRecipeById } from '../../data/enchanting.js';
 import { npcById } from '../../data/npcs.js';
 import {
@@ -21,38 +23,8 @@ const ORDER_VERBS = {
   tailor: { npc: 'Mara', skill: 'outfitting', recipes: OUTFIT_RECIPES },
   craft: { npc: 'Fennel', skill: 'alchemy', recipes: RECIPES },
 };
-const ROOM_VERBS = {
-  forge: ['forge', 'shape'],
-  tailor_shop: ['tailor'],
-};
-
-
 function qualityNameFor(mult) {
   return (QUALITY_LADDER.find((q) => Math.abs(q.mult - mult) < 0.001) || {}).name || 'serviceable';
-}
-
-// Called after a successful craft: consumes the output into an active work
-// order when verb/recipe/quality all match. Returns a message or null.
-function completeOrderStep(p, verb, recipeId, qMult) {
-  const o = p.workOrder;
-  if (!o || o.done || o.verb !== verb || o.recipeId !== recipeId) return null;
-  if (o.qualMult && qMult != null && qMult < o.qualMult) return null;
-  o.done = true;
-  return `You set it aside for ${o.npc}'s order — "order claim" collects your ${o.pay} silvers.`;
-}
-
-// Guild crafting affiliations (DR: free technique slots per discipline).
-// A guild's crafters hold a natural edge in their traditional trades.
-const CRAFT_AFFINITY = {
-  forge: { barbarian: 3 },  // Weaponsmithing
-  shape: { trader: 2 },     // Engineering
-  tailor: { paladin: 3, ranger: 2 }, // Armorsmithing, Tailoring
-  craft: { empath: 2 },     // Remedies
-  enchant: { warmage: 2, moonmage: 2 }, // Artificing/Binding
-};
-
-function craftAffinity(guildId, craft) {
-  return (CRAFT_AFFINITY[craft] && CRAFT_AFFINITY[craft][guildId]) || 0;
 }
 
 // Loose hides, pelts, and shells can be bundled for easier carrying.
@@ -65,13 +37,6 @@ function isBundleable(item) {
 }
 
 // ---- Crafting techniques (P26) ----
-const CRAFT_TECH_COST = 75;
-const VERB_SKILL = { forge: 'forging', shape: 'engineering', tailor: 'outfitting', craft: 'alchemy', enchant: 'enchanting' };
-
-function knownCraftTechs(p, skill) {
-  return ((p.craftTechs || {})[skill]) || [];
-}
-
 function hasCraftTech(p, techId) {
   const def = CRAFT_TECHNIQUES[techId];
   return def ? knownCraftTechs(p, def.skill).includes(techId) : false;
@@ -264,10 +229,8 @@ export const commands = {
         return emit(`Not yet filled: ${def ? def.name : o.recipeId}, ${need}. ${o.pay} silvers on delivery.`);
       }
       const pay = Math.round(o.pay * craftOrderMultiplier(p, ORDER_VERBS[o.verb].skill));
-      p.silver += pay;
+      claimWorkOrder(p, pay);
       gainSkillExp(p, ORDER_VERBS[o.verb].skill, 18);
-      p.workOrder = null;
-      game.persistPlayer(p);
       return emit(`${o.npc} inspects the work, nods once, and counts out \x1b[1m${pay} silvers\x1b[0m. "Good hands. Come back when you're hungry."`);
     }
 
@@ -324,19 +287,13 @@ export const commands = {
     if (missing.length) {
       return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Ore drops from trolls, bandits, and the blackwood dead.`);
     }
-    for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
     // Weaponsmithing affinity: barbarians wield the forge with a natural edge
     // (DR: 3 free technique slots in the Weaponsmithing discipline).
-    const q = qualityRoll(forgeSkill + craftAffinity(p.guild.id, 'forge') + craftQualityBonus(p, 'forging'));
-    const leveled = gainSkillExp(p, 'forging', 12);
+    const q = qualityRoll(forgeSkill + craftAffinity(p.guild?.id, 'forge') + craftQualityBonus(p, 'forging'));
     const base = itemById(recipe.item);
     // Quality belongs to this concrete item, not every copy of its type.
-    const orderMsg = completeOrderStep(p, 'forge', recipe.id, q.mult);
-    if (!orderMsg) addItem(p, recipe.item, 1, { quality: q.mult, condition: 100, maker: p.name });
-    // Keep the legacy map as a last-crafted compatibility view for scripts
-    // and old saves; combat reads the equipped instance directly.
-    p.forgedQuality = p.forgedQuality || {};
-    p.forgedQuality[recipe.item] = q.mult;
+    const orderMsg = finishCraft(p, 'forge', recipe, q.mult);
+    const leveled = gainSkillExp(p, 'forging', 12);
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
     setRoundtime(p, 6);
     emit(`You work the metal at the anvil and produce ${q.name} ${base.name}.${leveled ? ' Your Forging improved!' : ''} (${Math.round(q.roll * 100)}% mastery)${orderMsg ? `\n${orderMsg}` : ''}`);
@@ -358,14 +315,10 @@ export const commands = {
     if (missing.length) {
       return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Ore and scale drop in the wilds.`);
     }
-    for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
-    const q = qualityRoll(skill + craftAffinity(p.guild.id, 'shape') + craftQualityBonus(p, 'engineering'));
-    const leveled = gainSkillExp(p, 'engineering', 12);
+    const q = qualityRoll(skill + craftAffinity(p.guild?.id, 'shape') + craftQualityBonus(p, 'engineering'));
     const base = itemById(recipe.item);
-    const orderMsg = completeOrderStep(p, 'shape', recipe.id, q.mult);
-    if (!orderMsg) addItem(p, recipe.item, 1, { quality: q.mult, condition: 100, maker: p.name });
-    p.forgedQuality = p.forgedQuality || {};
-    p.forgedQuality[recipe.item] = q.mult;
+    const orderMsg = finishCraft(p, 'shape', recipe, q.mult);
+    const leveled = gainSkillExp(p, 'engineering', 12);
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
     setRoundtime(p, 6);
     emit(`You shape the materials into ${q.name} ${base.name}.${leveled ? ' Your Engineering improved!' : ''} (${Math.round(q.roll * 100)}% mastery)${orderMsg ? `\n${orderMsg}` : ''}`);
@@ -387,14 +340,10 @@ export const commands = {
     if (missing.length) {
       return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Pelts come from the hunt.`);
     }
-    for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
-    const q = qualityRoll(skill + craftAffinity(p.guild.id, 'tailor') + craftQualityBonus(p, 'outfitting'));
-    const leveled = gainSkillExp(p, 'outfitting', 12);
+    const q = qualityRoll(skill + craftAffinity(p.guild?.id, 'tailor') + craftQualityBonus(p, 'outfitting'));
     const base = itemById(recipe.item);
-    const orderMsg = completeOrderStep(p, 'tailor', recipe.id, q.mult);
-    if (!orderMsg) addItem(p, recipe.item, 1, { quality: q.mult, condition: 100, maker: p.name });
-    p.forgedQuality = p.forgedQuality || {};
-    p.forgedQuality[recipe.item] = q.mult;
+    const orderMsg = finishCraft(p, 'tailor', recipe, q.mult);
+    const leveled = gainSkillExp(p, 'outfitting', 12);
     if (q.mult >= 1.3) unlockAchievement(p, 'master_crafter');
     setRoundtime(p, 6);
     emit(`You cut and stitch ${q.name} ${base.name}.${leveled ? ' Your Outfitting improved!' : ''} (${Math.round(q.roll * 100)}% mastery)${orderMsg ? `\n${orderMsg}` : ''}`);
@@ -418,14 +367,11 @@ export const commands = {
     if (missing.length) {
       return emit(`You lack materials: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}. Craft the base piece and gather motes from the wilds.`);
     }
-    for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
-    const q = qualityRoll(skill + craftAffinity(p.guild.id, 'enchant') + craftQualityBonus(p, 'enchanting'));
-    const leveled = gainSkillExp(p, 'enchanting', 12);
+    const q = qualityRoll(skill + craftAffinity(p.guild?.id, 'enchant') + craftQualityBonus(p, 'enchanting'));
     const base = itemById(recipe.item);
     // Quality sharpens the magic edge as well as the base stats.
-    addItem(p, recipe.item, 1, { quality: q.mult, condition: 100, maker: p.name });
-    p.forgedQuality = p.forgedQuality || {};
-    p.forgedQuality[recipe.item] = q.mult;
+    finishCraft(p, 'enchant', recipe, q.mult);
+    const leveled = gainSkillExp(p, 'enchanting', 12);
     setRoundtime(p, 6);
     emit(`Chalk flares; the mote unravels into ${base.name}, bound with a ${q.name} edge.${leveled ? ' Your Enchanting improved!' : ''} (${Math.round(q.roll * 100)}% mastery)`);
   },
@@ -446,14 +392,13 @@ export const commands = {
     if (missing.length) {
       return emit(`You lack ingredients: ${missing.map(([ing, qty]) => `${qty}x ${ing.replace(/_/g, ' ')}`).join(', ')}.`);
     }
-    for (const [ing, qty] of Object.entries(recipe.ingredients)) removeItem(p, ing, qty);
     const skill = skillRank(p, 'alchemy');
-    const chance = Math.min(0.95, 0.5 + (skill + craftAffinity(p.guild.id, 'craft')) * 0.03 + p.stats.wis * 0.003 + craftBrewBonus(p));
+    const chance = Math.min(0.95, 0.5 + (skill + craftAffinity(p.guild?.id, 'craft')) * 0.03 + p.stats.wis * 0.003 + craftBrewBonus(p));
+    const success = Math.random() < chance;
+    const orderMsg = finishCraft(p, 'craft', recipe, null, success);
     const leveled = gainSkillExp(p, 'alchemy', 10);
     setRoundtime(p, 6);
-    if (Math.random() < chance) {
-      const orderMsg = completeOrderStep(p, 'craft', recipe.id, null);
-      if (!orderMsg) addItem(p, recipe.item, 1, { maker: p.name });
+    if (success) {
       emit(`You carefully combine the ingredients and produce ${itemById(recipe.item).name}!${leveled ? ' Your Alchemy improved!' : ''}${orderMsg ? `\n${orderMsg}` : ''}`);
     } else {
       emit(`The mixture boils over, ruined.${leveled ? ' Still, your Alchemy improved!' : ''}`);

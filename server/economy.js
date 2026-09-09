@@ -8,6 +8,7 @@ import {
   unlockAchievement, isStackableItem, instanceMetadata,
 } from './player.js';
 import { db } from './db.js';
+import { transferInventory } from './inventory-transfer.js';
 import { pad } from './util.js';
 
 function weaponString(item) {
@@ -24,10 +25,10 @@ function vaultMetadata(raw) {
   }
 }
 
-export const economy = {
+const methods = {
   shopNpcsIn(p) {
     const room = roomById(p.room);
-    return (room.npcs || []).map(npcById).filter((n) => n && n.role === 'shop');
+    return (room.npcs || []).map((id) => this.shops.get(id)).filter(Boolean);
   },
 
   listShop(p) {
@@ -46,17 +47,11 @@ export const economy = {
 
   // D1 companion: purchases now deplete real stock, so shopkeepers slowly
   // restock toward their configured levels (one unit per entry per tick).
-  // The configured level is snapshotted on first tick — the live count and
-  // the target would otherwise be the same field.
+  // Targets are captured when this economy is created, before any purchase.
   restockTick() {
-    for (const room of Object.values(ROOMS)) {
-      for (const npcId of room.npcs || []) {
-        const shop = npcById(npcId);
-        if (!shop || shop.role !== 'shop') continue;
-        if (!shop.stockWant) shop.stockWant = { ...shop.stock };
-        for (const [id, want] of Object.entries(shop.stockWant)) {
-          if ((shop.stock[id] ?? 0) < want) shop.stock[id] = (shop.stock[id] ?? 0) + 1;
-        }
+    for (const [shop, targets] of this.shopTargets) {
+      for (const [id, want] of Object.entries(targets)) {
+        if ((shop.stock[id] ?? 0) < want) shop.stock[id] = (shop.stock[id] ?? 0) + 1;
       }
     }
   },
@@ -76,8 +71,10 @@ export const economy = {
     if (target.q < qty) return { ok: false, msg: 'They do not have that many in stock.' };
     const cost = target.item.value * qty;
     if (p.silver < cost) return { ok: false, msg: `You cannot afford ${cost} silvers.` };
-    p.silver -= cost;
-    addItem(p, target.item.id, qty);
+    transferInventory([p], () => {
+      p.silver -= cost;
+      addItem(p, target.item.id, qty);
+    });
     // D1 fix: decrement the shop's ACTUAL stock (previously `target.q` was a
     // copied primitive, so every shop sold infinitely and listShop never
     // changed).
@@ -97,17 +94,19 @@ export const economy = {
     if (have < qty) return { ok: false, msg: 'You do not have that many.' };
     // Golden Touch (circle-10 trader), caravan porter, and a chaffered bargain
     // stack on the shop's half-price rate.
-    let mult = p.circle >= 10 && p.guild.id === 'trader' ? 1.25 : 1;
+    let mult = p.circle >= 10 && p.guild?.id === 'trader' ? 1.25 : 1;
     if (p.caravan && p.caravan.rented && p.caravan.porter > 0) mult += 0.05;
     let chaffered = false;
     if (p.chafferNext) {
       mult += 0.1;
       chaffered = true;
-      p.chafferNext = false;
     }
     const price = Math.floor(item.value * 0.5 * mult) * qty;
-    removeItem(p, item.id, qty);
-    p.silver += price;
+    transferInventory([p], () => {
+      removeItem(p, item.id, qty);
+      p.silver += price;
+    });
+    if (chaffered) p.chafferNext = false;
     gainSkillExp(p, 'trading', 4);
     const notes = [];
     if (mult > 1.25) notes.push('your caravan earns its keep');
@@ -156,16 +155,18 @@ export const economy = {
     const entry = p.inventory.find((e) => e.item.id === itemName || e.item.name.includes(itemName));
     if (!entry) return { ok: false, msg: 'You do not have that.' };
     qty = Math.max(1, Math.min(countItems(p, entry.item.id), Math.floor(qty) || 1));
-    const removed = removeItemInstances(p, entry.item.id, qty, entry);
-    const prior = db.prepare('SELECT qty, metadata FROM vault WHERE character_id=? AND item_id=?')
-      .get(p.charId, entry.item.id);
-    const metadata = isStackableItem(entry.item)
-      ? []
-      : [...vaultMetadata(prior?.metadata), ...removed.map(instanceMetadata)];
-    db.prepare(`
-      INSERT INTO vault (character_id, item_id, qty, metadata) VALUES (?,?,?,?)
-      ON CONFLICT(character_id, item_id) DO UPDATE SET qty=excluded.qty, metadata=excluded.metadata
-    `).run(p.charId, entry.item.id, (prior?.qty || 0) + qty, JSON.stringify(metadata));
+    transferInventory([p], () => {
+      const removed = removeItemInstances(p, entry.item.id, qty, entry);
+      const prior = db.prepare('SELECT qty, metadata FROM vault WHERE character_id=? AND item_id=?')
+        .get(p.charId, entry.item.id);
+      const metadata = isStackableItem(entry.item)
+        ? []
+        : [...vaultMetadata(prior?.metadata), ...removed.map(instanceMetadata)];
+      db.prepare(`
+        INSERT INTO vault (character_id, item_id, qty, metadata) VALUES (?,?,?,?)
+        ON CONFLICT(character_id, item_id) DO UPDATE SET qty=excluded.qty, metadata=excluded.metadata
+      `).run(p.charId, entry.item.id, (prior?.qty || 0) + qty, JSON.stringify(metadata));
+    });
     return { ok: true, msg: `You store ${qty > 1 ? `${qty}x ` : ''}${entry.item.name} in your vault.` };
   },
 
@@ -181,11 +182,13 @@ export const economy = {
     const retrievedMetadata = it && !isStackableItem(it)
       ? Array.from({ length: qty }, (_, i) => instanceMetadata(storedMetadata[i] || {}))
       : null;
-    addItem(p, found.item_id, qty, retrievedMetadata);
-    const left = found.qty - qty;
-    if (left <= 0) db.prepare('DELETE FROM vault WHERE character_id=? AND item_id=?').run(p.charId, found.item_id);
-    else db.prepare('UPDATE vault SET qty=?, metadata=? WHERE character_id=? AND item_id=?')
-      .run(left, JSON.stringify(storedMetadata.slice(qty)), p.charId, found.item_id);
+    transferInventory([p], () => {
+      addItem(p, found.item_id, qty, retrievedMetadata);
+      const left = found.qty - qty;
+      if (left <= 0) db.prepare('DELETE FROM vault WHERE character_id=? AND item_id=?').run(p.charId, found.item_id);
+      else db.prepare('UPDATE vault SET qty=?, metadata=? WHERE character_id=? AND item_id=?')
+        .run(left, JSON.stringify(storedMetadata.slice(qty)), p.charId, found.item_id);
+    });
     return { ok: true, msg: `You retrieve ${qty > 1 ? `${qty}x ` : ''}${it ? it.name : found.item_id} from your vault.` };
   },
 
@@ -201,7 +204,7 @@ export const economy = {
     if (p.hp >= p.maxHp) return { ok: false, msg: 'You are already in full health.' };
     p.silver -= cost;
     p.hp = p.maxHp;
-    if (p.guild.magic) p.mana = p.maxMana;
+    if (p.guild?.magic) p.mana = p.maxMana;
     return { ok: true, msg: `Sister Cora closes her eyes and channels warmth through your body. You are restored for ${cost} silvers.` };
   },
 
@@ -241,7 +244,7 @@ export const economy = {
 
     const cur = holdings[def.id];
     if (!cur || cur.qty < qty) return { ok: false, msg: `You hold ${cur ? cur.qty : 0} unit(s) of ${def.name}.` };
-    let trader = p.guild.id === 'trader' ? 1.1 : 1;
+    let trader = p.guild?.id === 'trader' ? 1.1 : 1;
     // A caravan scribe keeps better books at the board.
     if (p.caravan && p.caravan.rented && p.caravan.scribe > 0) trader += 0.1;
     const proceeds = Math.floor(Math.floor(price * 0.92) * qty * trader);
@@ -253,3 +256,23 @@ export const economy = {
     return { ok: true, msg: `You sell ${qty} unit(s) of ${def.name} for ${proceeds} silvers${trader > 1.1 ? ' (caravan books!)' : trader > 1 ? ' (Golden Touch!)' : ''} — ${profit >= 0 ? 'a profit' : 'a loss'} of ${Math.abs(profit)}.` };
   },
 };
+
+
+// Content remains unchanged: stock and configured maxima belong to one world.
+export function createEconomy() {
+  const shops = new Map();
+  const shopTargets = new Map();
+  for (const room of Object.values(ROOMS)) {
+    for (const id of room.npcs || []) {
+      const definition = npcById(id);
+      if (definition?.role !== 'shop' || shops.has(id)) continue;
+      const shop = { ...definition, stock: { ...definition.stock }, buys: [...(definition.buys || [])] };
+      shops.set(id, shop);
+      shopTargets.set(shop, Object.freeze({ ...definition.stock }));
+    }
+  }
+  return Object.assign(Object.create(methods), { shops, shopTargets });
+}
+
+// Compatibility for direct callers. Games always construct their own economy.
+export const economy = createEconomy();

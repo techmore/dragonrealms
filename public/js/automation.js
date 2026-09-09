@@ -3,6 +3,7 @@
 import { $, escapeHtml } from './util.js';
 import { settings } from './settings.js';
 import { append } from './terminal.js';
+import { gameState } from './state.js';
 
 const MACROS_KEY = 'dr_macros';
 const TRIGGERS_KEY = 'dr_triggers';
@@ -24,6 +25,7 @@ export function saveMacros() { try { localStorage.setItem(MACROS_KEY, JSON.strin
 export function saveTriggers() { try { localStorage.setItem(TRIGGERS_KEY, JSON.stringify(triggers)); } catch {} }
 
 export function runTriggers(text) {
+  if (gameState.value !== 'playing' || gameState.spectating) return;
   const t = String(text);
   for (const tr of triggers) {
     if (tr.pattern && t.toLowerCase().includes(tr.pattern.toLowerCase())) {
@@ -31,6 +33,12 @@ export function runTriggers(text) {
       runner(tr.command);
     }
   }
+}
+
+export function stopTimers() {
+  timers.forEach((t) => clearInterval(t.id));
+  timers.length = 0;
+  scriptsDirty();
 }
 
 export function renderMacros() {
@@ -127,6 +135,7 @@ export function handleAutomation(line) {
     const cmd = parts.slice(2).join(' ');
     if (!sec || sec < 2 || !cmd) { append('Usage: timer <seconds> <command> (min 2s) | timer off', 'ch-msg'); return true; }
     const id = setInterval(() => {
+      if (gameState.value !== 'playing' || gameState.spectating) return;
       append(`> [timer] ${cmd}`, 'ch-msg');
       runner(cmd);
     }, sec * 1000);

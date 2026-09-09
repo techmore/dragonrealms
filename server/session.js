@@ -7,8 +7,8 @@ import { MAX_CHARS, putScript, delScript, charsFor } from './player.js';
 import { pushStarterScripts } from './starter-scripts.js';
 import { raceById } from '../data/races.js';
 import { guildById } from '../data/guilds.js';
-import { handleCommand } from './commands/index.js';
-import { sendChargenMenu, doCharSelect, doCharCreate, doAlloc, doEnter } from './chargen.js';
+import { handleCommand, readPanel } from './commands/index.js';
+import { sendChargenMenu, allocPanel, doCharSelect, doCharCreate, doAlloc, doEnter } from './chargen.js';
 import { subscribe, unsubscribe, subscribeWorld, forward, forwardCommand } from './spectate.js';
 import { isGmToken } from './http-auth.js';
 import { handleGmPlayMessage } from './gm-play.js';
@@ -65,7 +65,7 @@ export function attachWebSocket(httpServer, game, { gmToken } = {}) {
     };
 
     session.send({ t: 'notice', msg: '\n\x1b[1mDRAGON REALMS\x1b[0m — enter the Crossing.\nType "login" or "register" (username + password) to begin.\n' });
-    session.send({ t: 'login_prompt', msg: 'login/register' });
+    session.send({ t: 'login_prompt', msg: 'login/register', features: ['panels-v1'] });
 
     socket.on('message', (raw) => {
       let msg;
@@ -112,6 +112,7 @@ export function attachWebSocket(httpServer, game, { gmToken } = {}) {
 
 // Message routing. Exported for tests (audit C17 generation-guard spec).
 export function route(session, msg) {
+  if (session.game.shuttingDown) return;
   switch (msg.t) {
     case 'login':
     case 'register':
@@ -142,10 +143,14 @@ export function route(session, msg) {
       break;
     case 'spectate': {
       if (!authorizeGmStream(session, msg.gmToken)) {
-        return session.send({ t: 'error', msg: 'GM authorization is required to watch a live player stream.' });
+        session.send({ t: 'error', code: 'SPECTATE_FAILED', msg: 'GM authorization is required to watch a live player stream.' });
+        return restoreAfterSpectate(session);
       }
       const res = subscribe(session, msg.name);
-      if (!res.ok) return session.send({ t: 'error', msg: res.msg });
+      if (!res.ok) {
+        session.send({ t: 'error', code: 'SPECTATE_FAILED', msg: res.msg });
+        return restoreAfterSpectate(session);
+      }
       enterSpectatingState(session);
       session.send({ t: 'notice', msg: res.msg });
       break;
@@ -160,19 +165,22 @@ export function route(session, msg) {
       session.send({ t: 'notice', msg: res.msg });
       break;
     }
-    case 'unspectate': {
-      if (session.state !== 'spectating') {
-        return session.send({ t: 'notice', msg: 'You are not spectating anyone.' });
-      }
-      unsubscribe(session);
-      session.state = session.stateBeforeSpectate || (session.accountId ? 'charselect' : 'login');
-      session.stateBeforeSpectate = null;
-      session.send({ t: 'notice', msg: 'You are no longer spectating.' });
+    case 'unspectate':
+      restoreAfterSpectate(session);
       break;
-    }
     case 'logout':
       doLogout(session);
       break;
+    case 'panel_request': {
+      rateLimit(session);
+      if (typeof msg.requestId !== 'string' || msg.requestId.length > 80) return;
+      const p = session.player;
+      const result = session.state === 'playing' && p && session.game.players.get(p.charId) === p
+        ? readPanel(session.game, p, msg.panel)
+        : { ok: false, error: 'Enter the world to view this character panel.' };
+      session.send({ t: 'panel_response', requestId: msg.requestId, ...result });
+      break;
+    }
     case 'input':
       rateLimit(session);
       // During the post-creation alloc phase, plain text "alloc"/"enter" are
@@ -210,33 +218,21 @@ export function route(session, msg) {
       if (!ok) session.send({ t: 'error', msg: 'Could not generate a starter script here (no hunting area reachable).' });
       break;
     }
-    case 'scripts_put': {
-      rateLimit(session);
-      const p = session.player;
-      if (session.state !== 'playing' || !p) break;
-      // Runtime ownership (audit C6): without this, a stale socket that lost
-      // the character to a newer session could overwrite the CURRENT owner's
-      // persisted scripts via putScript(). Same predicate as the input path.
-      if (session.game.players.get(p.charId) !== p) {
-        session.send({ t: 'error', msg: 'This character is no longer active in this session.' });
-        break;
-      }
-      const res = putScript(p, msg.name, msg.body);
-      if (!res.ok) session.send({ t: 'error', msg: res.error });
-      session.send({ t: 'scripts', scripts: p.scripts || {} });
-      break;
-    }
+    case 'scripts_put':
     case 'scripts_del': {
       rateLimit(session);
       const p = session.player;
-      if (session.state !== 'playing' || !p) break;
-      // Runtime ownership (audit C6): same guard as scripts_put above.
-      if (session.game.players.get(p.charId) !== p) {
-        session.send({ t: 'error', msg: 'This character is no longer active in this session.' });
-        break;
+      const requestId = typeof msg.requestId === 'string' && msg.requestId.length <= 80 ? msg.requestId : undefined;
+      let result;
+      if (session.state !== 'playing' || !p) result = { ok: false, error: 'Enter the world before changing scripts.' };
+      else if (session.game.players.get(p.charId) !== p) result = { ok: false, error: 'This character is no longer active in this session.' };
+      else {
+        try { result = msg.t === 'scripts_put' ? putScript(p, msg.name, msg.body) : delScript(p, msg.name); }
+        catch { result = { ok: false, error: 'The script could not be saved. Please try again.' }; }
       }
-      delScript(p, msg.name);
-      session.send({ t: 'scripts', scripts: p.scripts || {} });
+      if (result.ok) session.send({ t: 'scripts', scripts: p.scripts || {} });
+      else session.send({ t: 'error', msg: result.error });
+      session.send({ t: 'script_result', requestId, ...result });
       break;
     }
     case 'boost':
@@ -280,7 +276,7 @@ function doLogout(session) {
   session.gmAuthorized = false;
   session.stateBeforeSpectate = null;
   session.send({ t: 'notice', msg: 'You have logged out.' });
-  session.send({ t: 'login_prompt', msg: 'login/register' });
+  session.send({ t: 'login_prompt', msg: 'login/register', reason: 'logout', features: ['panels-v1'] });
 }
 
 async function doLogin(session, u, p) {
@@ -291,7 +287,7 @@ async function doLogin(session, u, p) {
   const gen = ++session.authGeneration;
   const res = await loginAccount(u, p);
   if (gen !== session.authGeneration) return; // stale auth completion — ignore
-  if (!res.ok) return session.send({ t: 'error', msg: res.error });
+  if (!res.ok) return session.send({ t: 'error', code: 'AUTH_FAILED', msg: res.error });
   startAccountSession(session, res);
 }
 
@@ -299,10 +295,10 @@ async function doRegister(session, u, p) {
   const gen = ++session.authGeneration;
   const res = await registerAccount(u, p);
   if (gen !== session.authGeneration) return; // stale auth completion — ignore
-  if (!res.ok) return session.send({ t: 'error', msg: res.error });
+  if (!res.ok) return session.send({ t: 'error', code: 'AUTH_FAILED', msg: res.error });
   const login = await loginAccount(u, p);
   if (gen !== session.authGeneration) return; // stale after second await too
-  if (!login.ok) return session.send({ t: 'error', msg: 'Account created, but login failed. Try again.' });
+  if (!login.ok) return session.send({ t: 'error', code: 'AUTH_FAILED', msg: 'Account created, but login failed. Try again.' });
   startAccountSession(session, login);
 }
 
@@ -311,11 +307,12 @@ function doTokenLogin(session, token) {
   // login/register resolves as stale and cannot clobber this session.
   session.authGeneration = (session.authGeneration || 0) + 1;
   const v = validateSession(token);
-  if (!v) return session.send({ t: 'error', msg: 'Session expired. Please log in.' });
+  if (!v) return session.send({ t: 'error', code: 'SESSION_EXPIRED', msg: 'Session expired. Please log in.' });
   startAccountSession(session, { accountId: v.accountId, username: v.username, token });
 }
 
 function startAccountSession(session, info) {
+  if (session.game.shuttingDown) return;
   // Re-authenticating on an existing socket is also a character switch. Drop
   // only this session's owned runtime before presenting the new account menu.
   if (session.player && session.game.players.get(session.player.charId) === session.player) {
@@ -333,9 +330,39 @@ function startAccountSession(session, info) {
     sendChargenMenu(session);
   } else {
     session.state = 'charselect';
-    const rows = chars.map((c) => `${c.id}) ${c.name} — ${raceById(c.race).name} ${guildById(c.guild).name}, circle ${c.circle}`);
+    sendCharacterSelection(session, chars);
+  }
+}
+
+function sendCharacterSelection(session, chars = charsFor(session.accountId)) {
+    const rows = chars.map((c) => `${c.id}) ${c.name} — ${raceById(c.race).name} ${c.guild ? guildById(c.guild).name : 'guildless'}, circle ${c.circle}`);
     const slots = `(${chars.length}/${MAX_CHARS} slots used${chars.length < MAX_CHARS ? ` — "new" to create another` : ''})`;
-    session.send({ t: 'charselect', msg: `\nWelcome back, ${info.username}. ${slots}\nChoose a character:\n${rows.join('\n')}\n(Type the number to enter the world.)` });
+    session.send({ t: 'charselect', msg: `\nWelcome back, ${session.username}. ${slots}\nChoose a character:\n${rows.join('\n')}\n(Type the number to enter the world.)` });
+}
+
+// Restore the existing session without re-entering the world or replacing its
+// allocation draft. Re-entry would reset runtime state such as corpses.
+function restoreAfterSpectate(session) {
+  const state = session.state === 'spectating' ? session.stateBeforeSpectate : session.state;
+  unsubscribe(session);
+  session.state = state || (session.accountId ? 'charselect' : 'login');
+  session.stateBeforeSpectate = null;
+  session.send({ t: 'session_restore', state: session.state });
+  if (session.state === 'playing' && session.player) {
+    session.send({ t: 'enter', resumed: true });
+    session.game.look(session.player);
+    session.player.handsDirty = true;
+    session.game.status(session.player);
+    session.send({ t: 'scripts', scripts: session.player.scripts || {} });
+  } else if (session.state === 'charcreate_playing' && session.player) {
+    sendChargenMenu(session);
+    session.send({ t: 'charalloc', msg: allocPanel(session.player) });
+  } else if (session.state === 'charcreate') {
+    sendChargenMenu(session);
+  } else if (session.state === 'charselect') {
+    sendCharacterSelection(session);
+  } else {
+    session.send({ t: 'login_prompt', msg: 'login/register', features: ['panels-v1'] });
   }
 }
 

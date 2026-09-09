@@ -117,3 +117,60 @@ test('sibling-prefix directory escape is contained', async () => {
     rmSync(base, { recursive: true, force: true });
   }
 });
+
+test('private artifacts and symlink escapes return no bytes or metadata', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const base = mkdtempSync(join(tmpdir(), 'dr-static-artifacts-'));
+  try {
+    const root = join(base, 'public');
+    mkdirSync(join(root, 'live'), { recursive: true });
+    mkdirSync(join(root, '.private'));
+    for (const name of ['world.db','world.db-wal','world.db-shm','world.db-journal','world.sqlite','world.sqlite3','world.sql','world.bak','world.backup','.env']) {
+      writeFileSync(join(root, 'live', name), 'private contents');
+    }
+    writeFileSync(join(root, '.private', 'notes.txt'), 'private contents');
+    writeFileSync(join(base, 'secret.txt'), 'private contents');
+    symlinkSync(join(base, 'secret.txt'), join(root, 'escape.txt'));
+    symlinkSync(join(root, 'live', 'world.db'), join(root, 'alias.txt'));
+    const handler = createStaticHandler(root);
+    for (const path of ['/live/world.db','/live/world.db-wal','/live/world.db-shm','/live/world.db-journal','/live/world.sqlite','/live/world.sqlite3','/live/world.sql','/live/world.bak','/live/world.backup','/live/.env','/live/%2eenv','/.private/notes.txt','/escape.txt','/alias.txt','/live/']) {
+      for (const method of ['GET','HEAD']) {
+        const res = fakeRes();
+        handler({ ...req(path), method, headers: { host:'localhost', range:'bytes=0-' } }, res);
+        await settle(res);
+        assert.equal(res.calls[0][1], 404, method + ' ' + path);
+        assert.equal(res.calls[0][2]['Last-Modified'], undefined);
+        assert.equal(res.calls[0][2]['Content-Length'], undefined);
+        assert.ok(!String(res.calls[1][1]).includes('private contents'));
+      }
+    }
+  } finally { rmSync(base, { recursive:true, force:true }); }
+});
+
+test('published logs and JSON reports remain readable with HEAD and range support', async () => {
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { createServer } = await import('node:http');
+  const root = mkdtempSync(join(tmpdir(), 'dr-static-public-'));
+  const server = createServer(createStaticHandler(root));
+  try {
+    writeFileSync(join(root, 'run.log'), 'first\nsecond\n');
+    writeFileSync(join(root, 'report.json'), '{"complete":true}');
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const url = `http://127.0.0.1:${server.address().port}`;
+    const head = await fetch(url+'/run.log', { method:'HEAD' });
+    assert.equal(head.status, 200);
+    assert.equal(head.headers.get('content-length'), '13');
+    assert.ok(head.headers.get('last-modified'));
+    const tail = await fetch(url+'/run.log', { headers:{ Range:'bytes=6-' } });
+    assert.equal(tail.status, 206);
+    assert.equal(await tail.text(), 'second\n');
+    const report = await fetch(url+'/report.json');
+    assert.equal(report.status, 200);
+    assert.deepEqual(await report.json(), { complete:true });
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    rmSync(root, { recursive:true, force:true });
+  }
+});

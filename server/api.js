@@ -233,7 +233,7 @@ export async function apiRequest(req, res, game, {
       const p = loadPlayer(charId);
       return json(res, 200, {
         ok: true, charId,
-        character: { name: p.name, race: p.race.id, guild: p.guild.id, circle: p.circle, unspentStat: p.unspentStat },
+        character: { name: p.name, race: p.race.id, guild: p.guild ? p.guild.id : null, circle: p.circle, unspentStat: p.unspentStat },
       });
     }
     case 'POST /api/enter': {

@@ -45,9 +45,9 @@ export const wilds = {
 
   track(game, p) {
     if (!this.isWild(p.room)) return { ok: false, msg: 'There is nothing to track in town.' };
-    if (p.guild.id === 'ranger') gainSkillExp(p, 'scouting', 4);
+    if (p.guild?.id === 'ranger') gainSkillExp(p, 'scouting', 4);
     // Scouting ranks sharpen a ranger's eye: track success scales with rank.
-    const scoutEye = p.guild.id === 'ranger' ? skillRank(p, 'scouting') * 0.005 : 0;
+    const scoutEye = p.guild?.id === 'ranger' ? skillRank(p, 'scouting') * 0.005 : 0;
     const skill = skillRank(p, 'tracking');
     const room = roomById(p.room);
     const chance = 0.4 + skill * 0.04 + scoutEye + (p.element === 'air' ? 0.05 : 0) + (game.weatherLuckMod ? game.weatherLuckMod() : 0);
@@ -220,7 +220,7 @@ export const wilds = {
         const hpGain = (restful ? Math.max(4, Math.floor(p.maxHp * 0.045)) : Math.max(2, Math.floor(p.maxHp * 0.025 * earthBonus))) * bm;
         p.hp = Math.min(capHp, p.hp + hpGain);
       }
-      if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * (restful ? 0.07 : 0.04 * earthBonus))) * bm);
+      if (p.guild?.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * (restful ? 0.07 : 0.04 * earthBonus))) * bm);
       p.stamina = Math.min(p.maxStaminaEff, (p.stamina || 0) + (restful ? 9 : 6) * bm);
       gainSkillExp(p, 'athletics', 2);
       // Rest clots bleeding wounds: tended ones resolve, untended slow down.
@@ -230,8 +230,8 @@ export const wilds = {
         p.wounds = p.wounds.filter((w) => !w.resolved);
       }
       if (ticks % 10 === 0) p.rexp = Math.min(120, (p.rexp || 0) + 1);
-say(p, `You rest... hp ${p.hp}/${p.maxHp}${p.guild.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}, stamina ${p.stamina}/${p.maxStaminaEff}${restful ? ' (warm and dry)' : ''}`);
-      if (p.hp >= capHp && (!p.guild.magic || p.mana >= p.maxMana) && p.stamina >= p.maxStaminaEff) wilds.stopRest(p);
+say(p, `You rest... hp ${p.hp}/${p.maxHp}${p.guild?.magic ? `, mana ${p.mana}/${p.maxMana}` : ''}, stamina ${p.stamina}/${p.maxStaminaEff}${restful ? ' (warm and dry)' : ''}`);
+      if (p.hp >= capHp && (!p.guild?.magic || p.mana >= p.maxMana) && p.stamina >= p.maxStaminaEff) wilds.stopRest(p);
       if (ticks >= 20) wilds.stopRest(p);
     }, 2000);
     p.restTimer.unref();

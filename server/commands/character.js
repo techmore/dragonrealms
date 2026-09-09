@@ -15,6 +15,9 @@ import { vitalityLabel } from '../combat.js';
 // DR encumbrance word for the current load vs carry allowance.
 import { loadWord } from './verbs.js';
 import { bleedInfo } from '../wounds.js';
+// Which guild's hall am I standing in (guildless hints for train/circle)?
+import { hallGuildAt } from './join.js';
+import { GUILDS } from '../../data/guilds.js';
 
 export const commands = {
   score(ctx) { showScore(ctx); },
@@ -120,6 +123,11 @@ export const commands = {
     p.trainPending = null;
     const skillId = matchSkill(arg1);
     if (!skillId) return emit('I do not know that skill. See "skills" for the list.');
+    if (!p.guild) {
+      const here = hallGuildAt(p.room);
+      if (here) return emit(`You have no guild yet. "join ${here}" here before the ${GUILDS[here].name} leader to take up training.`);
+      return emit('You have no guild yet — no trainer will teach you. Find a calling: "dir list guilds", walk to a hall, and "join <guild>".');
+    }
     const trainer = game.guildTrainer(p);
     if (!trainer) return emit('Your guild trainer is not here. Go to your guild hall in the Guild District.');
     if (!trainableSkills(p.guild).includes(skillId)) {
@@ -225,9 +233,12 @@ function showScore(ctx) {
   // DR policy: your own condition reads as prose everywhere; the raw pool
   // numbers live only in `health`.
   const cond = vitalityLabel(p.hp, p.maxHp);
+  const guildLine = p.guild
+    ? `${p.guild.name} (${guildTitle(p.guild, p.circle)})`
+    : 'guildless (join at a hall: "dir list guilds")';
   const lines = [
-    `\n\x1b[1m${p.name}\x1b[0m — ${p.race.name} ${p.guild.name} (${guildTitle(p.guild, p.circle)})`,
-    `Circle ${p.circle}  |  You are ${cond}  |  Stamina ${p.stamina ?? 0}/${p.maxStaminaEff ?? 0}  |  ${p.guild.magic ? `Mana ${p.mana}/${p.maxMana} (${manaTypeFor(p.guild).def.name})` : p.guild.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : ''}`,
+    `\n\x1b[1m${p.name}\x1b[0m — ${p.race.name} ${guildLine}`,
+    `Circle ${p.circle}  |  You are ${cond}  |  Stamina ${p.stamina ?? 0}/${p.maxStaminaEff ?? 0}  |  ${p.guild?.magic ? `Mana ${p.mana}/${p.maxMana} (${manaTypeFor(p.guild).def.name})` : p.guild?.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : ''}`,
     `Attributes:  Str ${p.stats.str}  Con ${p.stats.con}  Ref ${p.stats.ref}  Agi ${p.stats.agi}`,
     `             Cha ${p.stats.cha}  Dis ${p.stats.dis}  Wis ${p.stats.wis}  Int ${p.stats.int}`,
     `Unspent points: ${p.unspentStat}`,
@@ -238,7 +249,7 @@ function showScore(ctx) {
     `Silver: ${p.silver}  Bank: ${p.bank}`,
   ];
   if (p.circle >= 10) {
-    const cap = capstoneFor(p.guild);
+    const cap = p.guild ? capstoneFor(p.guild) : null;
     if (cap) lines.push(`\n\x1b[1mCapstone: ${cap.name}\x1b[0m — ${cap.desc}`);
   }
   say(lines.join('\n'));
@@ -279,15 +290,25 @@ function showExp(ctx) {
       lines.push(`  ${pad(def.name, 24)} rank ${s.rank}  ${pad(`${pct}%`, 4)} ${mindstate(pct)}${pool > 0 ? `  [${Math.floor(pool)} held]` : ''}`);
     }
   }
-  lines.push(`\nGuild circle progress (next: ${p.circle + 1}):`);
-  const req = circleRequirements(p.guild, p.skills, p.circle + 1);
-  if (req.ok) lines.push('  You are ready to circle! Visit your guild hall and type "circle".');
-  else for (const m of req.missing.slice(0, 8)) lines.push(`  - ${m}`);
+  lines.push(p.guild
+    ? `\nGuild circle progress (next: ${p.circle + 1}):`
+    : `\nYou are guildless — join at a hall ("dir list guilds", then "join <guild>" at the leader).`);
+  if (p.guild) {
+    const req = circleRequirements(p.guild, p.skills, p.circle + 1);
+    if (req.ok) lines.push('  You are ready to circle! Visit your guild hall and type "circle".');
+    else for (const m of req.missing.slice(0, 8)) lines.push(`  - ${m}`);
+  }
   say(lines.join('\n'));
 }
 
 function circleUp(ctx) {
   const { game, p, say, emit } = ctx;
+  if (!p.guild) {
+    const here = hallGuildAt(p.room);
+    return emit(here
+      ? `You have no guild to advance. "join ${here}" here first.`
+      : 'You have no guild to advance. Join one at its hall ("dir list guilds").');
+  }
   const room = roomById(p.room);
   const isOwnHall = room.id === `hall_${p.guild.id}` || room.id === 'rh_guilds';
   if (!isOwnHall) return emit('You must stand in your own guild hall to circle. (Look for your guild\'s hall in the Guild District.)');

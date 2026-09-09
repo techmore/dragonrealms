@@ -1,14 +1,16 @@
 // Generates public/ROADMAP.html from data/roadmap.js (the single source of
 // truth) plus the live circle band tables from data/guilds.js.
 // Run: node scripts/build-roadmap.mjs
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { STAGES, FEATURES } from '../data/roadmap.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT = join(__dirname, '..', 'public', 'ROADMAP.html');
+const outputRoot = process.env.DR_DOC_OUTPUT_DIR || join(__dirname, '..');
+mkdirSync(join(outputRoot, 'public'), { recursive: true });
+const OUT = join(outputRoot, 'public', 'ROADMAP.html');
 
 // Live band tables from the circle engine.
 const guildSrc = readFileSync(new URL('../data/guilds.js', import.meta.url), 'utf8');

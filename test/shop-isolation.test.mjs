@@ -1,0 +1,40 @@
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { auth, createCharacter, loadPlayer, setupGame, teardownGame, Game } from './helpers.mjs';
+import { npcById } from '../data/npcs.js';
+import { economy } from '../server/economy.js';
+let game, player;
+before(async () => {
+  game = setupGame();
+  const account = await auth.registerAccount('shopisolated', 'test-password');
+  player = loadPlayer(createCharacter(account.accountId, { name: 'Shopisolated', race: 'human', guild: 'trader' }));
+  player.room = 'bazaar';
+  player.silver = 10000;
+});
+after(teardownGame);
+
+test('purchases and restocking are local to one Game and never mutate NPC content', () => {
+  const other = new Game();
+  const shop = game.shopNpcsIn(player).find((n) => n.stock.club);
+  const definition = npcById(shop.id);
+  const original = { ...definition.stock };
+  const otherShop = other.shopNpcsIn(player).find((n) => n.id === shop.id);
+  const legacyShop = economy.shopNpcsIn(player).find((n) => n.id === shop.id);
+  assert.notEqual(shop, otherShop);
+  assert.notEqual(shop.stock, definition.stock);
+  assert.equal(game.buy(player, 'club', 2).ok, true);
+  assert.equal(shop.stock.club, original.club - 2);
+  assert.equal(otherShop.stock.club, original.club);
+  assert.equal(legacyShop.stock.club, original.club);
+  assert.deepEqual(definition.stock, original);
+  other.economy.restockTick();
+  assert.equal(shop.stock.club, original.club - 2);
+  game.economy.restockTick();
+  assert.equal(shop.stock.club, original.club - 1);
+  game.economy.restockTick();
+  game.economy.restockTick();
+  assert.equal(shop.stock.club, original.club, 'restocking stops at authored capacity');
+  const later = new Game();
+  assert.equal(later.shopNpcsIn(player).find((n) => n.id === shop.id).stock.club, original.club);
+  assert.deepEqual(definition.stock, original);
+});

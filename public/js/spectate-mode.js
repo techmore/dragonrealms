@@ -3,13 +3,14 @@
 // render in the terminal; the status strip shows their vitals. Type
 // `unspectate` to return. Live streams are GM-only because they include the
 // watched player's typed commands; the GM console stores the required token.
-import { $ } from './util.js';
 import { send, setStatusOverride } from './net.js';
 import { storedGmToken, harvestGmTokenFromFragment } from './gm-token.js';
 import * as terminal from './terminal.js';
 import * as welcome from './welcome.js';
-import { blockInput, focusInput } from './input.js';
+import { blockInput } from './input.js';
 import { gameState } from './state.js';
+import { stopScript } from './scripts.js';
+import { stopTimers } from './automation.js';
 
 let watchedName = null;
 
@@ -29,24 +30,15 @@ export function enterSpectate(name) {
     return;
   }
   gameState.spectating = true;
+  stopScript({ silent: true });
+  stopTimers();
   setStatusOverride('watching…', 'conn-off');
   welcome.hideAll();
   terminal.clear();
   terminal.append(`\x1b[1m— watching ${watchedName} —\x1b[0m  (type \x1b[1munspectate\x1b[0m to return)`, 'ch-notice');
   send({ t: 'spectate', name: watchedName, gmToken });
   blockInput(false);
-  // The watched player's session and ours race: any welcome-triggering message
-  // (charselect, a reconnect's login_prompt) that lands after this point must
-  // not cover the stream. Keep the overlay down while spectating.
-  const keepDown = setInterval(() => {
-    if (!gameState.spectating) { clearInterval(keepDown); return; }
-    const el = document.getElementById('welcome');
-    if (el && !el.hidden) {
-      el.hidden = true;
-      const body = document.getElementById('welcome-body');
-      if (body) body.innerHTML = '';
-    }
-  }, 400);
+
 }
 
 export function leaveSpectate() {
@@ -54,14 +46,7 @@ export function leaveSpectate() {
     terminal.append('You are not spectating anyone.', 'ch-error');
     return;
   }
-  gameState.spectating = false;
-  watchedName = null;
-  setStatusOverride(null);
+  // The server confirms and replays the authoritative session screen.
   send({ t: 'unspectate' });
-  terminal.append('No longer spectating.', 'ch-notice');
-  // Return to whatever flow the session was in.
-  if (gameState.value === 'login' || gameState.value === 'logged') {
-    welcome.showWelcome('login');
-  }
-  focusInput();
+  setStatusOverride('returning…', 'conn-off');
 }

@@ -16,6 +16,11 @@ import { createRunner } from './script-engine.js';
 let active = null;
 
 export function runScript(name, args = []) {
+  if (gameState.value !== 'playing' || gameState.spectating) {
+    terminal.append('[script] Enter the world before running a script.', 'ch-error');
+    return;
+  }
+  if (active && !active.runner.running) active = null;
   const src = readScript(name);
   if (!src) {
     terminal.append(`[script] no script named "${name}"`, 'ch-error');
@@ -31,28 +36,30 @@ export function runScript(name, args = []) {
   active = { name, runner, vars: args };
   terminal.append(`[script] running "${name}"${args.length ? ' ' + args.join(' ') : ''}`, 'ch-notice');
   runner.start();
+  if (!runner.running) active = null;
 }
 
-export function stopScript() {
+export function stopScript({ silent = false } = {}) {
   if (active) {
     active.runner.stop();
-    terminal.append(`[script] "${active.name}" stopped`, 'ch-notice');
+    if (!silent) terminal.append(`[script] "${active.name}" stopped`, 'ch-notice');
     active = null;
-  } else {
+  } else if (!silent) {
     terminal.append('[script] nothing is running', 'ch-error');
   }
 }
 
-export function isScriptRunning() { return Boolean(active); }
+export function isScriptRunning() { return Boolean(active?.runner.running); }
 
 // Feed every incoming server line to the active runner.
 export function feedScripts(line, isPrompt = false) {
   if (active && active.runner.running) active.runner.feed(line, isPrompt);
+  if (active && !active.runner.running) active = null;
 }
 
 // A 500ms heartbeat so `pause` timers resume even without server traffic.
 setInterval(() => {
-  if (active && active.runner.running) active.runner.feed('');
+  feedScripts('');
 }, 500);
 
 // ---- script storage (per-browser, like DR client script files) ----
@@ -100,56 +107,70 @@ done:
   exit`,
 };
 
-export function readScript(name) {
-  const store = loadStore();
-  return store[name] || DEFAULT_SCRIPTS[name] || null;
+// Character scripts are authoritative snapshots, never merged into the
+// browser archive. The old store remains available for deliberate copying.
+let characterScripts = Object.create(null);
+let libraryReady = false;
+let scriptsDirtyNotify = null;
+let sequence = 0;
+const pending = new Map();
+export function onScriptsLibraryChange(fn) { scriptsDirtyNotify = fn; }
+export function scriptLibraryReady() { return libraryReady && gameState.value === 'playing' && !gameState.spectating; }
+export function resetScriptLibrary() {
+  characterScripts = Object.create(null);
+  libraryReady = false;
+  for (const { resolve, timer } of pending.values()) {
+    clearTimeout(timer);
+    resolve({ ok: false, error: 'Session changed before the save was confirmed.' });
+  }
+  pending.clear();
 }
-
-function playing() {
-  return gameState.value === 'playing' || gameState.value === 'charcreate_playing';
+export function browserScripts() {
+  try {
+    const value = JSON.parse(localStorage.getItem(LS));
+    return Object.fromEntries(Object.entries(value || {}).filter(([name, body]) => /^[a-z0-9_]{1,24}$/.test(name) && typeof body === 'string'));
+  } catch { return {}; }
 }
+export function ownsScript(name) { return Object.hasOwn(characterScripts, name); }
+export function readScript(name) { return ownsScript(name) ? characterScripts[name] : Object.hasOwn(DEFAULT_SCRIPTS, name) ? DEFAULT_SCRIPTS[name] : null; }
+export function listScripts() { return [...new Set([...Object.keys(DEFAULT_SCRIPTS), ...Object.keys(characterScripts)])].sort(); }
 
 export function saveScript(name, text) {
-  const store = loadStore();
-  store[name] = text;
-  try { localStorage.setItem(LS, JSON.stringify(store)); } catch {}
-  // Mirror to the server so saved scripts follow the character across
-  // browsers and machines (best-effort when offline/spectating).
-  if (playing()) send({ t: 'scripts_put', name, body: text });
+  name = String(name || '').trim().toLowerCase();
+  if (!/^[a-z0-9_]{1,24}$/.test(name)) return Promise.resolve({ ok: false, error: 'Use 1–24 letters, numbers or underscores for the name.' });
+  if (typeof text !== 'string' || !text.trim()) return Promise.resolve({ ok: false, error: 'Add a script body before saving.' });
+  if (text.length > 16000) return Promise.resolve({ ok: false, error: 'Script body must be at most 16,000 characters.' });
+  return changeScript({ t: 'scripts_put', name, body: text });
 }
-
-export function deleteScript(name) {
-  const store = loadStore();
-  delete store[name];
-  try { localStorage.setItem(LS, JSON.stringify(store)); } catch {}
-  if (playing()) send({ t: 'scripts_del', name });
+export function deleteScript(name) { return changeScript({ t: 'scripts_del', name }); }
+function changeScript(message) {
+  if (!scriptLibraryReady()) return Promise.resolve({ ok: false, error: 'Enter your character before changing its scripts.' });
+  const requestId = `script-${++sequence}`;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      pending.delete(requestId);
+      resolve({ ok: false, error: 'Save not confirmed. Copy your draft before reconnecting, then check the character library.' });
+    }, 5000);
+    pending.set(requestId, { resolve, timer });
+    if (!send({ ...message, requestId })) {
+      clearTimeout(timer);
+      pending.delete(requestId);
+      resolve({ ok: false, error: 'Disconnected. Your draft has not been saved.' });
+    }
+  });
 }
-
-// Server snapshot of this character's script library: server entries win over
-// same-name local copies; local-only scripts are kept.
+export function receiveScriptResult(msg) {
+  const request = pending.get(msg.requestId);
+  if (!request) return;
+  clearTimeout(request.timer);
+  pending.delete(msg.requestId);
+  request.resolve({ ok: msg.ok === true, error: msg.error });
+}
 export function mergeServerScripts(scripts) {
-  if (!scripts || typeof scripts !== 'object') return;
-  const store = loadStore();
-  let changed = false;
-  for (const [name, body] of Object.entries(scripts)) {
-    if (typeof body !== 'string') continue;
-    if (store[name] !== body) { store[name] = body; changed = true; }
-  }
-  if (changed) {
-    try { localStorage.setItem(LS, JSON.stringify(store)); } catch {}
-    if (typeof scriptsDirtyNotify === 'function') scriptsDirtyNotify();
-  }
-}
-let scriptsDirtyNotify = null;
-export function onScriptsLibraryChange(fn) { scriptsDirtyNotify = fn; }
-
-export function listScripts() {
-  const store = loadStore();
-  return [...new Set([...Object.keys(DEFAULT_SCRIPTS), ...Object.keys(store)])].sort();
-}
-
-function loadStore() {
-  try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch { return {}; }
+  if (gameState.spectating || gameState.value !== 'playing' || !scripts || typeof scripts !== 'object' || Array.isArray(scripts)) return;
+  characterScripts = Object.fromEntries(Object.entries(scripts).filter(([, body]) => typeof body === 'string'));
+  libraryReady = true;
+  scriptsDirtyNotify?.();
 }
 
 export function attachScriptPanel() {

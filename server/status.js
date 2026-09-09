@@ -22,9 +22,9 @@ export const status = {
     const hp = p.hp > 0 ? p.hp : 0;
     const inCombat = game.combat.getFor(p) ? '[COMBAT]' : '';
     const prep = p.prepared ? `  [prepared: ${p.prepared.spellId} @ ${p.prepared.pct}%]` : '';
-    const res = p.guild.magic
+    const res = p.guild?.magic
       ? `\x1b[33mMana: ${p.mana}/${p.maxMana}\x1b[0m`
-      : p.guild.id === 'barbarian'
+      : p.guild?.id === 'barbarian'
         ? `\x1b[31mFire: ${p.innerFire}/${p.maxInnerFire}\x1b[0m`
         : '';
     const stam = `\x1b[32mStamina: ${p.stamina}/${p.maxStaminaEff}\x1b[0m`;
@@ -95,7 +95,11 @@ export const status = {
       .map(([k, v]) => ({ key: k, name: BUFF_NAMES[k] || k, ticks: v }));
     if (bm > 1) buffs.push({ key: '_boost', name: `Agent Boost x${bm}`, ticks: null, permanent: true });
     const nextCircle = (p.circle || 1) + 1;
-    const requirementRows = circleRequirements(p.guild, p.skills, nextCircle).rows || [];
+    // Guildless characters have no circle ladder yet — show the join hint
+    // instead of requirement rows for a guild that does not exist.
+    const requirementRows = p.guild
+      ? (circleRequirements(p.guild, p.skills, nextCircle).rows || [])
+      : [{ skill: 'guild', need: 'Join a guild at its hall: "dir list guilds", then "join <guild>" there.' }];
     sayRaw(p, {
       t: 'prompt',
       msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${raging}${hidden}${resting}${boost}${prep}${bleedTxt}\n> `,
@@ -129,6 +133,6 @@ export const status = {
   },
 
   who(game) {
-    return [...game.players.values()].map((p) => `${p.name} (${p.race.name} ${guildTitle(p.guild, p.circle)}, circle ${p.circle})`);
+    return [...game.players.values()].map((p) => `${p.name} (${p.race.name} ${p.guild ? guildTitle(p.guild, p.circle) : 'guildless'}, circle ${p.circle})`);
   },
 };

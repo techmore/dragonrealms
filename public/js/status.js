@@ -113,7 +113,6 @@ function applyGearClass(regionEl, slot, names) {
   const path = regionEl.querySelector(`.pd-gear-${cls}`);
   if (path) path.classList.add('pd-wearing');
 }
-let dollSeen = false;
 let rtTimer = null;
 
 /* ============ Hericons: glyph chips for the hero's kit ============ */
@@ -336,10 +335,6 @@ export function renderHands(msg) {
         : `${DOLL_SLOT_LABELS[slot] || slot}: empty`;
       if (!title.parentNode) g.appendChild(title);
     }
-    if (!dollSeen && Object.keys(slots).length) {
-      dollSeen = true;
-      import('./windows.js').then((w) => w.setWindowVisible('hands-bar', true, true));
-    }
   }
   revealWindow('hands-bar');
 }
@@ -350,6 +345,18 @@ export function hideHands() {
 
 export function markDisconnected() {
   promptState = null;
+  if (rtTimer) clearInterval(rtTimer);
+  rtTimer = null;
+  renderRtBlocks(0);
+  hideRoomPanel();
+  renderHands({ hand: null, worn: [], carried: 0, slots: {} });
+  renderWounds();
+  renderDollHealth(1, 1);
+  hideHands();
+  renderHealthWindow([]);
+  for (const id of ['fe-tracker', 'buffs', 'health-win', 'quest-widget']) clearWindowSeen(id);
+  for (const id of ['fe-row', 'fe-blips', 'buffs-body', 'quest-row']) if ($(id)) $(id).textContent = '';
+  if ($('buffs-window')) $('buffs-window').hidden = true;
   targets = [];
   lastRoom = { name: null, area: null, exits: [] };
   document.body.classList.remove('in-combat');
@@ -426,7 +433,7 @@ export function parsePrompt(text, msg = null) {
   renderWounds();
   // Structured buff list (server): every active effect with remaining ticks,
   // plus the agent boost. The BUFFS window appears only when non-empty.
-  renderBuffs(Array.isArray(msg.buffs) ? msg.buffs : []);
+  renderBuffs(Array.isArray(msg?.buffs) ? msg.buffs : []);
   renderStatusStrip();
   renderCombatStatus();
 }
@@ -614,6 +621,7 @@ function renderHealthWindow(wounds) {
   if (!wounds.length) {
     win.hidden = true;
     body.innerHTML = '';
+    clearWindowSeen('health-win');
     return;
   }
   win.hidden = false;
@@ -674,6 +682,9 @@ function setGauge(wrapId, fillId, labelId, label, values, urgent = true) {
   const [current, maximum] = values;
   const pct = maximum > 0 ? Math.max(0, Math.min(100, (current / maximum) * 100)) : 0;
   const wrap = $(wrapId);
+  const accessibleLabel = label === 'HP' ? 'Health' : label;
+  wrap.setAttribute('aria-label', accessibleLabel);
+  wrap.title = accessibleLabel;
   $(fillId).style.width = `${pct}%`;
   $(labelId).textContent = `${label}: ${vitalityWord(current, maximum)}`;
   $(labelId).title = `${current}/${maximum}`;
@@ -686,6 +697,9 @@ function setGauge(wrapId, fillId, labelId, label, values, urgent = true) {
 
 function clearGauge(wrapId, fillId, labelId, label) {
   const wrap = $(wrapId);
+  const accessibleLabel = label === 'HP' ? 'Health' : label;
+  wrap.setAttribute('aria-label', accessibleLabel);
+  wrap.title = accessibleLabel;
   $(fillId).style.width = '0%';
   $(labelId).textContent = `${label} --`;
   delete wrap.dataset.level;
@@ -814,9 +828,18 @@ export function renderQuest(msg) {
 export function renderExpBlips(reqs) {
   const blips = $('fe-blips');
   if (!blips) return;
-  blips.hidden = !settings.expblips || !reqs?.rows?.length;
+  const rows = (reqs && reqs.rows) || [];
+  // Guildless hint row (skill:'guild', no have/need) renders as a labeled
+  // neutral blip instead of crashing on undefined comparisons.
+  const hint = rows.find((r) => r.skill === 'guild' && r.have === undefined);
+  if (hint) {
+    blips.innerHTML = `<span class="fe-blips-label" title="${hint.need.replace(/"/g, '&quot;')}">◈</span>`;
+    blips.hidden = !settings.expblips;
+    return;
+  }
+  blips.hidden = !settings.expblips || !rows.length;
   if (blips.hidden) return;
-  blips.innerHTML = `<span class="fe-blips-label">C${reqs.circle}</span>` + reqs.rows.map((r) => {
+  blips.innerHTML = `<span class="fe-blips-label">C${reqs.circle}</span>` + rows.map((r) => {
     const over = r.have >= r.need + 4;
     const state = over ? 'over' : r.have >= r.need ? 'met' : r.need - r.have <= 2 ? 'near' : 'behind';
     return `<i class="fe-blip ${state}" title="${r.label}: ${r.have}/${r.need}${over ? ' · 4+ over' : ''}"></i>`;

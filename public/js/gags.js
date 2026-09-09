@@ -3,6 +3,8 @@
 // Like channels and highlights, gags are render-time only: triggers and
 // scripts are fed from the message router before this point, so automation
 // still sees gagged lines. Storage is per-browser (localStorage).
+import { escapeHtml } from './util.js';
+
 const LS = 'dr_gags_v1';
 
 function load() {
@@ -44,7 +46,7 @@ export function renderGagPanel() {
   const wrap = document.getElementById('gag-rules');
   if (!wrap) return;
   wrap.innerHTML = gags.map((g) =>
-    `<div class="script-name-row"><span class="script-kind">GAG</span><span class="script-text">${g.pattern}</span><button data-del-gag="${g.id}">\u2715</button></div>`
+    `<div class="script-name-row"><span class="script-kind">GAG</span><span class="script-text">${escapeHtml(g.pattern)}</span><button data-del-gag="${escapeHtml(g.id)}">\u2715</button></div>`
   ).join('') || '<div class="fe-empty">No gag rules.</div>';
   wrap.querySelectorAll('[data-del-gag]').forEach((b) => {
     b.addEventListener('click', () => { removeGag(b.dataset.delGag); renderGagPanel(); });

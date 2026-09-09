@@ -37,7 +37,6 @@ export function focusInput() {
 export function blockInput(blocked) {
   cmdInput.disabled = blocked;
   document.body.classList.toggle('input-blocked', blocked);
-  if (!blocked) cmdInput.focus();
 }
 
 export function setDpadVisible(visible) {
@@ -48,6 +47,7 @@ export function setDpadVisible(visible) {
 export function handleLocalCommand(line) {
   if (handleAutomation(line)) return;
   const parts = line.split(/\s+/);
+  if (parts[0].toLowerCase() === 'logout') { send({ t: 'logout' }); return; }
 
   // DR run prefix: ".scriptname arg1 arg2" starts a saved script.
   if (/^\.[A-Za-z]/.test(line)) {
@@ -181,6 +181,7 @@ function completeTab(line) {
   } else {
     setCompletion('');
   }
+  return true;
 }
 
 // ---------------- Key handling ----------------
@@ -191,8 +192,9 @@ cmdInput.addEventListener('keydown', (e) => {
     tabMatches = [];
     setCompletion('');
     if (!line) return;
-    append(`> ${line}`, 'ch-echo');
-    if (line.toLowerCase() !== 'quit') {
+    const authCommand = /^(login|register)(?:\s|$)/i.exec(line);
+    append(`> ${authCommand ? authCommand[1].toLowerCase() + ' [credentials hidden]' : line}`, 'ch-echo');
+    if (!authCommand && line.toLowerCase() !== 'quit') {
       history.push(line);
       if (history.length > 500) history.shift();
     }
@@ -220,8 +222,7 @@ cmdInput.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Tab') {
-    e.preventDefault();
-    completeTab(cmdInput.value);
+    if (!e.shiftKey && completeTab(cmdInput.value)) e.preventDefault();
     return;
   }
 });
@@ -230,7 +231,7 @@ cmdInput.addEventListener('input', () => { tabMatches = []; setCompletion(''); }
 
 document.addEventListener('keydown', (e) => {
   const tag = e.target && e.target.tagName;
-  if (tag === 'INPUT' && e.target !== cmdInput) return;
+  if (e.target !== cmdInput && (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || e.target?.isContentEditable)) return;
   if (e.key === 'F1') {
     e.preventDefault();
     import('./keys.js').then((k) => k.toggleKeys());

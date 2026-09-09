@@ -20,6 +20,11 @@ export function createHttpHandler(game, {
   const staticHandler = createStaticHandler(publicDir);
 
   return function handleHttpRequest(req, res) {
+    if (game.shuttingDown) {
+      res.writeHead(503, { 'Content-Type': 'text/plain', Connection: 'close' });
+      res.end('World shutting down');
+      return;
+    }
     try {
       const path = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
       if (path === '/api/gm' || path.startsWith('/api/gm/')) {

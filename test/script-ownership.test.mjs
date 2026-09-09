@@ -8,7 +8,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   auth, createCharacter, loadPlayer, fakeWs,
-  game, setupGame, teardownGame,
+  game, db, setupGame, teardownGame,
 } from './helpers.mjs';
 import { putScript } from '../server/player.js';
 import { route } from '../server/session.js';
@@ -106,4 +106,39 @@ test('C6: a properly-owned session can still save scripts through route()', asyn
   assert.equal(fresh.scripts.pos, 'move n', 'script persisted through the owned session');
 
   game.removePlayer(p);
+});
+
+
+test('script results correlate to the request only after durable save or delete', async () => {
+  const p = await makeChar('ScriptReceipt');
+  p.ws = fakeWs(); game.addPlayer(p);
+  const { session, send } = makeSession(p);
+  try {
+    route(session, { t: 'scripts_put', requestId: 'save-1', name: 'two_lines', body: 'echo one\nexit' });
+    assert.deepEqual(send.at(-1), { t: 'script_result', requestId: 'save-1', ok: true });
+    assert.equal(loadPlayer(p.charId).scripts.two_lines, 'echo one\nexit');
+    route(session, { t: 'scripts_del', requestId: 'delete-1', name: 'two_lines' });
+    assert.deepEqual(send.at(-1), { t: 'script_result', requestId: 'delete-1', ok: true });
+    assert.equal(loadPlayer(p.charId).scripts.two_lines, undefined);
+  } finally { game.removePlayer(p); }
+});
+
+test('failed script writes preserve live and stored library and never acknowledge success', async () => {
+  const p = await makeChar('ScriptFault');
+  putScript(p, 'keep', 'echo original');
+  p.ws = fakeWs(); game.addPlayer(p);
+  const { session, send } = makeSession(p);
+  const previous = p.scripts;
+  db.exec(`CREATE TRIGGER reject_script_change BEFORE UPDATE OF persistent_state ON characters WHEN OLD.id=${p.charId} BEGIN SELECT RAISE(ABORT, 'script storage fault'); END`);
+  try {
+    for (const type of ['scripts_put', 'scripts_del']) {
+      send.length = 0;
+      route(session, { t: type, requestId: type, name: 'keep', body: 'echo replaced' });
+      assert.equal(send.at(-1).ok, false);
+      assert.equal(send.at(-1).requestId, type);
+      assert.equal(send.some(m => m.t === 'scripts'), false);
+      assert.equal(p.scripts, previous);
+      assert.equal(loadPlayer(p.charId).scripts.keep, 'echo original');
+    }
+  } finally { db.exec('DROP TRIGGER reject_script_change'); game.removePlayer(p); }
 });

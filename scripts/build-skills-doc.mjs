@@ -1,15 +1,17 @@
 // Builds public/SKILLS.html AND SKILLS.md — the full skills reference — from
 // data/skills.js and data/guilds.js, so the documentation can never drift
 // from the game. Run: node scripts/build-skills-doc.mjs
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SKILLS, CATEGORIES } from '../data/skills.js';
 import { GUILDS } from '../data/guilds.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT_HTML = join(__dirname, '..', 'public', 'SKILLS.html');
-const OUT_MD = join(__dirname, '..', 'SKILLS.md');
+const outputRoot = process.env.DR_DOC_OUTPUT_DIR || join(__dirname, '..');
+mkdirSync(join(outputRoot, 'public'), { recursive: true });
+const OUT_HTML = join(outputRoot, 'public', 'SKILLS.html');
+const OUT_MD = join(outputRoot, 'SKILLS.md');
 
 // Which guilds train each skill (primary / secondary / guild skill).
 const guildMap = {};

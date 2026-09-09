@@ -11,7 +11,7 @@ import { feedScripts } from './scripts.js';
 import { bindHighlightPanel } from './highlights.js';
 import { bindGagPanel } from './gags.js';
 import { bindWindows } from './windows.js';
-import { handlers, SCRIPT_TYPES } from './router.js';
+import { handlers, SCRIPT_TYPES, resetSession } from './router.js';
 import { connect } from './net.js';
 
 // Cross-module wiring.
@@ -28,10 +28,8 @@ onSettingsChange(() => {
 });
 
 onDisconnect(() => {
+  resetSession('disconnected');
   input.blockInput(true);
-  status.hideRoomPanel();
-  status.hideHands();
-  status.markDisconnected();
 });
 
 document.addEventListener('keydown', (e) => {

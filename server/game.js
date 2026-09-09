@@ -17,7 +17,7 @@ import {
   instanceMetadata, skillRank, gainSkillExp,
 } from './player.js';
 import { CombatManager } from './combat-manager.js';
-import { economy } from './economy.js';
+import { createEconomy } from './economy.js';
 import { wilds } from './wilds.js';
 import { quests } from './quests.js';
 import { status as statusView } from './status.js';
@@ -48,6 +48,7 @@ const creatureUid = () => `crt_${Math.random().toString(36).slice(2, 10)}`;
 
 export class Game {
   constructor() {
+    this.economy = createEconomy();
     this.players = new Map();      // charId -> player runtime
     this.roomCreatures = new Map(); // roomId -> [{uid, def, hp, maxHp, alive, respawnAt}]
     this.floorItems = new Map();    // roomId -> [{uid, item, qty}]
@@ -80,7 +81,7 @@ export class Game {
     this.weatherTicker = setInterval(() => this.rollWeather(), 60 * 1000);
     this.weatherTicker.unref();
     // Shopkeepers restock slowly (D1): purchases deplete real stock now.
-    this.restockTicker = setInterval(() => economy.restockTick(), 60 * 1000);
+    this.restockTicker = setInterval(() => this.economy.restockTick(), 60 * 1000);
     this.restockTicker.unref();
     this.autosaveTicker = setInterval(() => {
       for (const p of this.players.values()) {
@@ -494,20 +495,20 @@ export class Game {
   }
 
   // ---------- Domain delegates (economy / wilds / quests / status) ----------
-  shopNpcsIn(p) { return economy.shopNpcsIn(p); }
-  listShop(p) { return economy.listShop(p); }
-  buy(p, itemName, qty) { return economy.buy(p, itemName, qty); }
-  sell(p, itemName, qty) { return economy.sell(p, itemName, qty); }
-  bankerIn(p) { return economy.bankerIn(p); }
-  deposit(p, amt) { return economy.deposit(p, amt); }
-  withdraw(p, amt) { return economy.withdraw(p, amt); }
-  vaultList(p) { return economy.vaultList(p); }
-  vaultStore(p, itemName, qty) { return economy.vaultStore(p, itemName, qty); }
-  vaultRetrieve(p, itemName, qty) { return economy.vaultRetrieve(p, itemName, qty); }
-  healerIn(p) { return economy.healerIn(p); }
-  heal(p) { return economy.heal(p); }
-  commodityBoard(p) { return economy.commodityBoard(p); }
-  commodityTrade(p, side, name, qty) { return economy.commodityTrade(p, side, name, qty); }
+  shopNpcsIn(p) { return this.economy.shopNpcsIn(p); }
+  listShop(p) { return this.economy.listShop(p); }
+  buy(p, itemName, qty) { return this.economy.buy(p, itemName, qty); }
+  sell(p, itemName, qty) { return this.economy.sell(p, itemName, qty); }
+  bankerIn(p) { return this.economy.bankerIn(p); }
+  deposit(p, amt) { return this.economy.deposit(p, amt); }
+  withdraw(p, amt) { return this.economy.withdraw(p, amt); }
+  vaultList(p) { return this.economy.vaultList(p); }
+  vaultStore(p, itemName, qty) { return this.economy.vaultStore(p, itemName, qty); }
+  vaultRetrieve(p, itemName, qty) { return this.economy.vaultRetrieve(p, itemName, qty); }
+  healerIn(p) { return this.economy.healerIn(p); }
+  heal(p) { return this.economy.heal(p); }
+  commodityBoard(p) { return this.economy.commodityBoard(p); }
+  commodityTrade(p, side, name, qty) { return this.economy.commodityTrade(p, side, name, qty); }
 
   isWild(roomId) { return wilds.isWild(roomId); }
   zoneName(roomId) { return wilds.zoneName(roomId); }

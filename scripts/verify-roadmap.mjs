@@ -2,7 +2,8 @@
 // ROADMAP.md rows against the tracker features, so the two hand-maintained
 // sources stay aligned.
 // Run: node scripts/verify-roadmap.mjs
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { STAGES, FEATURES } from '../data/roadmap.js';
@@ -86,7 +87,8 @@ for (const r of rows) {
   if (!words.length) continue;
   let best = null, bestScore = 0;
   for (const f of FEATURES) {
-    const c = (f.label + ' ' + f.detail).toLowerCase();
+    // Status comparisons need a shared subject, not incidental detail words.
+    const c = f.label.toLowerCase();
     const hit = words.filter((w) => c.includes(w)).length;
     const sc = hit / words.length;
     if (sc > bestScore) { bestScore = sc; best = f; }
@@ -105,18 +107,25 @@ if (statusDrift) errors += statusDrift;
 // 3. Generators reproducible (scoped to the files they own, so other
 //    in-flight work never trips this check)
 console.log('\nVerifying generators are current...');
-const { execSync } = await import('node:child_process');
+const { execFileSync } = await import('node:child_process');
 const GENERATED = ['public/ROADMAP.html', 'public/SKILLS.html', 'SKILLS.md'];
-const beforeGeneration = new Map(GENERATED.map((f) => [f, readFileSync(join(ROOT, f), 'utf8')]));
-for (const script of ['build-roadmap.mjs', 'build-skills-doc.mjs']) {
-  execSync(process.execPath, ['scripts/' + script], { cwd: ROOT });
-}
-const changedByGenerator = GENERATED.filter((f) => readFileSync(join(ROOT, f), 'utf8') !== beforeGeneration.get(f));
-if (changedByGenerator.length) {
-  errors++;
-  console.log('GENERATED FILES WERE STALE: ' + changedByGenerator.join(', '));
-} else {
-  console.log('generators reproducible: ok');
+const outputRoot = mkdtempSync(join(tmpdir(), 'dr-docs-check-'));
+try {
+  for (const script of ['build-roadmap.mjs', 'build-skills-doc.mjs']) {
+    execFileSync(process.execPath, ['scripts/' + script], {
+      cwd: ROOT, env: { ...process.env, DR_DOC_OUTPUT_DIR: outputRoot },
+    });
+  }
+  const stale = GENERATED.filter((f) => {
+    try { return !readFileSync(join(ROOT, f)).equals(readFileSync(join(outputRoot, f))); }
+    catch (e) { if (e.code === 'ENOENT') return true; throw e; }
+  });
+  if (stale.length) err('GENERATED FILES ARE STALE: ' + stale.join(', ') + ' (run npm run docs)');
+  else console.log('generators reproducible: ok');
+} catch (e) {
+  err('generator check failed: ' + e.message);
+} finally {
+  rmSync(outputRoot, { recursive: true, force: true });
 }
 
 console.log(`\nResult: ${errors} errors, ${missing} unmatched roadmap rows (potential gaps), ${statusDrift} stale status markers.`);

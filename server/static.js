@@ -2,7 +2,7 @@
 // without booting the game.
 import { createReadStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync, realpathSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 
 const MIME = {
@@ -19,7 +19,10 @@ export function createStaticHandler(publicDir) {
   // Canonical root (S4): containment is judged against the RESOLVED root and
   // a separator-bounded prefix, not a raw string prefix — "/srv/public" once
   // accepted "/srv/publicity/..." because the former is a prefix of the latter.
-  const ROOT = resolve(publicDir);
+  const ROOT = realpathSync(resolve(publicDir));
+  const forbidden = (path) => path.split(/[\\/]/).some((part) => part.startsWith('.'))
+    || /\.(?:db|sqlite|sqlite3)(?:-(?:wal|shm|journal))?$/i.test(path)
+    || /\.(?:sql|bak|backup)$/i.test(path);
   const contained = (p) => p === ROOT || p.startsWith(ROOT + sep);
   return (req, res) => {
     try {
@@ -31,7 +34,15 @@ export function createStaticHandler(publicDir) {
       if (!existsSync(filePath) && !extname(path)) {
         filePath = resolve(ROOT, `.${path}.html`);
       }
-      if (!contained(filePath) || !existsSync(filePath)) {
+      if (!contained(filePath) || forbidden(path) || !existsSync(filePath)) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not found');
+        return;
+      }
+      // Resolve symlinks before serving either bytes or metadata. Apply the
+      // artifact policy to the target too, so an alias cannot publish a DB.
+      filePath = realpathSync(filePath);
+      if (!contained(filePath) || forbidden(filePath.slice(ROOT.length)) || !statSync(filePath).isFile()) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('Not found');
         return;

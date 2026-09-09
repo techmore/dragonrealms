@@ -392,18 +392,20 @@ test('justice: theft near a guard risks arrest, plead releases', async () => {
   p.ws = ws;
   game.addPlayer(p);
 
-  // Deterministic arrest: near-max thievery so the theft almost always lands
-  // (arrest roll is ~60%, so 20 attempts make a miss astronomically unlikely).
+  // Fix the success, coin and arrest rolls so prior theft proceeds cannot
+  // make a correct confiscation look like a failure.
   p.room = 'west_gate'; // has a guard
   p.crimeHeat = 5;
   p.skills.thievery.rank = 40;
   p.stats.agi = 100;
   p.silver = 100;
-  for (let i = 0; i < 20 && p.room === 'west_gate'; i++) {
+  const originalRandom = Math.random;
+  try {
+    Math.random = () => 0;
     handleCommand(game, p, 'steal guard');
-  }
+  } finally { Math.random = originalRandom; }
   assert.equal(p.room, 'jail', 'arrested and jailed');
-  assert.ok(p.silver < 100, 'silver confiscated');
+  assert.equal(p.silver, 79, '25% of the 105-silver purse confiscated, rounded down');
 
   // Jail blocks movement while serving.
   const before = p.room;

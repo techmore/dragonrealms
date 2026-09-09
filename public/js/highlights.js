@@ -3,6 +3,8 @@
 // and inject ANSI colors the terminal already renders.
 // Storage is per-browser (localStorage), like DR client highlight files.
 
+import { escapeHtml } from './util.js';
+
 const LS = 'dr_highlights_v1';
 const COLORS = {
   red: 31, green: 32, amber: 33, magenta: 35, cyan: 36, dim: 90, white: 37,
@@ -98,7 +100,7 @@ export function renderHighlightPanel() {
   const wrap = document.getElementById('highlight-rules');
   if (!wrap) return;
   wrap.innerHTML = highlights.map((h) =>
-    `<div class="script-name-row"><span class="script-kind">HL</span><span class="script-text" style="color:var(--${h.color || 'text'})">${h.pattern}</span><button data-del-hl="${h.id}">\u2715</button></div>`
+    `<div class="script-name-row"><span class="script-kind">HL</span><span class="script-text" style="color:var(--${Object.hasOwn(COLORS, h.color) ? h.color : 'text'})">${escapeHtml(h.pattern)}</span><button data-del-hl="${escapeHtml(h.id)}">\u2715</button></div>`
   ).join('') || '<div class="fe-empty">No highlight rules.</div>';
   wrap.querySelectorAll('[data-del-hl]').forEach((b) => {
     b.addEventListener('click', () => { removeHighlight(b.dataset.delHl); renderHighlightPanel(); });

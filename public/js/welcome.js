@@ -13,8 +13,34 @@ const GUILDS = [
   ['ranger', 'Ranger'], ['thief', 'Thief'], ['trader', 'Trader'], ['warmage', 'Warrior Mage'],
 ];
 const STATS = ['str', 'con', 'ref', 'agi', 'cha', 'dis', 'wis', 'int'];
+let authPending = false;
+let creationPending = false;
+let allocationPending = false;
+let allocationShown = false;
+
+export function showAuthError(message) {
+  authPending = false;
+  for (const id of ['wf-login', 'wf-register']) if ($(id)) $(id).disabled = false;
+  if ($('wf-err')) $('wf-err').textContent = message;
+}
+
+function resetCreationPending() {
+  creationPending = false;
+  allocationPending = false;
+  $('cg-submit').disabled = false;
+  $('cg-submit').textContent = 'Create character';
+  $('cg-allocbtn').disabled = false;
+}
+
+export function showCreationError(message) {
+  if (chargenEl.hidden) return;
+  resetCreationPending();
+  $('cg-error').textContent = stripAnsi(message || 'Please try again.');
+}
 
 export function hideAll() {
+  resetCreationPending();
+  authPending = false;
   $('welcome').hidden = true;
   $('welcome-body').innerHTML = '';
   chargenEl.hidden = true;
@@ -26,11 +52,12 @@ export function showWelcome(mode, msgText) {
   document.body.classList.add('onboarding');
   $('welcome').hidden = false;
   if (mode === 'login') {
+    authPending = false;
     body.innerHTML = `
       <p class="welcome-hint">A text realm. You move by typing, and the world answers in words. Everything you need is one command away \u2014 begin with <b>help</b> once inside.</p>
       <div class="welcome-form">
-        <label>Account name<input id="wf-user" autocomplete="off" autocapitalize="off"></label>
-        <label>Password<input id="wf-pass" type="password" autocomplete="off"></label>
+        <label>Account name<input id="wf-user" autocomplete="username" autocapitalize="off"></label>
+        <label>Password<input id="wf-pass" type="password" autocomplete="current-password"></label>
         <div class="wf-btns">
           <button id="wf-login">Enter the Crossing</button>
           <button id="wf-register" class="ghost">Create account</button>
@@ -39,10 +66,18 @@ export function showWelcome(mode, msgText) {
       </div>
       <p class="welcome-sub">Or just type <b>login</b> or <b>register</b> into the terminal below.</p>`;
     const go = (reg) => {
+      if (authPending) return;
       const u = $('wf-user').value.trim();
       const p = $('wf-pass').value;
       if (!u || !p) { $('wf-err').textContent = 'Name and password are required.'; return; }
-      send(reg ? { t: 'register', u, p } : { t: 'login', u, p });
+      if (!send(reg ? { t: 'register', u, p } : { t: 'login', u, p })) {
+        showAuthError('Connection lost. Please wait for reconnection.');
+        return;
+      }
+      authPending = true;
+      $('wf-login').disabled = true;
+      $('wf-register').disabled = true;
+      $('wf-err').textContent = 'Signing in…';
     };
     $('wf-login').addEventListener('click', () => go(false));
     $('wf-register').addEventListener('click', () => go(true));
@@ -85,10 +120,10 @@ export function enterChargen(msg) {
 
 export function routeTypedCommand(line) {
   const parts = line.split(/\s+/);
-  if (parts[0] === 'charcreate' && parts[1] && parts[2] && parts[3]) {
+  if (parts[0] === 'charcreate' && parts[1] && parts[2]) {
     $('cg-name').value = parts[1];
     $('cg-race').value = parts[2];
-    $('cg-guild').value = parts[3];
+    $('cg-guild').value = parts[3] || '';
     submitChargen();
     return true;
   }
@@ -136,20 +171,29 @@ function statModHtml(stats) {
 }
 
 function showChargen() {
+  resetCreationPending();
+  allocationShown = false;
+  $('cg-error').textContent = '';
+  $('cg-name').removeAttribute('aria-invalid');
   const raceSel = $('cg-race');
   raceSel.innerHTML = RACES.map(([id, name]) => `<option value="${id}">${name}</option>`).join('');
   const guildSel = $('cg-guild');
-  guildSel.innerHTML = GUILDS.map(([id, name]) => `<option value="${id}">${name}</option>`).join('');
+  // First option = guildless (the DR-authentic default): you wake with no
+  // guild and join at a hall with "join <guild>". Guilded starts stay one
+  // click away for power users and returning players.
+  guildSel.innerHTML = `<option value="">Guildless — join a hall in town</option>` +
+    GUILDS.map(([id, name]) => `<option value="${id}">${name}</option>`).join('');
   // A failed create loops back here: make sure the form half is visible again
   // even if a previous alloc phase collapsed it.
   for (const elId of ['cg-name', 'cg-race', 'cg-guild', 'cg-city', 'cg-submit']) {
-    const wrap = $(elId)?.closest('label, .cg-choice-grid') || $(elId)?.parentElement;
+    const wrap = $(elId)?.closest('label, .cg-choice-grid') || $(elId);
     if (wrap) wrap.hidden = false;
   }
   document.querySelector('#chargen .form-kicker').textContent = 'NEW ADVENTURER';
   $('cg-alloc').textContent = '';
   $('cg-alloc-row').hidden = true;
   chargenEl.hidden = false;
+  $('cg-name-hint').hidden = false;
   $('cg-name').focus();
   updateCgFlavor();
 }
@@ -170,45 +214,75 @@ function updateCgFlavor() {
   const manaLine = g && g.manaName
     ? (g.magic ? `${g.manaName} magic` : 'no magic')
     : '';
-  $('cg-guild-flavor').textContent = (g ? g.desc : '') + (manaLine ? `\n${manaLine}` : '');
+  $('cg-guild-flavor').textContent = g
+    ? (g.desc + (manaLine ? `\n${manaLine}` : ''))
+    : 'You begin without a guild. Walk to any guild hall in town and "join <guild>" before its leader to take up your calling — dir lists the halls.';
 }
 
 export function showAlloc(panel) {
+  resetCreationPending();
+  $('cg-error').textContent = '';
+  $('cg-name-hint').hidden = true;
   $('cg-alloc').textContent = panel;
   const statSel = $('cg-stat');
   if (statSel.options.length === 0) {
-    statSel.innerHTML = STATS.map((s) => `<option value="${s}">${s.toUpperCase()}</option>`).join('');
+    const names = ['Strength', 'Constitution', 'Reflex', 'Agility', 'Charisma', 'Discipline', 'Wisdom', 'Intelligence'];
+    statSel.innerHTML = STATS.map((s, i) => `<option value="${s}">${names[i]} (${s.toUpperCase()})</option>`).join('');
   }
   $('cg-alloc-row').hidden = false;
   // Creation succeeded: collapse the create-form half of the card so the
   // alloc sheet reads as the next step, not a second competing flow
   // (UI audit P0#2 — "two creation flows shown simultaneously").
   for (const elId of ['cg-name', 'cg-race', 'cg-guild', 'cg-city', 'cg-submit']) {
-    const wrap = $(elId)?.closest('label, .cg-choice-grid') || $(elId)?.parentElement;
+    const wrap = $(elId)?.closest('label, .cg-choice-grid') || $(elId);
     if (wrap) wrap.hidden = true;
   }
   document.querySelector('#chargen .form-kicker').textContent = 'ALLOCATE & ENTER';
-  // Typed "alloc"/"enter" must land in the command bar: pull focus out of
-  // the (now hidden) form inputs so keystrokes reach the game.
-  import('./input.js').then((i) => i.focusInput());
+  // Move focus once into the next step; subsequent replies preserve focus.
+  if (!allocationShown) $('cg-stat').focus();
+  allocationShown = true;
 }
 
 function submitChargen() {
-  send({
+  if (creationPending || allocationShown) return;
+  const name = $('cg-name').value.trim();
+  if (!/^[a-zA-Z]{2,20}$/.test(name)) {
+    showCreationError('Name must be 2–20 letters.');
+    $('cg-name').setAttribute('aria-invalid', 'true');
+    $('cg-name').focus();
+    return;
+  }
+  $('cg-name').removeAttribute('aria-invalid');
+  const guildVal = $('cg-guild').value;
+  const sent = send({
     t: 'charcreate',
     name: $('cg-name').value.trim(),
     race: $('cg-race').value,
-    guild: $('cg-guild').value,
+    // Empty guild = guildless start; the server treats an absent/empty guild
+    // as "join later at the hall".
+    ...(guildVal ? { guild: guildVal } : {}),
     city: ($('cg-city') && $('cg-city').value) || 'crossing',
   });
+  if (!sent) return showCreationError('Connection lost. Please wait for reconnection.');
+  creationPending = true;
+  $('cg-submit').disabled = true;
+  $('cg-submit').textContent = 'Creating character…';
+  $('cg-error').textContent = '';
 }
 
 const chargenEl = $('chargen');
 
 $('cg-submit').addEventListener('click', submitChargen);
+$('cg-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitChargen(); });
 $('cg-race').addEventListener('change', updateCgFlavor);
 $('cg-guild').addEventListener('change', updateCgFlavor);
 $('cg-allocbtn').addEventListener('click', () => {
-  send({ t: 'alloc', stat: $('cg-stat').value, amt: Number($('cg-amt').value) || 1 });
+  if (allocationPending) return;
+  const amt = Number($('cg-amt').value);
+  if (!Number.isSafeInteger(amt) || amt < 1) return showCreationError('Choose a positive whole number of points.');
+  if (!send({ t: 'alloc', stat: $('cg-stat').value, amt })) return showCreationError('Connection lost. Please wait for reconnection.');
+  allocationPending = true;
+  $('cg-allocbtn').disabled = true;
+  $('cg-error').textContent = '';
 });
 $('cg-enter').addEventListener('click', () => send({ t: 'enter' }));

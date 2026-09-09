@@ -7,8 +7,9 @@ import * as panels from './panels.js';
 import * as welcome from './welcome.js';
 import * as input from './input.js';
 import { gameState } from './state.js';
-import { mergeServerScripts, runScript } from './scripts.js';
-import { setToken } from './net.js';
+import { mergeServerScripts, runScript, stopScript, resetScriptLibrary, receiveScriptResult } from './scripts.js';
+import { stopTimers } from './automation.js';
+import { setToken, setStatusOverride } from './net.js';
 import { hasStoredGmToken, storedGmToken, harvestGmTokenFromFragment } from './gm-token.js';
 
 // "?spectate=Name" deep-link: watch that player once a GM credential is stored.
@@ -30,15 +31,30 @@ harvestGmTokenFromFragment();
 // follow-up server messages (charselect etc.) don't race the dynamic import
 // and flash the welcome modal over the stream.
 let spectatePending = false;
+let autoSpectateDismissed = false;
+
+export function resetSession(nextState = 'login') {
+  stopScript({ silent: true });
+  resetScriptLibrary();
+  stopTimers();
+  gameState.value = nextState;
+  gameState.inChargen = false;
+  gameState.spectating = false;
+  gameState.gmPlay = null;
+  spectatePending = false;
+  welcome.hideAll();
+  status.markDisconnected();
+  panels.resetPanels();
+}
 function maybeSpectate() {
   if (gameState.spectating || spectatePending) return true;
-  if (autoSpectate && hasStoredGmToken()) {
+  if (autoSpectate && !autoSpectateDismissed && hasStoredGmToken()) {
     spectatePending = true;
     gameState.spectating = true; // claim the state now; enterSpectate confirms
     import('./spectate-mode.js').then((m) => m.enterSpectate(autoSpectate));
     return true;
   }
-  return autoSpectate ? 'warn' : false;
+  return autoSpectate && !autoSpectateDismissed ? 'warn' : false;
 }
 
 // GM quick-play launcher: send gm_play the moment the socket is usable.
@@ -67,6 +83,11 @@ export function maybeGmPlay() {
 }
 
 export const handlers = {
+  session_restore(msg) {
+    autoSpectateDismissed = true;
+    resetSession(msg.state);
+    setStatusOverride(null);
+  },
   room(msg) {
     terminal.appendRoom(msg.msg);
     status.setLastRoom({ name: status.roomNameOf(msg.msg), area: status.roomAreaOf(msg.msg), exits: msg.exits || [] });
@@ -76,7 +97,6 @@ export const handlers = {
     if (msg.exits && msg.exits.length) terminal.appendExitBar(msg.exits);
   },
   msg(msg) {
-    if (panels.capture(msg.msg)) return;
     if (msg.channel) panels.appendChat(msg);
     terminal.append(msg.msg, msg.channel ? 'ch-' + msg.channel : 'ch-msg');
   },
@@ -84,7 +104,6 @@ export const handlers = {
     terminal.appendCombat(msg.msg);
   },
   notice(msg) {
-    if (panels.capture(msg.msg)) return;
     if (gameState.spectating && /^You are now watching/.test(msg.msg)) {
       const name = msg.msg.replace(/^You are now watching\s+/, '').split(' ')[0];
       import('./net.js').then(({ setStatusOverride }) => setStatusOverride('watching ' + name, 'conn-on'));
@@ -92,9 +111,16 @@ export const handlers = {
     terminal.append(msg.msg, 'ch-notice');
   },
   error(msg) {
-    if (panels.capture(msg.msg, true)) return;
+    if (msg.code === 'SESSION_EXPIRED') {
+      setToken(null);
+      resetSession();
+      welcome.showWelcome('login');
+      input.blockInput(false);
+    }
+    welcome.showAuthError(msg.msg);
+    welcome.showCreationError(msg.msg);
     terminal.append(msg.msg, 'ch-error');
-    if (gameState.spectating) {
+    if (gameState.spectating && msg.code !== 'SPECTATE_FAILED') {
       import('./spectate-mode.js').then(async (m) => {
         if (/GM authorization is required/.test(msg.msg)) {
           m.leaveSpectate();
@@ -107,6 +133,7 @@ export const handlers = {
       });
     }
   },
+  panel_response(msg) { panels.receivePanel(msg); },
   prompt(msg) {
     // DR clients never echo the raw vitals line into the story window —
     // the gauges in the status strip carry it. Keep parsing, skip printing.
@@ -126,6 +153,7 @@ export const handlers = {
   quest(msg) {
     status.renderQuest(msg);
   },
+  script_result(msg) { receiveScriptResult(msg); },
   scripts(msg) {
     // Server snapshot of this character's saved DR script library.
     mergeServerScripts(msg.scripts);
@@ -139,7 +167,10 @@ export const handlers = {
     // The watched player typed a command: echo it like their own typing.
     terminal.append(`> ${msg.line}`, 'ch-echo');
   },
-  login_prompt() {
+  login_prompt(msg) {
+    if (msg.reason === 'logout') setToken(null);
+    resetSession();
+    panels.setProtocolSupported(Boolean(msg.features?.includes('panels-v1')));
     const play = maybeGmPlay();
     if (play === true) return;
     if (play === 'warn') terminal.append('GM quick-play needs DR_GM_TOKEN — open the link with #gm=<token>.', 'ch-error');
@@ -149,18 +180,21 @@ export const handlers = {
     if (spec === 'warn') terminal.append('That live-watch link requires DR_GM_TOKEN from the GM console.', 'ch-error');
     terminal.append('(type: login <username> <password>  or  register <username> <password>)', 'ch-msg');
     welcome.showWelcome('login');
+    setStatusOverride('connected · sign in', 'conn-on');
     input.blockInput(false);
   },
   authed(msg) {
     setToken(msg.token);
-    localStorage.setItem('dr_token', msg.token);
+    if (!gameState.spectating) resetSession('logged');
     gameState.value = 'logged';
   },
   charselect(msg) {
     if (maybeGmPlay() === true || maybeSpectate() === true) return;
     gameState.value = 'charselect';
+    gameState.inChargen = false;
     terminal.append(msg.msg, 'ch-notice');
     welcome.showWelcome('charselect', msg.msg);
+    setStatusOverride('connected · choose character', 'conn-on');
     input.blockInput(false);
   },
   charcreate(msg) {
@@ -168,6 +202,7 @@ export const handlers = {
     gameState.value = 'charcreate';
     gameState.inChargen = true;
     welcome.enterChargen(msg);
+    setStatusOverride('connected · create character', 'conn-on');
     terminal.append(msg.msg, 'ch-notice');
   },
   charalloc(msg) {
@@ -180,6 +215,9 @@ export const handlers = {
     gameState.value = 'playing';
     gameState.inChargen = false;
     welcome.hideAll();
+    if (!gameState.spectating) setStatusOverride('playing', 'conn-on');
+    input.blockInput(false);
+    if (!gameState.spectating) input.focusInput();
     // Fresh session: start the story at the room you wake in.
     terminal.clear();
     return { applyPanels: true };

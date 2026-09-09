@@ -12,6 +12,7 @@ export const WINDOWS = [
   { id: 'hands-bar',    label: 'Hands',   rail: true, empty: true },
   { id: 'fe-tracker',   label: 'Exp / Thoughts', rail: true, empty: true },
   { id: 'buffs',        label: 'Buffs',   rail: true, empty: true },
+  { id: 'health-win',   label: 'Health',  rail: true, empty: true, bodyId: 'health-body' },
   { id: 'room-panel',   label: 'Room',    rail: false, empty: true },
   { id: 'target-widget',label: 'Combat / Targets', rail: false, empty: true },
   { id: 'chat-widget',  label: 'Conversations', rail: false, empty: true },
@@ -61,7 +62,7 @@ export function applyWindow(id) {
   const outer = outerOf(id);
   if (!outer) return;
 
-  const visible = isWindowVisible(id) || Boolean(state.force && state.force[id]);
+  const visible = isWindowVisible(id);
   // An empty window (no data yet) collapses/hides itself unless force-shown.
   const emptyNow = entry.empty && !contentsSeen[id] && !(state.force && state.force[id]);
   if (!visible || emptyNow) outer.setAttribute('data-whidden', '1');
@@ -71,7 +72,7 @@ export function applyWindow(id) {
   outer.classList.toggle('collapsed', collapsed);
   const collapseButton = outer.querySelector(`[data-collapse="${id}"]`);
   if (collapseButton) {
-    collapseButton.setAttribute('aria-controls', id);
+    collapseButton.setAttribute('aria-controls', entry.bodyId || id);
     collapseButton.setAttribute('aria-expanded', String(!collapsed));
     collapseButton.innerHTML = collapsed ? '&#9654;' : '&#9660;';
   }
@@ -87,9 +88,13 @@ export function refreshDockVisibility() {
 // empty window (e.g. Hands before gearing) on purpose.
 export function setWindowVisible(id, visible, fromMenu = false) {
   state.force = state.force || {};
-  if (visible && fromMenu) state.force[id] = true;
-  else if (!visible) { delete state.hidden[id]; state.hidden[id] = true; }
-  else delete state.hidden[id];
+  if (visible) {
+    delete state.hidden[id];
+    if (fromMenu) state.force[id] = true;
+  } else {
+    state.hidden[id] = true;
+    delete state.force[id];
+  }
   persist();
   applyWindow(id);
 }
@@ -108,7 +113,7 @@ export function renderWindowsMenu() {
     <span class="wmenu-sims-icon" aria-hidden="true">▦</span>
     <span><b>Sims</b><small>condensed EXP monitor</small></span>
   </a>` + WINDOWS.map((w) => {
-    const on = isWindowVisible(w.id) || Boolean(w.rail && (state.force && state.force[w.id]));
+    const on = isWindowVisible(w.id);
     const col = isWindowCollapsed(w.id);
     return `<label class="wmenu-row" data-w="${w.id}">
       <input type="checkbox" class="wmenu-vis" ${on ? 'checked' : ''}> ${w.label}

@@ -25,19 +25,29 @@ $('qp-guilds').querySelectorAll('[data-guild]').forEach((b) => b.addEventListene
 /* ================= wiring ================= */
 
 // Tabs: one click switches intent; last tab persists; #tab= deep-links.
-document.querySelectorAll('.tabs [data-tab]').forEach((b) =>
-  b.addEventListener('click', () => gotoTab(b.dataset.tab)));
+const tabButtons = [...document.querySelectorAll('.tabs [data-tab]')];
+for (const [index, button] of tabButtons.entries()) {
+  button.addEventListener('click', () => gotoTab(button.dataset.tab));
+  button.addEventListener('keydown', (event) => {
+    const next = event.key === 'ArrowRight' ? (index + 1) % tabButtons.length
+      : event.key === 'ArrowLeft' ? (index + tabButtons.length - 1) % tabButtons.length
+      : event.key === 'Home' ? 0 : event.key === 'End' ? tabButtons.length - 1 : null;
+    if (next === null) return;
+    event.preventDefault();
+    gotoTab(tabButtons[next].dataset.tab);
+    tabButtons[next].focus();
+  });
+}
 {
   const applyHash = () => {
-    const m = location.hash.match(/^#tab=(\w+)/);
-    if (m) gotoTab(m[1]);
+    const match = location.hash.match(/^#tab=(\w+)$/);
+    return Boolean(match && gotoTab(match[1]));
   };
   if (!applyHash()) {
-    const saved = localStorage.getItem('dr_admin_tab');
-    if (saved) gotoTab(saved);
+    let saved;
+    try { saved = localStorage.getItem('dr_admin_tab'); } catch {}
+    if (!gotoTab(saved)) gotoTab('overview');
   }
-  // Same-document navigation (#tab=x on a loaded page) fires no reload —
-  // follow hash changes live so back-forward and manual edits work.
   window.addEventListener('hashchange', applyHash);
 }
 // The key button jumps to the GM access panel when something's wrong.

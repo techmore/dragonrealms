@@ -49,7 +49,7 @@ export function renderPv() {
     return;
   }
   el.innerHTML =
-    `${esc(p.race ? p.race + ' \u00b7 ' : '')}${esc(p.guild || '?')} · circle ${esc(p.circle)}` +
+    `${esc(p.race ? p.race + ' \u00b7 ' : '')}${esc(p.guild || 'guildless')} · circle ${esc(p.circle)}` +
     `${p.room != null ? ` · room ${esc(p.room)}` : ''} ` +
     hpBarHtml(p) +
     (p.inCombat ? ' <span class="badge fight">\u2694 FIGHT</span>' : '');

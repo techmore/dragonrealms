@@ -1,0 +1,34 @@
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { auth, createCharacter, loadPlayer, setupGame, teardownGame, fakeWs, handleCommand } from './helpers.mjs';
+import { setRoundtime } from '../server/player.js';
+let game;
+before(() => { game = setupGame(); });
+after(teardownGame);
+
+test('flee requested during roundtime gets an attempt before the next automatic swing', async () => {
+  const account = await auth.registerAccount('fleeintent', 'test-password');
+  const p = loadPlayer(createCharacter(account.accountId, { name: 'Fleeintent', race: 'human', guild: 'warmage' }));
+  p.ws = fakeWs(); game.addPlayer(p); p.room = 'sewers_1';
+  handleCommand(game, p, 'attack rat');
+  const combat = game.combat.getFor(p);
+  assert.ok(combat);
+  let swings = 0, attempts = 0;
+  combat.playerAttack = () => { swings++; };
+  combat.disengage = () => { attempts++; return { ok: false, msg: 'blocked' }; };
+  combat.playerTimer = 0;
+  setRoundtime(p, 5);
+  handleCommand(game, p, 'flee', 0, { applyRT: true });
+  assert.equal(combat.fleePending, true);
+  assert.match(p.ws.msgs.map(m => m.msg || '').join('\n'), /prepare to flee/);
+  combat.tick();
+  assert.equal(swings, 0);
+  assert.equal(attempts, 0, 'roundtime is still respected');
+  setRoundtime(p, 0);
+  combat.tick();
+  assert.equal(attempts, 1);
+  assert.equal(swings, 0, 'queued attempt takes precedence over the automatic swing');
+  assert.equal(combat.fleePending, false);
+  combat.tick();
+  assert.equal(swings, 1, 'a failed escape resumes combat normally');
+});

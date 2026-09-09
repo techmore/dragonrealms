@@ -558,7 +558,7 @@ say(t, text, 'combat');
   ambushAttack(targetUid, move = null) {
     const p = this.player;
     if (move) {
-      if (p.guild.id !== 'thief') return this.say('Only thieves know the ambush moves.');
+      if (!p.guild || p.guild.id !== 'thief') return this.say('Only thieves know the ambush moves.');
       if (p.circle < move.minCircle) return this.say(`${move.name} comes at circle ${move.minCircle}.`);
       if (!this.spendStamina(move.stamina)) return;
     } else if (!this.spendStamina(10)) return;
@@ -616,7 +616,7 @@ say(t, text, 'combat');
     gainSkillExp(p, skillId, 10);
     gainSkillExp(p, 'stealth', 8);
     gainSkillExp(p, 'hiding', 8);
-    if (p.guild.guildSkill) gainSkillExp(p, p.guild.guildSkill, 4);
+    if (p.guild?.guildSkill) gainSkillExp(p, p.guild.guildSkill, 4);
     target.hp -= dmg;
     if (target.hp <= 0) {
       if (target.def.controller) this.defenderDefeated();
@@ -686,7 +686,7 @@ say(t, text, 'combat');
     const mult = options ? (options.powerMult ?? 1) : casting;
     let cost = options?.manaCost ?? Math.ceil(spell.mana * mult);
     // Dim devotion makes holy magic thirstier.
-    if (p.guild.id === 'cleric' && spell.skill === 'holy_magic' && (p.devotion ?? 30) < 20) {
+    if (p.guild?.id === 'cleric' && spell.skill === 'holy_magic' && (p.devotion ?? 30) < 20) {
       cost = Math.ceil(cost * 1.25);
     }
     if (p.mana < cost) { this.say('You do not have enough mana.'); return; }
@@ -720,7 +720,7 @@ say(t, text, 'combat');
       gainSkillExp(p, 'debilitation', 2);
       gainSkillExp(p, 'utility_magic', 2);
       gainSkillExp(p, 'warding_magic', 2);
-      if (p.guild.guildSkill) gainSkillExp(p, p.guild.guildSkill, 5);
+      if (p.guild?.guildSkill) gainSkillExp(p, p.guild.guildSkill, 5);
     };
 
     // Self/utility spells that need no combat target.
@@ -783,13 +783,13 @@ say(t, text, 'combat');
         let dmg = Math.round((rand(4, 6) + Math.floor(power * 0.9) + spell.base + p.circle * 2) * mult) + heldBonus;
         if (capstoneActive(p, 'cleric') || capstoneActive(p, 'warmage')) dmg = Math.floor(dmg * 1.3);
         // Cleric devotion scales holy magic (neglect dims it).
-        if (p.guild.id === 'cleric' && spell.skill === 'holy_magic') {
+        if (p.guild?.id === 'cleric' && spell.skill === 'holy_magic') {
           dmg = Math.floor(dmg * (0.8 + (p.devotion ?? 30) / 100));
         }
         this.say(`You cast ${spell.name}! ${cap(target.def.name)} is engulfed for ${dmg} damage!`);
         // Bard area enchantes (DR clean-room): a bard's song spills over —
         // the spell's echo splashes other foes in the fight at a fraction.
-        if (p.guild.id === 'bard' && p.cyclic && p.cyclic.ticks > 0) {
+        if (p.guild?.id === 'bard' && p.cyclic && p.cyclic.ticks > 0) {
           const splash = Math.max(1, Math.floor(dmg * (segueFast(p) ? 0.5 : 0.35)));
           const others = this.enemies.filter((e) => e !== target && !e.dead);
           for (const o of others) o.hp -= splash;
@@ -857,7 +857,7 @@ say(t, text, 'combat');
   // IMPEDANCE v1) — the target's attacks freeze while the bind holds.
   impede(targetUid) {
     const p = this.player;
-    if (p.guild.id !== 'warmage') return { ok: false, msg: 'Only warrior mages bind the elements.' };
+    if (!p.guild || p.guild.id !== 'warmage') return { ok: false, msg: 'Only warrior mages bind the elements.' };
     if (this.specialCd.impede > 0) return { ok: false, msg: 'The elements are still settling from your last bind.' };
     const target = this.enemies.find((e) => e.uid === targetUid && !e.dead);
     if (!target) return { ok: false, msg: 'There is nothing in reach to impede.' };
@@ -1442,10 +1442,19 @@ say(t, text, 'combat');
     }
     if (this.player.hp <= 0) return;
 
+    // A deliberate flee request must get a turn before automatic attacks
+    // renew RT. Enemies still act while the player waits to disengage.
+    const waitingToFlee = Boolean(this.fleePending);
+    if (waitingToFlee && roundtimeLeft(this.player) === 0) {
+      this.fleePending = false;
+      this.disengage();
+      if (this._ended) return;
+    }
+
     // Player action: swing only when the target is within weapon reach
     // (DR ranges). Out of range, pressing in closes the gap one range.
     this.playerTimer -= 1;
-    if (this.playerTimer <= 0) {
+    if (!waitingToFlee && this.playerTimer <= 0) {
       const target = this.enemies.find((e) => e.uid === this.playerTarget && !e.dead) || this.aliveEnemies[0];
       const reach = weaponReach(this.player);
       if (target && !reach.includes(target.range)) {

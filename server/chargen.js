@@ -20,7 +20,7 @@ function sendChargenMenu(session) {
   }));
   session.send({
     t: 'charcreate',
-    msg: `\nYou are a new soul in the Crossing.\n\n\x1b[1mChoose a race:\x1b[0m\n${races}\n\n\x1b[1mChoose a guild:\x1b[0m\n${guilds}\n\nName, race, and guild can be sent as: charcreate {name, race, guild}.`,
+    msg: `\nYou are a new soul in the Crossing.\n\n\x1b[1mChoose a race:\x1b[0m\n${races}\n\n\x1b[1mChoose a guild (optional — in DragonRealms you join at the guild hall; leave it off to walk in guildless and find your calling in town):\x1b[0m\n${guilds}\n\nName and race are required; guild may be omitted: charcreate {name, race} starts guildless, then "join <guild>" at any guild hall.`,
     races: raceData,
     guilds: guildData,
   });
@@ -40,16 +40,22 @@ function doCharSelect(session, id) {
 
 function doCharCreate(session, name, race, guild, city = 'crossing') {
   if (session.state !== 'charcreate') return;
-  const g = guildById(guild);
+  // Guild is OPTIONAL now: DR-authentic characters wake guildless and join at
+  // a hall ("join <guild>"). An explicit guild (sims, API, power users) still
+  // starts guilded so automation never needs the ceremony.
+  const guildGiven = guild !== undefined && guild !== null && String(guild).trim() !== '';
+  const g = guildGiven ? guildById(guild) : null;
   const r = raceById(race);
   if (!r) return session.send({ t: 'error', msg: 'Unknown race. Try: human, dwarf, elf, elothean, gnome, gortog, halfling, kaldar, prydaen, rakash, skra.' });
-  if (!g) return session.send({ t: 'error', msg: `Unknown guild. Try: ${Object.keys(GUILDS).join(', ')}` });
+  if (guildGiven && !g) return session.send({ t: 'error', msg: `Unknown guild. Try: ${Object.keys(GUILDS).join(', ')} — or omit it to start guildless and join at a hall.` });
 
   let charId;
   try {
-    charId = createCharacter(session.accountId, { name, race, guild, city });
+    charId = createCharacter(session.accountId, { name, race, guild: guildGiven ? guild : null, city });
   } catch (e) {
-    return session.send({ t: 'error', msg: e.message });
+    const msg = /UNIQUE constraint failed: characters\.name/.test(e.message)
+      ? 'That name is already taken. Please choose another.' : e.message;
+    return session.send({ t: 'error', msg });
   }
 
   const p = loadPlayer(charId);
@@ -80,7 +86,7 @@ function doAlloc(session, stat, amt) {
 }
 
 function allocPanel(p) {
-  return `\n${p.name} — ${p.race.name} ${p.guild.name}\n` +
+  return `\n${p.name} — ${p.race.name} ${p.guild ? p.guild.name : 'guildless (join at a hall)'}\n` +
     STAT_NAMES.map((s) => `  ${pad(s.toUpperCase(), 3)} ${p.stats[s]}`).join('\n') +
     `\nUnspent points: ${p.unspentStat}\nSend "alloc <stat> <amount>" to spend, or "enter" to begin.`;
 }
@@ -127,7 +133,9 @@ function enterWorld(session, charId, candidate = null) {
   const r = raceById(p.race.id);
   session.send({
     t: 'enter',
-    msg: `\nYou are ${p.name}, a ${r.name} of the ${p.guild.name} guild.\nThe Crossing stretches before you. Type "help" for commands.`,
+    msg: p.guild
+      ? `\nYou are ${p.name}, a ${r.name} of the ${p.guild.name} guild.\nThe Crossing stretches before you. Type "help" for commands.`
+      : `\nYou are ${p.name}, a ${r.name} guildless — find a calling before any hall's leader ("dir list guilds", then "join <guild>").\nThe Crossing stretches before you. Type "help" for commands.`,
   });
   session.game.look(p);
   session.game.status(p);
@@ -140,5 +148,5 @@ function enterWorld(session, charId, candidate = null) {
 }
 
 export {
-  sendChargenMenu, doCharSelect, doCharCreate, doAlloc, doEnter, enterWorld,
+  sendChargenMenu, allocPanel, doCharSelect, doCharCreate, doAlloc, doEnter, enterWorld,
 };

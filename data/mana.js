@@ -22,7 +22,7 @@ export const GUILD_MANA = {
 };
 
 export function manaTypeFor(guild) {
-  const type = GUILD_MANA[guild.id] || 'none';
+  const type = (guild && GUILD_MANA[guild.id]) || 'none';
   return { type, def: MANA_TYPES[type] };
 }
 

@@ -59,7 +59,7 @@ export const commands = {
   prepare(ctx) {
     const { p, arg1, arg2, emit } = ctx;
     const guild = p.guild;
-    if (!guild.magic || !guild.spells || !guild.spells.length) return emit('Your guild forswears magic.');
+    if (!guild || !guild.magic || !guild.spells || !guild.spells.length) return emit('Your guild forswears magic.');
     const resolved = spellById(guild, arg1);
     const spell = resolved || spellsFor(guild, p.circle)[0];
     if (!spell) return emit('You do not know any spells yet.');
@@ -76,7 +76,7 @@ export const commands = {
   cast(ctx) {
     const { game, p, arg1, arg2, emit } = ctx;
     const guild = p.guild;
-    if (!guild.magic || !guild.spells || !guild.spells.length) return emit('You do not know any spells.');
+    if (!guild || !guild.magic || !guild.spells || !guild.spells.length) return emit('You do not know any spells.');
     const combatNow = game.combat.getFor(p);
     if (combatNow && combatNow.defender === p) {
       return emit('You are locked in an automatic duel and cannot cast. Type "retreat" to yield.');
@@ -220,7 +220,7 @@ export const commands = {
   spells(ctx) {
     const { p, say } = ctx;
     const guild = p.guild;
-    if (!guild.magic) return say('Your guild forswears magic.');
+    if (!guild || !guild.magic) return say(p.guild ? 'Your guild forswears magic.' : 'You have no guild — join one at its hall to learn magic.');
     const isKnown = (s) => Array.isArray(p.spellsKnown) && p.spellsKnown.includes(s.id);
     const known = (guild.spells || []).filter(isKnown);
     const pending = (guild.spells || []).filter((s) => s.minCircle <= p.circle && !isKnown(s));
@@ -240,7 +240,7 @@ export const commands = {
   forget(ctx) {
     const { game, p, arg1, emit } = ctx;
     const guild = p.guild;
-    if (!guild.magic) return emit('Your guild forswears magic.');
+    if (!guild || !guild.magic) return emit('Your guild forswears magic.');
     const spell = spellById(guild, arg1);
     if (!spell || !knownSpell(p, spell)) return emit('You do not hold that spell.');
     p.spellsKnown = (p.spellsKnown || []).filter((id) => id !== spell.id);
@@ -775,7 +775,7 @@ function ritual(ctx) {
     p.hp += heal;
     p.mana = Math.min(p.maxMana, p.mana + 20);
     const leveled = gainSkillExp(p, 'thanatology', 12);
-    emit(`You draw the last vigour from ${corpse.def.name} — ${heal} health and a rush of ${p.guild.magic ? 'mana' : 'power'} settle into your bones.${leveled ? ' Your Thanatology improved!' : ''}`);
+    emit(`You draw the last vigour from ${corpse.def.name} — ${heal} health and a rush of ${p.guild?.magic ? 'mana' : 'power'} settle into your bones.${leveled ? ' Your Thanatology improved!' : ''}`);
     return;
   }
   if (name === 'dissect') {
@@ -921,7 +921,7 @@ function technique(ctx) {
   const { p, arg1, emit } = ctx;
   // Craft stations teach their own trade techniques (P26).
   if (stationVerbs(p).length) return craftTechnique(ctx);
-  if (!p.guild.magic) return emit('Your guild forswears magic — there are no techniques to learn.');
+  if (!p.guild?.magic) return emit('Your guild forswears magic — there are no techniques to learn.');
   if (!arg1) {
     const slots = techniqueSlots(p.circle);
     const known = (p.techniques || []).map((id) => TECHNIQUES[id]?.name || id);

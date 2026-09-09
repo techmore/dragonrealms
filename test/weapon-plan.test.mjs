@@ -46,7 +46,9 @@ test('weaponPlan emits a buy for every kit weapon', () => {
   assert.match(src, /put buy club/, 'buys club');
   assert.match(src, /put buy sling/, 'buys sling');
   assert.doesNotMatch(src, /put buy throwing knives/, 'never requests an unstocked weapon');
-  assert.match(src, /put buy mace/, 'buys mace');
+  assert.match(src, /put buy dagger/, 'buys the small-edged lane');
+  assert.match(src, /put buy broadsword/, 'buys the large-edged lane');
+  assert.doesNotMatch(src, /put buy mace/, 'does not duplicate the club’s blunt lane');
   assert.match(src, /PLAN_DONE:/, 'plan block terminates');
 });
 

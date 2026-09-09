@@ -60,8 +60,8 @@ export function subscribe(session, playerName) {
     const msg = `\n[[${room.name}, ${zone.name}]]\n${room.desc}${exits.length ? `\n${indoor ? 'Obvious exits' : 'Obvious paths'}: ${exits.join(', ')}.` : ''}`;
     session.send({ t: 'room', msg, exits, roomId: target.room });
   }
-  session.send({ t: 'notice', msg: `You are now watching ${target.name} — a ${target.race.name} ${target.guild.name}, circle ${target.circle}.` });
-  return { ok: true, msg: `You are now watching ${target.name} — a ${target.race.name} ${target.guild.name}, circle ${target.circle}.` };
+  session.send({ t: 'notice', msg: `You are now watching ${target.name} — a ${target.race.name} ${target.guild ? target.guild.name : 'guildless'}, circle ${target.circle}.` });
+  return { ok: true, msg: `You are now watching ${target.name} — a ${target.race.name} ${target.guild ? target.guild.name : 'guildless'}, circle ${target.circle}.` };
 }
 
 export function unsubscribe(session) {

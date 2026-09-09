@@ -7,7 +7,7 @@
 //   node scripts/client-corpus.mjs capture <out.json>
 //   node scripts/client-corpus.mjs replay  <captured.json>
 //
-// Requires a running server on :3000. Replay exits non-zero on any drift.
+// Uses DR_WS_URL (default ws://localhost:3000/ws). Replay exits non-zero on drift.
 import WebSocket from 'ws';
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -40,11 +40,12 @@ const SCRIPT = [
   ['unalias testcmd', 300], ['alias', 300], ['save', 300], ['quit', 300],
 ];
 
-const ws = new WebSocket('ws://localhost:3000/ws');
+const ws = new WebSocket(process.env.DR_WS_URL || 'ws://localhost:3000/ws');
 const output = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 ws.on('message', (d) => output.push(JSON.parse(d)));
+ws.on('error', (error) => { console.error('FAIL: connection error:', error.message); process.exit(1); });
 
 async function waitFor(t, ms = 8000) {
   const t0 = Date.now();

@@ -79,6 +79,9 @@ export function rankExp(rank) {
 
 export function recalcDerived(p) {
   p.maxHp = Math.max(1, Math.floor((40 + p.stats.con * 2 + p.stats.str) * (1 + (p.circle - 1) * 0.08)) - (p.empathicStain || 0));
+  // Guildless characters derive nothing guild-specific; the join verb
+  // re-derives these when an oath is sworn.
+  if (!p.guild) { p.maxMana = 0; p.maxStamina = maxStaminaFor(p); p.maxStaminaEff = maxStaminaEff(p); p.stamina = Math.min(p.stamina ?? p.maxStaminaEff, p.maxStaminaEff); return; }
   // Titan mastery: the frame swells with raw power.
   if (p.guild.id === 'barbarian' && (p.abilities || []).includes('titan')) {
     p.maxHp = Math.floor(p.maxHp * 1.15);

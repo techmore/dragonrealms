@@ -1,7 +1,8 @@
 // One-command verification for pre-commit / pre-sync.
 // 1. syntax-check every JS/MJS file
 // 2. run the full test suite
-// 3. corpus capture+replay against a running server on :3000 (if reachable)
+// 3. data and documentation consistency
+// 4. optional corpus capture+replay (DR_VERIFY_CORPUS=1, automatically isolated worlds)
 // Usage: node scripts/verify.mjs
 import { execFileSync } from 'node:child_process';
 import { readdirSync, statSync } from 'node:fs';
@@ -34,26 +35,34 @@ const run = (name, fn) => {
 
 console.log(`syntax-checking ${files.length} files...`);
 run('syntax check', () => {
-  for (const f of files) execFileSync('node', ['--check', f], { stdio: 'pipe' });
+  for (const f of files) execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' });
 });
 
 console.log('running npm test...');
 run('test suite', () => {
-  execFileSync('npm', ['test'], { stdio: 'inherit' });
+  execFileSync('npm', ['test'], { cwd: ROOT, stdio: 'inherit' });
 });
 
-// Corpus replay needs a live server.
-const reachable = await fetch('http://localhost:3000/').then((r) => r.ok).catch(() => false);
-if (reachable) {
-  console.log('server reachable — running corpus capture+replay...');
-  const corpus = '/tmp/dr-verify-corpus.json';
-  run('corpus capture', () => execFileSync('node', ['scripts/client-corpus.mjs', 'capture', corpus], { stdio: 'inherit' }));
-  run('corpus replay', () => execFileSync('node', ['scripts/client-corpus.mjs', 'replay', corpus], { stdio: 'inherit' }));
+run('data integrity', () => execFileSync(process.execPath, ['scripts/audit-data.mjs'], { cwd: ROOT, stdio: 'inherit' }));
+run('documentation consistency', () => execFileSync(process.execPath, ['scripts/verify-roadmap.mjs'], { cwd: ROOT, stdio: 'inherit' }));
+
+// Corpus owns its worlds; never connect to a shared development server.
+if (process.env.DR_VERIFY_CORPUS === '1') {
+  run('isolated corpus capture and replay', () => execFileSync(process.execPath,
+    ['scripts/verify-corpus.mjs'], { cwd: ROOT, stdio: 'inherit' }));
 } else {
-  steps.push('SKIP  corpus replay (no server on :3000 — run `npm start` first)');
+  steps.push('SKIP  corpus integration (set DR_VERIFY_CORPUS=1; disposable worlds start automatically)');
+}
+if (process.env.DR_VERIFY_BROWSER === '1') {
+  run('isolated browser regression', () => execFileSync(process.execPath,
+    ['scripts/client-regression.mjs'], { cwd: ROOT, stdio: 'inherit' }));
+} else {
+  steps.push('SKIP  browser regression (set DR_VERIFY_BROWSER=1 and DR_CHROMIUM_PATH if needed)');
 }
 
 console.log('\n--- verification summary ---');
 for (const s of steps) console.log(s);
-if (process.exitCode) console.log('\nFAILURES — fix before committing.');
-else console.log('\nAll checks passed. Safe to commit.');
+if (process.exitCode) console.log('\nVerification failed. See failures above.');
+else console.log(steps.some(s => s.startsWith('SKIP'))
+  ? '\nSelected checks passed. Skipped checks remain unverified.'
+  : '\nAll configured verification checks passed.');

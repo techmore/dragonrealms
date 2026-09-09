@@ -3,6 +3,7 @@
 // one-line delegating methods so callers are unchanged.
 import { roomById } from '../data/world.js';
 import { db } from './db.js';
+import { transferInventory } from './inventory-transfer.js';
 import { addItem, removeItemInstances, gainSkillExp, say } from './player.js';
 
 // ---------- Duels ----------
@@ -182,16 +183,14 @@ export function auctionPrune() {
   const now = Date.now();
   const lapsed = db.prepare('SELECT id, seller, item_id, qty, instances FROM auctions WHERE at < ?').all(now - 3600 * 1000);
   for (const lot of lapsed) {
-    // Back to the vault: it is persistent storage the seller owns.
-    const existing = db.prepare('SELECT qty, metadata FROM vault WHERE character_id=? AND item_id=?').get(lot.seller, lot.item_id);
-    if (existing) {
-      db.prepare('UPDATE vault SET qty = qty + ? WHERE character_id=? AND item_id=?')
-        .run(lot.qty, lot.seller, lot.item_id);
-    } else {
-      db.prepare('INSERT INTO vault (character_id, item_id, qty, metadata) VALUES (?,?,?,?)')
-        .run(lot.seller, lot.item_id, lot.qty, lot.instances || '[]');
-    }
-    db.prepare('DELETE FROM auctions WHERE id=?').run(lot.id);
+    transferInventory([], () => {
+      const existing = db.prepare('SELECT qty, metadata FROM vault WHERE character_id=? AND item_id=?').get(lot.seller, lot.item_id);
+      const metadata = [...JSON.parse(existing?.metadata || '[]'), ...JSON.parse(lot.instances || '[]')];
+      db.prepare(`INSERT INTO vault (character_id, item_id, qty, metadata) VALUES (?,?,?,?)
+        ON CONFLICT(character_id, item_id) DO UPDATE SET qty=excluded.qty, metadata=excluded.metadata`)
+        .run(lot.seller, lot.item_id, (existing?.qty || 0) + lot.qty, JSON.stringify(metadata));
+      db.prepare('DELETE FROM auctions WHERE id=?').run(lot.id);
+    });
   }
 }
 
@@ -213,9 +212,11 @@ export function auctionOffer(game, p, itemName, qty, price) {
     Math.floor(qty) || 1,
   ));
   if (!(price > 0)) return { ok: false, msg: 'Set a price in silvers: "auction offer <item> [qty] for <price>".' };
-  const instances = removeItemInstances(p, entry.item.id, qty, entry);
-  const info = db.prepare('INSERT INTO auctions (seller, item_id, item_name, qty, price, instances, at) VALUES (?,?,?,?,?,?,?)')
-    .run(p.charId, entry.item.id, entry.item.name, qty, price, JSON.stringify(instances || []), Date.now());
+  const info = transferInventory([p], () => {
+    const instances = removeItemInstances(p, entry.item.id, qty, entry);
+    return db.prepare('INSERT INTO auctions (seller, item_id, item_name, qty, price, instances, at) VALUES (?,?,?,?,?,?,?)')
+      .run(p.charId, entry.item.id, entry.item.name, qty, price, JSON.stringify(instances || []), Date.now());
+  });
   gainSkillExp(p, 'trading', 6);
   return { ok: true, msg: `You chalk your lot on the board: ${entry.item.name}${qty > 1 ? ` x${qty}` : ''} at ${price} silvers. (listing #${info.lastInsertRowid})` };
 }
@@ -227,22 +228,22 @@ export function auctionBuy(game, p, listingId) {
   if (!row) return { ok: false, msg: 'No such lot is still on the board.' };
   if (row.seller === p.charId) return { ok: false, msg: 'You cannot buy your own lot.' };
   if (p.silver < row.price) return { ok: false, msg: `That lot costs ${row.price} silvers; you have ${p.silver}.` };
-  p.silver -= row.price;
-  db.prepare('DELETE FROM auctions WHERE id=?').run(listingId);
-  addItem(p, row.item_id, row.qty, JSON.parse(row.instances || '[]'));
-  // Broker fee (economy audit F5): the hall's scribes take 3% of every sale.
-  // Endgame trade was a completely sink-free economy; this makes player
-  // trading quietly drain silver at exactly the tier that needs drains.
   const fee = Math.max(1, Math.floor(row.price * 0.03));
   const proceeds = row.price - fee;
   const seller = game.players.get(row.seller);
-  if (seller && seller.online) {
-    seller.silver += proceeds;
-    say(seller, `Your lot sold at auction: ${row.item_name}${row.qty > 1 ? ` x${row.qty}` : ''} for ${row.price} silvers — the broker takes ${fee}.`);
-  } else {
-    // Offline sellers are paid into the bank.
-    db.prepare('UPDATE characters SET bank = bank + ? WHERE id = ?').run(proceeds, row.seller);
-  }
+  const onlineSeller = seller?.online ? seller : null;
+  transferInventory(onlineSeller ? [p, onlineSeller] : [p], () => {
+    p.silver -= row.price;
+    db.prepare('DELETE FROM auctions WHERE id=?').run(listingId);
+    addItem(p, row.item_id, row.qty, JSON.parse(row.instances || '[]'));
+    if (onlineSeller) onlineSeller.silver += proceeds;
+    else {
+      // Offline sellers are paid into the bank within the same transaction.
+      const paid = db.prepare('UPDATE characters SET bank = bank + ? WHERE id = ?').run(proceeds, row.seller);
+      if (paid.changes !== 1) throw new Error('Auction seller is missing.');
+    }
+  });
+  if (onlineSeller) say(onlineSeller, `Your lot sold at auction: ${row.item_name}${row.qty > 1 ? ` x${row.qty}` : ''} for ${row.price} silvers — the broker takes ${fee}.`);
   gainSkillExp(p, 'trading', 8);
   return { ok: true, msg: `You buy ${row.item_name}${row.qty > 1 ? ` x${row.qty}` : ''} for ${row.price} silvers.` };
 }

@@ -153,12 +153,16 @@ export function createCharacter(accountId, { name, race, guild, city = 'crossing
   const existing = db.prepare('SELECT COUNT(*) AS c FROM characters WHERE account_id = ?').get(accountId).c;
   if (existing >= MAX_CHARS) throw new Error(`This account already has ${MAX_CHARS} characters. Delete one to create another.`);
   const stats = baseStatsFor(race);
-  const g = guildById(guild);
-  if (!raceById(race) || !g) throw new Error('Invalid race or guild.');
+  // DR-authentic joining: guild may be null — the character wakes GUILDLESS
+  // and joins at a guild hall (`join <guild>` at the hall's leader). Callers
+  // that pass an explicit guild (sims, GM toons, API bots) start guilded as
+  // before: joining is the real players' ceremony, not a sim gate.
+  const g = guild ? guildById(guild) : null;
+  if (!raceById(race) || (guild && !g)) throw new Error('Invalid race or guild.');
 
   const statsObj = { ...stats, unspent: STAT_POOL };
   const maxHp = 40 + stats.con * 2 + stats.str;
-  const startMana = g.magic ? Math.floor(20 + stats.wis * 2 + stats.int + stats.dis) : 0;
+  const startMana = g && g.magic ? Math.floor(20 + stats.wis * 2 + stats.int + stats.dis) : 0;
   let startRoom = CITIES[city] || CITIES.crossing;
   // Rangers are wilderness hunters: they begin on the pine-needle path by the
   // Ranger Guildhall (a wilds room next to the woods hunting grounds) rather
@@ -173,7 +177,7 @@ export function createCharacter(accountId, { name, race, guild, city = 'crossing
        unspent_stat, mana, tdp, silver, bank, room, home_city, hp, max_hp, created_at)
     VALUES (?,?,?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
-    accountId, clean, race, guild,
+    accountId, clean, race, guild || null,
     statsObj.str, statsObj.con, statsObj.ref, statsObj.agi, statsObj.cha,
     statsObj.dis, statsObj.wis, statsObj.int,
     statsObj.unspent, startMana, 600, 150, 0, startRoom, homeCity, maxHp, maxHp, Date.now()
@@ -201,7 +205,10 @@ export function loadPlayer(charId) {
     accountId: row.account_id,
     name: row.name,
     race: raceById(row.race),
-    guild: guildById(row.guild),
+    // Guildless characters (not yet joined — DR-authentic) load with guild
+    // null; every consumer below guards on it. Guild fields are derived from
+    // row.guild via the same helper so join-time re-derivation stays one path.
+    guild: row.guild ? guildById(row.guild) : null,
     circle: row.circle,
     handsDirty: true,
     stats: {
@@ -227,7 +234,7 @@ export function loadPlayer(charId) {
     devotion: row.devotion ?? 30,
     homeCity: row.home_city || 'crossing',
     expPools: (() => { try { return JSON.parse(row.exp_pools || '{}'); } catch { return {}; } })(),
-    maxMana: guildById(row.guild).magic ? 20 + row.wis * 2 + row.int + row.dis : 0,
+    maxMana: row.guild && guildById(row.guild).magic ? 20 + row.wis * 2 + row.int + row.dis : 0,
     silver: row.silver,
     bank: row.bank,
     room: row.room,
@@ -241,7 +248,7 @@ export function loadPlayer(charId) {
     scripts: persisted.scripts && typeof persisted.scripts === 'object' ? persisted.scripts : {},
     // Learned-spell registry. Legacy characters (and new ones) derive their
     // circle curriculum on load; from there the slot economy governs grants.
-    spellsKnown: guildById(row.guild).magic
+    spellsKnown: row.guild && guildById(row.guild).magic
       ? spellsFor(guildById(row.guild), row.circle).map((s) => s.id)
       : [],
     spellsForgotten: Array.isArray(persisted.spellsForgotten) ? persisted.spellsForgotten : [],
@@ -746,19 +753,24 @@ export function putScript(p, name, body) {
   const text = String(body || '');
   if (!text.trim()) return { ok: false, error: 'Script needs a body.' };
   if (text.length > SCRIPT_MAX_BODY) return { ok: false, error: `Script too large (max ${SCRIPT_MAX_BODY} characters).` };
-  if (!p.scripts[n] && Object.keys(p.scripts).length >= SCRIPT_MAX_COUNT) {
+  if (!Object.hasOwn(p.scripts, n) && Object.keys(p.scripts).length >= SCRIPT_MAX_COUNT) {
     return { ok: false, error: `Too many saved scripts (max ${SCRIPT_MAX_COUNT}).` };
   }
-  p.scripts[n] = text;
-  writeScriptsNow(p);
+  const previous = p.scripts;
+  p.scripts = { ...previous, [n]: text };
+  try { writeScriptsNow(p); }
+  catch (error) { p.scripts = previous; throw error; }
   return { ok: true };
 }
 
 export function delScript(p, name) {
   const n = String(name || '').toLowerCase();
-  if (!p.scripts[n]) return { ok: false, error: 'No such script.' };
+  if (!Object.hasOwn(p.scripts, n)) return { ok: false, error: 'No such script.' };
+  const previous = p.scripts;
+  p.scripts = { ...previous };
   delete p.scripts[n];
-  writeScriptsNow(p);
+  try { writeScriptsNow(p); }
+  catch (error) { p.scripts = previous; throw error; }
   return { ok: true };
 }
 
@@ -922,10 +934,10 @@ export const STANCE_COSTS = { aggressive: 2, balanced: 0, defensive: 1, guarded:
 
 export function stancePoints(p) {
   let pts = 3;
-  if (p.guild.id === 'barbarian') pts += Math.floor(skillRank(p, 'defending') / 60);
-  if (p.guild.id === 'ranger') pts += Math.floor((skillRank(p, 'evasion') + skillRank(p, 'shield_usage')) / 60);
+  if (p.guild?.id === 'barbarian') pts += Math.floor(skillRank(p, 'defending') / 60);
+  if (p.guild?.id === 'ranger') pts += Math.floor((skillRank(p, 'evasion') + skillRank(p, 'shield_usage')) / 60);
   // Exemplar mastery: a paragon of the wild commands an extra edge.
-  if (p.guild.id === 'barbarian' && (p.abilities || []).includes('exemplar')) pts += 2;
+  if (p.guild?.id === 'barbarian' && (p.abilities || []).includes('exemplar')) pts += 2;
   return pts;
 }
 
