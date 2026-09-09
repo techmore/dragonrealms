@@ -193,3 +193,10 @@ Elanthipedia community). For fidelity questions:
   in our own words, citing the source page title in a comment. Never copy
   wiki prose/wikitext into the repo, and never commit anything from the
   archive folder itself.
+
+## User preference: simulator execution and dashboard visibility
+
+- Run simulations as bounded background jobs with durable logs/results. Do not spend an assistant turn watching, sleeping through, or repeatedly polling a sim. Return after a brief launch check; review saved results on the next requested continuation.
+- Barbarian comparison runs must publish sweep logs, experiment manifests/indexes and timestamped EXP/requirement telemetry to the `public/live` served by the user's Sims page. Browser ad-hoc agents and temporary smoke-test worlds do not populate the sweep EXP-blip cards and are not substitutes for dashboard-visible benchmarks.
+- Before reporting a run launched, check once that its process started and its manifest/log discovery files exist. Report the run ID, cap, dashboard URL and results location. Do not call an unstarted or completed run live.
+- Judge matched runs by target completion and requirement-gap closure, then deaths/stalls and timing. EXP blips indicate observed learning/progress, not proof of an acceptable leveling script. Missing/stale telemetry is unknown, not zero progress. Preserve timestamped results for retrospective comparison; no live assistant watching is needed.
