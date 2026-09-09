@@ -24,6 +24,21 @@ types. The server remains authoritative for character ownership.
   ordinary session returns to character selection; it does not restart a
   previous script automatically.
 
+## New-character journey
+
+Normal browser creation sends race and name with `city: "crossing"` and no
+`guild`. New guildless characters start at the Crossing Temple, allocate
+stats, then enter the world. `DIR LIST GUILDS` lists destinations;
+`DIR BARBARIAN` gives directions, and `JOIN BARBARIAN` works before the
+Barbarian leader at the hall. Crossing rooms tagged `town` count as city
+rooms for DIR, including the Temple.
+
+Existing characters retain their saved room and guild. Explicit guilded
+creation through low-level wire/API callers remains supported for existing
+test and simulation fixtures; guildless browser creation is not a wire-level
+restriction. The Temple arrival is the intended product flow, not an
+independently verified claim about historical DragonRealms onboarding.
+
 ## Read-only character panels
 
 Client request:

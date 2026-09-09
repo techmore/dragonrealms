@@ -36,9 +36,9 @@ function makeGuildless(name) {
   return pl;
 }
 
-test('guildless creation: wakes at Town Green with no guild, requirements carry the join hint', () => {
+test('guildless creation: wakes at Crossing Temple with no guild, requirements carry the join hint', () => {
   p = makeGuildless('Waker');
-  assert.equal(p.room, 'square', 'guildless wake at Town Green');
+  assert.equal(p.room, 'temple', 'guildless wake at Crossing Temple');
   assert.equal(p.guild, null, 'no guild');
   assert.equal(p.maxMana, 0, 'no mana pool for guildless');
   game.status(p);
@@ -51,6 +51,8 @@ test('guildless creation: wakes at Town Green with no guild, requirements carry 
 });
 
 test('join <guild> before its leader binds the guild (barbarian hall)', () => {
+  handleCommand(game, p, 'DIR BARBARIAN');
+  assert.match(msgs(p), /Heading to/);
   walk(p, 'hall_barbarian');
   handleCommand(game, p, 'join');
   assert.ok(msgs(p).includes('Whose banner?'), 'bare join lists leaders');

@@ -135,7 +135,7 @@ function enterWorld(session, charId, candidate = null) {
     t: 'enter',
     msg: p.guild
       ? `\nYou are ${p.name}, a ${r.name} of the ${p.guild.name} guild.\nThe Crossing stretches before you. Type "help" for commands.`
-      : `\nYou are ${p.name}, a ${r.name} guildless — find a calling before any hall's leader ("dir list guilds", then "join <guild>").\nThe Crossing stretches before you. Type "help" for commands.`,
+      : `\nYou are ${p.name}, a ${r.name} guildless. Find a calling before a hall's leader ("dir list guilds", "dir barbarian", then "join barbarian" at the hall).\nThe Crossing stretches before you. Type "help" for commands.`,
   });
   session.game.look(p);
   session.game.status(p);

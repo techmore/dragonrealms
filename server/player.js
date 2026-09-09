@@ -163,7 +163,7 @@ export function createCharacter(accountId, { name, race, guild, city = 'crossing
   const statsObj = { ...stats, unspent: STAT_POOL };
   const maxHp = 40 + stats.con * 2 + stats.str;
   const startMana = g && g.magic ? Math.floor(20 + stats.wis * 2 + stats.int + stats.dis) : 0;
-  let startRoom = CITIES[city] || CITIES.crossing;
+  let startRoom = g ? (CITIES[city] || CITIES.crossing) : 'temple';
   // Rangers are wilderness hunters: they begin on the pine-needle path by the
   // Ranger Guildhall (a wilds room next to the woods hunting grounds) rather
   // than the town square. The room is reachable from the bazaar/town graph and

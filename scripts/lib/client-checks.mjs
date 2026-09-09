@@ -33,14 +33,8 @@ const check = (name, ok, extra = '') => { checks.push([name, ok]); log(`${ok ? '
   await evalJs(`(function(){const r=document.getElementById('cg-race'); r.value='dwarf'; r.dispatchEvent(new Event('change'));})();true`);
   await sleep(200);
   check('stat mods update per race', (await evalJs(`document.getElementById('cg-race-mods').textContent`)).includes('CON +10'));
-  await evalJs(`(function(){const g=document.getElementById('cg-guild'); g.value='warmage'; g.dispatchEvent(new Event('change'));})();true`);
-  await sleep(200);
-  check('guild flavor shows mana type', (await evalJs(`document.getElementById('cg-guild-flavor').textContent`)).includes('Elemental magic'));
-  await evalJs(`(function(){const g=document.getElementById('cg-guild'); g.value='barbarian'; g.dispatchEvent(new Event('change'));})();true`);
-  await sleep(200);
-  check('guild flavor shows no-magic', (await evalJs(`document.getElementById('cg-guild-flavor').textContent`)).includes('no magic'));
-  await evalJs(`(function(){const g=document.getElementById('cg-guild'); g.value='warmage'; g.dispatchEvent(new Event('change'));})();true`);
-
+  check('guild chosen in game', await evalJs(`document.getElementById('cg-guild').type === 'hidden'`));
+  check('Temple and directions guidance', await evalJs(`document.getElementById('chargen').textContent.includes('DIR BARBARIAN')`));
 
   // 3. Create character
   const cname = randName();
@@ -53,6 +47,22 @@ const check = (name, ok, extra = '') => { checks.push([name, ok]); log(`${ok ? '
   await sleep(300);
   await evalJs(`document.getElementById('cg-enter').click();true`);
   await waitFor(`!!document.querySelector('.room-title')`);
+  check('new character arrives at Temple', await evalJs(`${lastTitle}.textContent.includes('Temple')`));
+  await cmd('info');
+  check('new character is guildless', await waitFor(`document.getElementById('terminal').textContent.includes('guildless')`));
+  await cmd('DIR WARMAGE');
+  check('DIR works from Temple', await waitFor(`document.getElementById('terminal').textContent.includes('Heading to')`));
+  for (const [from, to] of [['temple', 'hall_warmage'], ['hall_warmage', 'square']]) {
+    for (const direction of findPath(from, to)) {
+      const before = await evalJs(`document.querySelectorAll('.room-title').length`);
+      await cmd(direction);
+      await waitFor(`document.querySelectorAll('.room-title').length > ${before}`);
+    }
+    if (to === 'hall_warmage') {
+      await cmd('join warmage');
+      check('joins guild at its hall', await waitFor(`document.getElementById('terminal').textContent.includes('You have joined the Warrior Mage guild.')`));
+    }
+  }
   // Layout-agnostic: derive expectations from the live room output rather
   // than hardcoding world data (the map evolves under fidelity passes).
   const startTitle = await evalJs(`${lastTitle}.textContent`);

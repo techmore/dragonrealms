@@ -177,15 +177,11 @@ function showChargen() {
   $('cg-name').removeAttribute('aria-invalid');
   const raceSel = $('cg-race');
   raceSel.innerHTML = RACES.map(([id, name]) => `<option value="${id}">${name}</option>`).join('');
-  const guildSel = $('cg-guild');
-  // First option = guildless (the DR-authentic default): you wake with no
-  // guild and join at a hall with "join <guild>". Guilded starts stay one
-  // click away for power users and returning players.
-  guildSel.innerHTML = `<option value="">Guildless — join a hall in town</option>` +
-    GUILDS.map(([id, name]) => `<option value="${id}">${name}</option>`).join('');
+  $('cg-guild').value = '';
+  $('cg-city').value = 'crossing';
   // A failed create loops back here: make sure the form half is visible again
   // even if a previous alloc phase collapsed it.
-  for (const elId of ['cg-name', 'cg-race', 'cg-guild', 'cg-city', 'cg-submit']) {
+  for (const elId of ['cg-name', 'cg-race', 'cg-submit']) {
     const wrap = $(elId)?.closest('label, .cg-choice-grid') || $(elId);
     if (wrap) wrap.hidden = false;
   }
@@ -233,7 +229,7 @@ export function showAlloc(panel) {
   // Creation succeeded: collapse the create-form half of the card so the
   // alloc sheet reads as the next step, not a second competing flow
   // (UI audit P0#2 — "two creation flows shown simultaneously").
-  for (const elId of ['cg-name', 'cg-race', 'cg-guild', 'cg-city', 'cg-submit']) {
+  for (const elId of ['cg-name', 'cg-race', 'cg-submit']) {
     const wrap = $(elId)?.closest('label, .cg-choice-grid') || $(elId);
     if (wrap) wrap.hidden = true;
   }
@@ -253,15 +249,11 @@ function submitChargen() {
     return;
   }
   $('cg-name').removeAttribute('aria-invalid');
-  const guildVal = $('cg-guild').value;
   const sent = send({
     t: 'charcreate',
     name: $('cg-name').value.trim(),
     race: $('cg-race').value,
-    // Empty guild = guildless start; the server treats an absent/empty guild
-    // as "join later at the hall".
-    ...(guildVal ? { guild: guildVal } : {}),
-    city: ($('cg-city') && $('cg-city').value) || 'crossing',
+    city: 'crossing',
   });
   if (!sent) return showCreationError('Connection lost. Please wait for reconnection.');
   creationPending = true;

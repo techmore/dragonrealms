@@ -66,6 +66,7 @@ export const CITY_ORIGIN = {
 const CITY_SEED = { crossing: 'square', riverhaven: 'rh_square' };
 
 export function cityOf(roomId) {
+  if (ROOMS[roomId]?.zone === 'town') return 'crossing';
   for (const city of Object.keys(CITY_ORIGIN)) {
     if (CITY_SEED[city] === roomId || ROOMS[roomId]?.zone === city) return city;
   }

@@ -254,17 +254,11 @@
           <select id="cg-race"></select>
           <span id="cg-race-flavor" class="cg-flavor"></span>
         </label>
-        <label>Guild
-          <select id="cg-guild"></select>
-          <span id="cg-guild-flavor" class="cg-flavor"></span>
-        </label>
+        <input id="cg-guild" type="hidden" value="">
+        <span id="cg-guild-flavor" class="cg-flavor" hidden></span>
       </div>
-      <label>Starting city
-        <select id="cg-city">
-          <option value="crossing">The Crossing</option>
-          <option value="riverhaven">Riverhaven</option>
-        </select>
-      </label>
+      <input id="cg-city" type="hidden" value="crossing">
+      <p class="cg-flavor">Begin guildless at the Crossing Temple. Use <b>DIR LIST GUILDS</b> to find your calling, or <b>DIR BARBARIAN</b> for the Barbarian guild. Walk there and <b>JOIN BARBARIAN</b> before its leader.</p>
       <button id="cg-submit">Create character</button>
       <p id="cg-error" class="welcome-err" role="alert"></p>
       <pre id="cg-alloc" aria-live="polite"></pre>
