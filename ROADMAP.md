@@ -46,7 +46,7 @@ the large-lift items in *Next Up*.
 | 5 character slots per account | ✅ |
 | Character creation (name, race, guild) | ✅ |
 | Stat allocation (8 stats, 30-point pool) | ✅ |
-| 12 races with stat modifiers & descriptions (incl. Giantman) | ✅ |
+| 11 races with stat modifiers & descriptions | ✅ |
 | Character deletion (`deletechar`) | ✅ |
 | Character select with slot display + "new" flow | ✅ |
 | Rerolling / respec of spent stats | ✅ (Fane of Training: `respec`, returns spent points, 150 + circle×50 silvers) |
@@ -62,7 +62,7 @@ the large-lift items in *Next Up*.
 | 83 skills across 8 categories (six DR skillsets + Combat Manipulation + Defense) | ✅ |
 | EXP earned through use (combat, magic, crafting, world skills) | ✅ |
 | Automatic rank-up when exp threshold reached (200 + n per rank, matching DR) | ✅ |
-| Field-exp pools & pulses: 70% lands now, 30% banks and pulses into ranks every 30s; mindstate ladder reads the pool | ✅ |
+| Field-exp pools & pulses: field experience banks up to the pool cap and converts to ranks on grouped pulses; mindstate ladder reads the pool | ✅ |
 | `skills`, `exp`, `score` reporting (exp shows mindstate ladder) | ✅ |
 | Skill-gated world actions: `forage`, `track`, `skin`, `hunt`, `hide`, `study`, `steal`, `pick` | ✅ |
 | Progression reachability through circle 10 | ✅ simulator validates all 11 guilds; active-time and economy balance still need live playtests |

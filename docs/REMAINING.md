@@ -1,6 +1,10 @@
-# Dragon Realms — Remaining Work
+# Dragon Realms — Historical Remaining Work (August 24, 2026)
 
-Canonical handoff list. Generated from the tracker's partial rows
+Historical snapshot; counts and completion claims below are not current.
+For active work, see [the implementation schedule](IMPROVEMENT-SCHEDULE.md)
+and [the audit resolution log](CODEBASE-AUDIT-2026-09-05.md).
+
+Originally generated from the tracker's partial rows
 (`data/roadmap.js`) plus known divergences. Edit the tracker first; this
 document is the narrative companion to `/ROADMAP.html`.
 
