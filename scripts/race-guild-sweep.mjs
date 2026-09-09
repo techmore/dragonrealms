@@ -1090,6 +1090,8 @@ class SweepAgent {
     const cap = {
       guild: this.guild, race: this.race, char: this.char, circle: s.vitals.circle || 1, scriptBase: this.scriptBase,
       bazaarPath, trainList: null, trainOffset: this.trainOffset || 0,
+      gapCurriculum: !!this.variant?.gapCurriculum,
+      requirementRanks: Object.keys(this.expRanks || {}).length ? { ...(s.vitals.skills || {}), ...this.expRanks } : null,
       defensiveKit: this.guild === 'barbarian',
       survivalBreadth: !!this.variant?.survivalBreadth,
       survivalFocus: !!this.variant?.survivalFocus,
@@ -1165,7 +1167,7 @@ class SweepAgent {
         gemPath: s.bfsPath('bazaar', 'market_end', this.diskAdj()),
         gemBack: s.bfsPath('market_end', 'bazaar', this.diskAdj()),
         gemRoom: 'market_end',
-        ...(this.variant?.finishKit ? this.studyErrandRoute('hall_' + this.guild) : {}),
+        ...((this.variant?.finishKit || this.variant?.gapCurriculum) ? this.studyErrandRoute('hall_' + this.guild) : {}),
         ...(this.variant?.finishKit ? this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()) : {}),
         ...(this.variant?.finishKit ? this.crierErrandRoute() : {}),
       },
@@ -1563,6 +1565,8 @@ class SweepAgent {
     const arena = this.arena;
     if (!arena) return;
     const cap = { guild: this.guild, race: this.race, char: this.char, circle: s.vitals.circle || 1, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth, tdpFloor: this.variant?.tdpFloor, helmRetry: this.variant?.helmRetry, armorStack: this.variant?.armorStack, shieldKit: this.variant?.shieldKit, cheapWeaponKit: this.variant?.cheapWeaponKit, finishKit: this.variant?.finishKit, finishWear: this.variant?.finishKit, hallTrainCap: this.variant?.hallTrainCap, rotMargin: this.variant?.rotMargin, weaponReserve: this.variant?.weaponReserve, weaponReserveV2: this.variant?.weaponReserveV2, weaponReserveV3: this.variant?.weaponReserveV3, edgedKit: this.variant?.edgedKit, weaponAware: this.variant?.weaponAware, economyFallback: this.variant?.economyFallback, survivalRetry: this.variant?.survivalRetry, survivalFirst: this.variant?.survivalFirst, sharedFight: !!this.variant?.closeNth };
+    cap.gapCurriculum = !!this.variant?.gapCurriculum;
+    cap.requirementRanks = Object.keys(this.expRanks || {}).length ? { ...(s.vitals.skills || {}), ...this.expRanks } : null;
     cap.defensiveKit = this.guild === 'barbarian';
     cap.survivalBreadth = !!this.variant?.survivalBreadth;
     cap.survivalFocus = !!this.variant?.survivalFocus;
@@ -1616,7 +1620,7 @@ class SweepAgent {
         gemPath: s.bfsPath('bazaar', 'market_end', this.diskAdj()),
         gemBack: s.bfsPath('market_end', 'bazaar', this.diskAdj()),
         gemRoom: 'market_end',
-        ...(this.variant?.finishKit ? this.studyErrandRoute('hall_' + this.guild) : {}),
+        ...((this.variant?.finishKit || this.variant?.gapCurriculum) ? this.studyErrandRoute('hall_' + this.guild) : {}),
         ...(this.variant?.finishKit ? this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()) : {}),
         ...(this.variant?.finishKit ? this.crierErrandRoute() : {}),
       },

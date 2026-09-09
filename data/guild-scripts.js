@@ -705,6 +705,14 @@ export const VARIANTS = {
     diff: ['cheapWeaponKit'],
     hypothesis: 'Keep edgedSkinRest50 recovery and training controls, but use four bazaar-stocked affordable lanes (dagger, sling, club, staff), skip already-owned weapons, and retry once 112 silver can fund a missing club/staff. The incomplete hmni cohort proved the old layout requested unsold throwing knives, repeatedly repurchased daggers, and never established a fourth live lane; this should close 3rd/4th weapon before Circle 2 while preserving silver for armor.',
   },
+  edgedSkinGapStudy: {
+    restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    cheapWeaponKit: true, weaponAware: true, rotMargin: 0, economyFallback: true,
+    gapCurriculum: true,
+    diff: ['gapCurriculum'],
+    hypothesis: 'Keep edgedSkinCheapKit combat, kit and recovery unchanged. Rebuild each town curriculum from observed ranks and the next authoritative circle gate, train only missing guild-teachable skills, and route missing lore to study. In inzl the control gained 73 ranks from minute 16 to 24 without reducing its 19-rank shortfall; both lore rows ended at 0/2. This should reduce wasted training and close lore without changing the field loop. Unbenchmarked candidate; compare baseline, edgedSkinCheapKit and edgedSkinGapStudy under the standard matched cohort.',
+  },
   edgedSkinWeaponFirst: {
     restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
     closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
