@@ -56,6 +56,11 @@
         <div class="dwin-head rail-kicker">HANDS<button class="dwin-collapse" data-collapse="hands-bar" title="Collapse hands" aria-label="Collapse hands" aria-expanded="true">&#9660;</button></div>
         <div class="dwin-body" id="hands-bar">
           <svg id="hands-doll" viewBox="0 0 140 230" role="img" aria-label="Equipment paper doll" class="paper-doll">
+            <g class="field-avatar-frame" aria-hidden="true">
+              <rect x="7" y="3" width="126" height="174" rx="58"/>
+              <path d="M70 3v5 M70 171v6 M7 90h7 M126 90h7"/>
+              <ellipse cx="70" cy="172" rx="30" ry="3"/>
+            </g>
             <!-- All regions share ONE vertical axis at x=70; every pair of
                  limbs is mirror-symmetric about it. The old figure mixed two
                  centerlines (head/limbs at x=60, torso at x=70) which made
@@ -128,6 +133,8 @@
               <text x="104" y="166">feet</text>
             </g>
           </svg>
+          <div id="field-avatar-detail" aria-live="polite" hidden>Inspect a body region for equipment details.</div>
+          <div id="field-avatar-key" hidden><span>Outline · empty</span><span>Gold · equipped</span><span>Dashed · damaged</span></div>
           <div id="heri-strip" class="heri-strip" role="group" aria-label="Equipment glyphs"></div>
           <div id="hands-hand" class="hands-item">Hand: &#8212;</div>
           <div id="hands-worn" class="hands-item"></div>

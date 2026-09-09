@@ -7,8 +7,21 @@ export function initFieldDesk() {
   const query = new URL(location.href);
   if (query.searchParams.get('ui') === 'experimental') settings.experimental = true;
   const desk = document.getElementById('field-desk');
+  const avatar = document.getElementById('hands-doll');
+  const detail = document.getElementById('field-avatar-detail');
+  const inspect = event => {
+    const region = event.target.closest('.pd-region');
+    if (region) detail.textContent = region.querySelector('title')?.textContent || region.getAttribute('aria-label') || 'Equipment details unavailable.';
+  };
+  avatar.addEventListener('pointerover', inspect);
+  avatar.addEventListener('focus', inspect, true);
+  avatar.addEventListener('focusin', inspect);
+  avatar.addEventListener('click', inspect);
   const refresh = () => {
     desk.hidden = settings.experimental !== true;
+    avatar.setAttribute('viewBox', settings.experimental === true ? '0 0 140 184' : '0 0 140 230');
+    detail.hidden = settings.experimental !== true;
+    document.getElementById('field-avatar-key').hidden = settings.experimental !== true;
     const active = gameState.value === 'playing';
     desk.querySelector('.field-reference').hidden = !active;
     desk.querySelector('.field-actions').hidden = !active;
