@@ -74,3 +74,33 @@ reproduction. Standard comparison is three concurrent workers, Gor'Tog,
 paired-fixed-v1, boost 20, Circle 5, 30 minutes. No sim was launched in this
 review. Next evidence must show lower shortfall or target completion with
 no worse death/stall safety, not merely more total EXP.
+
+## Before the first Activity-Aware comparison
+
+User authorized the standard 30-minute comparison through the Sims launcher.
+Freeze the scripts during this run. Review saved evidence on the next
+continuation; do not watch or repeatedly poll the simulation.
+
+Prioritized hypotheses for the next iteration (not changes to this run):
+
+1. **Missing equipment before more combat:** if fourth weapon or second
+   armor stays at zero, inspect actual owned/worn gear and failed purchases.
+   Training an already-high weapon cannot repair a missing equipment lane.
+2. **Rotation by the current gate:** if weapons overshoot after circling,
+   replace fixed Circle-2 rotation thresholds with the live next-circle
+   requirements, while skipping weapons the character does not own.
+3. **Productive town trips:** if [activity-town] repeats without gap closure,
+   inspect route completion, trainer eligibility, silver and academy reads;
+   avoid treating a visit as useful simply because commands were sent.
+4. **Combat utility versus training:** if Activity-Aware has more deaths or
+   slower kills after turning off trip/roar, preserve useful combat effects
+   independently of their training goals.
+5. **Budget by gap closure:** compare time spent fighting, foraging, hunting,
+   travelling and waiting against actual requirement improvements. Change
+   the 30-second survival window only if the timestamps show starvation or
+   unnecessary delay; do not tune it from total EXP alone.
+
+Decision order: Circle-5 completion, deaths/stalls, remaining shortfall and
+closure rate, then milestone times. If no worker circles, report the exact
+remaining rows rather than declaring a speed-run winner. One cohort is
+preliminary evidence; keep the historical control for matched repeats.
