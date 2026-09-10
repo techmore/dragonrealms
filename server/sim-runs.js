@@ -7,7 +7,7 @@ const live = root + 'public/live/';
 export function validateSimRun(body) {
   if (!body || !Number.isInteger(body.minutes) || body.minutes < 1 || body.minutes > 120)
     throw new Error('Choose a whole-number time limit from 1 to 120 minutes.');
-  return { minutes: body.minutes, variants: ['baseline', 'edgedSkinCheapKit', 'edgedSkinGapStudy'],
+  return { minutes: body.minutes, variants: ['baseline', 'edgedSkinCheapKit', 'edgedSkinActivity'],
     circle: 5, boost: 20, concurrency: 3, race: 'gortog', statPolicy: 'paired-fixed-v1' };
 }
 export function createSimRuns({ launch = spawn, busy = () => {

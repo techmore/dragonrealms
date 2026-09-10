@@ -9,7 +9,7 @@ import { createSimRuns, validateSimRun } from '../server/sim-runs.js';
 test('sim time limits reject invalid values and retain the matched three-worker plan',()=>{
   for(const minutes of [0,121,1.5,'30',null,NaN]) assert.throws(()=>validateSimRun({minutes}));
   const config=validateSimRun({minutes:30,variants:['arbitrary']});
-  assert.deepEqual(config.variants,['baseline','edgedSkinCheapKit','edgedSkinGapStudy']);
+  assert.deepEqual(config.variants,['baseline','edgedSkinCheapKit','edgedSkinActivity']);
   assert.equal(config.concurrency,3);
 });
 test('launcher uses bounded arguments, rejects overlapping starts, and stops only its child',()=>{

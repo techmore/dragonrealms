@@ -123,7 +123,7 @@ cause an archived same-name copy to become runnable again.
 ## Sims comparison controls
 
 The visible Sims run panel starts the three-worker Barbarian comparison
-(baseline, edgedSkinCheapKit, edgedSkinGapStudy) with a 1–120 minute cap.
+(baseline, edgedSkinCheapKit, edgedSkinActivity) with a 1–120 minute cap.
 Thirty minutes is standard; custom durations belong to separate cohorts.
 The workers use Gor'Tog, paired-fixed-v1, Circle 5, boost 20, and publish
 normal sweep artifacts to public/live. Closing the page does not stop them.

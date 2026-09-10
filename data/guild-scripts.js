@@ -705,6 +705,14 @@ export const VARIANTS = {
     diff: ['cheapWeaponKit'],
     hypothesis: 'Keep edgedSkinRest50 recovery and training controls, but use four bazaar-stocked affordable lanes (dagger, sling, club, staff), skip already-owned weapons, and retry once 112 silver can fund a missing club/staff. The incomplete hmni cohort proved the old layout requested unsold throwing knives, repeatedly repurchased daggers, and never established a fourth live lane; this should close 3rd/4th weapon before Circle 2 while preserving silver for armor.',
   },
+  edgedSkinActivity: {
+    restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
+    closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,
+    cheapWeaponKit: true, weaponAware: true, rotMargin: 0, economyFallback: true,
+    gapActivity: true,
+    diff: ['gapActivity'],
+    hypothesis: 'One activity-selection policy versus edgedSkinCheapKit: choose work from fresh next-circle gaps, stop satisfied analyze/trip/forage tasks, skip full survival pools, and hand off to requirement-driven town learning when field combat has no remaining gate work. In inzl ranks grew 168 to 241 while shortfall stayed 19; this tests whether live switching closes gaps faster than unconditional EXP loops. No promotion until a matched baseline/CheapKit/Activity cohort proves it.',
+  },
   edgedSkinGapStudy: {
     restPct: 50, hallEvery: 4, arenaBand: 2, hallFallbackMs: 240000,
     closeNth: true, tdpFloor: 4, helmRetry: true, armorStack: true,

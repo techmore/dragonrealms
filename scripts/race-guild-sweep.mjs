@@ -1,3 +1,4 @@
+import { barbarianActivity } from './lib/barbarian-activity.mjs';
 // Race × guild fidelity sweep: automated characters play through the REAL
 // session stack, driven by DR-style scripts (the same engine the browser
 // client uses), exercising each guild's signature mechanics.
@@ -954,6 +955,7 @@ class SweepAgent {
           void this.finish('target circle reached');
           return;
         }
+        this.updateActivity();
         this.runner?.feed(plain, true);
         this.captureStateChanges();
         this.supervise();
@@ -1090,7 +1092,8 @@ class SweepAgent {
     const cap = {
       guild: this.guild, race: this.race, char: this.char, circle: s.vitals.circle || 1, scriptBase: this.scriptBase,
       bazaarPath, trainList: null, trainOffset: this.trainOffset || 0,
-      gapCurriculum: !!this.variant?.gapCurriculum,
+      gapActivity: !!this.variant?.gapActivity,
+      gapCurriculum: !!(this.variant?.gapCurriculum || this.variant?.gapActivity),
       requirementRanks: Object.keys(this.expRanks || {}).length ? { ...(s.vitals.skills || {}), ...this.expRanks } : null,
       defensiveKit: this.guild === 'barbarian',
       survivalBreadth: !!this.variant?.survivalBreadth,
@@ -1167,7 +1170,7 @@ class SweepAgent {
         gemPath: s.bfsPath('bazaar', 'market_end', this.diskAdj()),
         gemBack: s.bfsPath('market_end', 'bazaar', this.diskAdj()),
         gemRoom: 'market_end',
-        ...((this.variant?.finishKit || this.variant?.gapCurriculum) ? this.studyErrandRoute('hall_' + this.guild) : {}),
+        ...((this.variant?.finishKit || this.variant?.gapCurriculum || this.variant?.gapActivity) ? this.studyErrandRoute('hall_' + this.guild) : {}),
         ...(this.variant?.finishKit ? this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()) : {}),
         ...(this.variant?.finishKit ? this.crierErrandRoute() : {}),
       },
@@ -1275,6 +1278,7 @@ class SweepAgent {
         // Swing timestamps feed the effort-without-progress detector: hard effort with zero
         // kills and zero rank movement over a 2m window = broken script.
         if (/^attack\b/.test(line)) {
+          this.activityCombatAt = Date.now();
           this.swingTimes ||= [];
           this.swingTimes.push(Date.now());
           if (this.swingTimes.length > 120) this.swingTimes.splice(0, 60);
@@ -1289,7 +1293,20 @@ class SweepAgent {
       say: (t) => { if (t && !/^--/.test(t)) this.appendLog(`[echo] ${t}`); },
       getScript: (n) => this.getScript(n),
     });
+    this.updateActivity();
     this.runner.start();
+  }
+
+  updateActivity() {
+    if (!this.variant?.gapActivity) return;
+    this.activity = barbarianActivity({ranks:this.expRanks || {}, circle:this.session.vitals.circle || 1,
+      observedAt:this.activityObservedAt, locked:this.activityLocks || {}, lastCombatAt:this.activityCombatAt});
+    for (const [key,value] of Object.entries(this.activity.vars)) this.runner?.setVar(key,value);
+    const mode=this.activity.vars.gap_mode;
+    if(mode!==this.lastActivityMode) {
+      this.appendLog(`[activity] ${new Date().toISOString()} ${mode}: ${this.activity.reason}`);
+      this.lastActivityMode=mode;
+    }
   }
 
   onText(text, type) {
@@ -1456,6 +1473,15 @@ class SweepAgent {
         log(`[${this.guild}/${this.race}] circle gaps: ${Object.entries(v3.circleGaps).slice(0, 4).map(([s, g]) => `${s} ${g.have}/${g.need}`).join(', ')}${Object.keys(v3.circleGaps).length > 4 ? ` +${Object.keys(v3.circleGaps).length - 4}` : ''}`);
       }
     }
+    if (this.variant?.gapActivity && /(?:^|\n)\s*Experience\s*(?:\n|$)/.test(plainAll)) {
+      this.activityObservedAt=Date.now();
+      this.activityLocks={};
+      for (const m of plainAll.matchAll(/^\s{2}(\S.*?)\s{2,}rank \d+[^\n]*mind lock[^\n]*/gm)) {
+        const id=SKILL_ID_BY_NAME[m[1].trim().toLowerCase()];
+        if(id) this.activityLocks[id]=Date.now();
+      }
+    }
+    this.updateActivity();
     // Feed the runner (matches/waitfor react to prose)
     if (this.runner) this.runner.feed(text, type);
   }
@@ -1565,7 +1591,8 @@ class SweepAgent {
     const arena = this.arena;
     if (!arena) return;
     const cap = { guild: this.guild, race: this.race, char: this.char, circle: s.vitals.circle || 1, scriptBase: this.scriptBase, bazaarPath: null, trainList: this.trainList, trainOffset: this.trainOffset || 0, skipRage: this.variant?.skipRage, closeNth: this.variant?.closeNth, tdpFloor: this.variant?.tdpFloor, helmRetry: this.variant?.helmRetry, armorStack: this.variant?.armorStack, shieldKit: this.variant?.shieldKit, cheapWeaponKit: this.variant?.cheapWeaponKit, finishKit: this.variant?.finishKit, finishWear: this.variant?.finishKit, hallTrainCap: this.variant?.hallTrainCap, rotMargin: this.variant?.rotMargin, weaponReserve: this.variant?.weaponReserve, weaponReserveV2: this.variant?.weaponReserveV2, weaponReserveV3: this.variant?.weaponReserveV3, edgedKit: this.variant?.edgedKit, weaponAware: this.variant?.weaponAware, economyFallback: this.variant?.economyFallback, survivalRetry: this.variant?.survivalRetry, survivalFirst: this.variant?.survivalFirst, sharedFight: !!this.variant?.closeNth };
-    cap.gapCurriculum = !!this.variant?.gapCurriculum;
+    cap.gapActivity = !!this.variant?.gapActivity;
+    cap.gapCurriculum = !!(this.variant?.gapCurriculum || this.variant?.gapActivity);
     cap.requirementRanks = Object.keys(this.expRanks || {}).length ? { ...(s.vitals.skills || {}), ...this.expRanks } : null;
     cap.defensiveKit = this.guild === 'barbarian';
     cap.survivalBreadth = !!this.variant?.survivalBreadth;
@@ -1620,7 +1647,7 @@ class SweepAgent {
         gemPath: s.bfsPath('bazaar', 'market_end', this.diskAdj()),
         gemBack: s.bfsPath('market_end', 'bazaar', this.diskAdj()),
         gemRoom: 'market_end',
-        ...((this.variant?.finishKit || this.variant?.gapCurriculum) ? this.studyErrandRoute('hall_' + this.guild) : {}),
+        ...((this.variant?.finishKit || this.variant?.gapCurriculum || this.variant?.gapActivity) ? this.studyErrandRoute('hall_' + this.guild) : {}),
         ...(this.variant?.finishKit ? this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()) : {}),
         ...(this.variant?.finishKit ? this.crierErrandRoute() : {}),
       },
@@ -1848,6 +1875,18 @@ class SweepAgent {
       return;
     }
     const huntingLeg = this.curName === this.scriptBase + 'mega';
+    // Candidate policy runs before the legacy no-rank-movement early return.
+    // A missing lore/utility lane must not keep a finished combat lane farming.
+    if (this.variant?.gapActivity && huntingLeg && !v2.inCombat
+      && this.activity?.vars.gap_mode === 'town'
+      && (this.activity.ready || Date.now() - (this.lastHallAt || 0) > 60000)) {
+      this.lastHallAt=Date.now(); this.killsAtVisit=this.kills;
+      this.skipCircle=!this.activity.ready;
+      this.regenerateScripts();
+      this.appendLog(`[activity-town] ${new Date().toISOString()} ${this.activity.reason}`);
+      this.startCycle(this.library[this.scriptBase+'circle'],this.scriptBase+'circle');
+      return;
+    }
     // Circle-readiness gate: if a previous circle attempt told us our rank
     // gaps, and the mindstate feed shows NO blocking skill has gained any
     // ranks since, walking to the hall is pure waste — skip and keep hunting

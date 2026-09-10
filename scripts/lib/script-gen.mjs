@@ -114,9 +114,13 @@ function buildSharedFightScript(cap) {
     L.push('  wait');
   }
   cfg.fight.forEach((step, i) => {
+    const gate = cap.gapActivity && (step === 'put analyze' ? 'gap_analyze' : step.startsWith('put trip') ? 'gap_trip' : null);
+    if (gate) L.push(`  ife ${gate} 0 goto ACT_SKIP_${i}`);
     L.push('  ' + step.replace(/%target/g, '%1'));
     L.push('  wait');
+    if (gate) L.push(`ACT_SKIP_${i}:`);
     if (sigAt === i + 1) {
+      if (cap.gapActivity) L.push(`  ife gap_roar 0 goto ACT_ROAR_${i}`);
       if (cap.skipRage) {
         L.push('  ifge rage 1 goto RAGE_LIT');
         L.push(`  put ${cfg.signature.cmd.replace(/%target/g, '%1')}`);
@@ -127,6 +131,7 @@ function buildSharedFightScript(cap) {
         L.push('  wait');
       }
     }
+    if (sigAt === i + 1 && cap.gapActivity) L.push(`ACT_ROAR_${i}:`);
   });
   if (skinGuild) {
     // SKINME (jumped from the corpse matcher): skin now while the corpse is
@@ -164,9 +169,11 @@ function buildSharedFightScript(cap) {
   // 3+ min out of combat), so the settled lane still finds the bleeders.
   L.push('  pause 5');
   if (cap.guild === 'barbarian') {
+    if (cap.gapActivity) L.push('  ife gap_forage 0 goto ACT_FORAGE_DONE');
     L.push('  put forage');
     L.push('  wait');
     if (cap.survivalRetry) L.push('  put forage', '  wait');
+    if (cap.gapActivity) L.push('ACT_FORAGE_DONE:');
   }
   if ((cfg.survivalSkills || cfg.trainSets?.survival || []).includes('first_aid')) {
     L.push('  iflt bleed 1 goto NOTEND');
@@ -614,6 +621,17 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [], questTarget = 
   L.push('SCAN:');
   L.push('  pause 2');
   L.push('  iflt hp 40 goto REST');
+  if (cap.gapActivity) {
+    L.push('  ifge combat 1 goto ACT_COMBAT');
+    L.push('  ife gap_mode forage goto ACT_FORAGE', '  ife gap_mode hunt goto ACT_HUNT');
+    L.push('  ife gap_mode combat goto ACT_COMBAT');
+    L.push('  pause 10', '  put exp', '  wait', '  goto SCAN');
+    L.push('ACT_FORAGE:', '  put forage', '  wait', '  goto ACT_REFRESH');
+    L.push('ACT_HUNT:', '  put hunt', '  wait');
+    L.push('ACT_REFRESH:', '  pause 5', '  put exp', '  wait', '  goto SCAN');
+    L.push('ACT_COMBAT:');
+  }
+
   // STANDING survival interleave (see note above): two survival verbs per
   // SCAN pass, alternating forage/hunt on if_6, gated on the same if_5 valve
   // AND on being out of combat (%combat mirror) — forage/hunt during a live
@@ -1131,7 +1149,7 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [], questTarget = 
     }
     L.push('SURV_DONE:');
   }
-  if (!cap.survivalBreadth) {
+  if (!cap.survivalBreadth && !cap.gapActivity) {
     // RT-SETTLED (fresh17/18 lesson): WANDER fires right after a fight
     // cycle ended (creature wandered off — no kill, no skin RT cleared);
     // the swing RT is still live and the forage burns on refusal.
@@ -1478,9 +1496,11 @@ function buildCircleScript({ cap, fromArena, errands }) {
     // visit cheap.
     curriculum = curriculum.slice(0, cap.hallTrainCap || 8);
   }
-  for (const skill of curriculum.slice(0, 8)) {
+  for (const [index, skill] of curriculum.slice(0, 8).entries()) {
+    if (cap.gapActivity) L.push(`  ife gap_train_${skill} 0 goto ACT_TRAIN_DONE_${index}`);
     L.push(`  put train ${skill}`);
     L.push('  wait');
+    if (cap.gapActivity) L.push(`ACT_TRAIN_DONE_${index}:`);
   }
   // Drain-and-circle loop (SPEED-RUN): one hall visit should BANK the circle,
   // not train once and walk home. After draining the curriculum this pass,
@@ -1549,6 +1569,7 @@ function buildCircleScript({ cap, fromArena, errands }) {
   if (studyGo) {
     L.push(...moves(errands.studyPath));
     L.push(`  ifne room ${errands.studyRoom} goto STUDY_DONE`);
+    if (cap.gapActivity) L.push('  ife gap_study 0 goto STUDY_DONE');
     for (const _s of (cap.gapCurriculum ? cap.studySkills.slice(0, 1) : cap.studySkills)) {
       // THREE reads per missing lore skill: one study banks ~6.4 exp (×boost),
       // but rank 2→3 needs ~202 — a single read per trip never converts through
