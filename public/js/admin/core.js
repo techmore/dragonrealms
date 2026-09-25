@@ -3,7 +3,9 @@
 // from here — S is intentionally shared mutable state (single dashboard).
 'use strict';
 
-'use strict';
+import { harvestGmTokenFromFragment, storedGmToken } from '../gm-token.js';
+harvestGmTokenFromFragment();
+
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const trim = (a, n) => { while (a.length > n) a.shift(); };
@@ -11,19 +13,7 @@ const trim = (a, n) => { while (a.length > n) a.shift(); };
 const S = {
   paused: false,
   every: Number(localStorage.getItem('dr_admin_every')) || 5000,
-  token: (() => {
-    // Trusted-launcher handoff: #gm=<token> from the menu-bar app is
-    // stored once and stripped so it never lingers in the address bar.
-    // Regex must match gm-token.js (includes % for URL-encoded tokens).
-    try {
-      const m = location.hash.match(/^#gm=([A-Za-z0-9_%-]+)$/);
-      if (m) {
-        localStorage.setItem('dr_gm_token', decodeURIComponent(m[1]));
-        history.replaceState(null, '', location.pathname + location.search);
-      }
-    } catch {}
-    return localStorage.getItem('dr_gm_token') || '';
-  })(),
+  token: storedGmToken(),
   up: null,               // last /api/health result
   gm: 'pending',          // pending|off|locked|notconf|err|ok
   status: null, statusAt: 0,

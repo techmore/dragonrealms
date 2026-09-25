@@ -10,6 +10,7 @@ import { gainSkillExp, addItem, skillRank } from '../player.js';
 import { itemById } from '../../data/items.js';
 import { setAlias, removeAlias, setRoundtime, setSleep, bankDeepSleepRexp, sayRaw } from '../player.js';
 import { pad, matchSkill, findNpcByName, findInventoryItem, broadcastRoom, gameTime } from './util.js';
+import { persistCorpseState } from '../corpses.js';
 
 // Thief Passages: chalk-sign ways out of the Dark Knot (name -> destination).
 // The hub remembers every bolt-hole that leads in; each way out is named for
@@ -93,6 +94,7 @@ export const commands = {
     if (!moved) return emit(`The priests peer across the veil: no such thing lies on that corpse ("search" there will list it).`);
     p.silver -= fee;
     corpse.departed = true;
+    persistCorpseState(corpse);
     game.persistPlayer(p);
     emit(`The priests chant, and the veil thins — ${moved} settles onto the altar, drawn from your fallen body. You pay ${fee} silvers and carry it off.`);
   },
@@ -200,7 +202,7 @@ export const commands = {
   // means the guild turns on you).
   passage(ctx) {
     const { game, p, arg1, emit } = ctx;
-    if (p.guild.id !== 'thief') return emit('You see nothing remarkable about this place. (Only thieves know the passages.)');
+    if (p.guild?.id !== 'thief') return emit('You see nothing remarkable about this place. (Only thieves know the passages.)');
     const room = roomById(p.room);
     if (!room) return emit('There is no passage here.');
     if (room.PASSAGE_HUB) {
@@ -339,7 +341,7 @@ export const commands = {
     if (!npc) return emit('There is no such person here.');
     if (npc.role === 'info' && arg2) gainSkillExp(p, 'scholarship', 2);
     if (/forgetting/i.test(rest)) {
-      if (p.guild.id !== 'barbarian') return emit('Only barbarian leaders teach the forgetting of inner fire arts.');
+      if (p.guild?.id !== 'barbarian') return emit('Only barbarian leaders teach the forgetting of inner fire arts.');
       if (roomById(p.room).id !== 'hall_barbarian') return emit('Your guild leader can do that at the barbarian hall.');
       const name = rest.replace(/.*forgetting\s+/i, '').trim();
       const def = barbarianAbilityById(name.toLowerCase());

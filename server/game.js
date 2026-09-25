@@ -73,6 +73,7 @@ export class Game {
     for (const [roomId] of Object.entries(ROOMS)) {
       this.floorItems.set(roomId, []);
     }
+    corpses.restoreFloorItems(this);
     this.combat.startTicker();
     this.respawnTicker = setInterval(() => this.respawnTick(), RESPAWN_MS);
     this.respawnTicker.unref();
@@ -247,6 +248,8 @@ export class Game {
   }
 
   dropFloor(roomId, itemId, qty = 1, transferred = null) { return corpses.dropFloor(this, roomId, itemId, qty, transferred); }
+  dropPlayerItem(p, item, qty = 1) { return corpses.dropPlayerItem(this, p, item, qty); }
+  takeFloorItem(p, floor, qty = 1) { return corpses.takeFloorItem(p, floor, qty); }
 
   floorItemsIn(roomId) {
     return this.floorItems.get(roomId) || [];

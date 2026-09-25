@@ -1,7 +1,6 @@
 // Item ownership and work-order completion share a durable transaction.
 // Commands handle skill checks, random outcomes, experience, and prose.
-import { db } from './db.js';
-import { addItem, removeItem } from './player.js';
+import { addItem, removeItem, writePersistentState } from './player.js';
 import { transferInventory } from './inventory-transfer.js';
 
 export function finishCraft(p, verb, recipe, quality = null, success = true) {
@@ -17,9 +16,7 @@ export function finishCraft(p, verb, recipe, quality = null, success = true) {
     if (success && !fillsOrder) addItem(p, recipe.item, 1, {
       ...(quality != null ? { quality, condition: 100 } : {}), maker: p.name,
     });
-    db.prepare(`UPDATE characters SET persistent_state=json_set(
-      persistent_state, '$.workOrder', json(?), '$.forgedQuality', json(?)) WHERE id=?`)
-      .run(JSON.stringify(nextOrder || null), JSON.stringify(nextQuality || {}), p.charId);
+    writePersistentState(p, { workOrder: nextOrder || null, forgedQuality: nextQuality || {} });
   });
   // Preserve references held by the active order UI/command callers.
   if (fillsOrder) order.done = true;
@@ -31,8 +28,7 @@ export function finishCraft(p, verb, recipe, quality = null, success = true) {
 export function claimWorkOrder(p, pay) {
   transferInventory([p], () => {
     p.silver += pay;
-    db.prepare("UPDATE characters SET persistent_state=json_set(persistent_state, '$.workOrder', json('null')) WHERE id=?")
-      .run(p.charId);
+    writePersistentState(p, { workOrder: null });
   });
   p.workOrder = null;
 }

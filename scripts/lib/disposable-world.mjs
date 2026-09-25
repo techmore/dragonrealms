@@ -6,7 +6,7 @@ import { readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
-export async function startWorld({ dbPath, nodePath = process.execPath }) {
+export async function startWorld({ dbPath, nodePath = process.execPath, enableApi = false, enableAgentBoost = false }) {
   const probe = createServer();
   await new Promise((resolve, reject) => { probe.once('error', reject); probe.listen(0, '127.0.0.1', resolve); });
   const port = probe.address().port;
@@ -15,8 +15,8 @@ export async function startWorld({ dbPath, nodePath = process.execPath }) {
   const child = spawn(nodePath, ['server/index.js'], {
     cwd: root, stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, PORT: String(port), DR_DB_PATH: dbPath,
-      DR_PROFILE: 'local', DR_HOST: '127.0.0.1', DR_ENABLE_API: '0', DR_ENABLE_DEBUG_API: '0', DR_ALLOW_SECOND_WORLD: '0',
-      DR_GM_TOKEN: gmToken },
+      DR_PROFILE: 'local', DR_HOST: '127.0.0.1', DR_ENABLE_API: enableApi ? '1' : '0', DR_ENABLE_DEBUG_API: '0', DR_ALLOW_SECOND_WORLD: '0',
+      DR_GM_TOKEN: gmToken, DR_ENABLE_AGENT_BOOST: enableAgentBoost ? '1' : '0' },
   });
   let output = '';
   const closed = new Promise((resolve) => {

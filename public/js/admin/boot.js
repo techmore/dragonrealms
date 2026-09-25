@@ -4,6 +4,7 @@
 import { $, esc, S, cssVar, fmtDur, toast, gm, gotoTab } from './core.js';
 import { tick, renderAll, renderHeader } from './render.js';
 import { AG_RACES, AG_GUILDS, cap } from './agents.js';
+import { storeGmToken } from '../gm-token.js';
 // Player view (Watch overlay) lives in playerview.js, self-refreshing;
 // render.js imports openPlayerView from there for the roster Watch buttons.
 
@@ -80,7 +81,7 @@ const tokenEl = $('gm-token');
 tokenEl.value = S.token;
 tokenEl.addEventListener('change', () => {
   S.token = tokenEl.value.trim();
-  localStorage.setItem('dr_gm_token', S.token);
+  storeGmToken(S.token);
   S.gm = 'pending';
   S.cpu = null; S.cpuPct = null;
   S.world = null; S.zoneLive = {}; S.expanded.clear();

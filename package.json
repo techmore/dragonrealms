@@ -14,6 +14,7 @@
     "skills-doc": "node scripts/build-skills-doc.mjs",
     "roadmap-doc": "node scripts/build-roadmap.mjs",
     "simulate": "node scripts/simulate-progression.mjs",
+    "retention": "node scripts/retention.mjs",
     "bot": "node scripts/barbarian-bot.mjs",
     "verify-docs": "node scripts/verify-roadmap.mjs",
     "sep-validate": "node scripts/sep-validate.mjs",

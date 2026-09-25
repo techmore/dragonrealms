@@ -35,6 +35,7 @@ export function createRunner(src, args = [], io = {}) {
     timerAt: 0,
     lastMove: undefined, // last move command (for RT-blocked retries)
     retryLine: null,     // move pending re-send after roundtime
+    retryMode: 'room',   // restore the refused verb's wait, not always movement
     rtUntil: 0,          // wall clock until roundtime clears (WAIT semantics)
     lastRtSeen: null,    // last prompt RT value — only re-arm when it changes
     pendingRtLine: null, // verb parked by WAIT semantics, applies at rtUntil
@@ -42,7 +43,7 @@ export function createRunner(src, args = [], io = {}) {
     retryOnce: false,    // blind-refusal retry budget (one re-apply per refusal)
   };
   const say = io.say || (() => {});
-  const out = io.send || ((line) => { s.lastOutLine = line; });
+  const out = (line) => { s.lastOutLine = line; io.send?.(line); };
   const sub = (line) => String(line).replace(/%(\w+)/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
 
   function execOne(line) {
@@ -383,6 +384,7 @@ export function createRunner(src, args = [], io = {}) {
         s.lastRtSeen = Number(wrt[1]);
         if (s.pendingRtLine && (s.mode === 'timer' || s.mode === 'prompt')) {
           s.retryLine = s.pendingRtLine; // re-apply when RT clears
+          s.retryMode = null; // parked put has not advanced to its next wait yet
           s.pendingRtLine = null;
           s.mode = 'timer';
           s.timerAt = s.rtUntil;
@@ -398,6 +400,7 @@ export function createRunner(src, args = [], io = {}) {
         if (!s.pendingRtLine && s.mode !== 'room' && s.retryOnce !== true) {
           s.retryOnce = true;
           s.retryLine = s.lastOutLine;
+          s.retryMode = s.mode;
           s.mode = 'timer';
           s.timerAt = s.rtUntil;
           return;
@@ -417,6 +420,11 @@ export function createRunner(src, args = [], io = {}) {
         m.re ? m.re.test(text) : m.text && text.toLowerCase().includes(m.text));
       if (hit) {
         s.matches = [];
+        // A matched branch supersedes the old action (e.g. victory while a
+        // retry is parked). Do not resurrect its wait after the new pause.
+        s.retryLine = null;
+        s.pendingRtLine = null;
+        s.retryOnce = false;
         s.mode = null;
         s.matchDeadline = null;
         const f = cur();
@@ -440,6 +448,7 @@ export function createRunner(src, args = [], io = {}) {
     if (s.mode === 'room' && text && typeof text === 'string'
       && /roundtime|not ready/i.test(text) && s.lastMove !== undefined) {
       s.retryLine = s.lastMove;
+      s.retryMode = 'room';
       s.mode = 'timer';
       s.timerAt = Date.now() + 1500;
       return;
@@ -521,6 +530,7 @@ export function createRunner(src, args = [], io = {}) {
       s.moveFails = (s.moveFails || 0) + 1;
       if (s.moveFails <= 2) {
         s.retryLine = s.lastMove;
+        s.retryMode = 'room';
         s.mode = 'timer';
         s.timerAt = Date.now() + 1200;
         return;
@@ -577,8 +587,9 @@ export function createRunner(src, args = [], io = {}) {
         // verb (forage/tend in the settled tail) is silently dropped on its
         // next refusal (fresh17-20: foraging exp 0 across all legs).
         s.retryOnce = false;
+        s.mode = s.retryMode;
         out(line);
-        s.mode = 'room';
+        if (s.mode === null) advance();
         return;
       }
       s.mode = null;
@@ -605,6 +616,10 @@ export function createRunner(src, args = [], io = {}) {
       if (!f) return { mode: 'done', depth: 0, pc: -1, pendingMatches: 0,
         rtUntil: s.rtUntil, pendingRtLine: s.pendingRtLine };
       return { mode: s.mode, depth: frames.length - 1, pc: f.pc,
+        previousLine: f.lines[f.pc - 1] ?? null,
+        nextLine: f.lines[f.pc] ?? null,
+        matchDeadlineMs: s.matchDeadline == null ? null : s.matchDeadline - Date.now(),
+        retryMode: s.retryMode,
         pendingMatches: s.matches.length,
         rtUntil: Math.max(0, s.rtUntil - Date.now()),
         pendingRtLine: s.pendingRtLine || null,

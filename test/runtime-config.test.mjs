@@ -9,7 +9,9 @@ import { runtimeConfig } from '../server/runtime-config.js';
 
 test('desktop defaults stay on loopback with the local API and no debug API', () => {
   assert.deepEqual(runtimeConfig({}), {
-    profile: 'local', host: '127.0.0.1', port: 3000, apiEnabled: true, debugApiEnabled: false,
+    profile: 'local', host: '127.0.0.1', port: 3000, apiEnabled: true, debugApiEnabled: false, agentBoostEnabled: false,
+    maxWsClients: 1000, wsAuthTimeoutMs: 30000, maxHttpConcurrent: 256, httpRequestTimeoutMs: 30000,
+    requireWsOrigin: false, allowedOrigins: [], gmOperatorToken: undefined, gmAdminToken: undefined, gmPlayToken: undefined,
   });
   assert.equal(runtimeConfig({ DR_ENABLE_API: '0' }).apiEnabled, false);
   assert.throws(() => runtimeConfig({ DR_HOST: '0.0.0.0' }), /DR_PROFILE=public/);
@@ -17,11 +19,17 @@ test('desktop defaults stay on loopback with the local API and no debug API', ()
 
 test('public hosting requires configured credentials and opts out of test APIs by default', () => {
   assert.throws(() => runtimeConfig({ DR_PROFILE: 'public' }), /DR_GM_TOKEN/);
-  const config = { DR_PROFILE: 'public', DR_GM_TOKEN: 'x'.repeat(32) };
+  const config = { DR_PROFILE: 'public', DR_GM_TOKEN: 'x'.repeat(32), DR_GM_OPERATOR_TOKEN: 'o'.repeat(32), DR_GM_ADMIN_TOKEN: 'a'.repeat(32), DR_GM_PLAY_TOKEN: 'p'.repeat(32), DR_ALLOWED_ORIGINS: 'https://play.example' };
   assert.deepEqual(runtimeConfig(config), {
-    profile: 'public', host: '0.0.0.0', port: 3000, apiEnabled: false, debugApiEnabled: false,
+    profile: 'public', host: '0.0.0.0', port: 3000, apiEnabled: false, debugApiEnabled: false, agentBoostEnabled: false,
+    maxWsClients: 250, wsAuthTimeoutMs: 30000, maxHttpConcurrent: 256, httpRequestTimeoutMs: 30000,
+    requireWsOrigin: true, allowedOrigins: ['https://play.example'],
+    gmOperatorToken: 'o'.repeat(32), gmAdminToken: 'a'.repeat(32), gmPlayToken: 'p'.repeat(32),
   });
+  assert.throws(() => runtimeConfig({ DR_PROFILE: 'public', DR_GM_TOKEN: 'x'.repeat(32) }), /DR_ALLOWED_ORIGINS/);
+  assert.throws(() => runtimeConfig({ DR_PROFILE: 'public', DR_GM_TOKEN: 'x'.repeat(32), DR_ALLOWED_ORIGINS: 'https://play.example' }), /DR_GM_OPERATOR_TOKEN/);
   assert.equal(runtimeConfig({ ...config, DR_ENABLE_API: '1' }).apiEnabled, true);
+  assert.throws(() => runtimeConfig({ ...config, DR_ENABLE_AGENT_BOOST: '1' }), /Agent boost cannot be enabled/);
   assert.throws(() => runtimeConfig({ ...config, DR_ENABLE_DEBUG_API: '1' }), /DR_DEBUG_TOKEN/);
   assert.equal(runtimeConfig({ ...config, DR_ENABLE_DEBUG_API: '1', DR_DEBUG_TOKEN: 'y'.repeat(32) }).debugApiEnabled, true);
 });

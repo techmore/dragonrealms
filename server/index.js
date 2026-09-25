@@ -72,10 +72,25 @@ const server = createServer(createHttpHandler(game, {
   apiEnabled: API_ENABLED,
   debugApiEnabled: DEBUG_API_ENABLED,
   gmToken: GM_TOKEN,
+  gmOperatorToken: config.gmOperatorToken,
+  gmAdminToken: config.gmAdminToken,
+  gmPlayToken: config.gmPlayToken,
   debugToken: DEBUG_TOKEN,
+  maxConcurrent: config.maxHttpConcurrent,
+  requestTimeoutMs: config.httpRequestTimeoutMs,
 }));
 
-const wss = attachWebSocket(server, game, { gmToken: GM_TOKEN });
+const wss = attachWebSocket(server, game, {
+  gmToken: GM_TOKEN,
+  gmOperatorToken: config.gmOperatorToken,
+  gmAdminToken: config.gmAdminToken,
+  gmPlayToken: config.gmPlayToken,
+  agentBoostEnabled: config.agentBoostEnabled,
+  maxClients: config.maxWsClients,
+  authTimeoutMs: config.wsAuthTimeoutMs,
+  requireOrigin: config.requireWsOrigin,
+  allowedOrigins: config.allowedOrigins,
+});
 
 server.listen(PORT, config.host, () => {
   console.log(`Dragon Realms listening on http://localhost:${PORT}`);

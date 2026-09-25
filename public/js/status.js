@@ -835,10 +835,12 @@ export function renderExpBlips(reqs) {
   if (hint) {
     blips.innerHTML = `<span class="fe-blips-label" title="${hint.need.replace(/"/g, '&quot;')}">◈</span>`;
     blips.hidden = !settings.expblips;
+    if (!blips.hidden) revealWindow('fe-tracker');
     return;
   }
   blips.hidden = !settings.expblips || !rows.length;
   if (blips.hidden) return;
+  revealWindow('fe-tracker');
   blips.innerHTML = `<span class="fe-blips-label">C${reqs.circle}</span>` + rows.map((r) => {
     const over = r.have >= r.need + 4;
     const state = over ? 'over' : r.have >= r.need ? 'met' : r.need - r.have <= 2 ? 'near' : 'behind';

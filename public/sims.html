@@ -304,6 +304,8 @@
       <button data-view="deep" aria-selected="false">Investigate</button>
       <button data-view="roadmaps" aria-selected="false">Roadmaps</button>
       <span class="nav-spacer"></span>
+      <a href="/jev.html" style="color:var(--cyan)">Jev reviews ↗</a>
+      <a href="/jev-player.html" style="color:var(--cyan)">Jev player ↗</a>
       <span id="view-context" class="sub">live state and next action</span>
     </nav>
 
@@ -421,6 +423,36 @@
         #roadmaps .decision-card span { color: var(--muted); font-size: 11px; line-height: 1.45; margin-top: 4px; display: block; text-transform: none; letter-spacing: 0; }
       </style>
     </section>
+
+    <section id="puffer-runs" aria-labelledby="puffer-runs-title">
+      <h2 id="puffer-runs-title">PufferLib runs <span id="sp-status" class="right sub" role="status">Loading saved runs…</span></h2>
+      <p class="note">Watch a frozen model play in an isolated game world, or inspect saved evaluations. Live screens refresh every 2 seconds with sampled activity responses; game time is accelerated. Not logged-in players on the main server, and not ranked against live script cohorts.</p>
+      <div class="sp-controls">
+        <label>Run <select id="sp-run"><option value="">Follow latest</option></select></label>
+        <a id="sp-details" href="/puffer.html">Full Puffer dashboard ↗</a>
+        <a id="sp-native-watch" class="btn" href="/?pufferWatch=latest" target="_blank" rel="noopener">Watch · native DR UI ↗</a>
+      </div>
+      <p id="sp-summary" class="note">Waiting for evidence.</p>
+      <div id="sp-results"></div>
+      <details id="sp-watch">
+        <summary>Watch player / evaluation screen</summary>
+        <label>Episode <select id="sp-episode"><option value="">Training snapshot</option></select></label>
+        <span id="sp-watch-status" class="sub"></span>
+        <pre id="sp-screen" tabindex="0" aria-label="Puffer recorded game screen">Select a run to inspect.</pre>
+      </details>
+      <p id="sp-error" role="status" class="note"></p>
+      <style>
+        #puffer-runs { border-top:2px solid var(--cyan); }
+        .sp-controls { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+        #puffer-runs select { max-width:100%; padding:7px; background:var(--panel-inset); color:var(--text); border:1px solid var(--line); }
+        #puffer-runs label { display:block; min-width:0; }
+        #sp-results { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+        #sp-results span { padding:8px 12px; background:var(--panel-inset); border-radius:6px; }
+        #sp-watch summary { cursor:pointer; margin:12px 0; }
+        #sp-screen { white-space:pre-wrap; overflow-wrap:anywhere; max-height:420px; overflow:auto; padding:14px; background:var(--panel-inset); color:var(--green); }
+      </style>
+    </section>
+    <script type="module" src="/js/sims-puffer.js"></script>
 
     <!-- ===================== EXPERIMENT BOARD ===================== -->
     <!-- Answers: what experiment is in flight, which leg is running now,
@@ -949,9 +981,9 @@
     $('leaderboard').after($('runs'));
 
     const VIEW_SECTIONS = {
-      overview: ['champion', 'experiment', 'launch'],
+      overview: ['champion', 'puffer-runs', 'experiment', 'launch'],
       decide: ['kaizen', 'compare', 'leaderboard', 'build-badges'],
-      evidence: ['experiment', 'runs'],
+      evidence: ['puffer-runs', 'experiment', 'runs'],
       deep: ['tracker', 'lab', 'scripts-section', 'kaizen-investigation'],
       roadmaps: ['roadmaps'],
     };
@@ -1027,9 +1059,10 @@
     const TOKEN = (() => {
       try {
         const m = location.hash.match(/^#gm=([A-Za-z0-9_%-]+)$/);
-        if (m) { localStorage.setItem('dr_gm_token', decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname); }
+        if (m) { sessionStorage.setItem('dr_gm_token', decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname); }
       } catch {}
-      return localStorage.getItem('dr_gm_token') || '';
+      try { localStorage.removeItem('dr_gm_token'); } catch {}
+      return sessionStorage.getItem('dr_gm_token') || '';
     })();
 
     let toastTimer = null;

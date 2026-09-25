@@ -342,7 +342,7 @@ function learn(ctx) {
   const { game, p, arg1, emit } = ctx;
   if (p?.guild?.magic) return learnSpell(ctx);
   if (!p.guild) return emit('You have no guild — join one at its hall to learn its arts.');
-  if (p.guild.id !== 'barbarian') return emit('Only barbarians learn inner fire abilities.');
+  if (p.guild?.id !== 'barbarian') return emit('Only barbarians learn inner fire abilities.');
   if (roomById(p.room).id !== 'hall_barbarian') return emit('Abilities are taught at the barbarian guildhall.');
   if (!arg1) return emit('Learn what? See "abilities".');
   const def = barbarianAbilityById(arg1.toLowerCase());

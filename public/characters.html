@@ -99,9 +99,10 @@
     const TOKEN = (() => {
       try {
         const m = location.hash.match(/^#gm=([A-Za-z0-9_%-]+)$/);
-        if (m) { localStorage.setItem('dr_gm_token', decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname); }
+        if (m) { sessionStorage.setItem('dr_gm_token', decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname); }
       } catch {}
-      return localStorage.getItem('dr_gm_token') || '';
+      try { localStorage.removeItem('dr_gm_token'); } catch {}
+      return sessionStorage.getItem('dr_gm_token') || '';
     })();
     const selected = new Set();
     let chars = [];

@@ -37,7 +37,7 @@ function provisionGmAccount() {
 }
 
 export function handleGmPlayMessage(session, msg) {
-  if (!isGmToken(msg.gmToken, session.gmToken)) {
+  if (!isGmToken(msg.gmToken, session.gmPlayToken || session.gmToken)) {
     session.send({ t: 'error', msg: 'GM authorization is required for quick-play.' });
     return;
   }
@@ -89,12 +89,16 @@ export function handleGmPlayMessage(session, msg) {
     }
   }
 
-  const ok = enterWorld(session, charRow.id);
-  if (!ok) return;
-
   let mult = Math.floor(Number(msg.boost));
   if (!Number.isFinite(mult) || mult <= 1) mult = 1;
+  if (mult > 1 && !session.agentBoostEnabled) {
+    session.send({ t: 'error', msg: 'Agent boost is disabled for this world.' });
+    return;
+  }
   mult = Math.min(100, mult);
+
+  const ok = enterWorld(session, charRow.id);
+  if (!ok) return;
   session.player.boostMult = mult;
   session.player.isBot = true; // status surfaces flag GM-driven toons like bots
   session.player.gmToon = true; // distinct from sweep-agent bots in rosters

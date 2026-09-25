@@ -35,6 +35,23 @@ test('forge output failure restores materials and awards no experience or succes
   assert.equal(countItems(loadPlayer(p.charId), 'forged_short_sword'), 1);
 });
 
+test('crafting repairs malformed persistent state through the codec writer', async () => {
+  const account = await auth.registerAccount('craftcodec', 'test-password');
+  const charId = createCharacter(account.accountId, { name: 'Codecraft', race: 'human', guild: 'barbarian' });
+  db.prepare('UPDATE characters SET persistent_state=? WHERE id=?').run('{broken', charId);
+  const loaded = loadPlayer(charId);
+  assert.equal(loaded.persistenceDiagnostics.status, 'repaired');
+  addItem(loaded, 'iron_ore', 2);
+  assert.doesNotThrow(() => finishCraft(loaded, 'forge', FORGE_RECIPES.forged_short_sword, 1.1));
+  const raw = db.prepare('SELECT persistent_state FROM characters WHERE id=?').get(loaded.charId).persistent_state;
+  const stored = JSON.parse(raw);
+  assert.equal(stored.schema, 'dragonrealms.characters.persistent_state');
+  assert.equal(stored.version, 1);
+  assert.equal(stored.forgedQuality.forged_short_sword, 1.1);
+  assert.equal(db.prepare('SELECT json_valid(persistent_state) AS valid FROM characters WHERE id=?')
+    .get(loaded.charId).valid, 1);
+});
+
 test('work order and material consumption commit together and survive reload', () => {
   addItem(p, 'iron_ore', 2);
   p.workOrder = { verb: 'forge', recipeId: 'forged_short_sword', qualMult: 1, npc: 'Bram', pay: 50, done: false };
@@ -52,6 +69,43 @@ test('work order and material consumption commit together and survive reload', (
   assert.equal(countItems(disk, 'forged_short_sword'), 1, 'ordered output is reserved, not duplicated');
 });
 
+test('failed work-order take restores runtime and durable absence', () => {
+  p.workOrder = null;
+  game.persistPlayer(p);
+  const messages = [];
+  db.exec(`CREATE TRIGGER reject_order_take
+    BEFORE UPDATE OF persistent_state ON characters WHEN NEW.id = ${p.charId}
+    BEGIN SELECT RAISE(ABORT, 'order take rejected'); END`);
+  try {
+    commands.order({ game, p, arg1: '', arg2: '', emit: (message) => messages.push(message) });
+  } finally { db.exec('DROP TRIGGER reject_order_take'); }
+  assert.match(messages.join('\n'), /nothing changed/);
+  assert.equal(p.workOrder, null);
+  assert.equal(loadPlayer(p.charId).workOrder, null);
+});
+
+test('failed work-order abandon restores the active runtime and durable order', () => {
+  const messages = [];
+  commands.order({ game, p, arg1: '', arg2: '', emit: () => {} });
+  const active = structuredClone(p.workOrder);
+  assert.ok(active);
+  assert.deepEqual(loadPlayer(p.charId).workOrder, active);
+
+  db.exec(`CREATE TRIGGER reject_order_abandon
+    BEFORE UPDATE OF persistent_state ON characters WHEN NEW.id = ${p.charId}
+    BEGIN SELECT RAISE(ABORT, 'order abandon rejected'); END`);
+  try {
+    commands.order({ game, p, arg1: 'abandon', arg2: '', emit: (message) => messages.push(message) });
+  } finally { db.exec('DROP TRIGGER reject_order_abandon'); }
+  assert.match(messages.join('\n'), /still carry/);
+  assert.deepEqual(p.workOrder, active);
+  assert.deepEqual(loadPlayer(p.charId).workOrder, active);
+
+  commands.order({ game, p, arg1: 'abandon', arg2: '', emit: () => {} });
+  assert.equal(p.workOrder, null);
+  assert.equal(loadPlayer(p.charId).workOrder, null);
+});
+
 test('failed brewing consumes ingredients as designed without producing an item', () => {
   addItem(p, 'herb_root', 2);
   addItem(p, 'herb_mint', 1);
@@ -64,6 +118,8 @@ test('failed brewing consumes ingredients as designed without producing an item'
 
 
 test('work-order claim rejection cannot credit spendable silver or lose the order', () => {
+  p.workOrder = { verb: 'forge', recipeId: 'forged_short_sword', qualMult: 1, qualName: 'serviceable', npc: 'Bram', pay: 50, done: true };
+  game.persistPlayer(p);
   const silver = p.silver;
   db.exec("CREATE TRIGGER reject_craft BEFORE UPDATE OF persistent_state ON characters BEGIN SELECT RAISE(ABORT, 'claim rejected'); END");
   try {

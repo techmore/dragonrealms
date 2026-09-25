@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Jev · DR Sims</title>
+  <style>
+    :root { color-scheme:dark; font:16px/1.6 system-ui,sans-serif; background:#101820; color:#e1e8ed; }
+    body { max-width:1000px; margin:auto; padding:32px 24px 64px; }
+    a { color:#79d8cf; } h1 { font-size:36px; margin:18px 0 0; } h2 { font-size:20px; }
+    .sub { color:#9aafb9; } section { margin-top:24px; padding:20px; background:#17232e; border:1px solid #304652; border-radius:12px; }
+    .facts { display:flex; flex-wrap:wrap; gap:24px; } .facts span { min-width:110px; }
+    strong { display:block; color:#9de2cf; font-size:24px; }
+    pre { white-space:pre-wrap; overflow-wrap:anywhere; font:14px/1.6 ui-monospace,monospace; }
+    #proposal { white-space:pre-wrap; } table { width:100%; border-collapse:collapse; }
+    th,td { text-align:left; border-bottom:1px solid #304652; padding:8px; }
+    code { overflow-wrap:anywhere; } button { font:inherit; color:inherit; background:#243b49; border:1px solid #527386; padding:5px 14px; border-radius:6px; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <a href="/sims.html">← DR Sims</a>
+  <h1>Jev · evidence checks</h1>
+  <p class="sub">Code owns the workflow and exact numbers. Jev checks narrow properties of proposed inspections and experiments. A generative model is optional.</p>
+  <p id="status" role="status">Loading saved review…</p>
+  <button id="refresh" type="button">Refresh</button>
+  <section aria-labelledby="evaluation-title"><h2 id="evaluation-title">Measured check quality</h2>
+    <p id="evaluation-status">No evaluation loaded.</p>
+    <div id="evaluation-results"></div>
+    <details><summary>Per-case results</summary><div id="evaluation-cases"></div></details>
+    <p class="sub">Small authored challenge set. Labels were fixed before querying; this is not production calibration or a gameplay benchmark. “Reviewable” never authorizes execution.</p>
+    <a id="evaluation-receipt" hidden>Open evaluation evidence</a>
+  </section>
+  <section aria-labelledby="evidence-title">
+    <h2 id="evidence-title">Measured evidence</h2>
+    <p id="identity"></p><p id="cohort" class="sub"></p>
+    <div class="facts" id="facts"></div>
+    <table><thead><tr><th>Missing requirement</th><th>Have</th><th>Need</th></tr></thead><tbody id="requirements"></tbody></table>
+    <p id="comparison" class="sub"></p>
+  </section>
+  <section aria-labelledby="decision-title"><h2 id="decision-title">Jev’s checks</h2>
+    <p id="decision">No answer loaded.</p><p id="jev-timing" class="sub"></p>
+    <div id="atomic-checks"></div>
+    <p class="sub">Risk ≥ 0.80 rejects a proposal; 0.20–0.80 abstains. Other confidence and specificity checks also apply. Thresholds are provisional; inspect the measured results above.</p>
+  </section>
+  <section aria-labelledby="proposal-title"><h2 id="proposal-title">Proposal under review</h2>
+    <p id="local-review" role="status" style="color:#ffc982"></p>
+    <div id="proposal">No proposal loaded.</div><p id="local-timing" class="sub"></p>
+    <p class="sub">Generated advice is unverified. This report cannot execute commands, edit scripts, or promote a candidate.</p>
+  </section>
+  <section aria-labelledby="use-title"><h2 id="use-title">Run another review</h2>
+    <p>From the DragonRealms project terminal:</p>
+    <pre>node scripts/jev-review.mjs
+node scripts/jev-review.mjs --proposal proposal.json
+node scripts/jev-review.mjs --local
+node scripts/jev-evaluate.mjs</pre>
+    <p class="sub">Each review makes at most one request to each selected provider. Offline mode uses only the local model. Jev requires internet.</p>
+    <p><a id="receipt" hidden>Open saved evidence receipt</a></p>
+  </section>
+  <script type="module" src="/js/jev.js"></script>
+</body>
+</html>

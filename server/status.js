@@ -13,7 +13,7 @@ export const status = {
     if (!room) return null;
     for (const npcId of room.npcs || []) {
       const npc = npcById(npcId);
-      if (npc && npc.role === 'guild' && npc.guild === p.guild.id) return npc;
+      if (npc && npc.role === 'guild' && npc.guild === p.guild?.id) return npc;
     }
     return null;
   },

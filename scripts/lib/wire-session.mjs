@@ -12,10 +12,33 @@
 //   s.sendObj({ t:'scripts_put', ... });
 //   s.vitals                        // {hp,maxhp,circle,rt,inCombat,room}
 import WebSocket from 'ws';
+import { readFileSync } from 'node:fs';
+import { SKILLS } from '../../data/skills.js';
+
+const normalizeSkillLabel = value => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+const SKILL_ID_BY_LABEL = new Map(Object.entries(SKILLS).flatMap(([id, skill]) => [
+  [normalizeSkillLabel(id), id],
+  [normalizeSkillLabel(skill.name), id],
+]));
+
+// Mindstate messages carry display labels (e.g. "Outdoorsmanship"), while
+// requirement rows and policy state use canonical skill IDs ("foraging").
+export function skillIdForDisplayName(name) {
+  return SKILL_ID_BY_LABEL.get(normalizeSkillLabel(name)) || normalizeSkillLabel(name);
+}
 
 const PORT = Number(process.env.DR_PORT || process.env.PORT || 3000);
-const BASE = `http://localhost:${PORT}`;
-const ORIGIN = `ws://localhost:${PORT}/ws?bot=1`; // sims self-identify for roster tagging
+const BASE = process.env.DR_HTTP_ORIGIN
+  || process.env.DR_WS_ORIGIN?.replace(/^ws:/, 'http:').replace(/\/ws(?:\?.*)?$/, '')
+  || `http://localhost:${PORT}`;
+const DEFAULT_ORIGIN = `ws://localhost:${PORT}/ws?bot=1`; // sims self-identify for roster tagging
+const localAgentToken = () => {
+  if (process.env.DR_GM_TOKEN) return process.env.DR_GM_TOKEN;
+  try {
+    const value = JSON.parse(readFileSync(`/tmp/dr-world-token-${PORT}.json`, 'utf8'));
+    return typeof value.token === 'string' ? value.token : null;
+  } catch { return null; }
+};
 const DIR_SHORT = {
   north: 'n', south: 's', east: 'e', west: 'w',
   northeast: 'ne', northwest: 'nw', southeast: 'se', southwest: 'sw',
@@ -25,7 +48,7 @@ const DIR_SHORT = {
 export const stripAnsi = (s) => String(s ?? '').replace(/\x1b\[\d+m/g, '');
 
 export class WireSession {
-  constructor({ user, pass, char, race = 'human', guild = 'barbarian' }) {
+  constructor({ user, pass, char, race = 'human', guild = 'barbarian', bot = true }) {
     this.user = user;
     this.pass = pass;
     this.char = char;
@@ -33,16 +56,20 @@ export class WireSession {
     // guild may be null/omitted → guildless start (join at the hall). Sims
     // always pass a guild, so automation keeps the instant-guild path.
     this.guild = guild || null;
+    this.origin = `${process.env.DR_WS_ORIGIN || `ws://localhost:${PORT}/ws`}${bot ? '?bot=1' : ''}`;
+    this.agentToken = localAgentToken();
     this.ws = null;
     this.token = null;
     this.knownChar = null; // {charId} when the character already exists
     this.reconnects = 0;
     this.lastCmdAt = 0;
+    this.rtObservedAt = 0;
     this.cmdQueue = Promise.resolve();
     // live vitals, updated from prompts + rest msgs
     this.vitals = {
       room: null, hp: 0, maxhp: 0, mana: 0, maxmana: 0,
-      circle: 1, rt: 0, inCombat: false, restingFlag: false,
+      circle: 1, guild: this.guild, rt: 0, inCombat: false, restingFlag: false,
+      requirements: null, skillLearning: [],
       players: [], // other player NAMES observed in the current room
     };
     this.done = false;
@@ -68,7 +95,18 @@ export class WireSession {
     return r;
   }
 
-  sendObj(obj) { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj)); }
+  sendObj(obj) {
+    if (obj?.t === 'boost' && !obj.gmToken && this.agentToken) obj = { ...obj, gmToken: this.agentToken };
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj));
+  }
+
+  // Prompts report remaining roundtime at one instant; no new prompt is
+  // guaranteed while the player simply waits/rests. Age that observation so
+  // a controller cannot get stranded forever on a stale positive RT value.
+  roundtimeLeftNow() {
+    if (!this.rtObservedAt) return this.vitals.rt || 0;
+    return Math.max(0, (this.vitals.rt || 0) - Math.floor((Date.now() - this.rtObservedAt) / 1000));
+  }
 
   // Re-read the account's live character list and (re)bind knownChar to the
   // row matching this.char. Called at every charselect prompt so a reconnect
@@ -107,7 +145,7 @@ export class WireSession {
 
   connect(handlers) {
     this.handlers = handlers || {};
-    this.ws = new WebSocket(ORIGIN);
+    this.ws = new WebSocket(this.origin);
     this.ws.onmessage = async (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
       await this.onMessage(m);
@@ -287,12 +325,16 @@ export class WireSession {
         const plain = stripAnsi(m.msg);
         const hp = /HP:\s*(\d+)\s*\/\s*(\d+)/.exec(plain);
         if (hp) { v.hp = Number(hp[1]); v.maxhp = Number(hp[2]); }
+        if (m.requirements?.rows) v.requirements = m.requirements;
         const mana = /Mana:\s*(\d+)\s*\/\s*(\d+)/.exec(plain);
         if (mana) { v.mana = Number(mana[1]); v.maxmana = Number(mana[2]); }
+        const fire = /Fire:\s*(\d+)\s*\/\s*(\d+)/.exec(plain);
+        if (fire) { v.innerFire = Number(fire[1]); v.maxInnerFire = Number(fire[2]); }
         const c = /Circle\s*(\d+)/.exec(plain);
         if (c) v.circle = Number(c[1]);
         const rt = /RT:\s*(\d+)/.exec(plain);
         v.rt = rt ? Number(rt[1]) : 0;
+        this.rtObservedAt = Date.now();
         v.inCombat = /\[COMBAT\]/.test(plain);
         // Rage state — scripts gate the signature roar on %rage so a second
         // roar inside an active rage (always refused, rageTicks=12 vs ~2-tick
@@ -302,10 +344,13 @@ export class WireSession {
         // Purse tracking: scripts branch purchases on %silver.
         const sil = /(\d+)\s+silvers/.exec(plain);
         if (sil) v.silver = Number(sil[1]);
-        // Bleeding wounds: scripts can check vitals.bleeding (array of
-        // "part (severity)") and react with `tend` between swings.
+        // Bleeding wounds are separated by semicolons; commas are part of a
+        // wound's annotation (e.g. "abdomen (slight, tended)"). Tended wounds
+        // are no longer actively bleeding and must not pin the player in a
+        // rest-only loop at the outdoor HP ceiling.
         const bleed = /\[bleeding: ([^\]]+)\]/.exec(plain);
-        v.bleeding = bleed ? bleed[1].split(', ').map((s) => s.trim()) : [];
+        v.bleeding = bleed ? bleed[1].split(/;\s*/).map((s) => s.trim())
+          .filter((wound) => wound && !/,\s*tended\)\s*$/i.test(wound)) : [];
         this.handlers.onPrompt?.(m, plain);
         break;
       }
@@ -315,6 +360,8 @@ export class WireSession {
         // rotation branches on via %wsp (see script-engine.js [WEAPON:]).
         // A player sees the same thing on their hands bar; no side channel.
         v.wsp = m.handSkill || '';
+        v.equipment = Object.fromEntries(Object.entries(m.slots || {}).map(([slot,list]) =>
+          [slot,(list || []).map(item=>({id:item.id,name:item.name,skill:item.skill}))]));
         // Server-truth armor check: any worn piece matching armor materials.
         // The sweep used to mark armor "online" when the wear was SENT — a
         // refused/lost wear then starved the 1st-armor gate silently.
@@ -388,19 +435,20 @@ export class WireSession {
         // without a hall trip ("am I even close?" beats walk-fail-walk-back).
         if (m.t === 'mindstate' && Array.isArray(m.skills)) {
           v.skills = v.skills || {};
+          v.skillLearning = m.skills.map((row) => ({...row}));
           for (const row of m.skills) {
-            const id = String(row.name || '').toLowerCase().replace(/\s+/g, '_');
+            const id = skillIdForDisplayName(row.name);
             if (id) v.skills[id] = row.rank;
           }
+          if (m.requirements?.rows) v.requirements = m.requirements;
           this.handlers.onSkills?.(v.skills);
         }
-        // Quest journal push ({t:'quest', quest:{kind,done,...}}): mirror the
-        // done flag so the supervisor can force a town trip the moment a
-        // crier quest completes (the claim needs the agent AT the crier; a
-        // done-but-unclaimed quest is 110s of silver sitting idle).
-        if (m.t === 'quest' && m.quest) {
-          v.quest = m.quest;
-          this.handlers.onQuest?.(m.quest);
+        // Quest journal pushes include null when a task is cleared; mirror the
+        // complete summary so independent agents can offer contextual quest
+        // decisions without querying privileged game state.
+        if (m.t === 'quest') {
+          v.quest = m.quest || null;
+          this.handlers.onQuest?.(v.quest);
         }
         this.handlers.onOther?.(m);
     }

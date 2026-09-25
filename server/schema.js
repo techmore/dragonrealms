@@ -1,5 +1,5 @@
-// Schema upgrades are an atomic, versioned startup step. No game runtime
-// imports: upgrade tests can use an independent in-memory SQLite connection.
+import { createHash } from 'node:crypto';
+
 export function migrateSchema(db) {
   const foreignKeys = db.prepare('PRAGMA foreign_keys').get().foreign_keys;
   const legacyAlter = db.prepare('PRAGMA legacy_alter_table').get().legacy_alter_table;
@@ -12,11 +12,19 @@ export function migrateSchema(db) {
     started = true;
     db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL)');
     const latest = db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version || 0;
-    if (latest > 1) throw new Error(`Database schema version ${latest} is newer than this server supports (1).`);
+    if (latest > 3) throw new Error(`Database schema version ${latest} is newer than this server supports (3).`);
     if (latest < 1) {
       applyBaseline(db);
       if (db.prepare('PRAGMA foreign_key_check').all().length) throw new Error('Foreign-key integrity check failed.');
       db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(1, 'baseline and guildless characters');
+    }
+    if (latest < 2) {
+      applyWorldLoot(db);
+      db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(2, 'durable world loot and corpses');
+    }
+    if (latest < 3) {
+      applySessionTokenStorage(db);
+      db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(3, 'hashed session token storage');
     }
     db.exec('COMMIT');
     started = false;
@@ -59,6 +67,45 @@ function relaxGuildConstraint(db) {
     const updated = db.prepare("UPDATE sqlite_sequence SET seq=MAX(seq, ?) WHERE name='characters'").run(sequence);
     if (!updated.changes) db.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('characters', ?)").run(sequence);
   }
+}
+
+function applyWorldLoot(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS world_loot (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      uid TEXT NOT NULL UNIQUE,
+      room TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('item', 'corpse')),
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      qty INTEGER NOT NULL CHECK (qty > 0),
+      metadata TEXT NOT NULL DEFAULT '{}',
+      owner TEXT,
+      owner_char_id INTEGER REFERENCES characters(id) ON DELETE SET NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_world_loot_room ON world_loot(room);
+    CREATE INDEX IF NOT EXISTS idx_world_loot_owner ON world_loot(owner_char_id);
+  `);
+}
+
+function applySessionTokenStorage(db) {
+  const digest = (token) => createHash('sha256').update(String(token)).digest('hex');
+  db.exec(`
+    CREATE TABLE sessions_v3 (
+      token_hash TEXT PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+  `);
+  const insert = db.prepare('INSERT INTO sessions_v3 (token_hash, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)');
+  for (const row of db.prepare('SELECT token, account_id, created_at, expires_at FROM sessions').all()) {
+    insert.run(digest(row.token), row.account_id, row.created_at, row.expires_at);
+  }
+  db.exec('DROP TABLE sessions');
+  db.exec('ALTER TABLE sessions_v3 RENAME TO sessions');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id)');
 }
 
 function applyBaseline(db) {

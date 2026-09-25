@@ -70,7 +70,7 @@ export const wilds = {
 
   hunt(game, p) {
     if (!this.isWild(p.room)) return { ok: false, msg: 'There is nothing to hunt in town. Try the wilds.' };
-    if (p.guild.id === 'ranger') gainSkillExp(p, 'scouting', 4);
+    if (p.guild?.id === 'ranger') gainSkillExp(p, 'scouting', 4);
     const skill = skillRank(p, 'perception');
     const room = roomById(p.room);
     const chance = 0.4 + skill * 0.04 + (p.element === 'air' ? 0.05 : 0) + (game.weatherLuckMod ? game.weatherLuckMod() : 0);

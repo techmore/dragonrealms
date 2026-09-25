@@ -1847,11 +1847,15 @@ class SweepAgent {
     try { this.runner?.feed('', false); } catch {}
     this.session.injectState(this.runner);
     // Armor-wear retry (server truth): the hands snapshot says whether the
-    // wear LANDED. A lost/refused wear left 1st armor at 0/6 for whole runs
-    // while the send-side kit check claimed it online.
+    // wear LANDED. PERIODIC, not one-shot — a single retry was not enough:
+    // eqel (2026-09-10) still ended every variant at 1st armor 0/6 over 30m
+    // because the one retry (armorWearRetried) fired during RT or before the
+    // armor was carried, and the flag never reset. Re-send on a cooldown until
+    // the snapshot confirms armor is worn.
     if (this.runner && this.session.vitals.armorWorn === false
-      && this.lastWearCmd && !this.armorWearRetried && !this.session.vitals.inCombat) {
-      this.armorWearRetried = true;
+      && this.lastWearCmd && !this.session.vitals.inCombat
+      && Date.now() - (this.lastArmorRetryAt || 0) > 20000) {
+      this.lastArmorRetryAt = Date.now();
       this.appendLog('[armor] hands show nothing worn — re-sending wear');
       void this.session.cmd(this.lastWearCmd);
     }

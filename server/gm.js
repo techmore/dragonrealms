@@ -33,21 +33,36 @@ function json(res, code, obj) {
 
 export { isGmToken } from './http-auth.js'; // re-exported for existing importers
 
-export function gmRequest(req, res, game, { gmToken = process.env.DR_GM_TOKEN } = {}) {
+export function gmRequest(req, res, game, {
+  gmToken = process.env.DR_GM_TOKEN,
+  gmOperatorToken = gmToken,
+  gmAdminToken = gmToken,
+} = {}) {
   const supplied = bearerToken(req);
   if (!supplied) return json(res, 401, { ok: false, error: 'Missing GM bearer token.' });
   if (typeof gmToken !== 'string' || gmToken.length === 0) {
     return json(res, 503, { ok: false, error: 'GM access is not configured.' });
   }
-  if (!isGmToken(supplied, gmToken)) {
-    return json(res, 403, { ok: false, error: 'This credential is not authorized for GM access.' });
-  }
   const url = new URL(req.url, `http://${req.headers.host}`);
   const parts = url.pathname.replace(/^\/api\/gm\/?/, '').split('/').filter(Boolean);
   const which = parts[0];
+  const inspectAuthorized = isGmToken(supplied, gmToken);
+  const operatorAuthorized = isGmToken(supplied, gmOperatorToken || gmToken);
+  const adminAuthorized = isGmToken(supplied, gmAdminToken || gmToken);
+  if (!inspectAuthorized && !operatorAuthorized && !adminAuthorized) {
+    return json(res, 403, { ok: false, error: 'This credential is not authorized for GM access.' });
+  }
+  if (!inspectAuthorized && !['admin', 'sim-runs', 'characters-delete'].includes(which)
+      && !(which === 'scripts' && url.searchParams.get('open'))) {
+    return json(res, 403, { ok: false, error: 'Inspect GM authorization is required.' });
+  }
+  const requireOperator = () => operatorAuthorized || json(res, 403, { ok: false, error: 'Operator GM authorization is required.' });
+  const requireAdmin = () => adminAuthorized || json(res, 403, { ok: false, error: 'Destructive-admin GM authorization is required.' });
 
   switch (which) {
-    case 'sim-runs': return simRunRequest(req, res);
+    case 'sim-runs':
+      if (!requireOperator()) return;
+      return simRunRequest(req, res);
     case 'summary': return gmSummary(res, game);
     case 'world': return gmWorld(res, game);
     case 'room': return gmRoom(res, game, parts[1]);
@@ -58,13 +73,26 @@ export function gmRequest(req, res, game, { gmToken = process.env.DR_GM_TOKEN } 
     case 'races': return gmRaces(res);
     case 'skills': return gmSkills(res);
     case 'characters': return gmCharacters(res);
-    case 'characters-delete': return gmCharactersDelete(req, res, game);
+    case 'characters-delete':
+      if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'Use POST for character deletion.' });
+      if (!requireAdmin()) return;
+      return gmCharactersDelete(req, res, game);
     case 'highscores': return gmHighScores(res, url);
     case 'player': return gmPlayer(res, game, parts[1]);
     case 'players-online': return json(res, 200, { ok: true, players: onlineView(game) });
-    case 'admin': return gmAdmin(res, game, parts[1]);
+    case 'admin': {
+      if (parts[1] === 'reload') {
+        if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'Use POST for world reload.' });
+        if (!requireOperator()) return;
+      }
+      return gmAdmin(res, game, parts[1]);
+    }
     case 'db': return gmDb(res, game, parts[1], url.searchParams.get('q'));
-    case 'scripts': return gmScripts(res, url.searchParams.get('open'));
+    case 'scripts': {
+      const openFolder = url.searchParams.get('open');
+      if (openFolder && !requireOperator()) return;
+      return gmScripts(res, openFolder);
+    }
     default:
       return json(res, 404, { ok: false, error: 'Unknown GM endpoint. Try /api/gm/summary' });
   }

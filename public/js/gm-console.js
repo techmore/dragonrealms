@@ -8,17 +8,16 @@
 // player-authored text (aliases, script bodies), so unescaped rendering was a
 // stored-XSS path into the privileged GM origin and its localStorage token.
 import { $, escapeHtml as esc } from './util.js';
-import { harvestGmTokenFromFragment } from './gm-token.js';
+import { harvestGmTokenFromFragment, storedGmToken, storeGmToken } from './gm-token.js';
 
 const API = '/api/gm';
-const LS_TOKEN = 'dr_gm_token';
 
 // Trusted-launcher handoff: the menu-bar app opens gm.html#gm=<token>; store
 // it once and strip the fragment so it never lingers in the address bar.
 harvestGmTokenFromFragment();
 
-function token() { try { return localStorage.getItem(LS_TOKEN) || ''; } catch { return ''; } }
-function saveToken(t) { try { localStorage.setItem(LS_TOKEN, t); } catch {} }
+function token() { return storedGmToken(); }
+function saveToken(t) { storeGmToken(t); }
 
 async function api(path) {
   const r = await fetch(API + path, {

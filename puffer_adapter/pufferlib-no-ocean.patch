@@ -1,0 +1,10 @@
+diff --git a/setup.py b/setup.py
+--- a/setup.py
++++ b/setup.py
+@@ -193,5 +193,6 @@
+ # Find C extensions
+ c_extensions = []
++c_extension_paths = []
+ if not NO_OCEAN:
+     c_extension_paths = glob.glob('pufferlib/ocean/**/binding.c', recursive=True)
+     c_extensions = [

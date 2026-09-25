@@ -6,6 +6,34 @@ import { parseScript, createRunner } from '../public/js/script-engine.js';
 
 const feed = (r, line, isPrompt = false) => r.feed(line, isPrompt);
 
+test('a matched branch cancels the superseded retry instead of restoring an empty match wait', t => {
+  let now = 1000;
+  t.mock.method(Date,'now',()=>now);
+  const sent = [];
+  const r = createRunner('put hunt\nmatch done Victory!\nmatchwait 30\nexit\ndone:\npause 5\nput forage\nexit', [], {send:line=>sent.push(line)});
+  r.start();
+  r.feed('You must wait 3 seconds before you can do that.', 'error');
+  r.feed('Victory! You stand over your fallen foes.', 'msg');
+  now += 6000; r.feed('');
+  assert.deepEqual(sent,['hunt','forage']);
+  assert.equal(r.running,false);
+});
+
+test('roundtime-refused put resumes its prompt wait, not an impossible room wait', t => {
+  let now = 1000;
+  t.mock.method(Date, 'now', () => now);
+  const sent = [];
+  const r = createRunner('put hunt\nwait\nput look\nexit', [], {send:line=>sent.push(line)});
+  r.start();
+  r.feed('You must wait 3 seconds before you can do that.', 'error');
+  now += 4000; r.feed('');
+  assert.deepEqual(sent, ['hunt','hunt']);
+  assert.equal(r.state.mode, 'prompt');
+  r.feed('HP: 10/10  Stamina: 10/10  RT: 0', true);
+  assert.deepEqual(sent, ['hunt','hunt','look']);
+  assert.equal(r.running, false);
+});
+
 test('parseScript collects labels and skips comments', () => {
   const { labels, lines } = parseScript('# hi\nfoo:\n  put look\nbar:\necho x\n');
   assert.deepEqual(labels, { foo: 0, bar: 1 });

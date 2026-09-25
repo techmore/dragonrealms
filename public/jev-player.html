@@ -1,0 +1,121 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jev/local realtime player · DR Sims</title>
+<style>body{background:#101820;color:#e1e8ed;font:16px/1.5 system-ui;max-width:1000px;margin:auto;padding:24px}a{color:#79d8cf}section{background:#17232e;border:1px solid #304652;border-radius:10px;padding:18px;margin:18px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.5 ui-monospace,monospace}.facts{display:flex;gap:22px;flex-wrap:wrap}.facts strong{display:block;font-size:24px;color:#9de2cf}</style>
+<a href="/sims.html">← DR Sims</a><h1>Jev realtime player</h1><p>Ordinary WebSocket player. The configured decision provider chooses from observed game state and legal actions; Jev is the default, while local-model runs are labeled separately. The independent harness handles protocol, confirmed path movement, character setup, recovery, and safety. Circle milestones and unmet server-reported skill requirements track progression beyond kills.</p><p id="status">Loading…</p>
+<section><h2>Run</h2><div class="facts" id="facts"></div><p id="connection"></p><p><a id="events">Open event trace</a> · <a id="manifest">Open manifest</a></p></section>
+<section><h2>Observed efficiency</h2><div class="facts" id="efficiency"></div><p>Computed from saved run telemetry; rates are observed pace, not a forecast. Needed pace is only for the rank-point threshold—open requirement rows may still block circling.</p></section>
+<section><h2>Active comparison</h2><pre id="queue">Checking queue…</pre><p id="queue-links"></p></section>
+<section><h2 id="decision-heading">Recent provider decisions</h2><pre id="decisions">Waiting for events…</pre></section>
+<section><h2>Circle gate and measured progress</h2><pre id="gate">Waiting for requirements…</pre></section>
+<section><h2>Choice opportunities vs choices</h2><pre id="choice-funnel">No saved offline choice audit yet.</pre><p><a id="choice-audit">Open saved choice audit</a> · Generate/refresh offline with <code>node scripts/jev-player-loop-audit.mjs --run RUN_ID --save</code>.</p></section>
+<section><h2>Loot and training funds</h2><pre id="loot">Waiting for events…</pre></section>
+<script type="module">
+import { distinctLaneSummary } from './js/jev-gate-summary.js';
+import { JevEventMonitor, JevEventTraceReader } from './js/jev-event-monitor.js';
+const $=id=>document.getElementById(id); const pinnedRun=new URLSearchParams(location.search).get('run'); let run=pinnedRun;
+async function get(url){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error(`HTTP ${r.status}`);return r.json()}
+const eventMonitor=new JevEventMonitor(),eventTraceReader=new JevEventTraceReader(eventMonitor);let refreshing=false;
+async function refreshQueue(){try{
+  const controlPath='/live/jev-player/jev-player-control-v28-after-v12-v19-20260921.json';
+  const coachPath='/live/jev-player/jev-player-lane-coach-v29-after-v28-20260921.json';
+  const [control,coach]=await Promise.all([get(controlPath),get(coachPath)]);
+  $('queue').textContent=`V28 control: ${control.status} · ${control.settings?.model||'model unknown'} · ${control.durationMinutes||'?'}m · ${control.progressionMode||control.settings?.progressionMode||'natural speed'} · checked ${control.lastCheckAt||'unknown'}${control.runId?`\nRun: ${control.runId}`:''}\nV29 lane-coach comparison: ${coach.status} · ${coach.settings?.model||'model unknown'} · coach ${coach.settings?.laneCoach||'advisory'} · checked ${coach.lastCheckAt||'unknown'}\nV29 baseline: ${coach.baselineState||'not seen'}${coach.baselineRunId?` (${coach.baselineRunId})`:''}${coach.candidateRunId?`\nV29 candidate: ${coach.candidateState||'unknown'} (${coach.candidateRunId})`:''}\nSource integrity: ${coach.codeIntegrity?.valid===false?'invalid':'valid or not yet assessed'}`;
+  const links=[];
+  const addLink=(href,label)=>{const a=document.createElement('a');a.href=href;a.textContent=label;links.push(a)};
+  if(/^jev-player-[\w-]{1,100}$/.test(control.runId||''))addLink(`/jev-player.html?run=${control.runId}`,'Open V28 run');
+  if(/^jev-player-[\w-]{1,100}$/.test(coach.candidateRunId||''))addLink(`/jev-player.html?run=${coach.candidateRunId}`,'Open V29 candidate');
+  addLink(controlPath,'V28 queue record');addLink(coachPath,'V29 queue record');
+  $('queue-links').replaceChildren(...links.flatMap((link,i)=>i?[document.createTextNode(' · '),link]:[link]));
+}catch{$('queue').textContent='No queued comparison found.';$('queue-links').replaceChildren()}}
+async function refresh(){if(refreshing)return;refreshing=true;try{
+  if(!pinnedRun)run=(await get('/live/jev-player/latest.json')).runId;
+  if(!/^jev-player-[\w-]{1,100}$/.test(run))throw Error('Invalid run ID');
+  const root='/live/jev-player/'+run, m=await get(root+'/manifest.json');
+  const stale=m.status==='playing'&&(!m.updatedAt||Date.now()-Date.parse(m.updatedAt)>15000);
+  const runStatus=m.status==='complete'&&!m.progression?.targetReached&&m.finishReason!=='target-circle-reached'?'incomplete':m.status;
+  $('status').textContent=`${stale?'No recent heartbeat — status unknown':runStatus} · ${m.startedAt} · finish: ${m.finishReason||'in progress'}`;
+  const evidence=m.progression?.evidence, req=m.vitals?.requirements?.rows||[];
+  const providerFailures=(m.errors||[]).filter(error=>error.provider===(m.provider||'jev')).length;
+  const rankPoints=evidence?.rankPoints??(req.length?req.reduce((n,r)=>n+Math.min(Number(r.have)||0,Number(r.need)||0),0):null);
+  const rankTotal=evidence?.requiredRankPoints??(req.length?req.reduce((n,r)=>n+(Number(r.need)||0),0):null);
+  const closed=evidence?.closedRows??(req.length?req.filter(r=>Number(r.have)>=Number(r.need)).length:null);
+  const elapsedHours=Number.isFinite(evidence?.elapsedSeconds)&&evidence.elapsedSeconds>0?evidence.elapsedSeconds/3600:null;
+  const rankPointRate=elapsedHours&&Number.isFinite(evidence?.rankPointsGained)?`${(evidence.rankPointsGained/elapsedHours).toFixed(1)}/h avg`:'unknown';
+  const rowClosureRate=elapsedHours&&Number.isFinite(evidence?.rowsClosedSinceStart)?`${(evidence.rowsClosedSinceStart/elapsedHours).toFixed(1)}/h avg`:'unknown';
+  $('facts').replaceChildren(...[['Decision provider',m.provider||'jev (legacy)'],['Lane coach',m.laneCoach?.mode??'off/legacy'],['Mapped Jev choices',m.laneCoach?.gateMappedChoices??'n/a'],['Preserved Jev choices',m.laneCoach?.preservedProviderChoices??'n/a'],['Committed-lane mindstate advances',m.laneCoach?.observedLearningMindstateAdvances??'n/a'],['Coach stall prompts',m.laneCoach?.stalledDecisionPrompts??'n/a'],['Stalled choice pass-throughs',m.stalledChoicePassThroughs??'n/a'],['Repeat-override release threshold',m.repeatedOverrideReleaseAfter||'off'],['Repeated-choice releases',m.repeatedOverridePassThroughs??0],['RT ability prefetch HP floor',m.rtAbilityPrefetchMinHpFraction||'off'],['RT ability prefetches',m.rtAbilityPrefetches??'n/a'],['RT ability commands dispatched',m.rtAbilityPrefetchExecutions??'n/a'],['RT ability cancellations',m.rtAbilityPrefetchCancellations??'n/a'],['RT ability deferrals',m.rtAbilityRoundtimeDeferrals??'n/a'],['Campaign target',`Circle ${m.targetCircle??'unknown'}`],['Circle',m.progression?.currentCircle??m.vitals?.circle??1],['Unmet immediate-circle requirements',m.progression?.unmetRequirements??'unknown'],['Circle rank points',rankPoints==null?'unknown':`${rankPoints}/${rankTotal}`],['Rank point rate',rankPointRate],['Requirements closed',closed==null?'unknown':`${closed}/${req.length}`],['Gate-row closure rate',rowClosureRate],['Progress signal',evidence?.activityState??'unknown'],['Learning-stage advances',evidence?.mindstateAdvances??'unknown'],['Since gate movement',evidence?`${evidence.secondsSinceGateProgress??'unknown'}s`:'unknown'],['Since learning movement',evidence?`${evidence.secondsSinceLearningProgress??'unknown'}s`:'unknown'],['RT-free combat windows',m.combatActionWindows??0],['RT decision skips',m.roundtimeDecisionSkips??0],['Stale RT action skips',m.staleRoundtimeActionSkips??'n/a'],['RT-legal choice calls',m.rtLegalChoiceCalls??0],['Decisions',m.decisions],['Jev decisions',m.jevDecisions??(m.provider==='jev'?m.decisions:0)],['Local decisions',m.localDecisions??0],['Commands',m.commands],['Kills',m.kills],['Provider errors',providerFailures],['Provider backoffs',m.jevBackoffCount??0],['Circuit breaks',m.jevCircuitBreaks??0],['Fallback decisions',m.fallbackDecisions??m.fallbackCommands],['HP',m.vitals?`${m.vitals.hp}/${m.vitals.maxhp}`:'unknown']].map(([k,v])=>{const s=document.createElement('span'),n=document.createElement('strong');n.textContent=String(v);s.append(n,k);return s}));
+  $('gate').textContent=[
+    `Campaign target Circle ${m.targetCircle??'unknown'} · current gate: Circle ${evidence?.currentCircle??m.vitals?.circle??'unknown'} → ${evidence?.targetCircle??m.vitals?.requirements?.circle??'unknown'} · ${rankPoints==null?'gate points unknown':`${rankPoints}/${rankTotal} rank points`} · ${closed==null?'closed rows unknown':`${closed}/${req.length} rows closed`}`,
+    evidence?`${evidence.rankPointsGained} net rank points gained · ${evidence.rowsClosedSinceStart} rows closed this run · ${evidence.mindstateAdvances} learning-stage advances · ${evidence.secondsSinceGateProgress??'unknown'}s since gate movement · ${evidence.secondsSinceLearningProgress??'unknown'}s since learning movement`:'Progress observer unavailable in this run.',
+    `Distinct skill lanes ranked: ${distinctLaneSummary(req,m.vitals?.skills||{})}`,
+    '', 'Unmet server-reported requirements:',
+    ...(req.filter(r=>Number(r.have)<Number(r.need)).map(r=>`  ${r.label}: ${r.have}/${r.need}`)),
+    '', 'Currently learning:',
+    ...((evidence?.skillLearning||m.vitals?.skillLearning||[]).map(s=>`  ${s.name}: rank ${s.rank}, ${s.mindstate}`)),
+  ].join('\n');
+  $('connection').textContent=`${m.connection} · ${m.model} · ${m.durationMinutes} minute cap · target Circle ${m.targetCircle??'unknown'} · ${m.statPolicy||'default stats'} · ${m.progressionMode||'natural speed'}${m.comparisonId?` · comparison ${m.comparisonId}`:''} · character ${m.identity.char} · ${m.vitals?.inCombat?'fighting':m.vitals?.room||'connecting'}`;
+  $('decision-heading').textContent=`Recent ${m.provider||'Jev'} decisions`;
+  let watch=$('watch');if(!watch){watch=document.createElement('a');watch.id='watch';watch.textContent='Watch character';$('connection').after(watch)}watch.href='/?spectate='+encodeURIComponent(m.identity.char);
+  $('events').href=root+'/events.jsonl';$('manifest').href=root+'/manifest.json';
+  $('choice-audit').href=root+'/loop-audit.json';
+  const choiceAudit=await get(root+'/loop-audit.json').catch(()=>null);
+  if(!choiceAudit){
+    $('choice-funnel').textContent='No saved offline audit for this run yet. This panel does not infer missing choices from the live dashboard.';
+  }else{
+    const auditAt=Date.parse(choiceAudit.auditedAt||'');
+    const runAt=Date.parse(m.updatedAt||'');
+    const stale=Number.isFinite(auditAt)&&Number.isFinite(runAt)&&runAt-auditAt>15000;
+    const byLabel=new Map((choiceAudit.offeredChoiceCoverage?.rows||[]).map(row=>[row.label,row]));
+    const open=req.filter(row=>Number(row.have)<Number(row.need));
+    const lines=open.map(row=>{
+      const audit=byLabel.get(row.label);
+      if(!audit)return `  ${row.label}: unknown (no mapped snapshot)`;
+      const pct=value=>value==null?'unknown':`${(Number(value)*100).toFixed(1)}%`;
+      return `  ${row.label}: Jev ${audit.providerEligibleChoice}/${audit.withMappedChoice} eligible (${pct(audit.providerSelectionRateAmongEligibleMenus)}) · Jev next-rank ${audit.providerOneRankAdvancingChoice}/${audit.withOneRankAdvancingChoice} (${pct(audit.providerSelectionRateAmongOneRankAdvancingMenus)}) · final ${audit.selectedEligibleChoice}/${audit.withMappedChoice} eligible (${pct(audit.finalSelectionRateAmongEligibleMenus)}) · final next-rank ${audit.selectedOneRankAdvancingChoice}/${audit.withOneRankAdvancingChoice} (${pct(audit.finalSelectionRateAmongOneRankAdvancingMenus)}) · rank snapshot ${audit.rankSensitivityKnownObservations} known/${audit.rankSensitivityUnknownObservations} unknown`;
+    });
+    $('choice-funnel').textContent=`Saved offline audit: ${choiceAudit.auditedAt||'timestamp unknown'}${stale?' · STALE relative to the live run heartbeat':''}\nDecisions analyzed: ${choiceAudit.decisionsAnalyzed??'unknown'} · rates are conditional on mapped eligible options being offered.\nJev = providerChoice; final = wrapper-selected action. “Next-rank useful” simulates one rank increment and requires complete ranks for Nth-skill gates; unavailable snapshots are marked unknown. It is not an EXP/command model.\n${lines.join('\n')||'  No open gate rows in the current manifest.'}`;
+  }
+  const trace=await eventTraceReader.refresh(run,root+'/events.jsonl');
+  const gateHistory=trace.gateHistory.at(-1);
+  if(gateHistory){
+    const movement=gateHistory.rows.map(row=>`  ${row.label}: ${row.firstHave} → ${row.latestHave}/${row.need}${row.closedDuringRun?` (closed ${row.closedAt})`:''}`);
+    $('gate').textContent+=`\n\nObserved per-row movement in Circle ${gateHistory.circle??'unknown'} (${gateHistory.snapshots} snapshots):\n${movement.join('\n')}`;
+  }
+  const responses=trace.responseMs.sort((a,b)=>a-b);
+  const elapsedSeconds=Number(evidence?.elapsedSeconds)||0;
+  const rate=(count,unit)=>elapsedSeconds>0?`${(Number(count||0)*3600/elapsedSeconds).toFixed(1)} ${unit}/h`:'unknown';
+  const remainingHours=(Number(m.durationMinutes)*60-elapsedSeconds)/3600;
+  const remainingPoints=rankTotal!=null&&rankPoints!=null?Math.max(0,Number(rankTotal)-Number(rankPoints)):null;
+  const requiredPointRate=remainingPoints!=null&&remainingHours>0
+    ?`${(remainingPoints/remainingHours).toFixed(1)} points/h`:'unknown';
+  const median=responses.length?responses[Math.ceil(responses.length*0.5)-1]:null;
+  const p90=responses.length?responses[Math.ceil(responses.length*0.9)-1]:null;
+  const responseSampleLabel=trace.responseCount>responses.length?' (recent sample)':'';
+  const responseTotal=responses.reduce((sum,value)=>sum+value,0);
+  const inferenceShare=elapsedSeconds>0?`${(responseTotal/(elapsedSeconds*1000)*100).toFixed(1)}%`:'unknown';
+  const efficiencyFacts=[['Observed rank pace',rate(evidence?.rankPointsGained,'points')],
+    ['Needed pace to rank threshold',requiredPointRate],
+    ['Observed kill pace',rate(m.kills,'kills')],[`Provider response median${responseSampleLabel}`,median==null?'unknown':`${(median/1000).toFixed(2)}s`],
+    [`Provider response p90${responseSampleLabel}`,p90==null?'unknown':`${(p90/1000).toFixed(2)}s`],['Inference share of run time',inferenceShare]];
+  $('efficiency').replaceChildren(...efficiencyFacts.map(([label,value])=>{const s=document.createElement('span'),n=document.createElement('strong');n.textContent=String(value);s.append(n,label);return s}));
+  const dragonOffers=trace.dragonOffers,dragonUses=trace.dragonSelections;
+  const dragonRtRefusals=trace.dragonRtRefusals;
+  const dragonFormInferred=trace.dragonFormInferred,dragonFormDispatches=trace.dragonFormDispatches;
+  for(const [label,value] of [['Dragon Form offers',dragonOffers],['Dragon Form selections',dragonUses],['Dragon Form dispatches',dragonFormDispatches],['Dragon Form uses (Inner Fire drop inferred)',`${dragonFormInferred} / ${dragonFormDispatches}`],['Dragon Form RT refusals',dragonRtRefusals]]){const s=document.createElement('span'),n=document.createElement('strong');n.textContent=String(value);s.append(n,label);$('facts').append(s)}
+  const harvestedCounts=trace.harvestedCounts,soldCounts=trace.soldCounts;
+  const remaining=(m.tradeLedger||[]).filter(x=>x.count>0).map(x=>`${x.item}: ${x.count}`).join(', ')||'none tracked';
+  const harvestedText=Object.entries(harvestedCounts).map(([item,count])=>`${item}: ${count}`).join(', ')||'none recorded';
+  const soldText=Object.entries(soldCounts).map(([item,count])=>`${item}: ${count}`).join(', ')||'none recorded';
+  $('loot').textContent=`Catalogued harvests: ${harvestedText}\nSold to tanner: ${soldText}\nTracked unsold stock: ${remaining}\nCurrent purse: ${m.vitals?.silver??'unknown'} silvers`;
+  const decisions=trace.recentRows;
+  $('decisions').textContent=decisions.map(x=>{
+    if(x.type==='jev-error'||x.type==='local-error')return `${x.provider||'jev'} request failed: ${x.message}`;
+    const selected=x.choice||'no selection',providerChoice=x.providerChoice||null;
+    const choiceSummary=providerChoice?(providerChoice===selected?providerChoice:`${providerChoice} → wrapper ${selected}`):`${selected} (raw choice not recorded)`;
+    const scores=x.actionScores||{};
+    const menu=(x.options||[]).map(o=>`  ${o.id===selected?'▶':o.id===providerChoice?'◉':'·'} ${o.id}: ${o.description}${scores[o.id]==null?'':` (${Math.round(scores[o.id]*100)}% yes)`}`).join('\n');
+    const source=x.provider|| (x.type==='local-decision'?'local':'jev');
+    const wrapperNote=x.laneCoachPreservedProviderChoice?' · gate choice preserved':x.supervisorOverride?` · wrapper override: ${x.supervisorOverride}`:x.supervisorReleaseReason?` · repeated choice released: ${x.supervisorReleaseReason}`:'';
+    return `${x.ts} · ${x.state?.roomObservation?.id||x.state?.room||'room unknown'} · ${source} chose ${choiceSummary}${x.command?` → ${x.command}`:''}${x.selectedProbability==null?'':` · yes ${Math.round(x.selectedProbability*100)}%`}${wrapperNote}\n${menu}${x.providerError?`\nDecision request failed; wrapper waited safely: ${x.providerError}`:''}`;
+  }).join('\n\n')||'No Jev decisions recorded yet.';
+}catch(e){$('status').textContent=e.message}finally{refreshing=false}}refresh();refreshQueue();setInterval(refresh,2000);setInterval(refreshQueue,5000);
+</script>

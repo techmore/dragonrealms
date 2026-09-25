@@ -409,7 +409,7 @@ const check = (name, ok, extra = '') => { checks.push([name, ok]); log(`${ok ? '
   await sleep(200);
   check('Esc closes keys overlay', await evalJs(`document.getElementById('keys-overlay').hidden`));
 
-  // 26. Server-stored scripts: save one, wipe localStorage (fresh browser),
+  // 26. Server-stored scripts: save one, clear the tab-scoped session token,
   // reload, re-enter — the script comes back from the server.
   await evalJs(`document.getElementById('btn-scripts').click();true`);
   await waitFor(`document.getElementById('script-addbtn') !== null`);
@@ -422,7 +422,7 @@ const check = (name, ok, extra = '') => { checks.push([name, ok]); log(`${ok ? '
   await sleep(400);
   check('script save confirmed by server', await waitFor(`import('/js/scripts.js').then(m => m.ownsScript('persistme'))`));
   // Simulate a brand-new browser: drop local config AND the session token.
-  await evalJs(`localStorage.removeItem('dr_scripts_v1'); localStorage.removeItem('dr_token'); location.reload(); true`);
+  await evalJs(`localStorage.removeItem('dr_scripts_v1'); localStorage.removeItem('dr_token'); sessionStorage.removeItem('dr_token'); location.reload(); true`);
   await waitFor(`!!document.getElementById('wf-user')`, 15000);
   await evalJs(`document.getElementById('wf-user').value=${JSON.stringify(acctUser)};document.getElementById('wf-pass').value=${JSON.stringify(acctPass)};document.getElementById('wf-login').click();true`);
   await waitFor(`!document.getElementById('welcome').hidden && document.querySelectorAll('.wslot').length >= 1`, 10000);

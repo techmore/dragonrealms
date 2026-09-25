@@ -28,6 +28,10 @@ test('auth: register, login, wrong password, lockout path', async () => {
   assert.ok(good.token);
   const validated = auth.validateSession(good.token);
   assert.equal(validated.username, 'thorntest');
+  assert.equal(validated.token, null);
+  const stored = db.prepare('SELECT token_hash FROM sessions WHERE account_id=?').get(validated.accountId);
+  assert.ok(stored?.token_hash);
+  assert.notEqual(stored.token_hash, good.token, 'raw session token is never stored');
   auth.logoutSession(good.token);
   assert.equal(auth.validateSession(good.token), null);
 });
@@ -73,6 +77,26 @@ test('character creation + persistence', async () => {
   savePlayer(p);
   const reloaded = loadPlayer(charId);
   assert.equal(reloaded.skills.war_magic.rank, 5);
+});
+
+test('guildless characters produce safe responses for guild-sensitive commands', async () => {
+  const acc = await auth.registerAccount('Guildlesstest', 's3cretword');
+  const charId = createCharacter(acc.accountId, { name: 'Guildless Wayfarer', race: 'human', guild: null });
+  const p = loadPlayer(charId);
+  p.ws = fakeWs();
+  game.addPlayer(p);
+
+  // These commands are advertised before a character joins a guild. They
+  // must reject/describe the missing capability, never dereference null.
+  for (const command of ['health', 'score', 'exp', 'skills', 'slots', 'perceive', 'enchant', 'cast', 'chaffer', 'passage']) {
+    assert.doesNotThrow(() => handleCommand(game, p, command, 0, { applyRT: false }), command);
+  }
+
+  p.room = 'sewers_1';
+  reviveRoomSpawns(game, p.room);
+  assert.doesNotThrow(() => handleCommand(game, p, 'attack rat', 0, { applyRT: false }));
+  assert.equal(game.combat.getFor(p) !== null, true);
+  game.removePlayer(p);
 });
 
 test('circle requirements', async () => {

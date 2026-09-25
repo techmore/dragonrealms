@@ -1,5 +1,10 @@
 // Shop and service commands: market, bank, healer, trader caravans.
-import { skillRank, gainSkillExp } from '../player.js';
+import { skillRank, gainSkillExp, savePlayer } from '../player.js';
+
+function persistOrRestore(p, before, message) {
+  try { savePlayer(p); return true; }
+  catch { Object.assign(p, before); return message; }
+}
 
 export const commands = {
   list(ctx) {
@@ -112,7 +117,7 @@ export const commands = {
 
   chaffer(ctx) {
     const { game, p, emit } = ctx;
-    if (p.guild.id !== 'trader') return emit('Only traders know how to chaffer.');
+    if (p.guild?.id !== 'trader') return emit('Only traders know how to chaffer.');
     if (!game.shopNpcsIn(p).length) return emit('Chaffer with whom? You need a shopkeeper nearby.');
     p.chafferNext = true;
     emit('You roll your shoulders and crack your knuckles — the next sale will run 10% better. ("sell <item>" when you are ready.)');
@@ -123,14 +128,21 @@ export const commands = {
     if (p.room !== 'commodity_pit') return emit('Speculation happens at the Grain Pit, off Market Way.');
     const stake = 50;
     if (p.silver < stake) return emit(`Speculation costs ${stake} silvers, and you are short.`);
+    const before = p.silver;
     p.silver -= stake;
     const trading = skillRank(p, 'trading');
     const appraisal = skillRank(p, 'appraisal');
     const chance = Math.min(0.85, 0.35 + trading * 0.01 + appraisal * 0.005);
+    const won = Math.random() < chance;
+    const back = won ? stake + Math.floor(stake * (0.5 + Math.random())) : 0;
+    if (won) p.silver += back;
+    try { savePlayer(p); }
+    catch (error) {
+      p.silver = before;
+      return emit('The pit ledger could not be saved; the wager was not accepted.');
+    }
     const leveled = gainSkillExp(p, 'trading', 8);
-    if (Math.random() < chance) {
-      const back = stake + Math.floor(stake * (0.5 + Math.random()));
-      p.silver += back;
+    if (won) {
       emit(`You bet on the swing and the board delivers — ${back} silvers come back to you.${leveled ? ' Your Trading improved!' : ''}`);
     } else {
       emit(`The board swings against you and the ${stake} silvers are gone.${leveled ? ' Your Trading improved!' : ''}`);
@@ -142,7 +154,7 @@ export const commands = {
 // of every sale (DR: RENT caravan / hirelings / TIE).
 function caravan(ctx) {
   const { game, p, arg1, emit } = ctx;
-  if (p.guild.id !== 'trader') return emit('Only traders run caravans.');
+  if (p.guild?.id !== 'trader') return emit('Only traders run caravans.');
   if (!arg1) {
     if (!p.caravan || !p.caravan.rented) {
       return emit('You run no caravan. Rent one at the trader guildhall: "caravan rent" (150 silvers).');
@@ -154,15 +166,21 @@ function caravan(ctx) {
     if (p.room !== 'hall_trader') return emit('Caravans are rented at the trader guildhall.');
     if (p.caravan && p.caravan.rented) return emit('You already run a caravan.');
     if (p.silver < 150) return emit('Renting a caravan costs 150 silvers.');
+    const before = { silver: p.silver, caravan: p.caravan };
     p.silver -= 150;
     p.caravan = { rented: true, porter: 0, scribe: 0 };
+    const saved = persistOrRestore(p, before, 'The guild ledger could not record the rental; no silvers were spent.');
+    if (saved !== true) return emit(saved);
     gainSkillExp(p, 'trading', 10);
     return emit('You rent a covered wagon and a pair of mules. The road is open — and every sale pays a little extra.');
   }
   if (what === 'sell') {
     if (!p.caravan || !p.caravan.rented) return emit('You have no caravan to sell.');
+    const before = { silver: p.silver, caravan: p.caravan };
     p.silver += 50;
     p.caravan = null;
+    const saved = persistOrRestore(p, before, 'The guild ledger could not record the sale; the caravan is unchanged.');
+    if (saved !== true) return emit(saved);
     return emit('You sell the wagon and mules back to the guild for 50 silvers.');
   }
   if (what === 'hire') {
@@ -174,8 +192,11 @@ function caravan(ctx) {
     if (cur >= 1) return emit(`You already keep a ${kind}.`);
     if ((p.caravan.porter || 0) + (p.caravan.scribe || 0) >= 2) return emit('Your wagon has no more berths (max 2 hirelings).');
     if (p.silver < 60) return emit('Hiring costs 60 silvers.');
+    const before = { silver: p.silver, caravan: { ...p.caravan } };
     p.silver -= 60;
     p.caravan[kind] = cur + 1;
+    const saved = persistOrRestore(p, before, 'The guild ledger could not record the hire; no silvers were spent.');
+    if (saved !== true) return emit(saved);
     gainSkillExp(p, 'trading', 6);
     return emit(kind === 'porter'
       ? 'A burly porter climbs aboard — he carries your goods and your haggling carries further (+5% shop sales).'

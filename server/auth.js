@@ -11,6 +11,7 @@ const SCRYPT_KEYLEN = 64;
 const MAX_ATTEMPTS = 5;
 const LOCK_MS = 10 * 60 * 1000; // 10 minute lockout
 const SESSION_MS = 12 * 60 * 60 * 1000; // 12 hour session
+const sessionDigest = (token) => createHash('sha256').update(String(token)).digest('hex');
 const INVALID_LOGIN = 'Incorrect username or password.';
 const BUSY_LOGIN = 'Authentication service is busy. Try again shortly.';
 
@@ -201,27 +202,29 @@ export async function loginAccount(username, password) {
 
   const token = sessionToken();
   const expiresAt = now + SESSION_MS;
-  db.prepare('INSERT INTO sessions (token, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
-    .run(token, row.id, now, expiresAt);
+  db.prepare('INSERT INTO sessions (token_hash, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
+    .run(sessionDigest(token), row.id, now, expiresAt);
 
   return { ok: true, token, accountId: row.id, username: row.username, expiresAt };
 }
 
 export function validateSession(token) {
   if (!token) return null;
+  const tokenHash = sessionDigest(token);
   const row = db.prepare(
-    'SELECT s.*, a.username FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token = ?'
-  ).get(token);
+    'SELECT s.*, a.username FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ?'
+  ).get(tokenHash);
   if (!row) return null;
   if (row.expires_at < Date.now()) {
-    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+    db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(tokenHash);
     return null;
   }
-  return { token: row.token, accountId: row.account_id, username: row.username };
+  // The raw bearer token is intentionally never recoverable from the DB.
+  return { token: null, accountId: row.account_id, username: row.username };
 }
 
 export function logoutSession(token) {
-  db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+  db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sessionDigest(token));
 }
 
 export function pruneExpiredSessions() {

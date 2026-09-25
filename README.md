@@ -165,7 +165,10 @@ testing and analysis — see `docs/api.md`.
   and live-player balance remains a separate playtest. `node scripts/build-skills-doc.mjs`
   regenerates `/SKILLS.html` and `SKILLS.md`; `node scripts/build-roadmap.mjs`
   regenerates the tracker from `data/roadmap.js`. A test-only HTTP API (`server/api.js`,
-  `DR_ENABLE_API=1`) drives the game headlessly for analysis.
+  `DR_ENABLE_API=1`) drives the game headlessly for analysis. Public experiment
+  artifacts use `npm run retention` as a no-write dry run by default; deletion
+  requires explicit apply and protects active, recent, referenced, review, shared,
+  and unknown evidence. See `docs/ARTIFACT-RETENTION.md`.
 - **Barbarian bot + GM spectator** — `node scripts/barbarian-bot.mjs` (or
   `npm run bot`) plays a real gortog barbarian: it shops, gears up, hunts,
   skins, hauls to market, trains, learns abilities, and circles. Watch it

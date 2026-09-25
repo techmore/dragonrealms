@@ -3,6 +3,7 @@ import { roomById } from '../../data/world.js';
 import { db } from '../db.js';
 import { craftAffinity, knownCraftTechs } from '../crafting-policy.js';
 import { finishCraft, claimWorkOrder } from '../crafting.js';
+import { transferInventory } from '../inventory-transfer.js';
 import { ITEMS, itemById } from '../../data/items.js';
 import { RECIPES, recipeById } from '../../data/recipes.js';
 import { FORGE_RECIPES, forgeRecipeById, ENGINEER_RECIPES, engineerRecipeById, OUTFIT_RECIPES, outfittingRecipeById, qualityRoll, QUALITY_LADDER, CRAFT_TECHNIQUES } from '../../data/forging.js';
@@ -92,8 +93,8 @@ export const commands = {
     const item = findInventoryItem(p, arg1);
     if (!item) return emit('You do not have that.');
     const n = Math.min(qty, countItems(p, item.item.id));
-    const instances = removeItemInstances(p, item.item.id, n, item);
-    game.dropFloor(p.room, item.item.id, n, instances);
+    const res = game.dropPlayerItem(p, item, n);
+    if (!res.ok) return emit('The item could not be dropped safely; nothing changed.');
     emit(`You drop ${n > 1 ? `${n}x ` : ''}${item.item.name}.`);
   },
 
@@ -112,8 +113,14 @@ export const commands = {
     if (entry.bundle) return emit('That is already a tidy bundle.');
     const have = countItems(p, entry.item.id);
     const n = Math.max(1, Math.min(parseInt(arg2, 10) || have, have));
-    removeItem(p, entry.item.id, n);
-    addItem(p, entry.item.id, n, { bundle: { bundled: n } });
+    try {
+      transferInventory([p], () => {
+        removeItem(p, entry.item.id, n);
+        addItem(p, entry.item.id, n, { bundle: { bundled: n } });
+      });
+    } catch {
+      return emit('The bundle slips apart before it can be tied; nothing changed.');
+    }
     emit(`You fold and tie ${n > 1 ? `${n}x ` : ''}${entry.item.name}${n > 1 ? 's' : ''} into one compact bundle. Much easier to carry.`);
   },
 
@@ -121,13 +128,20 @@ export const commands = {
     const { p, arg1, emit } = ctx;
     const entry = findInventoryItem(p, arg1 || '');
     if (!entry || !entry.bundle) return emit('You are carrying no such bundle.');
-    entry.bundle = null; // cut the ties: weight returns
-    db.prepare('UPDATE inventory SET bundle=NULL WHERE id=?').run(entry.id);
+    try {
+      transferInventory([p], () => {
+        entry.bundle = null; // cut the ties: weight returns
+        const changed = db.prepare('UPDATE inventory SET bundle=NULL WHERE id=?').run(entry.id);
+        if (changed.changes !== 1) throw new Error('Cannot update missing bundle row.');
+      });
+    } catch {
+      return emit('The ties refuse to give; the bundle remains intact.');
+    }
     emit(`You cut the ties on the ${entry.item.name.replace(/^a /, '')} bundle — it sprawls back to full bulk.`);
   },
 
   repair(ctx) {
-    const { p, arg1, emit } = ctx;
+    const { game, p, arg1, emit } = ctx;
     if (p.room !== 'forge' && p.room !== 'tailor_shop') {
       return emit('Repair work happens at the Ember Forge or the Needle & Thread.');
     }
@@ -139,9 +153,21 @@ export const commands = {
     const missing = 100 - cond;
     const cost = Math.max(5, Math.floor(missing * item.value / 100 * 2));
     if (p.silver < cost) return emit(`Repairing ${item.name} costs ${cost} silvers; you have ${p.silver}.`);
+    const snapshot = {
+      silver: p.silver,
+      condition: item.condition ?? 100,
+      expPools: structuredClone(p.expPools || {}),
+    };
     p.silver -= cost;
     item.condition = 100;
     gainSkillExp(p, slot === 'hand' ? 'forging' : 'outfitting', 8);
+    try { game.persistPlayer(p); }
+    catch {
+      p.silver = snapshot.silver;
+      item.condition = snapshot.condition;
+      p.expPools = snapshot.expPools;
+      return emit(`The repair cannot be recorded; ${item.name} and your purse are unchanged.`);
+    }
     setRoundtime(p, 6);
     emit(`The ${slot === 'hand' ? 'hammer' : 'needle'} works over ${item.name} — it is as good as new (${cost} silvers).`);
   },
@@ -176,7 +202,7 @@ export const commands = {
       const zone = game.justiceZone(p);
       if (zone !== 'none') p.crimeHeat = (p.crimeHeat || 0) + (zone === 'strict' ? 2 : 1);
       // Paladins: thieving stains the soul (code of honor).
-      if (p.guild.id === 'paladin') {
+      if (p.guild?.id === 'paladin') {
         p.soul = Math.max(0, (p.soul ?? 50) - 10);
         emit('A voice in your heart cries out — your oath wavers. (-10 soul)');
       }
@@ -214,8 +240,10 @@ export const commands = {
 
     if (sub === 'abandon') {
       if (!p.workOrder) return emit('You carry no work order.');
+      const previous = p.workOrder;
       p.workOrder = null;
-      game.persistPlayer(p);
+      try { game.persistPlayer(p); }
+      catch { p.workOrder = previous; return emit('The order ledger will not close; you still carry the work order.'); }
       return emit('You set the work order aside. No coin for unfinished work.');
     }
 
@@ -256,6 +284,7 @@ export const commands = {
     const req = pick.rank < 8 ? QUALITY_LADDER[2] : pick.rank < 20 ? QUALITY_LADDER[3] : QUALITY_LADDER[4]; // average / well-crafted / masterfully
     const alchemy = pick.verb === 'craft';
     const pay = Math.round((25 + pick.recipe.minSkill * 3) * (alchemy ? 1 : req.mult) * 1.15);
+    const previous = p.workOrder;
     p.workOrder = {
       verb: pick.verb,
       recipeId: pick.recipe.id,
@@ -265,7 +294,8 @@ export const commands = {
       npc: ORDER_VERBS[pick.verb].npc,
       done: false,
     };
-    game.persistPlayer(p);
+    try { game.persistPlayer(p); }
+    catch { p.workOrder = previous; return emit('The order ledger cannot record that work; nothing changed.'); }
     emit(p.workOrder.qualMult
       ? `\n${p.workOrder.npc} posts a work order: "\x1b[1m${pick.recipe.name}\x1b[0m — ${p.workOrder.qualName} or better. ${pay} silvers on delivery." Craft it here, then "order claim".`
       : `\n${p.workOrder.npc} posts a work order: "\x1b[1m${pick.recipe.name}\x1b[0m — a serviceable batch. ${pay} silvers on delivery." Brew it here, then "order claim".`);
@@ -436,11 +466,8 @@ function getItem(ctx) {
   if (!floor) return emit('There is no such thing here.');
   if (floor.corpse) return emit(`That is ${floor.name} — search it for belongings.`);
   const take = Math.min(qty, floor.qty);
-  const metadata = floor.instances
-    ? floor.instances.splice(0, take)
-    : { condition: floor.condition, quality: floor.quality };
-  addItem(p, floor.item.id, take, metadata);
-  floor.qty -= take;
+  const res = game.takeFloorItem(p, floor, take);
+  if (!res.ok) return emit('The item could not be picked up safely; nothing changed.');
   if (floor.qty <= 0) {
     game.floorItems.get(p.room).splice(game.floorItems.get(p.room).indexOf(floor), 1);
   }

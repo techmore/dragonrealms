@@ -1,4 +1,7 @@
 // Live spectator view: streams one player's session through the wire relay.
+import { harvestGmTokenFromFragment, storedGmToken, storeGmToken } from './gm-token.js';
+harvestGmTokenFromFragment();
+
 const terminal = document.getElementById('terminal');
 const statusEl = document.getElementById('conn-status');
 const nameInput = document.getElementById('watch-name');
@@ -11,7 +14,7 @@ let watching = null;
 const params = new URLSearchParams(location.search);
 const initial = params.get('name') || '';
 if (initial) nameInput.value = initial;
-tokenInput.value = localStorage.getItem('dr_gm_token') || '';
+tokenInput.value = storedGmToken();
 
 function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -101,7 +104,7 @@ function sendSpectate() {
 function watch(name) {
   const n = name.trim();
   if (!n) return;
-  localStorage.setItem('dr_gm_token', tokenInput.value.trim());
+  storeGmToken(tokenInput.value.trim());
   watching = n;
   infoEl.textContent = `watching ${n}`;
   const banner = document.getElementById('viewing-banner');

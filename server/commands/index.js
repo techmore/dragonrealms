@@ -9,6 +9,10 @@ import { commands as character } from './character.js';
 import { commands as world } from './world.js';
 import { commands as directions } from './dir.js';
 import { commands as guildJoin } from './join.js';
+import {
+  buildCommandMetadata, commandMetadata, COMMAND_METADATA, MOVEMENT_COMMAND_METADATA,
+  roundtimeCommands,
+} from './metadata.js';
 
 const COMMAND_MODULES = [
   ['combat', combat], ['magic', magic], ['items', items],
@@ -32,13 +36,19 @@ export function mergeCommandModules(modules) {
 }
 
 const REGISTRY = mergeCommandModules(COMMAND_MODULES);
-
-const PANEL_COMMANDS = new Set(['inventory', 'score', 'info', 'skills', 'exp', 'spells']);
+export const COMMAND_REGISTRY_METADATA = buildCommandMetadata(REGISTRY, COMMAND_METADATA);
+export function commandContract(name) {
+  const key = String(name || '').toLowerCase();
+  return commandMetadata(COMMAND_REGISTRY_METADATA, key)
+    || MOVEMENT_COMMAND_METADATA[key]
+    || null;
+}
 
 // Invoke only known read-only views, bypassing player aliases and chaining.
 // Their output is returned as one response, never captured from live traffic.
 export function readPanel(game, p, cmd) {
-  if (!PANEL_COMMANDS.has(cmd)) return { ok: false, error: 'Unknown character panel.' };
+  const meta = COMMAND_REGISTRY_METADATA.get(cmd);
+  if (!meta?.panelSafe) return { ok: false, error: 'Unknown character panel.' };
   const lines = [];
   const say = (text) => lines.push(String(text));
   REGISTRY[cmd]({ game, p, cmd, args: [cmd], rest: '', arg1: undefined, arg2: undefined, say, emit: say });
@@ -49,21 +59,10 @@ import { setRoundtime, roundtimeLeft, netBurden, say as sendLine } from '../play
 
 // Commands that take roundtime (DR): each sets its own RT when it runs, and
 // is refused while RT is still counting down. Movement, passive reads, and
-// everything not in this set stay free during RT. `applyRT` is enabled by
-// both network session types (WebSocket and HTTP API); direct engine tests
-// and the simulator remain unaffected.
-export const RT_BLOCK = new Set([
-  'attack', 'cast', 'berserk', 'roar', 'meditate', 'form', 'whirlwind', 'stomp', 'choke',
-  'mageslash', 'dispel', 'backstab', 'snipe', 'slip', 'smite', 'impede', 'ambush', 'hide',
-  'forage', 'scavenge', 'track', 'hunt', 'skin', 'steal', 'pick', 'study', 'perform', 'appraise',
-  'unlock', 'sing', 'appr', 'forge', 'shape', 'tailor', 'craft', 'imbue', 'tend', 'bandage',
-  'repair', 'use', 'drink', 'eat', 'khri', 'predict', 'harness', 'perceive', 'charge', 'invoke',
-  'focus', 'animate', 'ritual', 'beseech', 'enchante', 'glyph', 'summon', 'sacrifice',
-  'advance', 'retreat', 'flee',
-  // Alias spellings of gated verbs (C4): kill -> attack; bash/shield-bash/
-  // disarm/trip are the combat maneuvers. appr already sits beside appraise.
-  'kill', 'disarm', 'trip', 'bash', 'shield-bash',
-]);
+// everything whose metadata does not set `rt.gate` stay free during RT.
+// `applyRT` is enabled by both network session types (WebSocket and HTTP API);
+// direct engine tests and the simulator remain unaffected.
+export const RT_BLOCK = roundtimeCommands(COMMAND_REGISTRY_METADATA);
 
 export function handleCommand(game, p, input, depth = 0, opts = {}) {
   if (depth > 4) return;
@@ -128,13 +127,14 @@ export function handleCommand(game, p, input, depth = 0, opts = {}) {
   if (handler) {
     // Roundtime gate (real sessions only): RT actions are refused while the
     // timer runs. Movement was already handled above and stays free.
-    // EXCEPTION (fresh-char deaths, guzk): 'flee' below 30% HP is exempt —
-    // the interlock's flee cadence cannot express "wait out RT, then flee",
-    // and three refused flee cycles at 20 HP/s chew = death every time. DR's
-    // desperation flight is evasion-gated (disengage chance), not RT-gated.
-    const desperateFlee = cmd === 'flee' && p.maxHp > 0 && p.hp / p.maxHp < 0.3;
-    if (opts.applyRT && RT_BLOCK.has(cmd) && !desperateFlee && roundtimeLeft(p) > 0) {
-      const fight = cmd === 'flee' ? game.combat.getFor(p) : null;
+    // EXCEPTION (fresh-char deaths, guzk): metadata marks flee as exempt below
+    // 30% HP — the interlock's flee cadence cannot express "wait out RT, then
+    // flee", and three refused flee cycles at 20 HP/s chew = death every time.
+    const meta = commandMetadata(COMMAND_REGISTRY_METADATA, cmd);
+    const desperateFlee = meta?.rt.exempt === 'desperateFlee'
+      && p.maxHp > 0 && p.hp / p.maxHp < 0.3;
+    if (opts.applyRT && meta?.rt.gate && !desperateFlee && roundtimeLeft(p) > 0) {
+      const fight = meta.canonical === 'flee' ? game.combat.getFor(p) : null;
       if (fight?.player === p) {
         fight.fleePending = true;
         return emit('You stop swinging and prepare to flee when your roundtime ends.');

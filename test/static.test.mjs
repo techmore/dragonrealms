@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createStaticHandler } from '../server/static.js';
+import { createStaticHandler, SECURITY_HEADERS } from '../server/static.js';
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const handle = createStaticHandler(PUBLIC_DIR);
@@ -33,6 +33,11 @@ test('serves index.html at /', async () => {
   assert.equal(res.calls[0][0], 'head');
   assert.equal(res.calls[0][1], 200);
   assert.match(String(res.calls[0][2]['Content-Type']), /^text\/html/);
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    assert.equal(res.calls[0][2][name], value, name);
+  }
+  assert.match(res.calls[0][2]['Content-Security-Policy'], /frame-ancestors 'none'/);
+  assert.match(res.calls[0][2]['Content-Security-Policy'], /object-src 'none'/);
   assert.match(String(res.calls[1][1]), /<!DOCTYPE html>/);
 });
 
@@ -57,6 +62,9 @@ test('404 for missing files', async () => {
   handle(req('/nope.js'), res);
   await settle(res);
   assert.equal(res.calls[0][1], 404);
+  assert.equal(res.calls[0][2]['X-Content-Type-Options'], 'nosniff');
+  assert.equal(res.calls[0][2]['X-Frame-Options'], 'DENY');
+  assert.match(res.calls[0][2]['Content-Security-Policy'], /default-src 'self'/);
 });
 
 test('extensionless miss still 404s (no phantom .html)', async () => {

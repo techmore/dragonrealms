@@ -46,9 +46,11 @@ test('fresh schema is versioned and repeated migration is a no-op', () => {
     const before = schema(db);
     migrateSchema(db);
     assert.deepEqual(schema(db), before);
-    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 1);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 3);
     assert.equal(db.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
     assert.equal(db.prepare('PRAGMA table_info(characters)').all().find(c=>c.name==='guild').notnull, 0);
+    assert.ok(db.prepare('PRAGMA table_info(sessions)').all().some(c => c.name === 'token_hash'));
+    assert.equal(db.prepare('PRAGMA table_info(sessions)').all().some(c => c.name === 'token'), false);
   } finally { db.close(); }
 });
 
@@ -86,7 +88,7 @@ test('failed column addition rolls back earlier additions and does not record su
     assert.deepEqual(schema(db), before);
     assert.equal(db.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
     migrateSchema(db);
-    assert.equal(db.prepare('SELECT version FROM schema_migrations').get().version, 1);
+    assert.equal(db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version, 3);
   } finally { db.close(); }
 });
 
@@ -121,8 +123,8 @@ test('foreign-key violations and newer schema versions fail explicitly', () => {
     const before = schema(db);
     assert.throws(()=>migrateSchema(db), /Foreign-key integrity check failed/);
     assert.deepEqual(schema(db), before);
-    db.exec("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY,name TEXT NOT NULL); INSERT INTO schema_migrations VALUES(2,'future')");
+    db.exec("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY,name TEXT NOT NULL); INSERT INTO schema_migrations VALUES(4,'future')");
     assert.throws(()=>migrateSchema(db), /newer than this server supports/);
-    assert.equal(db.prepare('SELECT version FROM schema_migrations').get().version, 2);
+    assert.equal(db.prepare('SELECT version FROM schema_migrations').get().version, 4);
   } finally { db.close(); }
 });

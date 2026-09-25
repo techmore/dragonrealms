@@ -16,6 +16,7 @@ const DEBUG_TOKEN = 'debug-test-secret-distinct-from-session';
 const { migrate, closeDb } = await import('../server/db.js');
 const { Game } = await import('../server/game.js');
 const { apiRequest } = await import('../server/api.js');
+const { createHttpHandler } = await import('../server/http.js');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let server;
@@ -27,9 +28,10 @@ before(async () => {
   migrate();
   const game = new Game();
   game.init(); // combat ticker left RUNNING: combat is real and async, like a live client
-  server = createServer((req, res) => apiRequest(req, res, game, {
+  server = createServer(createHttpHandler(game, {
     debugApiEnabled: true,
     debugToken: DEBUG_TOKEN,
+    apiEnabled: true,
   }));
   await new Promise((r) => server.listen(0, r));
   base = `http://127.0.0.1:${server.address().port}/api`;
@@ -53,7 +55,7 @@ async function call(method, path, token, body, extraHeaders = {}) {
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  return { status: res.status, json: await res.json() };
+  return { status: res.status, headers: res.headers, json: await res.json() };
 }
 
 const debugCall = (body, credential = DEBUG_TOKEN) => call(
@@ -76,10 +78,33 @@ const waitCombatEnd = () => until(async () => {
   return s.combat === null ? s : null;
 }, 'combat to resolve');
 
-test('health is public; register + login; tokens enforced', async () => {
-  const h = await call('GET', '/health');
+test('health is public and content-free; register + login; tokens enforced', async () => {
+  // Seed recognizable state so the unauthenticated contract cannot silently
+  // regress into exposing a roster, guild, circle, or bot/GM classification.
+  const sentinelId = -1;
+  global.__testGame.players.set(sentinelId, {
+    name: 'PrivateRosterSentinel', guild: { id: 'private-guild' }, circle: 42, isBot: true, gmToon: true,
+  });
+  let h;
+  try {
+    h = await call('GET', '/health');
+  } finally {
+    global.__testGame.players.delete(sentinelId);
+  }
   assert.equal(h.status, 200);
-  assert.equal(h.json.ok, true);
+  const { uptimeMs, ...health } = h.json;
+  assert.deepEqual(health, {
+    ok: true,
+    service: 'dragonrealms-test-api',
+    apiVersion: 1,
+  });
+  assert.equal(typeof uptimeMs, 'number');
+  assert.ok(uptimeMs >= 0);
+  assert.doesNotMatch(JSON.stringify(h), /PrivateRosterSentinel|private-guild|"players"|"online"/);
+  assert.equal(h.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(h.headers.get('x-frame-options'), 'DENY');
+  assert.equal(h.headers.get('referrer-policy'), 'no-referrer');
+  assert.match(h.headers.get('content-security-policy'), /frame-ancestors 'none'/);
 
   const reg = await call('POST', '/register', null, { user: 'Apidriver', pass: 's3cretword' });
   assert.equal(reg.json.ok, true);
@@ -153,6 +178,24 @@ test('create character, enter world, alloc stats', async () => {
   assert.equal(alloc.json.state.player.unspentStat, 20, 'alloc reduces pool');
 
   assert.equal((await call('POST', '/enter', token, { charId: 999999 })).status, 404, 'cannot enter another account\'s character');
+});
+
+test('guildless API characters enter and serialize safely', async () => {
+  const c = await call('POST', '/characters', token, { name: 'Apiguildless', race: 'human', guild: null });
+  assert.equal(c.status, 200);
+  assert.equal(c.json.ok, true);
+  assert.equal(c.json.character.guild, null);
+
+  const entered = await call('POST', '/enter', token, { charId: c.json.charId });
+  assert.equal(entered.status, 200);
+  assert.equal(entered.json.ok, true);
+  assert.equal(entered.json.state.player.guild, null);
+  assert.match(msg(entered.json), /guildless/);
+
+  // Restore the shared API fixture for the later combat/state tests.
+  const restored = await call('POST', '/enter', token, { charId });
+  assert.equal(restored.status, 200);
+  assert.equal(restored.json.state.player.guild, 'paladin');
 });
 
 test('movement, real async combat, and combat-state analysis', async () => {

@@ -5,6 +5,7 @@
 // button kept working, which made this look like "the button never works").
 import { $, esc, S, toast } from './core.js';
 import { rosterList, hpBarHtml } from './render.js';
+import { storeGmToken } from '../gm-token.js';
 
 let pvName = null;
 let pvOfflineNotified = false;
@@ -14,7 +15,7 @@ export function openPlayerView(name, charId) {
     toast('Live watch is GM-only \u2014 enter DR_GM_TOKEN first.');
     return;
   }
-  localStorage.setItem('dr_gm_token', S.token); // the embedded client reads the same key
+  storeGmToken(S.token); // the embedded client reads the same tab-scoped key
   pvName = name;
   pvOfflineNotified = false;
   $('pv-name').textContent = name;

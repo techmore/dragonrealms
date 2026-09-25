@@ -5,7 +5,7 @@ import { ITEMS, itemById } from '../data/items.js';
 import { commodityPrice, commodityById, commodityHoldings } from '../data/commodities.js';
 import {
   addItem, removeItem, removeItemInstances, countItems, gainSkillExp,
-  unlockAchievement, isStackableItem, instanceMetadata,
+  unlockAchievement, isStackableItem, instanceMetadata, savePlayer,
 } from './player.js';
 import { db } from './db.js';
 import { transferInventory } from './inventory-transfer.js';
@@ -123,8 +123,14 @@ const methods = {
     if (!this.bankerIn(p)) return { ok: false, msg: 'There is no banker here.' };
     amt = Math.max(1, Math.floor(amt));
     if (p.silver < amt) return { ok: false, msg: 'You do not have that many silvers.' };
+    const before = { silver: p.silver, bank: p.bank };
     p.silver -= amt;
     p.bank += amt;
+    try { savePlayer(p); }
+    catch (error) {
+      p.silver = before.silver; p.bank = before.bank;
+      return { ok: false, msg: 'The ledger could not be saved; the deposit was not accepted.' };
+    }
     if (p.bank >= 2000) unlockAchievement(p, 'nest_egg');
     return { ok: true, msg: `You deposit ${amt} silvers. Your bank holds ${p.bank}.` };
   },
@@ -133,8 +139,14 @@ const methods = {
     if (!this.bankerIn(p)) return { ok: false, msg: 'There is no banker here.' };
     amt = Math.max(1, Math.floor(amt));
     if (p.bank < amt) return { ok: false, msg: 'Your bank does not hold that much.' };
+    const before = { bank: p.bank, silver: p.silver };
     p.bank -= amt;
     p.silver += amt;
+    try { savePlayer(p); }
+    catch (error) {
+      p.bank = before.bank; p.silver = before.silver;
+      return { ok: false, msg: 'The ledger could not be saved; the withdrawal was not accepted.' };
+    }
     return { ok: true, msg: `You withdraw ${amt} silvers.` };
   },
 
@@ -202,9 +214,15 @@ const methods = {
     const cost = Math.max(5, Math.floor((p.maxHp - p.hp) * 0.1));
     if (p.silver < cost) return { ok: false, msg: `The healer wants ${cost} silvers and you have ${p.silver}.` };
     if (p.hp >= p.maxHp) return { ok: false, msg: 'You are already in full health.' };
+    const before = { silver: p.silver, hp: p.hp, mana: p.mana };
     p.silver -= cost;
     p.hp = p.maxHp;
     if (p.guild?.magic) p.mana = p.maxMana;
+    try { savePlayer(p); }
+    catch (error) {
+      p.silver = before.silver; p.hp = before.hp; p.mana = before.mana;
+      return { ok: false, msg: 'The healer could not record the transaction; no silvers were spent.' };
+    }
     return { ok: true, msg: `Sister Cora closes her eyes and channels warmth through your body. You are restored for ${cost} silvers.` };
   },
 
@@ -233,11 +251,18 @@ const methods = {
       // ride the sine still profit, but nothing here is free.
       const cost = Math.ceil(price * 1.08) * qty;
       if (p.silver < cost) return { ok: false, msg: `That costs ${cost} silvers; you have ${p.silver}.` };
+      const before = { silver: p.silver, holdings: structuredClone(holdings) };
       p.silver -= cost;
       const cur = holdings[def.id] || { qty: 0, avgCost: 0 };
       cur.avgCost = cur.qty ? (cur.avgCost * cur.qty + cost) / (cur.qty + qty) : Math.ceil(price * 1.08);
       cur.qty += qty;
       holdings[def.id] = cur;
+      try { savePlayer(p); }
+      catch (error) {
+        p.silver = before.silver;
+        p.commodities = before.holdings;
+        return { ok: false, msg: 'The pit ledger could not be saved; the purchase was not accepted.' };
+      }
       gainSkillExp(p, 'trading', 6);
       return { ok: true, msg: `You buy ${qty} unit(s) of ${def.name} at ${Math.ceil(price * 1.08)} silvers each.` };
     }
@@ -249,9 +274,16 @@ const methods = {
     if (p.caravan && p.caravan.rented && p.caravan.scribe > 0) trader += 0.1;
     const proceeds = Math.floor(Math.floor(price * 0.92) * qty * trader);
     const profit = proceeds - Math.floor(cur.avgCost * qty);
+    const before = { silver: p.silver, holdings: structuredClone(holdings) };
     cur.qty -= qty;
     if (cur.qty <= 0) delete holdings[def.id];
     p.silver += proceeds;
+    try { savePlayer(p); }
+    catch (error) {
+      p.silver = before.silver;
+      p.commodities = before.holdings;
+      return { ok: false, msg: 'The pit ledger could not be saved; the sale was not accepted.' };
+    }
     gainSkillExp(p, 'trading', 8);
     return { ok: true, msg: `You sell ${qty} unit(s) of ${def.name} for ${proceeds} silvers${trader > 1.1 ? ' (caravan books!)' : trader > 1 ? ' (Golden Touch!)' : ''} — ${profit >= 0 ? 'a profit' : 'a loss'} of ${Math.abs(profit)}.` };
   },

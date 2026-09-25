@@ -1,0 +1,4 @@
+{
+  "text": "Inspection: Examine the skill_coverage data in the current run, noting which required skills have zero recorded usage and comparing them to training logs. Hypothesis: The missing gaps are caused by inadequate practice of the inner_fire, 1st supernatural, and weapon/armor survival skills. Fact: The run record lists those six categories with have=0 and need=2 each for inner_fire, 1st supernatural, 4th weapon, 2nd armor, 2nd survival, and 3rd survival. Experiment: Temporarily increase the training command count by one unit in a controlled test (keeping all other parameters identical) and measure whether the number of completed runs rises. If it does, this falsifies the hypothesis that insufficient training caused the gaps.",
+  "requirements": [{ "label": "2nd survival", "have": 0, "need": 2 }, { "label": "3rd survival", "have": 0, "need": 2 }]
+}

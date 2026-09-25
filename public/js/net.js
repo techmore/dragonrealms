@@ -2,8 +2,10 @@
 import { $ } from './util.js';
 
 let ws = null;
+// Puffer observation pages never connect or send, including indirect UI actions.
+const pufferReadOnly = new URLSearchParams(location.search).has('pufferWatch');
 let token = null;
-try { token = localStorage.getItem('dr_token') || null; } catch {}
+try { localStorage.removeItem('dr_token'); token = sessionStorage.getItem('dr_token') || null; } catch {}
 let reconnectTimer = null;
 let reconnectAttempts = 0;
 const messageListeners = [];
@@ -14,12 +16,16 @@ export function onDisconnect(fn) { disconnectListeners.push(fn); }
 export function setToken(t) {
   token = t || null;
   try {
-    if (token) localStorage.setItem('dr_token', token);
-    else localStorage.removeItem('dr_token');
+    if (token) sessionStorage.setItem('dr_token', token);
+    else {
+      sessionStorage.removeItem('dr_token');
+      try { localStorage.removeItem('dr_token'); } catch {}
+    }
   } catch {}
 }
 
 export function connect() {
+  if (pufferReadOnly) return;
   if (ws && [WebSocket.CONNECTING, WebSocket.OPEN].includes(ws.readyState)) return;
   clearTimeout(reconnectTimer);
   setStatus(false);
@@ -50,6 +56,7 @@ export function connect() {
 }
 
 export function send(obj) {
+  if (pufferReadOnly) return false;
   if (!ws || ws.readyState !== WebSocket.OPEN) return false;
   ws.send(JSON.stringify(obj));
   return true;

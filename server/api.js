@@ -1,17 +1,22 @@
 // Secure HTTP API for automated testing / analysis.
 // Enabled with DR_ENABLE_API=1. Reuses the game's scrypt auth + session
 // tokens (Authorization: Bearer <token>). JSON in, JSON out, rate-limited,
-// body-size-capped, per-account scoped. Never serves unauthenticated state.
+// body-size-capped, per-account scoped. Unauthenticated routes are limited to
+// service health and account bootstrap; all world/player state requires a token.
 import { registerAccount, loginAccount, validateSession, logoutSession } from './auth.js';
-import { createCharacter, loadPlayer, addItem, MAX_CHARS, charsFor } from './player.js';
+import { createCharacter, loadPlayer, addItem, MAX_CHARS, charsFor, roundtimeLeft } from './player.js';
 import { raceById } from '../data/races.js';
 import { roomById } from '../data/world.js';
+import { itemById } from '../data/items.js';
+import { expToNextRank } from '../data/skills.js';
+import { circleRequirements } from '../data/guilds.js';
 import { db } from './db.js';
 import { handleCommand } from './commands/index.js';
 import { bearerToken, headerToken, secretMatches } from './http-auth.js';
 
 const COMMANDS_PER_SEC = 20;
 const MAX_BODY = 16 * 1024;
+const API_VERSION = 1;
 
 // API runtime sessions belong to a specific Game instance. Keeping them in a
 // per-game map prevents a token used by a test/secondary server from retaining
@@ -35,11 +40,19 @@ function json(res, code, obj) {
 function readBody(req) {
   return new Promise((resolve) => {
     let size = 0;
+    let settled = false;
     const chunks = [];
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      chunks.length = 0;
+      resolve(value);
+    };
     req.on('data', (c) => {
+      if (settled) return;
       size += c.length;
       if (size > MAX_BODY) {
-        resolve(null);
+        finish(null);
         req.destroy();
         return;
       }
@@ -47,12 +60,14 @@ function readBody(req) {
     });
     req.on('end', () => {
       try {
-        resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {});
+        finish(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {});
       } catch {
-        resolve(null);
+        finish(null);
       }
     });
-    req.on('error', () => resolve(null));
+    req.on('aborted', () => finish(null));
+    req.on('error', () => finish(null));
+    req.on('close', () => { if (!settled) finish(null); });
   });
 }
 
@@ -112,15 +127,31 @@ function virtualSocket() {
   return sock;
 }
 
+const rankExpTotals = [0];
+function absorbedExp(skill) {
+  while (rankExpTotals.length <= skill.rank) {
+    const rank = rankExpTotals.length - 1;
+    rankExpTotals.push(rankExpTotals[rank] + expToNextRank(rank));
+  }
+  return rankExpTotals[skill.rank] + skill.exp;
+}
+
 function apiState(game, p) {
   const room = roomById(p.room);
   const combat = game.combat.getFor(p);
   const skills = {};
-  for (const [id, s] of Object.entries(p.skills)) skills[id] = { rank: s.rank, exp: s.exp };
+  for (const [id, s] of Object.entries(p.skills)) skills[id] = {
+    rank: s.rank, exp: s.exp, absorbedExp: absorbedExp(s),
+    pooledExp: p.expPools?.[id] || 0, nextRankExp: expToNextRank(s.rank),
+  };
+  const nextCircle = (p.circle || 1) + 1;
+  const req = p.guild ? circleRequirements(p.guild, p.skills, nextCircle) : null;
   return {
     player: {
-      name: p.name, race: p.race.id, guild: p.guild.id, circle: p.circle,
+      name: p.name, race: p.race.id, guild: p.guild ? p.guild.id : null, circle: p.circle,
       hp: p.hp, maxHp: p.maxHp, mana: p.mana, maxMana: p.maxMana,
+      roundtimeSeconds: roundtimeLeft(p),
+      abilities: p.abilities || [], innerFire: p.innerFire || 0,
       silver: p.silver, bank: p.bank, tdp: p.tdp || 0, stance: p.stance,
       wounds: (p.wounds || []).filter((w) => !w.resolved),
       room: p.room, heldMana: p.heldMana || 0, prepared: p.prepared || null,
@@ -130,16 +161,29 @@ function apiState(game, p) {
       ? { id: room.id, zone: room.zone, name: room.name, desc: room.desc, npcs: room.npcs || [], exits: room.exits }
       : null,
     inventory: p.inventory.map(({ item, qty }) => ({ id: item.id, name: item.name, qty })),
+    skinnable: (p.corpses || []).filter(c => !c.decayedAt || c.decayedAt > Date.now())
+      .map(c => ({ id: c.def.id, name: c.def.name })),
+    shopStock: game.shopNpcsIn(p).flatMap(shop => Object.entries(shop.stock || {})
+      .flatMap(([id, quantity]) => {
+        const item = itemById(id);
+        return item ? [{ id, quantity, price: item.value }] : [];
+      })),
     equipment: Object.fromEntries(Object.entries(p.equipment).map(([slot, item]) => [slot, item.id])),
     floor: game.floorItemsIn(p.room).map((f) => (f.corpse
       ? { corpse: true, name: f.name, items: f.items.map((i) => ({ id: i.id, qty: i.qty })), equipment: f.equipment.map((e) => e.id) }
       : { item: f.item.id, name: f.item.name, qty: f.qty })),
     skills,
+    experience: {
+      absorbed: Object.values(skills).reduce((sum, s) => sum + s.absorbedExp, 0),
+      pooled: Object.values(skills).reduce((sum, s) => sum + s.pooledExp, 0),
+    },
+    requirements: req ? { circle: nextCircle, ok: req.ok, rows: req.rows || [], missing: req.missing || [] } : null,
     combat: combat
       ? {
           enemies: combat.aliveEnemies.map((e) => ({ name: e.name, hp: e.hp, circle: e.def.circle, timer: e.timer })),
           playerTarget: combat.playerTarget || null,
           playerTimer: combat.playerTimer,
+          dragonTicks: combat.dragonTicks || 0,
         }
       : null,
     quest: p.quest ? { creatureId: p.quest.creatureId, count: p.quest.count, done: p.quest.done } : null,
@@ -173,7 +217,12 @@ function enterWorld(game, s, charId) {
   }
   s.player = p;
   const r = raceById(p.race.id);
-  p.ws.msgs.push({ t: 'enter', msg: `\nYou are ${p.name}, a ${r.name} of the ${p.guild.name} guild.` });
+  p.ws.msgs.push({
+    t: 'enter',
+    msg: p.guild
+      ? `\nYou are ${p.name}, a ${r.name} of the ${p.guild.name} guild.`
+      : `\nYou are ${p.name}, a ${r.name} guildless. Find a calling before a hall's leader ("dir list guilds", "dir barbarian", then "join barbarian" at the hall).`,
+  });
   game.look(p);
   game.status(p);
   return { ok: true, player: p };
@@ -190,11 +239,15 @@ export async function apiRequest(req, res, game, {
   if (body === null) return json(res, 400, { ok: false, error: 'Malformed JSON body (max 16KB).' });
 
   // ---- Public endpoints ----
+  // Health intentionally exposes service metadata only. Roster details belong
+  // behind the authenticated API/GM surfaces, not on an unauthenticated URL.
   if (path === '/api/health' && req.method === 'GET') {
-    const online = [...game.players.values()].map((p) => ({
-      name: p.name, guild: p.guild?.id || null, circle: p.circle, bot: !!p.isBot, gmToon: !!p.gmToon,
-    }));
-    return json(res, 200, { ok: true, service: 'dragonrealms-test-api', players: game.players.size, online });
+    return json(res, 200, {
+      ok: true,
+      service: 'dragonrealms-test-api',
+      apiVersion: API_VERSION,
+      uptimeMs: Math.max(0, Date.now() - (game.uptimeAt || Date.now())),
+    });
   }
   if (path === '/api/register' && req.method === 'POST') {
     const reg = await registerAccount(String(body.user || ''), String(body.pass || ''));

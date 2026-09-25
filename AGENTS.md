@@ -71,16 +71,21 @@ data/guild-scripts.js per-guild scripting capabilities (fight verbs, signature
 ## Command architecture
 
 `server/commands/index.js` is the dispatcher: `;` chaining, alias expansion,
-movement (`go`/directions), then a lookup into a registry merged from six
+movement (`go`/directions), then a lookup into a registry merged from eight
 domain modules — `combat.js`, `magic.js`, `items.js`, `shops.js`,
-`character.js`, `world.js` — plus shared `util.js` and `dirs.js`.
+`character.js`, `world.js`, `dir.js`, and `join.js` — plus shared `util.js`
+and `dirs.js`. `server/commands/metadata.js` is the structural command
+contract: static aliases inherit canonical metadata, panel safety is declared
+there, and roundtime gating is derived rather than hand-listed.
 
 Every handler has the signature `(ctx)` where
 `ctx = { game, p, cmd, arg1, arg2, rest, args, say, emit }`:
 `say(msg)` sends a `msg`-type line; `emit(msg)` sends it and then the prompt.
-New commands: add a handler to the right module's `commands` object. Keep
-aliases as direct function references (`flee: retreat`) — never reference
-`commands` inside its own literal (TDZ).
+New commands: add a handler to the right module's `commands` object. Declare
+roundtime policy, panel safety, static aliases, capability requirements, and
+coarse mutation domains in `server/commands/metadata.js` when applicable.
+Keep simple aliases as direct function references (`flee: retreat`) — never
+reference `commands` inside its own literal (TDZ).
 
 Game domain logic follows the same split: `Game` holds state and delegates to
 the economy/wilds/quests/status modules (functions take `game` first when they
@@ -91,9 +96,10 @@ Combat lives in `server/combat.js` (the per-fight `Combat` state machine) and
 system: enemies sit at `missile | pole | melee`, weapons have a reach
 (`weaponReach`), aggressive creatures close on their own, and the player uses
 `advance`/`retreat`/`flee`/`assess`. Roundtime follows the DR weapon-class
-table (`weaponRT`); RT actions are gated in `handleCommand` via `RT_BLOCK`
-when the WS session passes `{ applyRT: true }` (tests/sim call the engine
-directly and skip the gate). `setRoundtime`/`roundtimeLeft` live in
+table (`weaponRT`); RT actions are gated in `handleCommand` from command
+metadata when the WS session passes `{ applyRT: true }` (the exported
+`RT_BLOCK` is a derived compatibility set; tests/sim that call the engine
+directly still skip the gate). `setRoundtime`/`roundtimeLeft` live in
 `server/player.js`.
 
 Client scripting is a DR-script interpreter: `public/js/script-engine.js`

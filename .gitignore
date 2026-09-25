@@ -1,9 +1,13 @@
 node_modules/
+.puffer-venv/
+.puffer-runtime/
+__pycache__/
 data/store/
 *.db
 *.db-wal
 *.db-shm
 .DS_Store
+/resources
 
 bin/
 bins/

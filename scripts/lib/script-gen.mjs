@@ -283,6 +283,7 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [], questTarget = 
   // shopkeeper here', club 112s wasted). If the walk didn't land, skip the
   // buys — the next errand trip retries them from the right room.
   L.push('  ifne room bazaar goto BUY_SKIP');
+  L.push('  goto BUY_HERE');
   L.push('BUY_SKIP:');
   L.push('  goto ARMED_FROM_BAZAAR');
   L.push('BUY_HERE:');

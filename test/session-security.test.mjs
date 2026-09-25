@@ -50,7 +50,7 @@ before(async () => {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not found');
   });
-  wss = attachWebSocket(server, game);
+  wss = attachWebSocket(server, game, { gmToken: process.env.DR_GM_TOKEN, agentBoostEnabled: true });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   wsUrl = `ws://127.0.0.1:${server.address().port}/ws`;
 });
@@ -249,7 +249,7 @@ test('panel requests are correlated, read-only, and do not expand aliases', asyn
   assert.equal(response.ok, true);
   assert.match(response.lines.join('\n'), /Panelreader/);
   assert.equal(p.room, initialRoom);
-  for (const panel of ['n', 'score; n', '__proto__']) {
+  for (const panel of ['n', 'score; n', 'SCORE', '__proto__']) {
     client.send({ t: 'panel_request', requestId: panel, panel });
     assert.equal((await client.waitFor((msg) => msg.t === 'panel_response')).ok, false);
   }

@@ -144,7 +144,7 @@ export const commands = {
   slots(ctx) {
     const { p, say, emit } = ctx;
     const guild = p.guild;
-    if (!guild.magic) return emit('Your guild forswears magic.');
+    if (!guild?.magic) return emit('Your guild forswears magic.');
     const forgotten = Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [];
     const total = spellSlotsTotal(guild, p.circle);
     const used = spellSlotsUsed(guild, p.circle, forgotten);
@@ -216,9 +216,9 @@ function showHealth(ctx) {
   const { p, say } = ctx;
   const cond = vitalityLabel(p.hp, p.maxHp);
   const stam = p.maxStaminaEff ? (p.stamina / p.maxStaminaEff >= 0.5 ? 'Your wind holds steady.' : 'You are winded and short of breath.') : '';
-  const res = p.guild.magic
+  const res = p.guild?.magic
     ? `Mana ${p.mana}/${p.maxMana}`
-    : p.guild.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : '';
+    : p.guild?.id === 'barbarian' ? `Inner Fire ${p.innerFire}/${p.maxInnerFire}` : '';
   const open = (p.wounds || []).filter((w) => !w.resolved);
   const woundLine = open.length
     ? `\nBleeding: ${open.map((w) => `${w.part} (${bleedInfo(w.level).name}${w.tended ? ', tended' : ''})`).join(', ')}${open.some((w) => !w.tended) ? ' — "tend <part>" to bandage.' : ''}`

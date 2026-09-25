@@ -1,5 +1,7 @@
 // Player characters: creation, persistence, skills, inventory, equipment.
 import { db } from './db.js';
+import { transferInventory } from './inventory-transfer.js';
+import { decodePersistentState, encodePersistentState } from './persistence-codec.js';
 import { raceById } from '../data/races.js';
 import { guildById, spellsFor } from '../data/guilds.js';
 import { SKILLS, expToNextRank, pulseGroupFor, mentalStatBonus } from '../data/skills.js';
@@ -66,15 +68,6 @@ const PERSISTED_TIMESTAMPS = [
   'sacrificeAt', 'telescopeAt', 'linkAt', 'slipAt', 'devoteAt',
 ];
 
-function parsePersistentState(raw) {
-  try {
-    const value = JSON.parse(raw || '{}');
-    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  } catch {
-    return {};
-  }
-}
-
 function persistentStateFor(p) {
   const cooldowns = {};
   for (const key of PERSISTED_TIMESTAMPS) {
@@ -93,6 +86,7 @@ function persistentStateFor(p) {
     companion: p.companion || null,
     familiar: p.familiar || null,
     cambrinth: p.cambrinth || null,
+    commodities: p.commodities && typeof p.commodities === 'object' ? p.commodities : {},
     chafferNext: Boolean(p.chafferNext),
     wounds: Array.isArray(p.wounds) ? p.wounds : [],
     flags: p.flags && typeof p.flags === 'object' ? p.flags : {},
@@ -196,9 +190,9 @@ export function createCharacter(accountId, { name, race, guild, city = 'crossing
 export function loadPlayer(charId) {
   const row = db.prepare('SELECT * FROM characters WHERE id = ?').get(charId);
   if (!row) return null;
-  const persisted = parsePersistentState(row.persistent_state);
-  const cooldowns = persisted.cooldowns && typeof persisted.cooldowns === 'object'
-    ? persisted.cooldowns : {};
+  const decoded = decodePersistentState(row.persistent_state);
+  const persisted = decoded.state;
+  const cooldowns = persisted.cooldowns || {};
 
   const player = {
     charId: row.id,
@@ -227,6 +221,7 @@ export function loadPlayer(charId) {
     patron: row.patron || null,
     element: row.element || null,
     caravan: (() => { try { return row.caravan ? JSON.parse(row.caravan) : null; } catch { return null; } })(),
+    commodities: persisted.commodities && typeof persisted.commodities === 'object' ? persisted.commodities : {},
     empathLink: (() => { try { const l = row.link ? JSON.parse(row.link) : null; return l && l.until > Date.now() ? l : null; } catch { return null; } })(),
     achievements: (() => { try { return JSON.parse(row.achievements || '[]'); } catch { return []; } })(),
     techniques: (() => { try { return JSON.parse(row.techniques || '[]'); } catch { return []; } })(),
@@ -264,6 +259,7 @@ export function loadPlayer(charId) {
     online: false,
     ws: null,
     state: 'playing',
+    persistenceDiagnostics: decoded.diagnostics,
     combatId: null,
     caster: false,
     heldMana: 0,
@@ -354,7 +350,7 @@ export function loadPlayer(charId) {
   // Stamina is derived from Con and Fitness, then capped by what you carry.
   player.maxStamina = maxStaminaFor(player);
   player.maxStaminaEff = maxStaminaEff(player);
-  if (!persisted.version && !(row.stamina > 0)) player.stamina = player.maxStaminaEff;
+  if (decoded.diagnostics.legacyUnversioned && !(row.stamina > 0)) player.stamina = player.maxStaminaEff;
   else player.stamina = Math.max(0, Math.min(player.maxStaminaEff, player.stamina));
 
   return player;
@@ -398,6 +394,21 @@ export function netBurden(p) {
   return Math.max(0, totalBurden(p) - carryAllowance(p));
 }
 
+function assertPersistentStateWritable(p) {
+  if (p.persistenceDiagnostics?.canWrite === false) {
+    throw new Error(`Persistent state ${p.persistenceDiagnostics.source} requires migration before it can be rewritten.`);
+  }
+}
+
+export function writePersistentState(p, overrides = {}) {
+  assertPersistentStateWritable(p);
+  const state = { ...persistentStateFor(p), ...overrides };
+  const result = db.prepare('UPDATE characters SET persistent_state=? WHERE id=?')
+    .run(encodePersistentState(state), p.charId);
+  if (result.changes !== 1) throw new Error('Cannot save persistent state for missing character.');
+  return state;
+}
+
 let saveStmts;
 function playerSaveStatements() {
   if (saveStmts) return saveStmts;
@@ -425,6 +436,8 @@ function playerSaveStatements() {
 }
 
 export function savePlayer(p) {
+  assertPersistentStateWritable(p);
+  const persistentState = encodePersistentState(persistentStateFor(p));
   const stmts = playerSaveStatements();
   db.exec('BEGIN');
   try {
@@ -438,7 +451,7 @@ export function savePlayer(p) {
     p.patron || null, p.element || null, p.caravan ? JSON.stringify(p.caravan) : null,
     p.empathLink ? JSON.stringify(p.empathLink) : null,
     JSON.stringify(p.achievements || []), JSON.stringify(p.techniques || []),
-    JSON.stringify(persistentStateFor(p)), p.charId
+    persistentState, p.charId
     );
     for (const [skillId, s] of Object.entries(p.skills)) {
       stmts.skill.run(p.charId, skillId, s.rank, s.exp);
@@ -743,8 +756,7 @@ const SCRIPT_MAX_BODY = 16000;
 const SCRIPT_MAX_COUNT = 50;
 
 function writeScriptsNow(p) {
-  db.prepare('UPDATE characters SET persistent_state=? WHERE id=?')
-    .run(JSON.stringify(persistentStateFor(p)), p.charId);
+  writePersistentState(p);
 }
 
 export function putScript(p, name, body) {
@@ -862,28 +874,34 @@ export function equipItem(p, invEntry) {
   const slot = item.slot;
   if (!slot) return { ok: false, error: 'That cannot be equipped.' };
   const metadata = instanceMetadata(invEntry);
-  const existing = p.equipment[slot];
-  if (existing) {
-    delete p.equipment[slot];
-    db.prepare('DELETE FROM equipment WHERE character_id=? AND slot=?').run(p.charId, slot);
-    addItem(p, existing.id, 1, existing);
-  }
-  p.equipment[slot] = withInstanceMetadata(item, metadata);
-  removeItemInstances(p, item.id, 1, invEntry);
-  p.handsDirty = true;
-  db.prepare('INSERT INTO equipment (character_id, slot, item_id, condition, quality) VALUES (?,?,?,?,?)')
-    .run(p.charId, slot, item.id, metadata.condition, metadata.quality);
-  return { ok: true, slot };
+  return transferInventory([p], () => {
+    const existing = p.equipment[slot];
+    if (existing) {
+      delete p.equipment[slot];
+      const removed = db.prepare('DELETE FROM equipment WHERE character_id=? AND slot=?').run(p.charId, slot);
+      if (removed.changes !== 1) throw new Error('Cannot replace missing equipment row.');
+      addItem(p, existing.id, 1, existing);
+    }
+    p.equipment[slot] = withInstanceMetadata(item, metadata);
+    removeItemInstances(p, item.id, 1, invEntry);
+    p.handsDirty = true;
+    db.prepare('INSERT INTO equipment (character_id, slot, item_id, condition, quality, maker) VALUES (?,?,?,?,?,?)')
+      .run(p.charId, slot, item.id, metadata.condition, metadata.quality, metadata.maker);
+    return { ok: true, slot };
+  });
 }
 
 export function unequipItem(p, slot) {
   const item = p.equipment[slot];
   if (!item) return { ok: false, error: 'Nothing equipped there.' };
-  delete p.equipment[slot];
-  db.prepare('DELETE FROM equipment WHERE character_id=? AND slot=?').run(p.charId, slot);
-  addItem(p, item.id, 1, item);
-  p.handsDirty = true;
-  return { ok: true, item };
+  return transferInventory([p], () => {
+    delete p.equipment[slot];
+    const removed = db.prepare('DELETE FROM equipment WHERE character_id=? AND slot=?').run(p.charId, slot);
+    if (removed.changes !== 1) throw new Error('Cannot remove missing equipment row.');
+    addItem(p, item.id, 1, item);
+    p.handsDirty = true;
+    return { ok: true, item };
+  });
 }
 
 export function weaponOf(p) {

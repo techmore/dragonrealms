@@ -16,7 +16,7 @@ export function challengeDuel(game, p, targetName, end = 'blood', reason = '') {
   if (!canDuelHere(game, p)) return { ok: false, msg: 'The town guards do not permit duels here. Take it to the wilds.' };
   if (p.combatId) return { ok: false, msg: 'You are already in combat.' };
   // Paladins may not strike first (code of honor).
-  if (p.guild.id === 'paladin') {
+  if (p.guild?.id === 'paladin') {
     p.soul = Math.max(0, (p.soul ?? 50) - 5);
 say(p, 'Your oath forbids striking first. Your soul dims slightly. (-5 soul)');
   }

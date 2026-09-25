@@ -39,8 +39,10 @@ never a dashboard with text bolted on.
   `pong`. The server sends plain text with ANSI codes (`\x1b[NNm`); the
   current parser in `client.js` (`ansiToHtml`) must be preserved or upgraded
   without breaking output.
-- Preserve localStorage keys: `dr_token`, `dr_settings`, `dr_macros`,
-  `dr_triggers` (existing users must not lose settings/macros).
+- Preserve persistent localStorage keys `dr_settings`, `dr_macros`, and
+  `dr_triggers` (existing users must not lose settings/macros). The `dr_token`
+  key is intentionally tab-scoped in `sessionStorage` and any legacy persistent
+  copy must be removed.
 - Keep the three themes (dark / parchment / terminal-green) and the custom
   color palette feature.
 - Keep accessibility: keyboard navigation, `aria-live` on the terminal,

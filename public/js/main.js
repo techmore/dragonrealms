@@ -67,4 +67,8 @@ bindGagPanel();
 bindWindows();
 window.__panelReady = true;
 panels.applyVisibility();
-connect();
+if (new URLSearchParams(location.search).has('pufferWatch')) {
+  import('./puffer-native-watch.js').then(({ startNativeWatch }) => startNativeWatch(handlers));
+} else {
+  connect();
+}

@@ -45,6 +45,24 @@ test('setRoundtime / roundtimeLeft bookkeeping', async () => {
   assert.equal(roundtimeLeft(p), 0, 'zero clears RT');
 });
 
+test('metadata derives RT aliases and preserves free special commands', async () => {
+  const { RT_BLOCK, commandContract } = await import('../server/commands/index.js');
+  for (const [alias, canonical] of Object.entries({
+    kill: 'attack', bandage: 'tend', appr: 'appraise', trip: 'disarm', bash: 'disarm', 'shield-bash': 'disarm',
+  })) {
+    const meta = commandContract(alias);
+    assert.equal(meta.aliasOf, canonical, `${alias} inherits ${canonical}`);
+    assert.equal(meta.rt.gate, true, `${alias} is RT-gated`);
+    assert.equal(RT_BLOCK.has(alias), true, `${alias} remains in the compatibility set`);
+  }
+  assert.equal(commandContract('flee').rt.exempt, 'desperateFlee');
+  assert.equal(commandContract('ferry').rt.gate, false);
+  assert.equal(commandContract('devotion').rt.gate, false);
+  assert.equal(commandContract('n').rt.gate, false, 'movement metadata is not RT-gated');
+  assert.equal(commandContract('score').panelSafe, true);
+  assert.equal(commandContract('stats').panelSafe, false, 'panel aliases remain invalid');
+});
+
 test('forage grants roundtime and is refused during it (applyRT session)', async () => {
   const p = await fresh('ranger');
   p.room = 'woods_1';

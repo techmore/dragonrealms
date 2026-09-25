@@ -7,6 +7,7 @@ import { agentHealth } from './agent-health.js';
 import { createAgentScript } from './agent-script.js';
 import { AG_RACES, AG_GUILDS, AG_STATUS_LABELS, validateAgentConfig } from './agent-config.js';
 import { $, esc, trim, S, cssVar, fmtDur, toast, gm } from './core.js';
+import { storedGmToken } from '../gm-token.js';
 
 /* ================= launch agent ================= */
 // Browser launcher uses the normal WebSocket registration and
@@ -131,13 +132,10 @@ function agRenderState() {
       if (a) stopAgent(a, 'stopped by GM');
     }; });
     host.querySelectorAll('[data-agwatch]').forEach((b) => { b.onclick = () => {
-      // Spectate needs the GM token in localStorage; carry it via fragment
-      // too for fresh tabs with cold storage.
+      // Carry the tab-scoped GM token through the fragment for a fresh tab.
       let frag = '';
-      try {
-        const t = localStorage.getItem('dr_gm_token');
-        if (t) frag = '#gm=' + encodeURIComponent(t);
-      } catch {}
+      const token = storedGmToken();
+      if (token) frag = '#gm=' + encodeURIComponent(token);
       // No credential anywhere -> the tab would dead-end at the GM prompt.
       // Say so instead of opening something that cannot work.
       if (!frag) {
@@ -191,7 +189,7 @@ export function tweakBoost(agent, mult) {
   if (!agent.ws) return false;
   agent.boost = m > 1 ? m : (m === 1 ? 1 : 0);
   // Server semantics: {t:'boost', mult:<=0} disengages; >=1 sets. Send as-is.
-  agSend(agent, { t: 'boost', mult: m });
+  agSend(agent, { t: 'boost', mult: m, gmToken: S.token });
   agLog(agent, `boost set to x${m || 'off'}`, 'ok');
   return true;
 }
@@ -298,7 +296,7 @@ function agOnMessage(agent, m) {
       agent.status = 'loading_scripts';
       agent.startTimer = setTimeout(() => stopAgent(agent, 'starter library timed out', 'failed'), 15000);
       agLog(agent, `entered the world${agent.boost > 1 ? ` — boost x${agent.boost}` : ''}`, 'ok');
-      if (agent.boost > 1) agSend(agent, { t: 'boost', mult: agent.boost });
+      if (agent.boost > 1) agSend(agent, { t: 'boost', mult: agent.boost, gmToken: S.token });
       // Immediate circling-on-launch: ask the server to generate the
       // starter hunt/circle/mega library and auto-run it. The tick loop
       // stays as a watchdog (flee/heal) underneath the script.

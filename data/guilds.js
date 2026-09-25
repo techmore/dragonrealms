@@ -510,14 +510,14 @@ export function circleRequirements(guild, skills, targetCircle) {
     const need = needFor(r.rank, n, r.inc1130);
     if (r.skill) {
       const rank = (skills[r.skill] || {}).rank || 0;
-      rows.push({ label: r.skill, have: rank, need, hard: !!r.hard });
+      rows.push({ label: r.skill, have: rank, need, hard: !!r.hard, eligible: [r.skill] });
       if (rank < need) missing.push(`${r.skill} at least rank ${need} (you have ${rank})`);
     } else {
       const ranks = nthCandidates(guild.id, table, r.set)
         .map((id) => (skills[id] || {}).rank || 0)
         .sort((a, b) => b - a);
       const have = ranks[r.nth - 1] || 0;
-      rows.push({ label: `${nthLabel(r.nth)} ${r.set}`, have, need });
+      rows.push({ label: `${nthLabel(r.nth)} ${r.set}`, have, need, eligible: nthCandidates(guild.id, table, r.set) });
       if (have < need) missing.push(`${nthLabel(r.nth)} ${r.set} at least rank ${need} (your ${nthLabel(r.nth)} is ${have})`);
     }
   }

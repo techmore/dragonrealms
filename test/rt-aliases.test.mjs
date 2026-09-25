@@ -39,4 +39,9 @@ test('roundtime gate refuses RT-gated commands and their aliases (C4)', async ()
   for (const alias of ['kill', 'bash', 'shield-bash', 'disarm', 'trip', 'appr']) {
     refused(alias);
   }
+
+  // Persisted player aliases expand before metadata lookup and inherit the
+  // canonical command's RT policy.
+  p.aliases.hit = 'attack $1';
+  refused('hit');
 });

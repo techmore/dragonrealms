@@ -11,6 +11,8 @@ import { createServer } from 'node:http';
 const tmp = mkdtempSync(join(tmpdir(), 'dr-gm-test-'));
 process.env.DR_DB_PATH = join(tmp, 'gm.db');
 const GM_TOKEN = 'gm-test-secret-that-is-not-a-game-session';
+const OPERATOR_TOKEN = 'gm-operator-test-secret';
+const ADMIN_TOKEN = 'gm-admin-test-secret';
 
 const { migrate, closeDb, db } = await import('../server/db.js');
 const { Game } = await import('../server/game.js');
@@ -25,7 +27,7 @@ before(async () => {
   migrate();
   game = new Game();
   game.init();
-  server = createServer(createHttpHandler(game, { apiEnabled: true, gmToken: GM_TOKEN }));
+  server = createServer(createHttpHandler(game, { apiEnabled: true, gmToken: GM_TOKEN, gmOperatorToken: OPERATOR_TOKEN, gmAdminToken: ADMIN_TOKEN }));
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}`;
 
@@ -74,6 +76,25 @@ test('GM endpoints require the exact dedicated token, never a game session', asy
   await new Promise((resolve) => unconfiguredServer.close(resolve));
 });
 
+test('GM inspection, operator, and destructive-admin privileges are separated', async () => {
+  const inspectReload = await fetch(base + '/api/gm/admin/reload', {
+    method: 'POST', headers: { Authorization: `Bearer ${GM_TOKEN}` },
+  });
+  assert.equal(inspectReload.status, 403);
+  const operatorStatus = await fetch(base + '/api/gm/admin/status', {
+    headers: { Authorization: `Bearer ${OPERATOR_TOKEN}` },
+  });
+  assert.equal(operatorStatus.status, 200);
+  const operatorReload = await fetch(base + '/api/gm/admin/reload', {
+    method: 'POST', headers: { Authorization: `Bearer ${OPERATOR_TOKEN}` },
+  });
+  assert.equal(operatorReload.status, 200);
+  const inspectDelete = await fetch(base + '/api/gm/characters-delete', {
+    method: 'POST', headers: { Authorization: `Bearer ${GM_TOKEN}` },
+    body: JSON.stringify({ ids: [] }),
+  });
+  assert.equal(inspectDelete.status, 403);
+});
 test('GM summary reports world/DB/live counts', async () => {
   const s = await g('/summary');
   assert.equal(s.ok, true);
@@ -182,7 +203,7 @@ test('sim launcher requires GM authorization and validates limits before spawnin
     method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${credential}`},body:JSON.stringify(body),
   });
   assert.equal((await post(token,{action:'start',minutes:30})).status,403);
-  assert.equal((await post(GM_TOKEN,{action:'start',minutes:0})).status,400);
-  assert.equal((await post(GM_TOKEN,{action:'unknown'})).status,400);
-  assert.equal((await gmFetch('/sim-runs')).status,200);
+  assert.equal((await post(OPERATOR_TOKEN,{action:'start',minutes:0})).status,400);
+  assert.equal((await post(OPERATOR_TOKEN,{action:'unknown'})).status,400);
+  assert.equal((await fetch(base + '/api/gm/sim-runs', { headers: { Authorization: `Bearer ${OPERATOR_TOKEN}` } })).status,200);
 });

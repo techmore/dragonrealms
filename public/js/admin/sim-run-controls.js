@@ -1,3 +1,5 @@
+import { storedGmToken } from '../gm-token.js';
+
 const $ = id => document.getElementById(id);
 const minutes = $('benchmark-minutes'), start = $('benchmark-start'), stop = $('benchmark-stop');
 let state = {status:'idle'}, pending = false, available = false;
@@ -23,7 +25,7 @@ function render() {
   preview();
 }
 async function request(body) {
-  const token=localStorage.getItem('dr_gm_token')||'';
+  const token=storedGmToken();
   if(!token) throw Error('Open Sims from the Admin dashboard to enable authenticated run controls.');
   const response=await fetch('/api/gm/sim-runs', {method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
   const result=await response.json();

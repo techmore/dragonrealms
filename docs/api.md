@@ -57,11 +57,15 @@ DR_ENABLE_API=1 DR_GM_TOKEN='replace-with-a-long-random-gm-secret' npm start
   `DR_ENABLE_DEBUG_API=1`. It then requires both the normal game session and
   an exact `DR_DEBUG_TOKEN` in `X-DR-Debug-Token`; a game session alone gets
   HTTP 403.
-- **Dedicated GM authority**: `/api/gm/*` accepts only the exact configured
-  `DR_GM_TOKEN`. Game session tokens never grant GM access. Its DB browser
-  excludes `accounts` and `sessions`, blocks authentication columns and
-  SQLite internals, and limits queries to bounded SELECTs over gameplay
-  tables.
+- **Content-free health**: unauthenticated `/api/health` exposes only service
+  status, API version, and process uptime—never player names, guilds, circles,
+  bot/GM classifications, counts, or roster arrays.
+- **Dedicated GM authority**: `/api/gm/*` accepts only exact configured GM
+  role credentials. `DR_GM_TOKEN` grants inspection; operator and destructive
+  admin credentials are required for their respective mutations. Game session
+  tokens never grant GM access. The DB browser excludes `accounts` and
+  `sessions`, blocks authentication columns and SQLite internals, and limits
+  queries to bounded SELECTs over gameplay tables.
 - **Roundtime parity**: commands sent over HTTP use the same roundtime gate as
   commands sent over WebSocket.
 - The WebSocket client path is untouched; the API and the game share the
@@ -76,7 +80,7 @@ a required debug or GM privilege receive HTTP 403.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET  | `/api/health`       | —  | Liveness: `{ ok, service, players }` |
+| GET  | `/api/health`       | —  | Liveness: `{ ok, service, apiVersion, uptimeMs }` |
 | POST | `/api/register`     | —  | `{user, pass}` → `{token, username, characters}` |
 | POST | `/api/login`        | —  | `{user, pass}` → `{token, username, characters}` |
 | POST | `/api/logout`       | ✓ | Invalidates the token |

@@ -356,8 +356,8 @@ function renderRoster() {
 // Wire Watch (in-dash overlay) and ↗ (new tab) for one roster container.
 // Sims and adventurers live in SEPARATE containers (#simsroster / #roster);
 // binding only one used to leave every sim-row button dead. The ↗ URL MUST
-// carry the #gm= fragment — a fresh tab has no shared state and module consts
-// capture the token before localStorage is readable there.
+// carry the #gm= fragment — a fresh tab intentionally has no shared
+// tab-scoped credential or module state.
 function bindRosterButtons(root) {
   root.querySelectorAll('.watch:not(.tab)').forEach((b) => b.addEventListener('click', () => openPlayerView(b.dataset.name, b.dataset.charId)));
   root.querySelectorAll('button.watch.tab').forEach((b) => {

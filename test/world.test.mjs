@@ -105,7 +105,7 @@ test('thief passages: thief-only bolt-holes with hub travel and heat risk', asyn
   game.removePlayer(p); game.removePlayer(p2);
 });
 
-test('quest: assign, progress via kills, claim once', async () => {
+test('quest: assign, progress via kills, claim once', async (t) => {
   const { CREATURES } = await import('../data/creatures.js');
   const acc = await auth.registerAccount('Questtest', 's3cretword');
   const charId = createCharacter(acc.accountId, { name: 'Questor', race: 'human', guild: 'thief' });
@@ -119,14 +119,12 @@ test('quest: assign, progress via kills, claim once', async () => {
   handleCommand(game, p, 'quest');
   assert.equal(p.quest, null);
 
-  // At the crier -> assignment (the crier hands out four kinds; keep
-  // asking until a kill quest is given so the kill loop below applies).
+  // This test exercises the kill lifecycle, not random quest selection.
+  // Pin the draw instead of occasionally exhausting ten random attempts.
   walk(game, p, 'square');
-  let guardKind = 0;
-  while ((!p.quest || p.quest.kind !== 'kill') && guardKind++ < 10) {
-    p.quest = null;
-    handleCommand(game, p, 'quest');
-  }
+  const random = t.mock.method(Math, 'random', () => 0);
+  try { handleCommand(game, p, 'quest'); }
+  finally { random.mock.restore(); }
   assert.ok(p.quest, 'quest should be assigned');
   assert.equal(p.quest.kind, 'kill', 'kill quest selected for the test');
   const creatureId = p.quest.creatureId;

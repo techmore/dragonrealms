@@ -15,6 +15,21 @@ const MIME = {
   '.log': 'text/plain; charset=utf-8',
 };
 
+// Applied to HTML, assets, API responses, and error responses. The project
+// still has authored inline scripts/styles, so those two directives retain
+// 'unsafe-inline' until the HTML is fully externalized; external script hosts
+// and framing remain denied. TLS/HSTS belongs at the public reverse proxy.
+export const SECURITY_HEADERS = Object.freeze({
+  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; worker-src 'self' blob:; manifest-src 'self'",
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-Permitted-Cross-Domain-Policies': 'none',
+  'Referrer-Policy': 'no-referrer',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+});
+
+const secure = (headers = {}) => ({ ...SECURITY_HEADERS, ...headers });
+
 export function createStaticHandler(publicDir) {
   // Canonical root (S4): containment is judged against the RESOLVED root and
   // a separator-bounded prefix, not a raw string prefix — "/srv/public" once
@@ -35,7 +50,7 @@ export function createStaticHandler(publicDir) {
         filePath = resolve(ROOT, `.${path}.html`);
       }
       if (!contained(filePath) || forbidden(path) || !existsSync(filePath)) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.writeHead(404, secure({ 'Content-Type': 'text/plain' }));
         res.end('Not found');
         return;
       }
@@ -43,7 +58,7 @@ export function createStaticHandler(publicDir) {
       // artifact policy to the target too, so an alias cannot publish a DB.
       filePath = realpathSync(filePath);
       if (!contained(filePath) || forbidden(filePath.slice(ROOT.length)) || !statSync(filePath).isFile()) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.writeHead(404, secure({ 'Content-Type': 'text/plain' }));
         res.end('Not found');
         return;
       }
@@ -52,7 +67,7 @@ export function createStaticHandler(publicDir) {
       // locally and through Tailscale on a phone — never let any cache pin a
       // stale copy or the two views diverge. no-store forbids storing, so the
       // phone always re-fetches from local and the two views stay mirrored.
-      const headers = { 'Content-Type': type };
+      const headers = secure({ 'Content-Type': type });
       if (type.startsWith('text/')) headers['Cache-Control'] = 'no-store';
       // Live logs' clients (sims.html) key liveness on Last-Modified — a log
       // that stopped appending is a dead run, not an active one.
@@ -75,7 +90,7 @@ export function createStaticHandler(publicDir) {
       if (range) {
         const start = Number(range[1]);
         if (start >= stat.size) {
-          res.writeHead(416, { 'Content-Type': type, 'Content-Range': `bytes */${stat.size}` });
+          res.writeHead(416, secure({ 'Content-Type': type, 'Content-Range': `bytes */${stat.size}` }));
           res.end();
           return;
         }
@@ -100,14 +115,14 @@ export function createStaticHandler(publicDir) {
         })
         .catch(() => {
           if (!res.headersSent) {
-            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.writeHead(404, secure({ 'Content-Type': 'text/plain' }));
             res.end('Not found');
           } else {
             res.end();
           }
         });
     } catch {
-      res.writeHead(500);
+      res.writeHead(500, secure());
       res.end('error');
     }
   };

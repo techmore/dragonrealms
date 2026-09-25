@@ -197,7 +197,7 @@ say(t, text, 'combat');
     // fists rather than standing helpless (DR: switch weapons).
     let w = weaponOf(this.player);
     const skillIdRaw = w ? w.skill : 'brawling';
-    const dualLoad = w && w.skill === 'bow' && this.player.guild.id === 'barbarian' && (this.player.abilities || []).includes('dual_load');
+    const dualLoad = w && w.skill === 'bow' && this.player.guild?.id === 'barbarian' && (this.player.abilities || []).includes('dual_load');
     if (w) {
       const ammoId = AMMO[w.skill];
       if (ammoId) {
@@ -334,7 +334,7 @@ say(t, text, 'combat');
     // corpse immediately; this is the safety net for failed/unsolicited skins.
     this.player.corpses.push({ uid: target.uid, def: target.def, decayedAt: Date.now() + CORPSE_DECAY_MS });
     // Empath: taking a living life leaves an empathic stain (DR-authentic).
-    if (this.player.guild.id === 'empath') {
+    if (this.player.guild?.id === 'empath') {
       const cap = Math.max(5, Math.floor(this.player.maxHp * 0.1));
       if (this.player.empathicStain < cap) {
         this.player.empathicStain += 1;
@@ -342,7 +342,7 @@ say(t, text, 'combat');
       }
     }
     // Paladin: slaying the undead restores the soul.
-    if (this.player.guild.id === 'paladin') {
+    if (this.player.guild?.id === 'paladin') {
       const undead = ['wraith', 'revenant', 'dread_knight', 'shadowpaw'];
       if (undead.includes(target.def.id)) {
         const gained = Math.min(5, 100 - (this.player.soul ?? 50));
@@ -351,7 +351,7 @@ say(t, text, 'combat');
       }
     }
     // Ranger: a wolf may bond with you.
-    if (this.player.guild.id === 'ranger' && target.def.id === 'wolf' && !this.player.companion) {
+    if (this.player.guild?.id === 'ranger' && target.def.id === 'wolf' && !this.player.companion) {
       if (Math.random() < 0.25 + skillRank(this.player, 'perception') * 0.01) {
         const hp = 30 + this.player.circle * 4;
         this.player.companion = { kind: 'wolf', name: 'a bonded wolf', hp, maxHp: hp, alive: true };
@@ -379,7 +379,7 @@ say(t, text, 'combat');
     gainSkillExp(this.player, 'fitness', target.def.circle * 10);
     gainSkillExp(this.player, 'endurance', target.def.circle * 8);
     gainSkillExp(this.player, 'hunting', target.def.circle * 4);
-    if (this.player.guild.id === 'barbarian') {
+    if (this.player.guild?.id === 'barbarian') {
       const gain = 12 + target.def.circle * 4;
       this.player.innerFire = Math.min(this.player.maxInnerFire || 100, (this.player.innerFire || 0) + gain);
       this.say(`The kill kindles your inner fire (+${gain}).`);
@@ -439,7 +439,7 @@ say(t, text, 'combat');
     // Barbarian magic resistance: a premier anti-magic edge. The base ward
     // scales with Defending ranks; Serenity halves what gets through; Mage's
     // Lash flings the spell back at its caster.
-    if (isMagic && this.player.guild.id === 'barbarian') {
+    if (isMagic && this.player.guild?.id === 'barbarian') {
       const defending = skillRank(this.player, 'defending');
       const resist = clamp(0.6 - defending * 0.002, 0.35, 0.6);
       dmg = Math.max(1, Math.floor(dmg * resist));
@@ -498,7 +498,7 @@ say(t, text, 'combat');
       dmg = Math.max(1, dmg - 4);
     }
     if (this.tenacityTicks > 0) dmg = Math.max(1, dmg - 3);
-    if (this.player.guild.id === 'barbarian' && (this.player.abilities || []).includes('juggernaut')) {
+    if (this.player.guild?.id === 'barbarian' && (this.player.abilities || []).includes('juggernaut')) {
       dmg = Math.max(1, Math.floor(dmg * 0.9));
     }
     if (e.chokedTicks > 0) dmg = Math.max(1, Math.floor(dmg * 0.5));
@@ -987,7 +987,7 @@ say(t, text, 'combat');
     // Defensive / anti-magic arts lean Warding; the rest lean Augmentation,
     // mirroring the wiki's per-path split.
     const res = this._useAbilityInner(def, targetUid);
-    if (res?.ok && this.player.guild.id === 'barbarian') {
+    if (res?.ok && this.player.guild?.id === 'barbarian') {
       const WARDING = new Set(['tenacity', 'serenity', 'dispel', 'mages_lash']);
       gainSkillExp(this.player, WARDING.has(def.id) ? 'warding_magic' : 'augmentation', 10);
     }

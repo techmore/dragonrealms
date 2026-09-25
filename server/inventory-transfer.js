@@ -1,11 +1,14 @@
-// Synchronous inventory/currency transaction boundary. Keep messages and
-// experience rewards outside the callback: they cannot be rolled back.
+// Synchronous inventory/equipment/currency transaction boundary. Keep messages
+// and experience rewards outside the callback: they cannot be rolled back.
 import { db } from './db.js';
 
 export function transferInventory(players, change) {
   const snapshots = [...new Set(players)].map((p) => ({
-    p, inventory: p.inventory.map((entry) => ({ ...entry })),
-    silver: p.silver, handsDirty: p.handsDirty,
+    p,
+    inventory: p.inventory.map((entry) => ({ ...entry })),
+    equipment: Object.fromEntries(Object.entries(p.equipment || {}).map(([slot, item]) => [slot, { ...item }])),
+    silver: p.silver,
+    handsDirty: p.handsDirty,
   }));
   db.exec('SAVEPOINT inventory_transfer');
   try {
@@ -21,8 +24,9 @@ export function transferInventory(players, change) {
       db.exec('ROLLBACK TO inventory_transfer');
       db.exec('RELEASE inventory_transfer');
     } finally {
-      for (const { p, inventory, silver, handsDirty } of snapshots) {
+      for (const { p, inventory, equipment, silver, handsDirty } of snapshots) {
         p.inventory = inventory;
+        p.equipment = equipment;
         p.silver = silver;
         p.handsDirty = handsDirty;
       }

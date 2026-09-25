@@ -21,7 +21,7 @@ import { findInventoryItem } from './util.js';
 // (TDZ: the binding isn't initialized until the literal finishes evaluating).
 function doEnchant(ctx) {
     const { p, arg1, emit } = ctx;
-    if (p.guild.id !== 'bard') return emit('Only bards weave enchantes.');
+    if (p.guild?.id !== 'bard') return emit('Only bards weave enchantes.');
     if (!arg1 || arg1 === 'off' || arg1 === 'stop') {
       p.cyclic = null;
       return emit('The song fades from the air.');
@@ -105,7 +105,7 @@ export const commands = {
     if (knowsTechnique(p, 'aether_efficiency')) cost = Math.max(1, Math.ceil(cost * 0.9));
     // Lunar gating: the moon mage's spells are dearer while Xibar is dark
     // (DR: lunar mana waxes and wanes with the great moon).
-    if (p.guild.id === 'moonmage' && (roomById(p.room)?.zone || 'town') === 'town') {
+    if (p.guild?.id === 'moonmage' && (roomById(p.room)?.zone || 'town') === 'town') {
       const { xibar } = moonPhases();
       if (xibar < 0.35) cost = Math.ceil(cost * 1.25);
       else if (xibar > 0.85) cost = Math.max(1, Math.ceil(cost * 0.9));
@@ -297,7 +297,7 @@ export const commands = {
 
   predict(ctx) {
     const { p, emit } = ctx;
-    if (p.guild.id !== 'moonmage') return emit('Only moon mages read the stars.');
+    if (p.guild?.id !== 'moonmage') return emit('Only moon mages read the stars.');
     if (skillRank(p, 'astrology') < 1) return emit('You need Astrology to read the sky. Train it at your guild hall.');
     const cost = 10;
     if (p.mana < cost) return emit(`You need ${cost} mana to cast your gaze skyward.`);
@@ -339,7 +339,7 @@ export const commands = {
 
   animate(ctx) {
     const { game, p, arg1, emit } = ctx;
-    if (p.guild.id !== 'necromancer') return emit('Only necromancers speak with the dead.');
+    if (p.guild?.id !== 'necromancer') return emit('Only necromancers speak with the dead.');
     if (p.risen) return emit(`Your risen, ${p.risen.name}, already serves you. Dismiss it first.`);
     const corpse = (p.corpses || []).find((c) => c.def.name.replace(/^a /, '').split(' ')[0].includes((arg1 || '').toLowerCase()) || c.def.id === (arg1 || '').toLowerCase());
     if (!corpse) return emit('There is no suitable corpse here. Slay something first.');
@@ -374,7 +374,7 @@ export const commands = {
 
   mend(ctx) {
     const { game, p, arg1, emit } = ctx;
-    if (p.guild.id !== 'empath') return emit('Only empaths feel the wounds of others.');
+    if (p.guild?.id !== 'empath') return emit('Only empaths feel the wounds of others.');
     if (!arg1) return emit('Mend whom?');
     const n = arg1.toLowerCase();
     let target = [...game.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === n);
@@ -422,7 +422,7 @@ export const commands = {
 
   link(ctx) {
     const { game, p, arg1, emit } = ctx;
-    if (p.guild.id !== 'empath') return emit('Only empaths spin links.');
+    if (p.guild?.id !== 'empath') return emit('Only empaths spin links.');
     if (!arg1) return emit('Link whom?');
     const target = [...game.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === arg1.toLowerCase());
     if (!target) return emit('There is no such adventurer here to link with.');
@@ -443,7 +443,7 @@ export const commands = {
 
   touch(ctx) {
     const { game, p, arg1, emit } = ctx;
-    if (p.guild.id !== 'empath') return emit('Only empaths read the living.');
+    if (p.guild?.id !== 'empath') return emit('Only empaths read the living.');
     if (!arg1) return emit('Touch whom?');
     const target = [...game.players.values()].find((o) => o !== p && o.room === p.room && o.name.toLowerCase() === arg1.toLowerCase());
     if (!target) return emit('There is no such adventurer here.');
@@ -455,7 +455,7 @@ export const commands = {
 
   scar(ctx) {
     const { p, emit } = ctx;
-    if (p.guild.id !== 'empath') return emit('Only empaths carry the scar tax.');
+    if (p.guild?.id !== 'empath') return emit('Only empaths carry the scar tax.');
     const stain = p.empathicStain || 0;
     const cap = Math.max(5, Math.floor(p.maxHp * 0.1));
     const state = stain === 0 ? 'clear' : stain >= cap ? 'heavy' : stain > cap / 2 ? 'worn' : 'light';
@@ -468,7 +468,7 @@ export const commands = {
     if (p.room !== 'temple' && p.room !== 'temple_row' && !atHighTemple) {
       return emit('You can pray at the Temple of the Pantheon — or in the High Temple, behind the altar.');
     }
-    if (p.guild.id === 'cleric') {
+    if (p.guild?.id === 'cleric') {
       if (p.devoteAt && Date.now() - p.devoteAt < 10 * 60 * 1000) {
         const mins = Math.ceil((10 * 60 * 1000 - (Date.now() - p.devoteAt)) / 60000);
         return emit(`Your devotion is still warm from the last ritual. Wait ${mins} min.`);
@@ -481,7 +481,7 @@ export const commands = {
         ? `You kneel before the great altar and give yourself to the silence. The gods answer — your faith deepens (+${gained} devotion; ${p.devotion}/100).`
         : `You kneel and perform a quiet devotion. Your faith deepens (+${gained} devotion; ${p.devotion}/100).\nHigh devotion empowers your holy magic; neglect dims it.`);
     }
-    if (p.guild.id === 'paladin') {
+    if (p.guild?.id === 'paladin') {
       const gained = Math.min(atHighTemple ? 4 : 2, 100 - (p.soul ?? 50));
       p.soul = (p.soul ?? 50) + gained;
       gainSkillExp(p, 'conviction', 4);
@@ -505,7 +505,7 @@ export const commands = {
   },
   devotion(ctx) {
     const { p, emit } = ctx;
-    if (p.guild.id !== 'cleric') return emit('Only clerics keep devotion.');
+    if (p.guild?.id !== 'cleric') return emit('Only clerics keep devotion.');
     const d = p.devotion ?? 30;
     const state = d >= 70 ? 'incandescent' : d >= 40 ? 'steady' : d >= 20 ? 'flickering' : 'dim';
     emit(`Your devotion is ${d}/100 — ${state}. Devotions at the temple deepen it; holy magic burns brighter with it.`);
@@ -523,14 +523,14 @@ export const commands = {
   call: companion,
   release(ctx) {
     const { p, emit } = ctx;
-    if (p.guild.id !== 'ranger') return emit('Only rangers walk with companions.');
+    if (p.guild?.id !== 'ranger') return emit('Only rangers walk with companions.');
     p.companion = null;
     emit('You release your companion back to the wild.');
   },
 
   beseech(ctx) {
     const { p, arg1, emit } = ctx;
-    if (p.guild.id !== 'ranger') return emit('Only rangers beseech the wilds.');
+    if (p.guild?.id !== 'ranger') return emit('Only rangers beseech the wilds.');
     const kind = (arg1 || '').toLowerCase();
     if (!['wind', 'sun'].includes(kind)) return emit('The wilds answer two calls: beseech wind (swiftness) or beseech sun (renewal).');
     if (p.beseechAt && Date.now() - p.beseechAt < 5 * 60 * 1000) {
@@ -637,7 +637,7 @@ const GLYPH_COOLDOWN_MS = 2 * 60 * 1000;
 
 function glyph(ctx) {
   const { p, arg1, emit } = ctx;
-  if (p.guild.id !== 'paladin') return emit('Only paladins trace glyphs.');
+  if (p.guild?.id !== 'paladin') return emit('Only paladins trace glyphs.');
   if (p.circle < 2) return emit(`Glyphs are taught at circle 2; you are circle ${p.circle}.`);
   if (!arg1) {
     const lines = Object.values(GLYPHS).map((g) => `  ${g.name} — ${g.soul} soul, ${g.mana} mana — ${g.desc}`);
@@ -684,7 +684,7 @@ const SKY_CD_MS = 5 * 60 * 1000;
 
 function observeMoon(ctx) {
   const { p, emit } = ctx;
-  if (p.guild.id !== 'moonmage') return emit('Only moon mages read the moons.');
+  if (p.guild?.id !== 'moonmage') return emit('Only moon mages read the moons.');
   if (skillRank(p, 'astrology') < 1) return emit('You need Astrology to read the sky. Train it at your guild hall.');
   const cost = 5;
   if (p.mana < cost) return emit(`You need ${cost} mana to read the sky.`);
@@ -700,7 +700,7 @@ function observeMoon(ctx) {
 
 function telescope(ctx) {
   const { p, emit } = ctx;
-  if (p.guild.id !== 'moonmage') return emit('Only moon mages keep telescopes.');
+  if (p.guild?.id !== 'moonmage') return emit('Only moon mages keep telescopes.');
   if (p.room !== 'hall_moonmage') return emit('The great telescope stands in the Moon Mage guildhall, beneath the domed roof.');
   if (p.telescopeAt && Date.now() - p.telescopeAt < SKY_CD_MS) {
     const mins = Math.ceil((SKY_CD_MS - (Date.now() - p.telescopeAt)) / 60000);
@@ -716,7 +716,7 @@ function telescope(ctx) {
 
 function moonGate(ctx) {
   const { game, p, arg1, emit } = ctx;
-  if (p.guild.id !== 'moonmage') return emit('Only moon mages weave moon gates.');
+  if (p.guild?.id !== 'moonmage') return emit('Only moon mages weave moon gates.');
   if (!arg1) return emit('Moon gate where? Try "moon gate crossing" or "moon gate riverhaven".');
   const dest = { crossing: 'square', riverhaven: 'rh_square' }[arg1.toLowerCase()];
   if (!dest) return emit('The moons can carry you to crossing or riverhaven.');
@@ -744,7 +744,7 @@ function moonGate(ctx) {
 // Necromancer rituals (DR Thanatology): work the dead for profit and power.
 function ritual(ctx) {
   const { p, arg1, emit } = ctx;
-  if (p.guild.id !== 'necromancer') return emit('Only necromancers know the rituals of the grave.');
+  if (p.guild?.id !== 'necromancer') return emit('Only necromancers know the rituals of the grave.');
   if (!arg1) {
     const lines = [
       '  butchery  — your next harvests of the dead run twice (10 min)',
@@ -809,7 +809,7 @@ const PATRONS = {
 
 function commune(ctx) {
   const { p, arg1, emit } = ctx;
-  if (p.guild.id !== 'cleric') return emit('Only clerics commune with the Immortals.');
+  if (p.guild?.id !== 'cleric') return emit('Only clerics commune with the Immortals.');
   if (p.room !== 'hall_cleric' && p.room !== 'temple' && p.room !== 'high_temple') {
     return emit('Communion happens at the cleric guildhall or the temples.');
   }
@@ -831,7 +831,7 @@ const SACRIFICE_CD_MS = 10 * 60 * 1000;
 
 function sacrifice(ctx) {
   const { p, emit } = ctx;
-  if (p.guild.id !== 'cleric') return emit('Only clerics offer sacrifice.');
+  if (p.guild?.id !== 'cleric') return emit('Only clerics offer sacrifice.');
   if (p.room !== 'temple' && p.room !== 'high_temple') return emit('Sacrifice is offered at the temples.');
   if ((p.devotion ?? 0) < 15) return emit(`The altar demands 15 devotion; you hold ${p.devotion ?? 0}. Pray to deepen your faith.`);
   if (p.sacrificeAt && Date.now() - p.sacrificeAt < SACRIFICE_CD_MS) {
@@ -857,7 +857,7 @@ const ELEMENTS = {
 
 function element(ctx) {
   const { p, arg1, emit } = ctx;
-  if (p.guild.id !== 'warmage') return emit('Only warrior mages attune an element.');
+  if (p.guild?.id !== 'warmage') return emit('Only warrior mages attune an element.');
   if (!arg1) {
     const lines = Object.values(ELEMENTS).map((e) => `  ${e.name} — ${e.desc}`);
     return emit(`\nThe four elements await your attunement${p.element ? ` — you are currently attuned to ${ELEMENTS[p.element]?.name || p.element}` : ''}:\n${lines.join('\n')}\n\nSay "element <name>".`);
@@ -876,7 +876,7 @@ function summonCommand(ctx) {
   const { p, arg1, emit } = ctx;
   if (arg1 === 'familiar' || !arg1) return familiar(ctx);
   if (arg1 !== 'weapon') return emit('Summon what? Try "summon familiar" or "summon weapon".');
-  if (p.guild.id !== 'warmage') return emit('Only warrior mages conjure weapons.');
+  if (p.guild?.id !== 'warmage') return emit('Only warrior mages conjure weapons.');
   if (p.room !== 'hall_warmage') return emit('Conjuring a weapon takes the focus of the Warrior Mage guildhall.');
   if (p.inventory.some((i) => i.item.id === 'conjured_blade')) return emit('A conjured blade already waits in your pack.');
   if (p.mana < 10) return emit('You need 10 mana to conjure.');
@@ -933,7 +933,7 @@ function technique(ctx) {
   const def = TECHNIQUES[name] || Object.values(TECHNIQUES).find((t) => t.name.toLowerCase().includes(name));
   if (!def) return emit('You know of no such technique. Try "technique" for the list.');
   if ((p.techniques || []).includes(def.id)) return emit(`You already know ${def.name}.`);
-  if (p.room !== `hall_${p.guild.id}`) return emit(`Techniques are taught at your guild hall (${roomById(p.room).name !== `hall_${p.guild.id}` ? 'the Guild District' : 'here'}).`);
+  if (p.room !== `hall_${p.guild?.id}`) return emit(`Techniques are taught at your guild hall (${roomById(p.room).name !== `hall_${p.guild?.id}` ? 'the Guild District' : 'here'}).`);
   const slots = techniqueSlots(p.circle);
   if ((p.techniques || []).length >= slots) {
     return emit(`You have no free technique slots (${(p.techniques || []).length}/${slots}). Circle higher to earn more.`);
@@ -947,7 +947,7 @@ function technique(ctx) {
 
 function familiar(ctx) {
   const { p, cmd, arg1, emit } = ctx;
-  if (p.guild.id !== 'warmage') return emit('Only warrior mages bind familiars.');  if (cmd === 'familiar' || !arg1) {
+  if (p.guild?.id !== 'warmage') return emit('Only warrior mages bind familiars.');  if (cmd === 'familiar' || !arg1) {
     const f = p.familiar;
     if (!f) return emit('You have no familiar bound. At your guild hall, say "summon familiar".');
     return emit(`Your familiar ${f.name} is ${f.alive ? `with you (${f.hp}/${f.maxHp} health)` : 'drained of spirit — it needs time to recover.'}`);
@@ -968,7 +968,7 @@ function familiar(ctx) {
 
 function companion(ctx) {
   const { p, emit } = ctx;
-  if (p.guild.id !== 'ranger') return emit('Only rangers walk with companions.');
+  if (p.guild?.id !== 'ranger') return emit('Only rangers walk with companions.');
   const c = p.companion;
   if (!c) return emit('You have no companion. Slay a wolf and its spirit may bond with you.');
   emit(`Your companion, ${c.name}, is ${c.alive ? `at your side (${c.hp}/${c.maxHp})` : 'spent — it needs time to recover.'}`);

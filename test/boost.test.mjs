@@ -11,6 +11,39 @@ const { migrate } = await import('../server/db.js');
 migrate();
 const auth = await import('../server/auth.js');
 const player = await import('../server/player.js');
+const { handleBoostMessage } = await import('../server/boost.js');
+
+function boostSession(overrides = {}) {
+  const sent = [];
+  return {
+    sent,
+    session: {
+      state: 'playing', player: { boostMult: 1 }, isBot: false,
+      agentBoostEnabled: false, gmToken: 'gm-secret', ...overrides,
+      send(frame) { sent.push(frame); },
+    },
+  };
+}
+
+test('boost requires an enabled test world, bot session, and GM credential', () => {
+  const ordinary = boostSession();
+  assert.equal(handleBoostMessage(ordinary.session, { t: 'boost', mult: 100 }), false);
+  assert.equal(ordinary.session.player.boostMult, 1);
+  assert.match(ordinary.sent.at(-1).msg, /disabled/);
+
+  const enabledHuman = boostSession({ agentBoostEnabled: true });
+  assert.equal(handleBoostMessage(enabledHuman.session, { t: 'boost', mult: 20, gmToken: 'gm-secret' }), false);
+  assert.match(enabledHuman.sent.at(-1).msg, /bot session/);
+
+  const wrongToken = boostSession({ agentBoostEnabled: true, isBot: true });
+  assert.equal(handleBoostMessage(wrongToken.session, { t: 'boost', mult: 20, gmToken: 'wrong' }), false);
+  assert.match(wrongToken.sent.at(-1).msg, /GM authorization/);
+
+  const authorized = boostSession({ agentBoostEnabled: true, isBot: true });
+  assert.equal(handleBoostMessage(authorized.session, { t: 'boost', mult: 100, gmToken: 'gm-secret' }), true);
+  assert.equal(authorized.session.player.boostMult, 100);
+  assert.match(authorized.sent.at(-1).msg, /x100/);
+});
 
 test('boost multiplier multiplies skill experience gains', async () => {
   const acc = await auth.registerAccount('boostx10', 'password1');
