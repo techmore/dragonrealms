@@ -797,6 +797,11 @@ body:not(.in-combat) #hands-doll { animation: pd-breathe 5.5s ease-in-out infini
   min-height: 0;
 }
 
+#journey-guide { flex-shrink: 0; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 0.9em; max-height: 28vh; overflow-y: auto; }
+#journey-guide > div { display: flex; align-items: flex-start; gap: 8px; }
+#journey-text { flex: 1; min-width: 0; }
+#journey-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
 /* Room window (DR) — top of the right rail: name/desc/contents/exits + compass */
 #room-panel {
   flex-shrink: 0;

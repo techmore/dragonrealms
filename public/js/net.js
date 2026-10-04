@@ -1,5 +1,6 @@
 // WebSocket transport. Message routing happens in main.js via onServerMessage.
 import { $ } from './util.js';
+import { isServerMessage } from './wire-message.js';
 
 let ws = null;
 // Puffer observation pages never connect or send, including indirect UI actions.
@@ -49,7 +50,7 @@ export function connect() {
     if (ws !== socket) return;
     let msg;
     try { msg = JSON.parse(ev.data); } catch { return; }
-    if (!msg || typeof msg !== 'object') return;
+    if (!isServerMessage(msg)) return;
     if (msg.t === 'authed' || msg.t === 'enter') reconnectAttempts = 0;
     for (const fn of messageListeners) fn(msg);
   };
@@ -58,8 +59,8 @@ export function connect() {
 export function send(obj) {
   if (pufferReadOnly) return false;
   if (!ws || ws.readyState !== WebSocket.OPEN) return false;
-  ws.send(JSON.stringify(obj));
-  return true;
+  try { ws.send(JSON.stringify(obj)); return true; }
+  catch { return false; } // readyState can race a transport close
 }
 
 // Override the connection chip with a session-level meaning (e.g. "watching

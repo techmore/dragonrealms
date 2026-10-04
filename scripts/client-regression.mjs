@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startWorld } from './lib/disposable-world.mjs';
 import { runClientRegression } from './lib/client-checks.mjs';
+import { runAuditClientChecks } from './lib/audit-client-checks.mjs';
 
 const directory = mkdtempSync(join(tmpdir(), 'dr-browser-check-'));
 const profile = join(directory, 'profile');
@@ -14,7 +15,7 @@ let world, browser, socket, browserError;
 const pending = new Map();
 let sequence = 0;
 try {
-  world = await startWorld({ dbPath: join(directory, 'world.db') });
+  world = await startWorld({ dbPath: join(directory, 'world.db'), enableApi: true });
   browser = spawn(process.env.DR_CHROMIUM_PATH || 'chromium', [
     '--headless=new', '--disable-gpu', '--no-first-run',
     '--remote-debugging-port=0', '--user-data-dir=' + profile,
@@ -56,7 +57,10 @@ try {
     });
     socket.send(JSON.stringify({ id, method, params }));
   });
+  await cdp('Page.addScriptToEvaluateOnNewDocument', { source: "(()=>{window.__auditSockets=[];const OriginalWebSocket=window.WebSocket;window.WebSocket=class extends OriginalWebSocket{constructor(...args){super(...args);window.__auditSockets.push(this);}};})();" });
+  await cdp('Page.reload');
   await runClientRegression({ cdp });
+  await runAuditClientChecks({ cdp, url: world.url, gmToken: world.gmToken });
 } catch (error) {
   console.error('CLIENT CHECK FAILED:', error.message);
   process.exitCode = 1;

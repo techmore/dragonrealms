@@ -9,6 +9,7 @@
 // stored-XSS path into the privileged GM origin and its localStorage token.
 import { $, escapeHtml as esc } from './util.js';
 import { harvestGmTokenFromFragment, storedGmToken, storeGmToken } from './gm-token.js';
+import { gmRequest } from './gm-request.js';
 
 const API = '/api/gm';
 
@@ -17,22 +18,39 @@ const API = '/api/gm';
 harvestGmTokenFromFragment();
 
 function token() { return storedGmToken(); }
-function saveToken(t) { storeGmToken(t); }
+let tokenGeneration = 0;
+function saveToken(t) {
+  tokenGeneration++;
+  playerGeneration++; roomGeneration++; dbGeneration++;
+  closeWatch();
+  if (worldWs) { const old = worldWs; worldWs = null; old.close(); }
+  $('gm-world-btn').textContent = 'start';
+  for (const id of ['gm-summary', 'gm-online', 'gm-world', 'gm-chars', 'gm-db-out', 'gm-db-tables', 'gm-player-detail', 'gm-room-detail']) $(id).innerHTML = '';
+  storeGmToken(t);
+}
 
 async function api(path) {
-  const r = await fetch(API + path, {
-    headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: 'Bearer ' + token() } : {}) },
-  });
+  const generation = tokenGeneration;
+  const r = await gmRequest(API + path, token());
+  const data = await r.json().catch(() => null);
+  if (generation !== tokenGeneration) return { ok: false, stale: true };
   if ([401, 403, 503].includes(r.status)) {
     const el = $('gm-token');
     if (el) { el.style.borderColor = 'var(--red)'; }
-    const detail = await r.json().catch(() => null);
-    throw new Error(detail?.error || 'unauthorized — enter the dedicated DR_GM_TOKEN');
+    throw new Error(data?.error || 'unauthorized — enter the dedicated DR_GM_TOKEN');
   }
-  return r.json();
+  return data || { ok: false };
 }
 
 let selectedPlayer = null;
+let playerGeneration = 0, roomGeneration = 0, dbGeneration = 0;
+function closeWatch() {
+  const old = watchLive.ws;
+  watchLive.ws = null;
+  if (old) old.close();
+  const stream = $('gm-player-stream');
+  if (stream) { delete stream.dataset.watching; stream.innerHTML = ''; }
+}
 
 async function loadSummary() {
   const s = await api('/summary');
@@ -77,9 +95,10 @@ async function loadWorld() {
 }
 
 async function loadRoom(id) {
+  const generation = ++roomGeneration;
   const el = $('gm-room-detail');
   const r = await api('/room/' + encodeURIComponent(id));
-  if (!r.ok || !el) return;
+  if (generation !== roomGeneration || !r.ok || !el) return;
   el.innerHTML = `
     <div class="gm-t">[[${esc(r.room.name)}, ${esc(r.zone.name)}]]</div>
     <div class="gm-desc">${esc(r.room.desc)}</div>
@@ -102,9 +121,13 @@ async function loadCharacters() {
 }
 
 async function loadPlayerView() {
+  const generation = ++playerGeneration;
+  const name = selectedPlayer;
+  closeWatch();
   const detail = $('gm-player-detail');
   const stream = $('gm-player-stream');
-  const p = selectedPlayer && await api('/player/' + encodeURIComponent(selectedPlayer));
+  const p = name && await api('/player/' + encodeURIComponent(name)).catch(() => null);
+  if (generation !== playerGeneration || p?.stale) return;
   if (!p || !p.ok || !detail) { if (detail) detail.innerHTML = '<div class="gm-dim">select a player</div>'; return; }
   const pl = p.player;
   const skills = Object.entries(p.skills).slice(0, 15).map(([id, s]) => `${id}:${s.rank}`).join(' · ');
@@ -157,8 +180,10 @@ function toggleWorldFeed() {
   btn.textContent = 'stop';
   out.innerHTML = '<div class="gm-dim">— world feed —</div>';
   worldWs = new WebSocket((location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws');
-  worldWs.onopen = () => worldWs.send(JSON.stringify({ t: 'worldwatch', gmToken: token() }));
-  worldWs.onmessage = (ev) => {
+  const ws = worldWs;
+  ws.onopen = () => { if (worldWs === ws) ws.send(JSON.stringify({ t: 'worldwatch', gmToken: token() })); };
+  ws.onmessage = (ev) => {
+    if (worldWs !== ws) return;
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m.t === 'notice') return;
     const who = m._player ? `[${m._player}] ` : '';
@@ -170,7 +195,7 @@ function toggleWorldFeed() {
     while (out.children.length > 400) out.removeChild(out.firstChild);
     out.scrollTop = out.scrollHeight;
   };
-  worldWs.onclose = () => { worldWs = null; if (btn) btn.textContent = 'start'; };
+  ws.onclose = () => { if (worldWs === ws) { worldWs = null; btn.textContent = 'start'; } };
 }
 $('gm-world-btn')?.addEventListener('click', toggleWorldFeed);
 
@@ -180,10 +205,12 @@ function appendStream(text, cls) {
   div.className = 'gm-line ' + (cls || '');
   div.textContent = text;
   out.appendChild(div);
+  while (out.children.length > 400) out.removeChild(out.firstChild);
   out.scrollTop = out.scrollHeight;
 }
 
 async function loadDb() {
+  const tokenAtStart = tokenGeneration;
   const tablesEl = $('gm-db-tables');
   const out = $('gm-db-out');
   try {
@@ -191,8 +218,9 @@ async function loadDb() {
     if (!d.ok || !tablesEl) return;
     tablesEl.innerHTML = d.tables.map((t) => `<button class="gm-ch" data-tbl="${esc(t)}">${esc(t)}</button>`).join('');
     tablesEl.querySelectorAll('[data-tbl]').forEach((b) => b.addEventListener('click', async () => {
-      const r = await api('/db/' + b.dataset.tbl);
-      renderDbRows(out, r);
+      const generation = ++dbGeneration;
+      const r = await api('/db/' + encodeURIComponent(b.dataset.tbl)).catch((e) => ({ ok: false, error: e.message }));
+      if (generation === dbGeneration && !r.stale) renderDbRows(out, r);
     }));
     // O13: bind the query listener ONCE (a dataset guard) — every refresh
     // used to stack another Enter listener, multiplying DB queries per press.
@@ -201,11 +229,12 @@ async function loadDb() {
       q.dataset.dbBound = '1';
       q.addEventListener('keydown', async (e) => {
         if (e.key !== 'Enter') return;
-        const r = await api('/db?q=' + encodeURIComponent(q.value.trim()));
-        renderDbRows(out, r);
+        const generation = ++dbGeneration;
+        const r = await api('/db?q=' + encodeURIComponent(q.value.trim())).catch((e) => ({ ok: false, error: e.message }));
+        if (generation === dbGeneration && !r.stale) renderDbRows(out, r);
       });
     }
-  } catch (e) { if (out) out.innerHTML = '<div class="gm-dim">' + esc(e.message) + '</div>'; }
+  } catch (e) { if (out && tokenAtStart === tokenGeneration) out.innerHTML = '<div class="gm-dim">' + esc(e.message) + '</div>'; }
 }
 
 function renderDbRows(out, r) {
@@ -229,11 +258,20 @@ if (goBtn) {
   tokIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') goBtn.click(); });
 }
 
+let refreshBusy = false, refreshQueued = false;
 async function loadAll() {
+  if (refreshBusy) { refreshQueued = true; return; }
+  refreshBusy = true;
+  const generation = tokenGeneration;
+  try {
   const results = await Promise.allSettled([loadSummary(), loadWorld(), loadCharacters(), loadDb()]);
-  if (results.some((r) => r.status === 'rejected')) {
+  if (generation === tokenGeneration && results.some((r) => r.status === 'rejected')) {
     const el = $('gm-summary');
     if (el && !el.innerHTML) el.innerHTML = '<div class="gm-dim">Enter the dedicated DR_GM_TOKEN above. Game session tokens are not accepted.</div>';
+  }
+  } finally {
+    refreshBusy = false;
+    if (refreshQueued) { refreshQueued = false; void loadAll(); }
   }
 }
 

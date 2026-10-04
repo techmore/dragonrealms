@@ -17,9 +17,16 @@ let authPending = false;
 let creationPending = false;
 let allocationPending = false;
 let allocationShown = false;
+let selectionPending = false;
+let entryPending = false;
+let selectionTimer = null;
+let entryTimer = null;
 
 export function showAuthError(message) {
   authPending = false;
+  selectionPending = false;
+  clearTimeout(selectionTimer);
+  $('welcome-body').querySelectorAll('.wslot').forEach(b => { b.disabled = false; });
   for (const id of ['wf-login', 'wf-register']) if ($(id)) $(id).disabled = false;
   if ($('wf-err')) $('wf-err').textContent = message;
 }
@@ -27,6 +34,9 @@ export function showAuthError(message) {
 function resetCreationPending() {
   creationPending = false;
   allocationPending = false;
+  entryPending = false;
+  clearTimeout(entryTimer);
+  $('cg-enter').disabled = false;
   $('cg-submit').disabled = false;
   $('cg-submit').textContent = 'Create character';
   $('cg-allocbtn').disabled = false;
@@ -41,6 +51,8 @@ export function showCreationError(message) {
 export function hideAll() {
   resetCreationPending();
   authPending = false;
+  selectionPending = false;
+  clearTimeout(selectionTimer);
   $('welcome').hidden = true;
   $('welcome-body').innerHTML = '';
   chargenEl.hidden = true;
@@ -86,6 +98,8 @@ export function showWelcome(mode, msgText) {
     return;
   }
   if (mode === 'charselect') {
+    selectionPending = false;
+    clearTimeout(selectionTimer);
     const rows = [];
     for (const line of String(msgText || '').split('\n')) {
       const m = /^\s*(\d+)\)\s*(.+)$/.exec(line);
@@ -99,9 +113,17 @@ export function showWelcome(mode, msgText) {
         ${rows.map((r) => `<button class="wslot" data-id="${r.id}">${escapeHtml(r.label)}</button>`).join('')}
         ${hasNew ? '<button class="wslot wnew" data-id="new">+ New adventurer</button>' : ''}
       </div>
-      <p class="welcome-sub">Select a soul to enter the Crossing \u2014 or type its number below.</p>`;
+      <p class="welcome-sub">Select a soul to enter the Crossing \u2014 or type its number below.</p>
+      <p id="wf-err" class="welcome-err" role="status" aria-live="polite"></p>`;
     body.querySelectorAll('.wslot').forEach((b) => {
-      b.addEventListener('click', () => send({ t: 'charselect', id: b.dataset.id }));
+      b.addEventListener('click', () => {
+        if (selectionPending) return;
+        if (!send({ t: 'charselect', id: b.dataset.id })) return showAuthError('Connection lost. Please wait for reconnection; your selection was not sent.');
+        selectionPending = true;
+        body.querySelectorAll('.wslot').forEach(button => { button.disabled = true; });
+        $('wf-err').textContent = 'Opening character…';
+        selectionTimer = setTimeout(() => showAuthError('No response received. Reconnect or check your character state before trying again.'), 12000);
+      });
     });
     return;
   }
@@ -277,4 +299,11 @@ $('cg-allocbtn').addEventListener('click', () => {
   $('cg-allocbtn').disabled = true;
   $('cg-error').textContent = '';
 });
-$('cg-enter').addEventListener('click', () => send({ t: 'enter' }));
+$('cg-enter').addEventListener('click', () => {
+  if (entryPending) return;
+  if (!send({ t: 'enter' })) return showCreationError('Connection lost. Please wait for reconnection; entry was not sent.');
+  entryPending = true;
+  $('cg-enter').disabled = true;
+  $('cg-error').textContent = 'Entering the world…';
+  entryTimer = setTimeout(() => showCreationError('No response received. Reconnect or check your character state before trying again.'), 12000);
+});

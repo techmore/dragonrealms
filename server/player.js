@@ -2,6 +2,7 @@
 import { db } from './db.js';
 import { transferInventory } from './inventory-transfer.js';
 import { decodePersistentState, encodePersistentState } from './persistence-codec.js';
+import { decodePlayerJson, isRecord, stringList, optionalRecord } from './player-json.js';
 import { raceById } from '../data/races.js';
 import { guildById, spellsFor } from '../data/guilds.js';
 import { SKILLS, expToNextRank, pulseGroupFor, mentalStatBonus } from '../data/skills.js';
@@ -193,6 +194,8 @@ export function loadPlayer(charId) {
   const decoded = decodePersistentState(row.persistent_state);
   const persisted = decoded.state;
   const cooldowns = persisted.cooldowns || {};
+  const json = (raw, schema) => decodePlayerJson(raw, schema, decoded.diagnostics.errors);
+  const link = json(row.link, optionalRecord('link', (v) => Number.isSafeInteger(v.charId) && Number.isFinite(v.until)));
 
   const player = {
     charId: row.id,
@@ -217,18 +220,19 @@ export function loadPlayer(charId) {
     pvpStance: row.pvp_stance || 'guarded',
     rexp: row.rexp || 0,
     stamina: row.stamina ?? 0,
-    warrant: (() => { try { return row.warrant ? JSON.parse(row.warrant) : null; } catch { return null; } })(),
+    warrant: json(row.warrant, optionalRecord('warrant', (v) => typeof v.charge === 'string' && Number.isFinite(v.issuedAt))),
     patron: row.patron || null,
     element: row.element || null,
-    caravan: (() => { try { return row.caravan ? JSON.parse(row.caravan) : null; } catch { return null; } })(),
+    caravan: json(row.caravan, optionalRecord('caravan')),
     commodities: persisted.commodities && typeof persisted.commodities === 'object' ? persisted.commodities : {},
-    empathLink: (() => { try { const l = row.link ? JSON.parse(row.link) : null; return l && l.until > Date.now() ? l : null; } catch { return null; } })(),
-    achievements: (() => { try { return JSON.parse(row.achievements || '[]'); } catch { return []; } })(),
-    techniques: (() => { try { return JSON.parse(row.techniques || '[]'); } catch { return []; } })(),
+    empathLink: link && link.until > Date.now() ? link : null,
+    achievements: json(row.achievements, stringList('achievements')),
+    techniques: json(row.techniques, stringList('techniques')),
     soul: row.soul ?? 50,    empathicStain: row.empathic_stain || 0,
     devotion: row.devotion ?? 30,
     homeCity: row.home_city || 'crossing',
-    expPools: (() => { try { return JSON.parse(row.exp_pools || '{}'); } catch { return {}; } })(),
+    expPools: json(row.exp_pools, { path: 'exp_pools', shape: isRecord,
+      entry: (v, key) => Object.hasOwn(SKILLS, key) && Number.isFinite(v) && v >= 0, fallback: {} }),
     maxMana: row.guild && guildById(row.guild).magic ? 20 + row.wis * 2 + row.int + row.dis : 0,
     silver: row.silver,
     bank: row.bank,
@@ -308,12 +312,8 @@ export function loadPlayer(charId) {
     if (isStackableItem(item)) {
       // A corrupted bundle value must not brick the character's load: degrade
       // to an unbundled stack, the same shape a missing bundle produces.
-      let bundle = null;
-      try {
-        bundle = inv.bundle ? JSON.parse(inv.bundle) : null;
-      } catch {
-        bundle = null;
-      }
+      const bundle = json(inv.bundle, optionalRecord(`inventory.${inv.id}.bundle`,
+        (v) => Number.isSafeInteger(v.bundled) && v.bundled > 0));
       player.inventory.push({ id: inv.id, item, qty: inv.qty, ...(bundle ? { bundle } : {}) });
       continue;
     }
@@ -353,6 +353,7 @@ export function loadPlayer(charId) {
   if (decoded.diagnostics.legacyUnversioned && !(row.stamina > 0)) player.stamina = player.maxStaminaEff;
   else player.stamina = Math.max(0, Math.min(player.maxStaminaEff, player.stamina));
 
+  if (decoded.diagnostics.errors.length && decoded.diagnostics.status !== 'unsupported') decoded.diagnostics.status = 'repaired';
   return player;
 }
 
@@ -536,7 +537,7 @@ export const ACHIEVEMENTS = {
 
 export function unlockAchievement(p, id) {
   if (!ACHIEVEMENTS[id]) return false;
-  p.achievements = p.achievements || [];
+  p.achievements = Array.isArray(p.achievements) ? p.achievements : [];
   if (p.achievements.includes(id)) return false;
   p.achievements.push(id);
   say(p, `\n\x1b[1mAchievement unlocked: ${ACHIEVEMENTS[id].name}!\x1b[0m (${ACHIEVEMENTS[id].desc})`);

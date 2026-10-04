@@ -9,7 +9,14 @@ const randName = () => 'Tst' + Array.from({ length: 6 }, () => 'abcdefghijklmnop
 export async function runClientRegression({ cdp, log = console.log }) {
 const evalJs = async (expression) => { const r = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw new Error('eval: ' + JSON.stringify(r.exceptionDetails)); return r.result.value; };
 const waitFor = async (expr, ms = 10000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await evalJs(expr)) return true; await sleep(150); } throw new Error('Timed out waiting for: ' + expr); };
-const cmd = (v) => evalJs(`(function(){const i=document.getElementById('cmd');i.value=${JSON.stringify(v)};i.setSelectionRange(0,0);i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}));})();true`);
+let lastCommandAt = 0;
+const cmd = async (v) => {
+  // Browser/CDP latency is not a rate limiter. Stay below the real session's
+  // 20/sec budget even on fast local runs; room arrival remains state-driven.
+  await sleep(Math.max(0, 100 - (Date.now() - lastCommandAt)));
+  lastCommandAt = Date.now();
+  return evalJs(`(function(){const i=document.getElementById('cmd');i.value=${JSON.stringify(v)};i.setSelectionRange(0,0);i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}));})();true`);
+};
 const lastTitle = `document.querySelectorAll('.room-title')[document.querySelectorAll('.room-title').length-1]`;
 
 const checks = [];
@@ -332,12 +339,12 @@ const check = (name, ok, extra = '') => { checks.push([name, ok]); log(`${ok ? '
   check('config export produces JSON', exportOk, exportKeys.join(','));
   await evalJs(`document.getElementById('panel-close').click();true`);
 
-  // 21. Quick font keys: Ctrl+= steps up, Ctrl+0 resets.
+  // 21. Alt-modified terminal font keys leave native browser zoom intact.
   const fontBefore = await evalJs(`getComputedStyle(document.querySelector('#terminal .block')).fontSize`);
-  await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', {key:'=', ctrlKey:true, cancelable:true}));true`);
+  await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', {key:'=', ctrlKey:true, altKey:true, cancelable:true}));true`);
   await sleep(150);
   const fontStepped = await evalJs(`getComputedStyle(document.querySelector('#terminal .block')).fontSize`);
-  await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', {key:'0', ctrlKey:true, cancelable:true}));true`);
+  await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', {key:'0', ctrlKey:true, altKey:true, cancelable:true}));true`);
   await sleep(150);
   const fontReset = await evalJs(`getComputedStyle(document.querySelector('#terminal .block')).fontSize`);
   check('font quick keys', parseFloat(fontStepped) === parseFloat(fontBefore) + 1 && fontReset === '14px', `${fontBefore} -> ${fontStepped} -> ${fontReset}`);

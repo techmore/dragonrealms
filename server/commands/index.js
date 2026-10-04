@@ -1,6 +1,7 @@
 // Command dispatcher: alias expansion, multi-command chains, movement,
 // and lookup across the domain command modules.
 import { DIR_ALIASES } from './dirs.js';
+import { MAX_COMMAND_LENGTH, MAX_COMMANDS_PER_INPUT } from '../command-budget.js';
 import { commands as combat } from './combat.js';
 import { commands as magic } from './magic.js';
 import { commands as items } from './items.js';
@@ -65,15 +66,25 @@ import { setRoundtime, roundtimeLeft, netBurden, say as sendLine } from '../play
 export const RT_BLOCK = roundtimeCommands(COMMAND_REGISTRY_METADATA);
 
 export function handleCommand(game, p, input, depth = 0, opts = {}) {
+  const budget = opts.executionBudget || { remaining: MAX_COMMANDS_PER_INPUT, nodes: 64, notified: false };
+  opts = { ...opts, executionBudget: budget };
+  const reject = (msg) => {
+    if (!budget.notified) { budget.notified = true; sendLine(p, msg); game.status(p); }
+  };
+  if (budget.remaining <= 0 || --budget.nodes < 0) return reject('Too many commands at once. Please slow down.');
   if (depth > 4) return;
   let line = String(input || '').trim();
   if (!line) return;
+  if (line.length > MAX_COMMAND_LENGTH) return reject('That command is too long.');
 
   // Multi-command strings: "cast fire; retreat" executes in sequence.
   if (line.includes(';')) {
     const parts = line.split(';').map((s) => s.trim()).filter(Boolean);
     if (parts.length > 1) {
-      for (const part of parts) handleCommand(game, p, part, depth + 1, opts);
+      for (const part of parts) {
+        handleCommand(game, p, part, depth + 1, opts);
+        if (budget.notified) break;
+      }
       return;
     }
   }
@@ -95,6 +106,8 @@ export function handleCommand(game, p, input, depth = 0, opts = {}) {
     return;
   }
 
+  if (opts.consumeCommand && !opts.consumeCommand()) return reject('Command rate limit exceeded. Please slow down.');
+  budget.remaining--;
   const args = line.split(/\s+/);
   const cmd = args[0].toLowerCase();
   const rest = args.slice(1).join(' ');

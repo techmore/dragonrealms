@@ -26,8 +26,23 @@ export function isPlaying() {
 }
 
 export function pressEnter(line) {
-  cmdInput.value = line;
-  cmdInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+  return dispatchCommand(String(line).trim());
+}
+
+function dispatchCommand(line) {
+  if (!line) return;
+  const result = handleLocalCommand(line);
+  if (result === false) {
+    append('Disconnected: command was not sent.', 'ch-error');
+    return false;
+  }
+  const authCommand = /^(login|register)(?:\s|$)/i.exec(line);
+  append(`> ${authCommand ? authCommand[1].toLowerCase() + ' [credentials hidden]' : line}`, 'ch-echo');
+  if (!authCommand && line.toLowerCase() !== 'quit') {
+    history.push(line);
+    if (history.length > 500) history.shift();
+  }
+  return result;
 }
 
 export function focusInput() {
@@ -47,7 +62,7 @@ export function setDpadVisible(visible) {
 export function handleLocalCommand(line) {
   if (handleAutomation(line)) return;
   const parts = line.split(/\s+/);
-  if (parts[0].toLowerCase() === 'logout') { send({ t: 'logout' }); return; }
+  if (parts[0].toLowerCase() === 'logout') return send({ t: 'logout' });
 
   // DR run prefix: ".scriptname arg1 arg2" starts a saved script.
   if (/^\.[A-Za-z]/.test(line)) {
@@ -91,8 +106,7 @@ export function handleLocalCommand(line) {
 
   if (gameState.inChargen && gameState.value === 'charcreate') {
     if (routeTypedCommand(line)) return;
-    send({ t: 'input', line });
-    return;
+    return send({ t: 'input', line });
   }
 
   // Post-creation allocation: typed "alloc"/"enter" are protocol verbs here.
@@ -100,17 +114,16 @@ export function handleLocalCommand(line) {
   // "enter") closes it.
   if (gameState.inChargen && gameState.value === 'charcreate_playing') {
     const parts = line.split(/\s+/);
-    if (parts[0].toLowerCase() === 'alloc') { send({ t: 'alloc', stat: parts[1], amt: Number(parts[2]) || 1 }); return; }
-    if (parts[0].toLowerCase() === 'enter') { send({ t: 'enter' }); return; }
-    send({ t: 'input', line });
-    return;
+    if (parts[0].toLowerCase() === 'alloc') return send({ t: 'alloc', stat: parts[1], amt: Number(parts[2]) || 1 });
+    if (parts[0].toLowerCase() === 'enter') return send({ t: 'enter' });
+    return send({ t: 'input', line });
   }
 
   if (gameState.value === 'login') {
     if (parts[0] === 'login' && parts[1] && parts[2]) {
-      send({ t: 'login', u: parts[1], p: parts[2] });
+      return send({ t: 'login', u: parts[1], p: parts[2] });
     } else if (parts[0] === 'register' && parts[1] && parts[2]) {
-      send({ t: 'register', u: parts[1], p: parts[2] });
+      return send({ t: 'register', u: parts[1], p: parts[2] });
     } else {
       append('Use: login <username> <password>  or  register <username> <password>', 'ch-msg');
     }
@@ -121,13 +134,12 @@ export function handleLocalCommand(line) {
     // A stale stored token can leave us parked at char-select; a player who
     // types login/register here used to get a baffling "Not a valid
     // character." Honor the auth verbs instead (UI audit P2#15).
-    if (parts[0] === 'login' && parts[1] && parts[2]) { send({ t: 'login', u: parts[1], p: parts[2] }); return; }
-    if (parts[0] === 'register' && parts[1] && parts[2]) { send({ t: 'register', u: parts[1], p: parts[2] }); return; }
-    send({ t: 'charselect', id: line });
-    return;
+    if (parts[0] === 'login' && parts[1] && parts[2]) return send({ t: 'login', u: parts[1], p: parts[2] });
+    if (parts[0] === 'register' && parts[1] && parts[2]) return send({ t: 'register', u: parts[1], p: parts[2] });
+    return send({ t: 'charselect', id: line });
   }
 
-  send({ t: 'input', line });
+  return send({ t: 'input', line });
 }
 
 // ---------------- Tab completion ----------------
@@ -188,18 +200,11 @@ function completeTab(line) {
 cmdInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     const line = cmdInput.value.trim();
+    if (dispatchCommand(line) === false) return;
     cmdInput.value = '';
     tabMatches = [];
     setCompletion('');
-    if (!line) return;
-    const authCommand = /^(login|register)(?:\s|$)/i.exec(line);
-    append(`> ${authCommand ? authCommand[1].toLowerCase() + ' [credentials hidden]' : line}`, 'ch-echo');
-    if (!authCommand && line.toLowerCase() !== 'quit') {
-      history.push(line);
-      if (history.length > 500) history.shift();
-    }
     histIndex = -1;
-    handleLocalCommand(line);
     return;
   }
   if (e.key === 'ArrowUp') {
@@ -242,8 +247,8 @@ document.addEventListener('keydown', (e) => {
     searchWith('');
     return;
   }
-  // Quick font size: Ctrl/Cmd +/- step, Ctrl/Cmd 0 resets to 14.
-  if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+' || e.key === '-' || e.key === '0')) {
+  // Alt distinguishes terminal font controls from native browser zoom.
+  if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === '=' || e.key === '+' || e.key === '-' || e.key === '0')) {
     e.preventDefault();
     const step = e.key === '0' ? 0 : (e.key === '-' ? -1 : 1);
     settings.font = Math.max(11, Math.min(20, step ? settings.font + step : 14));

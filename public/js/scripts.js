@@ -11,11 +11,16 @@ import { send } from './net.js';
 import * as terminal from './terminal.js';
 import { gameState } from './state.js';
 import { createRunner } from './script-engine.js';
+import { isAutomationPaused, onAutomationPause } from './automation-control.js';
 
 // ---- active runner registry (one at a time, like DR) ----
 let active = null;
 
 export function runScript(name, args = []) {
+  if (isAutomationPaused()) {
+    terminal.append('[script] Automation is paused. Resume it in Scripts before starting a script.', 'ch-error');
+    return;
+  }
   if (gameState.value !== 'playing' || gameState.spectating) {
     terminal.append('[script] Enter the world before running a script.', 'ch-error');
     return;
@@ -50,9 +55,12 @@ export function stopScript({ silent = false } = {}) {
 }
 
 export function isScriptRunning() { return Boolean(active?.runner.running); }
+export function activeScriptName() { return active?.runner.running ? active.name : null; }
+onAutomationPause((paused) => { if (paused) stopScript({ silent: true }); });
 
 // Feed every incoming server line to the active runner.
 export function feedScripts(line, isPrompt = false) {
+  if (isAutomationPaused()) return;
   if (active && active.runner.running) active.runner.feed(line, isPrompt);
   if (active && !active.runner.running) active = null;
 }

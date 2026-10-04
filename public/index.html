@@ -22,6 +22,8 @@
         <button id="btn-skills" class="tool" title="Skills">Skills</button>
         <button id="btn-spells" class="tool" title="Spells">Spells</button>
         <button id="btn-scripts" class="tool" title="Macros, timers, triggers, DR scripts">Scripts</button>
+        <button id="automation-control" class="tool" aria-pressed="false" hidden>Automation idle</button>
+        <button id="journey-toggle" class="tool" aria-controls="journey-guide" aria-expanded="false" hidden>Next step</button>
         <div id="btn-windows" class="windows-wrap">
           <button id="windows-btn" class="tool" title="Windows: show or hide each docked window" aria-controls="windows-menu" aria-expanded="false">Windows</button>
           <div id="windows-menu" class="windows-menu" hidden></div>
@@ -162,6 +164,10 @@
       </section>
     </aside>
     <div id="story" aria-label="Story stream">
+      <section id="journey-guide" aria-label="Optional next-step guidance" hidden>
+        <div><span id="journey-text"></span><button id="journey-dismiss" class="tool" type="button" aria-label="Dismiss next-step guidance">Dismiss</button></div>
+        <nav id="journey-actions" aria-label="Suggested commands"></nav>
+      </section>
       <section id="field-desk" aria-label="Experimental Field Desk" hidden>
         <div class="field-heading"><div><span class="field-eyebrow">EXPERIMENTAL INTERFACE</span><h2>Field Desk</h2></div><button id="field-classic" type="button">Back to Classic</button></div>
         <details class="field-reference"><summary>Field references &amp; keyboard guide</summary>
@@ -350,7 +356,7 @@
     </details>
     <details>
       <summary>Channels</summary>
-      <label class="ch-note">Hidden channels stay in scrollback history but new lines are not printed. Triggers and scripts still see them.</label>
+      <label class="ch-note">Existing lines remain in scrollback; new muted lines are not stored or printed. Triggers and scripts still see them.</label>
       <label><input id="set-ch-combat" type="checkbox" checked> Combat narration</label>
       <label><input id="set-ch-say" type="checkbox" checked> Say</label>
       <label><input id="set-ch-emote" type="checkbox" checked> Emote</label>
@@ -408,7 +414,7 @@
           <tr><td><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd></td><td>complete a command or argument / move to the previous control</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd> or <code>/search</code></td><td>search the scrollback</td></tr>
           <tr><td><kbd>End</kbd></td><td>jump back to live output</td></tr>
-          <tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td><td>font size up / down / reset</td></tr>
+          <tr><td><kbd>Ctrl/Cmd</kbd>+<kbd>Alt</kbd>+<kbd>=</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td><td>terminal font size up / down / reset; browser zoom remains native</td></tr>
           <tr><td><kbd>F1</kbd></td><td>this overlay</td></tr>
           <tr><td><kbd>Esc</kbd></td><td>close panels, search, menus</td></tr>
         </tbody>

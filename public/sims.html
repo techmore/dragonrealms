@@ -284,6 +284,7 @@
       <h1>&#129489;&#8205;&#128187; Sim Players</h1>
       <span id="sims-live-flag" class="badge live" hidden>&#9679; sims running</span>
       <span id="sum" class="sub"></span>
+      <span id="discovery-state" class="sub" role="status">live unknown · last success: never</span>
       <span class="spacer"></span>
       <details class="page-links">
         <summary>Related pages</summary>
@@ -960,7 +961,8 @@
   <script src="/js/admin-nav.js"></script>
   <script src="/js/req-table.js"></script>
   <script type="module" src="/js/admin/agents.js"></script>
-  <script>
+  <script type="module">
+    import { emptyTail, readTail, discoveryState, discoveryLabel } from '/js/sims-reliability.js';
     'use strict';
     // NOTE: agents.js is an ES module (deferred). Its export lands on
     // window.DRSims; the launch wiring below waits for it before binding.
@@ -1099,7 +1101,7 @@
     async function fetchCached(url, { ttlMs = 0, tail = false } = {}) {
       let m = fetchMemo.get(url);
       if (!m) {
-        m = { body: '', at: 0, lm: '', size: 0, pending: null };
+        m = { body: '', at: 0, lm: '', size: 0, pending: null, tailState: emptyTail() };
         fetchMemo.set(url, m);
       }
       // Concurrent callers share the in-flight request — three boot paths
@@ -1111,30 +1113,28 @@
           if (m.at) {
             try {
               const head = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+              if (!head.ok) throw new Error(`Log HEAD HTTP ${head.status}`);
               const lm = head.headers.get('last-modified') || '';
               const size = Number(head.headers.get('content-length'));
-              if (m.lm && lm === m.lm && size === m.size) { m.at = Date.now(); return m.body; }
+              const identity = head.headers.get('x-file-identity') || '';
+              const sameFile = !m.tailState.identity || identity === m.tailState.identity;
+              if (sameFile && m.lm && lm === m.lm && size === m.size) { m.at = Date.now(); return m.body; }
               // Append-only file (jsonl/log): when it grew, pull just the
               // suffix instead of re-downloading the whole 5+ MB.
-              if (tail && m.lm && Number.isFinite(size) && size > m.size) {
-                const r = await fetch(url, { cache: 'no-store', headers: { Range: `bytes=${m.size}-` } });
-                if (r.status === 206) {
-                  const chunk = await r.text();
-                  m.body += chunk;
-                  const total = Number((r.headers.get('content-range') || '').split('/')[1]);
-                  m.size = Number.isFinite(total) ? total : m.size + chunk.length;
-                  m.lm = lm; m.at = Date.now();
-                  return m.body;
-                }
-                // 200 (no Range support) or 416 → fall through to full refetch.
+              if (sameFile && tail && m.lm && Number.isFinite(size) && size > m.size) {
+                m.tailState = await readTail(url, m.tailState, { size });
+                m.body = m.tailState.text;
+                m.size = m.tailState.bytes.byteLength;
+                m.lm = lm; m.at = Date.now();
+                return m.body;
               }
             } catch { m.at = Date.now(); return m.body; } // hiccup: keep last body
           }
-          const r = await fetch(url, { cache: 'no-store' });
-          const body = await r.text();
+          m.tailState = await readTail(url, m.tailState, { reset: true });
+          const body = m.tailState.text;
           m.body = body;
-          m.lm = r.headers.get('last-modified') || '';
-          m.size = Number(r.headers.get('content-length')) || body.length;
+          m.lm = m.tailState.validator;
+          m.size = m.tailState.bytes.byteLength;
           m.at = Date.now();
           return body;
         } finally {
@@ -1161,6 +1161,14 @@
     // its latest result (the old latest-per-combo merge hid all history).
     let RUNS = [];           // { run, char?, ts?, reason?, circle, circles, kills, deaths, trains, grade?, fidelity?, variant? }
     let LIVE_COUNT = 0;      // authoritative count from loadLive's log liveness check
+    let DISCOVERY = { status: 'unknown', lastSuccess: null, data: null };
+    function showDiscovery() {
+      $('discovery-state').textContent = discoveryLabel(DISCOVERY);
+      $('sum').textContent = `${RUNS.length} runs`;
+      const flag = $('sims-live-flag');
+      flag.textContent = DISCOVERY.status === 'available' ? '● sims running' : '● prior sims · status stale';
+      if (DISCOVERY.status !== 'available') $('exp-state').textContent = `live ${DISCOVERY.status}`;
+    }
     let SORT = { k: 'ts', dir: -1 };
     let SELECTED = null;
     let RUN_VISIBLE = 25;
@@ -1173,9 +1181,13 @@
       // not a total archive (the DB keeps the complete history).
       const SUMMARY_ROW_CAP = 400;
       const [logs, txt] = await Promise.all([
-        fetch('/live/index.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []),
-        fetchCached('/live/fidelity-summary.jsonl', { ttlMs: 15000, tail: true }).catch(() => ''),
+        fetch('/live/index.json', { cache: 'no-store' }).then((r) => {
+          if (!r.ok) throw new Error(`History HTTP ${r.status}`);
+          return r.json();
+        }).catch(() => null),
+        fetchCached('/live/fidelity-summary.jsonl', { ttlMs: 15000, tail: true }).catch(() => null),
       ]);
+      if (!Array.isArray(logs) || txt === null) return; // preserve prior history on failed discovery
       const summaries = txt.split('\n').filter(Boolean).slice(-SUMMARY_ROW_CAP)
         .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
       // Latest summary row per guild×race key — used ONLY to decorate log files.
@@ -1422,7 +1434,7 @@
         if (vb == null) return -1;
         return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * SORT.dir;
       });
-      $('sum').textContent = `${RUNS.length} runs · ${LIVE_COUNT} live now`;
+      showDiscovery();
       document.querySelectorAll('#runs th[data-k]').forEach((th) => {
         th.textContent = th.textContent.replace(/ [▲▼]$/, '') + (SORT.k === th.dataset.k ? (SORT.dir > 0 ? ' ▲' : ' ▼') : '');
       });
@@ -1542,14 +1554,16 @@
       // log — resolved via the row's logName (the actual file on disk),
       // not the display name.
       LOG_TEXT = '';
-      RAW_LEN = 0;
+      DETAIL_TAIL = emptyTail();
       $('logwrap').textContent = 'loading…';
       const logFile = r.logName || r.run;
       if (!/\(no log\)$/.test(logFile)) {
         try {
-          const raw = await fetch('/live/' + encodeURIComponent(logFile) + '.log', { cache: 'no-store' }).then((x) => x.text());
-          RAW_LEN = raw.length; // byte offset for Range polling (raw file, pre-strip)
-          LOG_TEXT = stripAnsi(raw);
+          const selected = SELECTED;
+          const tail = await readTail('/live/' + encodeURIComponent(logFile) + '.log');
+          if (SELECTED !== selected) return;
+          DETAIL_TAIL = tail;
+          LOG_TEXT = stripAnsi(tail.text);
         } catch { LOG_TEXT = ''; }
       }
       renderLog();
@@ -1581,36 +1595,36 @@
     // positions are file positions — stripped text has a different length
     // whenever the log carries ANSI codes.
     let DETAIL_TIMER = null;
-    let RAW_LEN = 0; // raw bytes of the selected log already seen
+    let DETAIL_TAIL = emptyTail();
+    let detailBusy = false;
     function pollDetail() {
       clearInterval(DETAIL_TIMER);
       if (!SELECTED) return;
       DETAIL_TIMER = setInterval(async () => {
-        if (!SELECTED || /\(no log\)$/.test(SELECTED)) return;
+        if (detailBusy || !SELECTED || /\(no log\)$/.test(SELECTED)) return;
+        detailBusy = true;
+        const selected = SELECTED;
         try {
           const logUrl = '/live/' + encodeURIComponent(SELECTED) + '.log';
           const head = await fetch(logUrl, { method: 'HEAD', cache: 'no-store' });
+          if (!head.ok) throw new Error(`Log HEAD HTTP ${head.status}`);
           const total = Number(head.headers.get('content-length'));
           const lastMod = Date.parse(head.headers.get('last-modified') || 0);
           if (!Number.isFinite(total)) return;
           const age = Date.now() - lastMod;
           $('d-state').innerHTML = age < 15000 ? '<span class="badge live">● appending</span>' : `idle · last write ${Math.round(age / 1000)}s ago`;
-          if (total <= RAW_LEN) return; // nothing appended
-          const r = await fetch(logUrl, { cache: 'no-store', headers: { Range: `bytes=${RAW_LEN}-` } });
-          if (r.status !== 206 && r.status !== 200) return;
-          const raw = await r.text();
-          if (r.status === 200) { // server ignored Range: full refresh
-            RAW_LEN = raw.length;
-            LOG_TEXT = stripAnsi(raw);
-          } else {
-            RAW_LEN += raw.length;
-            LOG_TEXT += stripAnsi(raw);
-          }
+          const validator = head.headers.get('etag') || head.headers.get('last-modified') || '';
+          if (total === DETAIL_TAIL.bytes.byteLength && validator && validator === DETAIL_TAIL.validator) return;
+          const tail = await readTail(logUrl, DETAIL_TAIL, { size: total });
+          if (SELECTED !== selected) return;
+          DETAIL_TAIL = tail;
+          LOG_TEXT = stripAnsi(tail.text);
           renderLog();
           drawSpark();
           const el = $('logwrap');
           el.scrollTop = el.scrollHeight;
-        } catch { $('d-state').textContent = ''; }
+        } catch { if (SELECTED === selected) $('d-state').textContent = 'log unavailable · showing prior data'; }
+        finally { detailBusy = false; }
       }, 5000);
     }
 
@@ -3179,6 +3193,8 @@
     let liveCards = {}; // name -> { el, lastSize }
     let liveSizes = {}; // name -> last seen byte size (ghost-run detection)
     let liveBodies = {}; // name -> last fetched log text (Range-append baseline)
+    const liveTails = new Map();
+    let liveBusy = false;
     let liveLines = {};  // name -> { text, lines } parse cache (split is not free at MB scale)
     let liveExpPulse = {}; // name -> { key, lastAt } for EXP ALL freshness
     let LIVE_ACTIVE = [];  // names confirmed actively appending (loadLive sets it)
@@ -3195,7 +3211,7 @@
       // Active-run discovery must never be hidden by the session cache: a
       // freshly launched sweep writes a new log/index immediately, and a
       // page refresh should show its blips on the first poll.
-      const liveControl = /\/live\/(?:index|experiment-index|experiment-current)\.json$/.test(path);
+      const liveControl = /\/live\/(?:index|index-meta|experiment-index|experiment-current)\.json$/.test(path);
       const now = Date.now();
       const memory = liveControl ? null : liveJsonCache.get(path);
       if (memory && now - memory.at < LIVE_CACHE_TTL) return memory.value;
@@ -3208,7 +3224,9 @@
           return stored.value;
         }
       } catch {}
-      const value = await fetch(path, { cache: 'no-store' }).then((r) => r.json());
+      const response = await fetch(path, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+      if (!response.ok) throw new Error(`Discovery HTTP ${response.status}`);
+      const value = await response.json();
       const entry = { at: now, value };
       if (!liveControl) {
         liveJsonCache.set(path, entry);
@@ -3433,6 +3451,15 @@
     }
 
     async function loadLive() {
+      if (liveBusy) return;
+      liveBusy = true;
+      try { await refreshLive(); }
+      catch {
+        DISCOVERY = discoveryState(DISCOVERY, { ok: false });
+        showDiscovery();
+      } finally { liveBusy = false; }
+    }
+    async function refreshLive() {
       let manifest = null;
       try {
         try {
@@ -3455,12 +3482,16 @@
       try {
         const index = await liveJson(LIVE + 'index-meta.json');
         if (Array.isArray(index?.logs)) {
+          if (index.logs.some((entry) => !entry || typeof entry.name !== 'string'
+            || !Number.isSafeInteger(Number(entry.size)) || Number(entry.size) < 0
+            || !Number.isFinite(Number(entry.modifiedAt)))) throw new Error('Invalid log metadata');
           logMetadata = index.logs;
           logs = index.logs.map((entry) => entry.name).filter(Boolean);
-        }
+        } else throw new Error('Invalid discovery metadata');
       } catch {
-        try { logs = await liveJson(LIVE + 'index.json'); } catch {}
+        logs = await liveJson(LIVE + 'index.json');
       }
+      if (!Array.isArray(logs) || logs.some((name) => typeof name !== 'string')) throw new Error('Invalid discovery index');
       // The live cards are now rendered into the Experiment board. Keep a
       // detached staging host so the existing telemetry/card updater remains
       // the single source of truth without restoring the old bottom board.
@@ -3494,30 +3525,12 @@
         const grew = prev !== undefined && len > prev;
         return fresh || grew;
       });
+      if (headers.some((entry) => !entry.ok || !Number.isFinite(entry.lastMod))) throw new Error('Log metadata unavailable');
       const detected = await Promise.all(activeCandidates.map(async ({ name, lastMod, len }) => {
         try {
-          let text = liveBodies[name] || '';
-          // Fetch only what appended since the last poll (Range suffix);
-          // liveBodies is seeded by the first full fetch below. A 416 means
-          // nothing appended since our offset — the run is still live, so
-          // fall through to the liveness check with the cached text.
-          const lastLen = text.length;
-          let resp = null;
-          if (lastLen > 0) {
-            resp = await fetch(LIVE + name + '.log', { cache: 'no-store', headers: { Range: `bytes=${lastLen}-` } });
-            if (resp.status === 206) {
-              text += await resp.text();
-            } else if (resp.status === 200) {
-              text = await resp.text(); // server without Range: full refresh
-            } else if (resp.status !== 416) {
-              return null; // vanished or errored; keep previous state
-            }
-          }
-          if (!text) {
-            resp = await fetch(LIVE + name + '.log', { cache: 'no-store' });
-            if (!resp.ok) return null;
-            text = await resp.text();
-          }
+          const tail = await readTail(LIVE + encodeURIComponent(name) + '.log', liveTails.get(name), { size: len });
+          liveTails.set(name, tail);
+          const text = tail.text;
           liveBodies[name] = text;
           const lines = text.split('\n').filter(Boolean);
           // A finished log ends with its final progress/result lines, not
@@ -3539,13 +3552,15 @@
           // so a frozen file drops off on the very next poll. KAIZEN 2026-08-28.
           const terminal = /=== Results|FINISHED|VERDICT|wedged — no progress/.test(currentRun);
           return !terminal && lines.length > 2 ? name : null;
-        } catch { return null; }
+        } catch { return { failed: true }; }
       }));
+      if (detected.some((entry) => entry?.failed)) throw new Error('Log tail unavailable');
       const running = detected.filter(Boolean);
+      DISCOVERY = discoveryState(DISCOVERY, { ok: true, data: running });
+      showDiscovery();
 
       if (!running.length) {
         LIVE_COUNT = 0;
-        $('sum').textContent = `${RUNS.length} runs · 0 live now`;
         liveList.innerHTML = '';
         liveState.textContent = 'idle';
         navDot.hidden = true;
@@ -3557,7 +3572,6 @@
 
       navDot.hidden = false;
       LIVE_COUNT = running.length;
-      $('sum').textContent = `${RUNS.length} runs · ${LIVE_COUNT} live now`;
       liveState.textContent = running.length + ' running';
       LIVE_ACTIVE = running.slice(); // for the experiment board's liveness read
       // A stale "no sims running" empty-note must not linger beside real
@@ -3620,6 +3634,7 @@
           delete liveCards[name];
           delete liveExpPulse[name];
           delete liveBodies[name]; // free the multi-MB text of dead runs
+          liveTails.delete(name);
           delete liveLines[name];
         }
       }

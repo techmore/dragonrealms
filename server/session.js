@@ -13,6 +13,7 @@ import { subscribe, unsubscribe, subscribeWorld, forward, forwardCommand } from 
 import { isGmToken } from './http-auth.js';
 import { handleGmPlayMessage } from './gm-play.js';
 import { handleBoostMessage } from './boost.js';
+import { consumeCommandBudget } from './command-budget.js';
 
 const INPUT_MAX = 20; // commands per second
 const AUTH_MAX = 5;   // login/register/token messages per second
@@ -79,6 +80,7 @@ export function attachWebSocket(httpServer, game, {
       stateBeforeSpectate: null,
       game,
     };
+    socket.drSession = session;
     // Wrap the socket's send so any message the player emits (rooms, combat,
     // prompts — all sent via p.ws.send) also mirrors to spectators.
     const origSend = socket.send.bind(socket);
@@ -102,14 +104,15 @@ export function attachWebSocket(httpServer, game, {
       let msg;
       try { msg = JSON.parse(raw); } catch { return session.send({ t: 'error', msg: 'Bad request.' }); }
       try {
-        route(session, msg);
+        Promise.resolve(route(session, msg)).catch((e) => reportSessionError(session, e));
       } catch (e) {
-        console.error('session error', e);
-        session.send({ t: 'error', msg: 'Something went wrong. (See server log.)' });
+        reportSessionError(session, e);
       }
     });
 
     socket.on('close', () => {
+      session.closed = true;
+      session.authGeneration++;
       clearTimeout(session.authTimer);
       unsubscribe(session);
       // A dropped network connection is not an explicit logout. Keep the
@@ -143,19 +146,43 @@ export function attachWebSocket(httpServer, game, {
     console.error('wss error', err?.code || err?.message || err);
   });
 
-  const pruneTimer = setInterval(pruneExpiredSessions, 60 * 60 * 1000);
+  const pruneTimer = setInterval(() => {
+    try {
+      pruneExpiredSessions();
+      for (const socket of wss.clients) socket.drSession && enforceSessionValidity(socket.drSession);
+    } catch (error) { console.error('session cleanup failed', error); }
+  }, 60_000);
   pruneTimer.unref();
   wss.once('close', () => clearInterval(pruneTimer));
   return wss;
 }
 
 // Message routing. Exported for tests (audit C17 generation-guard spec).
+function reportSessionError(session, error) {
+  if (error.code === 'RATE_LIMITED') {
+    session.send({ t: 'error', code: error.code, msg: 'Input rate limit exceeded. Please slow down.' });
+    return;
+  }
+  console.error('session error', error);
+  if (!session.closed) session.send({ t: 'error', code: 'SESSION_ERROR', msg: 'Something went wrong. (See server log.)' });
+}
+
+function enforceSessionValidity(session) {
+  // GM quick-play has no account bearer; its dedicated credential is checked
+  // by the GM verb. Ordinary account sockets must honor revocation/expiry.
+  if (!session.token || validateSession(session.token)) return true;
+  session.send({ t: 'error', code: 'SESSION_EXPIRED', msg: 'Session expired. Please log in.' });
+  doLogout(session);
+  return false;
+}
+
 export function route(session, msg) {
   if (session.game.shuttingDown) return;
   if (!msg || typeof msg.t !== 'string') {
     session.send({ t: 'error', msg: 'Unknown message type.' });
     return;
   }
+  if (!enforceSessionValidity(session)) return;
   // Apply a budget to every control-plane message, not just commands. This
   // keeps idle sockets, panel probes, spectator spam, and malformed unknown
   // messages from bypassing the per-session limiter.
@@ -170,9 +197,8 @@ export function route(session, msg) {
       // command budget): one socket can no longer pin the 2-worker scrypt
       // queue with unlimited login/register spam.
       rateLimit(session, AUTH_MAX, 'auth');
-      if (msg.t === 'login') doLogin(session, msg.u, msg.p);
-      else doRegister(session, msg.u, msg.p);
-      break;
+      return (msg.t === 'login' ? doLogin(session, msg.u, msg.p) : doRegister(session, msg.u, msg.p))
+        .catch((error) => reportSessionError(session, error));
     case 'token':
       rateLimit(session, AUTH_MAX, 'auth');
       doTokenLogin(session, msg.token);
@@ -241,7 +267,9 @@ export function route(session, msg) {
       if (session.state === 'playing' && session.player &&
           session.game.players.get(session.player.charId) === session.player) {
         forwardCommand(session.player, msg.line);
-        handleCommand(session.game, session.player, msg.line, 0, { applyRT: true });
+        handleCommand(session.game, session.player, msg.line, 0, {
+          applyRT: true, consumeCommand: () => consumeCommandBudget(session),
+        });
       } else if (session.state === 'playing') {
         session.send({ t: 'error', msg: 'This character is no longer active in this session.' });
       }
@@ -307,10 +335,8 @@ function doLogout(session) {
   unsubscribe(session);
   // Any in-flight login/register completion is now stale.
   session.authGeneration = (session.authGeneration || 0) + 1;
-  if (session.player && session.game.players.get(session.player.charId) === session.player) {
-    session.game.removePlayer(session.player);
-  }
-  if (session.token) logoutSession(session.token);
+  const player = session.player;
+  const token = session.token;
   session.state = 'login';
   armAuthTimeout(session);
   session.token = null;
@@ -320,6 +346,12 @@ function doLogout(session) {
   session.charCreate = null;
   session.gmAuthorized = false;
   session.stateBeforeSpectate = null;
+  // Fail closed even when saving or deleting the durable token fails.
+  try {
+    if (player && session.game.players.get(player.charId) === player) session.game.removePlayer(player);
+  } catch (error) { reportSessionError(session, error); }
+  try { if (token) logoutSession(token); }
+  catch (error) { reportSessionError(session, error); }
   session.send({ t: 'notice', msg: 'You have logged out.' });
   session.send({ t: 'login_prompt', msg: 'login/register', reason: 'logout', features: ['panels-v1'] });
 }
@@ -371,7 +403,7 @@ function doTokenLogin(session, token) {
 }
 
 function startAccountSession(session, info) {
-  if (session.game.shuttingDown) return;
+  if (session.closed || session.game.shuttingDown) return;
   clearAuthTimeout(session);
   // Re-authenticating on an existing socket is also a character switch. Drop
   // only this session's owned runtime before presenting the new account menu.
@@ -432,7 +464,7 @@ function rateLimit(session, max = INPUT_MAX, bucket = 'input') {
   const timestamps = Array.isArray(session[key]) ? session[key] : (session[key] = []);
   const recent = timestamps.filter((t) => now - t < 1000);
   if (recent.length >= max) {
-    throw new Error('Input rate limit exceeded.');
+    throw Object.assign(new Error('Input rate limit exceeded.'), { code: 'RATE_LIMITED' });
   }
   recent.push(now);
   session[key] = recent;

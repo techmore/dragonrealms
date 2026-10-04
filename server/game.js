@@ -25,6 +25,7 @@ import * as justice from './justice.js';
 import * as pvp from './pvp.js';
 import * as weather from './weather.js';
 import * as corpses from './corpses.js';
+import { disposeRuntimeResources } from './runtime-resources.js';
 
 const RESPAWN_MS = 25 * 1000;
 // DR_SPAWN_MULT: optional spawn-density multiplier for test/sweep windows
@@ -109,6 +110,7 @@ export class Game {
   // Production shutdown and tests share this so no timer is forgotten when a
   // new recurring subsystem is added.
   stop() {
+    disposeRuntimeResources(this);
     this.combat.stopTicker();
     for (const key of ['respawnTicker', 'manaTicker', 'weatherTicker', 'restockTicker', 'autosaveTicker', 'pulseTicker']) {
       if (this[key]) clearInterval(this[key]);
@@ -146,7 +148,7 @@ export class Game {
 
   makeCreature(def) {
     const maxHp = def.circle * 14 + def.stats.con * 3 + 20;
-    return { uid: creatureUid(), def, hp: maxHp, maxHp, alive: true, respawnAt: 0 };
+    return { uid: creatureUid(), def, hp: maxHp, maxHp, alive: true, respawnAt: 0, generation: 0 };
   }
 
   // Stock every room from the world data (init and GM reload share this).
@@ -170,8 +172,8 @@ export class Game {
   }
 
   // GM world reload: rebuild every room's spawn list at full health. In-flight
-  // combats finish against their own clones (self-contained snapshots); their
-  // killCreature calls would mark orphaned instances harmlessly.
+  // combats retain their old shared instances; replacing the room roster does
+  // not revive or duplicate any already-engaged creature.
   reloadCreatures() {
     this.stockCreatures();
     return this.roomCreatures.size;
@@ -200,6 +202,7 @@ export class Game {
             continue;
           }
           this.logRespawn(roomId, now);
+          c.generation = (c.generation || 0) + 1;
           c.alive = true;
           c.hp = c.maxHp;
           c.respawnAt = 0;

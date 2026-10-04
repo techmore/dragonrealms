@@ -4,6 +4,8 @@ import { $, escapeHtml } from './util.js';
 import { settings } from './settings.js';
 import { append } from './terminal.js';
 import { gameState } from './state.js';
+import { repairTriggerIds } from './trigger-ids.js';
+import { isAutomationPaused } from './automation-control.js';
 
 const MACROS_KEY = 'dr_macros';
 const TRIGGERS_KEY = 'dr_triggers';
@@ -12,8 +14,14 @@ const macrobars = $('macrobars');
 let runner = (line) => {};
 export function setRunner(fn) { runner = fn; }
 
-export let macros = (() => { try { return JSON.parse(localStorage.getItem(MACROS_KEY)) || {}; } catch { return {}; } })();
-export let triggers = (() => { try { return JSON.parse(localStorage.getItem(TRIGGERS_KEY)) || []; } catch { return []; } })();
+export let macros = (() => {
+  try { const value = JSON.parse(localStorage.getItem(MACROS_KEY)); return value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).filter(([, command]) => typeof command === 'string')) : {}; } catch { return {}; }
+})();
+export let triggers = (() => {
+  try { const value = JSON.parse(localStorage.getItem(TRIGGERS_KEY)); return Array.isArray(value)
+    ? value.filter(t => t && typeof t === 'object' && typeof t.pattern === 'string' && typeof t.command === 'string') : []; } catch { return []; }
+})();
 export const timers = [];
 let triggerSeq = 1;
 let macroEditMode = false;
@@ -22,12 +30,17 @@ let scriptsDirty = () => {};
 export function onScriptsChange(fn) { scriptsDirty = fn; }
 
 export function saveMacros() { try { localStorage.setItem(MACROS_KEY, JSON.stringify(macros)); } catch {} }
-export function saveTriggers() { try { localStorage.setItem(TRIGGERS_KEY, JSON.stringify(triggers)); } catch {} }
+export function saveTriggers() {
+  triggerSeq = repairTriggerIds(triggers);
+  try { localStorage.setItem(TRIGGERS_KEY, JSON.stringify(triggers)); } catch {}
+}
+saveTriggers();
 
 export function runTriggers(text) {
-  if (gameState.value !== 'playing' || gameState.spectating) return;
+  if (gameState.value !== 'playing' || gameState.spectating || isAutomationPaused()) return;
   const t = String(text);
   for (const tr of triggers) {
+    if (isAutomationPaused()) break;
     if (tr.pattern && t.toLowerCase().includes(tr.pattern.toLowerCase())) {
       append(`[trigger] ${tr.command}`, 'ch-msg');
       runner(tr.command);
@@ -135,7 +148,7 @@ export function handleAutomation(line) {
     const cmd = parts.slice(2).join(' ');
     if (!sec || sec < 2 || !cmd) { append('Usage: timer <seconds> <command> (min 2s) | timer off', 'ch-msg'); return true; }
     const id = setInterval(() => {
-      if (gameState.value !== 'playing' || gameState.spectating) return;
+      if (gameState.value !== 'playing' || gameState.spectating || isAutomationPaused()) return;
       append(`> [timer] ${cmd}`, 'ch-msg');
       runner(cmd);
     }, sec * 1000);
@@ -162,7 +175,9 @@ export function handleAutomation(line) {
     if (!parts[1] || !parts[2]) { append('Usage: trigger <text> <command> | trigger remove <id>', 'ch-msg'); return true; }
     const pattern = parts[1];
     const command = parts.slice(2).join(' ');
-    const id = triggerSeq++;
+    // Imports and panel edits may have changed the list since the last add.
+    triggerSeq = repairTriggerIds(triggers);
+    const id = triggerSeq;
     triggers.push({ id, pattern, command });
     saveTriggers();
     append(`Trigger ${id}: "${pattern}" -> ${command}`, 'ch-notice');

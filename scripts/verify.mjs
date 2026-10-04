@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(fileURLToPath(import.meta.url), '..', '..');
+const release = process.argv.includes('--release');
 const files = [];
 const SKIP_DIRS = new Set(['node_modules', 'store', '.git', 'live', 'bins']);
 const walk = (dir) => {
@@ -47,15 +48,15 @@ run('data integrity', () => execFileSync(process.execPath, ['scripts/audit-data.
 run('documentation consistency', () => execFileSync(process.execPath, ['scripts/verify-roadmap.mjs'], { cwd: ROOT, stdio: 'inherit' }));
 
 // Corpus owns its worlds; never connect to a shared development server.
-if (process.env.DR_VERIFY_CORPUS === '1') {
+if (release || process.env.DR_VERIFY_CORPUS === '1') {
   run('isolated corpus capture and replay', () => execFileSync(process.execPath,
     ['scripts/verify-corpus.mjs'], { cwd: ROOT, stdio: 'inherit' }));
 } else {
   steps.push('SKIP  corpus integration (set DR_VERIFY_CORPUS=1; disposable worlds start automatically)');
 }
-if (process.env.DR_VERIFY_BROWSER === '1') {
+if (release || process.env.DR_VERIFY_BROWSER === '1') {
   run('isolated browser regression', () => execFileSync(process.execPath,
-    ['scripts/client-regression.mjs'], { cwd: ROOT, stdio: 'inherit' }));
+    [process.env.DR_VERIFY_BROWSER_DRIVER === 'ego' ? 'scripts/client-regression-ego.mjs' : 'scripts/client-regression.mjs'], { cwd: ROOT, stdio: 'inherit' }));
 } else {
   steps.push('SKIP  browser regression (set DR_VERIFY_BROWSER=1 and DR_CHROMIUM_PATH if needed)');
 }

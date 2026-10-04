@@ -119,43 +119,42 @@ function classifyRun(root, family, name, { nowMs, isProcessAlive = isPidRunning 
   }
 
   const finished = manifest.finishedAt || manifest.finished_at || null;
-  const finishedMs = typeof finished === 'string' ? Date.parse(finished) : Number.NaN;
+  // Python manifests use Unix seconds; JavaScript producers use ISO strings.
+  const finishedMs = typeof finished === 'number' && Number.isFinite(finished) && finished > 0
+    ? finished * 1000 : typeof finished === 'string' ? Date.parse(finished) : Number.NaN;
   if (!Number.isFinite(finishedMs)) {
     return { ...item, decision: 'protected', reason: 'missing-terminal-timestamp' };
   }
   return { ...item, decision: 'candidate', reason: 'terminal-unreferenced', terminalMs: finishedMs };
 }
 
-function collectReferenceFiles(root, excluded) {
-  const excludedSet = new Set(excluded);
-  const files = [];
-  const visit = (directory) => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      const path = join(directory, entry.name);
-      if (excludedSet.has(resolve(path))) continue;
-      if (entry.isSymbolicLink()) continue;
-      if (entry.isDirectory()) { visit(path); continue; }
-      if (!entry.isFile() || !/\.(?:json|jsonl)$/i.test(entry.name)) continue;
-      const rel = safeRelative(root, path);
-      if (!rel || rel === 'retention-manifest.json') continue;
-      const stat = statSync(path);
-      if (stat.size > MAX_REFERENCE_FILE_BYTES) continue;
-      try { files.push({ path: rel, text: readFileSync(path, 'utf8') }); }
-      catch {}
-    }
-  };
-  visit(root);
-  return files;
+function* collectReferenceFiles(root, directory = root) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) { yield* collectReferenceFiles(root, path); continue; }
+    if (!entry.isFile() || !/\.(?:json|jsonl)$/i.test(entry.name)) continue;
+    const rel = safeRelative(root, path);
+    if (!rel || rel === 'retention-manifest.json') continue;
+    const stat = statSync(path);
+    if (stat.size > MAX_REFERENCE_FILE_BYTES) { yield { path: rel, unknown: true }; continue; }
+    try { yield { path: rel, text: readFileSync(path, 'utf8') }; }
+    catch { yield { path: rel, unknown: true }; }
+  }
 }
 
 function attachReferences(root, runItems) {
-  const runDirectories = runItems.map((item) => resolve(root, item.path));
-  const references = collectReferenceFiles(root, runDirectories);
-  return runItems.map((item) => {
-    if (item.decision !== 'candidate') return item;
-    const hit = references.find((ref) => ref.text.includes(item.runId));
-    return hit ? { ...item, decision: 'protected', reason: 'referenced', reference: hit.path } : item;
-  });
+  const items = runItems.map((item) => ({ ...item }));
+  // Retain at most one file's contents, not the whole experiment history.
+  for (const ref of collectReferenceFiles(root)) {
+    for (const item of items) {
+      if (item.decision !== 'candidate' || ref.path.startsWith(item.path + '/')) continue;
+      if (!ref.unknown && !ref.text.includes(item.runId)) continue;
+      Object.assign(item, { decision: 'protected',
+        reason: ref.unknown ? 'reference-scan-incomplete' : 'referenced', reference: ref.path });
+    }
+  }
+  return items;
 }
 
 function publicReport(plan) {

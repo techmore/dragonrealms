@@ -6,6 +6,17 @@
   <title>Dragon Realms — GM Console</title>
   <link rel="stylesheet" href="/css/style.css">
   <style>
+    html, body { height: auto !important; overflow: auto !important; }
+    #gm-app > *, .gm-card { min-width: 0; }
+    #gm-db-out { overflow-x: auto; }
+    #gm-app input { box-sizing: border-box; max-width: 100%; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+    @media (max-width: 760px) {
+      #gm-app { grid-template-columns: minmax(0, 1fr) !important; padding: 8px; }
+      #topbar { height: auto; flex-wrap: wrap; gap: 8px; padding: 8px; }
+      .topbar-right { flex-wrap: wrap; }
+      .gm-room, .gm-ch, .gm-pip, .tool { min-height: 36px; }
+    }
     #gm-app { display: grid; grid-template-columns: 340px 1fr; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
     #gm-app h2 { color: var(--amber); margin: 0 0 8px; font-size: 16px; }
     .gm-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
@@ -50,8 +61,8 @@
     <span class="brand"><span class="brand-mark">&#128009;</span> DRAGON REALMS <span class="gm-dim">· GM Console (read-only)</span></span>
     <span class="topbar-right">
       <span id="conn-status" class="conn-off">GM console</span>
-      <input id="gm-token" type="password" placeholder="Dedicated GM token" autocomplete="off" style="width:140px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--text)">
-      <button id="gm-token-go" class="tool">&#128274;</button>
+      <input id="gm-token" type="password" aria-label="Dedicated GM token" placeholder="Dedicated GM token" autocomplete="off" style="width:140px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--text)">
+      <button id="gm-token-go" class="tool" aria-label="Apply GM token">&#128274;</button>
     </span>
   </header>
   <button id="gm-refresh" class="tool">↻ Refresh</button>
@@ -61,7 +72,7 @@
       <div class="gm-card"><h2>Online / Live Streams</h2><div id="gm-online"></div></div>
       <div class="gm-card"><h2>Characters</h2><div id="gm-chars"></div></div>
       <div class="gm-card"><h2>Database</h2>
-        <input id="gm-db-q" placeholder="SELECT ... LIMIT 100" autocomplete="off" style="width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--text);margin-bottom:6px">
+        <input id="gm-db-q" aria-label="Read-only database SELECT query" placeholder="SELECT ... LIMIT 100" autocomplete="off" style="width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--text);margin-bottom:6px">
         <div id="gm-db-tables" style="display:flex;flex-wrap:wrap;gap:4px"></div>
         <div id="gm-db-out"></div>
       </div>

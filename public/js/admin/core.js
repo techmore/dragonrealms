@@ -4,6 +4,7 @@
 'use strict';
 
 import { harvestGmTokenFromFragment, storedGmToken } from '../gm-token.js';
+import { gmRequest } from '../gm-request.js';
 harvestGmTokenFromFragment();
 
 const $ = (id) => document.getElementById(id);
@@ -12,7 +13,9 @@ const trim = (a, n) => { while (a.length > n) a.shift(); };
 
 const S = {
   paused: false,
-  every: Number(localStorage.getItem('dr_admin_every')) || 5000,
+  reloadPending: false,
+  every: Math.max(1000, Math.min(60000, Number(localStorage.getItem('dr_admin_every')) || 5000)),
+  tokenGeneration: 0,
   token: storedGmToken(),
   up: null,               // last /api/health result
   gm: 'pending',          // pending|off|locked|notconf|err|ok
@@ -86,15 +89,15 @@ window.addEventListener('message', (e) => {
   if (e.data && e.data.t === 'gm-toast' && e.data.text) toast(String(e.data.text));
 });
 
-async function gm(path) {
-  const headers = S.token ? { Authorization: 'Bearer ' + S.token } : {};
+async function gm(path, options = {}) {
+  const generation = S.tokenGeneration;
   try {
-    const r = await fetch('/api/gm/' + path, { cache: 'no-store', headers });
+    const r = await gmRequest('/api/gm/' + path, S.token, options);
     let d = null;
     try { d = await r.json(); } catch {}
+    if (generation !== S.tokenGeneration) return { code: 0, ok: false, d: null, stale: true };
     return { code: r.status, ok: !!r.ok && d?.ok !== false, d };
   } catch { return { code: 0, ok: false, d: null }; }
 }
 
 export { $, esc, trim, S, cssVar, fmtDur, fmtBytes, toast, gm, gotoTab };
-

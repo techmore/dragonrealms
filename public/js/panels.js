@@ -10,6 +10,7 @@ import { listScripts, readScript, browserScripts, ownsScript, scriptLibraryReady
 import { revealWindow, setWindowVisible, isWindowVisible, clearWindowSeen } from './windows.js';
 import { gameState } from './state.js';
 import { CONFIG_KEYS, parseConfig, restoreConfig } from './config.js';
+import { isAutomationPaused, setAutomationPaused } from './automation-control.js';
 
 const PANELS = {
   inv: { title: 'INVENTORY', cmd: 'inventory' },
@@ -197,6 +198,11 @@ function renderScriptsPanel() {
     ? triggers.map((t) => `<div class="script-row"><span class="script-kind">TRIGGER</span><span class="script-text" title="${escapeHtml(t.command)}">${escapeHtml(t.pattern)} \u2192 ${escapeHtml(t.command)}</span><button data-edit="trigger:${escapeHtml(t.id)}" title="Edit">\u270e</button><button data-remove="trigger:${escapeHtml(t.id)}">\u2715</button></div>`).join('')
     : '';
   if (!html) html = '<span class="panel-empty">No scripts yet. Define macros, timers, or triggers below.</span>';
+  html += `<div class="script-block">
+    <p id="automation-summary" role="status">${isAutomationPaused() ? 'Automation paused' : 'Automation enabled'} · ${isScriptRunning() ? 'DR script running' : 'no DR script running'} · ${timers.length} timers · ${triggers.length} triggers</p>
+    <button id="automation-pause" type="button" aria-pressed="${isAutomationPaused()}">${isAutomationPaused() ? 'Resume timers and triggers' : 'Pause all automation'}</button>
+    <p>Pause stops the running DR script and suspends timers and triggers. Definitions are kept. Resume does not restart a stopped script; run it explicitly.</p>
+  </div>`;
   html += `<div class="script-add">
     <label for="script-kind">Automation type</label><select id="script-kind">
       <option value="macro">Macro (label + command)</option>
@@ -262,6 +268,11 @@ function renderScriptsPanel() {
     });
   });
   $('scripts-stop').addEventListener('click', stopScript);
+  $('automation-pause').addEventListener('click', () => {
+    setAutomationPaused(!isAutomationPaused());
+    renderScriptsPanel();
+    $('automation-pause').focus();
+  });
   $('config-export').addEventListener('click', exportConfig);
   $('config-import').addEventListener('click', importConfig);
   $('script-kind').value = scriptDraft.kind;

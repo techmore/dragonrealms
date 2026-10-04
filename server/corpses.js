@@ -88,25 +88,32 @@ export function dropFloor(game, roomId, itemId, qty = 1, transferred = null) {
 // Drop a player's item as one durable unit. This closes the old failure
 // window where removeItemInstances() committed before the floor insert.
 export function dropPlayerItem(game, p, item, qty = 1) {
+  const floor = game.floorItems.get(p.room);
+  if (!floor) return { ok: false, error: 'There is nowhere safe to drop that item.' };
   const n = Math.max(1, Math.floor(qty) || 1);
   const inventory = p.inventory.map((entry) => ({ ...entry }));
   const handsDirty = p.handsDirty;
+  const additions = [];
   try {
     db.exec('BEGIN IMMEDIATE');
     const instances = removeItemInstances(p, item.item.id, n, item);
+    if (instances.reduce((total, entry) => total + entry.qty, 0) !== n) {
+      throw new Error('You no longer have enough of that item.');
+    }
     if (isStackableItem(item.item)) {
       const lootUid = uid();
       insertLoot({ uid: lootUid, room: p.room, kind: 'item', itemId: item.item.id, itemName: item.item.name, qty: n });
-      game.floorItems.get(p.room).push({ uid: lootUid, item: item.item, qty: n });
+      additions.push({ uid: lootUid, item: item.item, qty: n });
     } else {
       for (let copy = 0; copy < n; copy += 1) {
         const metadata = instanceMetadata(instances[copy] || {});
         const lootUid = uid();
         insertLoot({ uid: lootUid, room: p.room, kind: 'item', itemId: item.item.id, itemName: item.item.name, qty: 1, metadata });
-        game.floorItems.get(p.room).push({ uid: lootUid, item: item.item, qty: 1, ...metadata });
+        additions.push({ uid: lootUid, item: item.item, qty: 1, ...metadata });
       }
     }
     db.exec('COMMIT');
+    floor.push(...additions);
     p.handsDirty = true;
     return { ok: true };
   } catch (error) {
@@ -233,19 +240,24 @@ export function retrieveFromCorpse(game, p, itemName) {
 }
 
 export function takeFloorItem(p, floor, qty = 1) {
-  const take = Math.max(1, Math.min(qty, floor.qty));
+  if (!Number.isFinite(floor.qty) || floor.qty < 1) return { ok: false, error: 'There is nothing to take.' };
+  const take = Math.max(1, Math.min(Number.isFinite(qty) ? Math.floor(qty) : 1, floor.qty));
   const inventory = p.inventory.map((entry) => ({ ...entry }));
   const handsDirty = p.handsDirty;
   try {
     db.exec('BEGIN IMMEDIATE');
     const metadata = floor.instances
-      ? floor.instances.splice(0, take)
+      ? floor.instances.slice(0, take)
       : { condition: floor.condition, quality: floor.quality, maker: floor.maker };
     addItem(p, floor.item.id, take, metadata);
-    floor.qty -= take;
-    if (floor.qty <= 0) db.prepare('DELETE FROM world_loot WHERE uid=?').run(floor.uid);
-    else db.prepare('UPDATE world_loot SET qty=? WHERE uid=?').run(floor.qty, floor.uid);
+    const remaining = floor.qty - take;
+    const result = remaining <= 0
+      ? db.prepare('DELETE FROM world_loot WHERE uid=? AND qty=?').run(floor.uid, floor.qty)
+      : db.prepare('UPDATE world_loot SET qty=? WHERE uid=? AND qty=?').run(remaining, floor.uid, floor.qty);
+    if (result.changes !== 1) throw new Error('The floor item is no longer available.');
     db.exec('COMMIT');
+    floor.qty = remaining;
+    if (floor.instances) floor.instances.splice(0, take);
     return { ok: true, take };
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch {}

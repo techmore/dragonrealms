@@ -9,6 +9,9 @@ regenerate (the circle matrix is pulled live from the circle engine).
 - **Current state:** see the `Status` markers below. ✅ = live, 🚧 = partial, ⬜ = planned.
 - **Parity bar:** every guild must be able to reach circle 10 through a fair,
   fun, self-directed loop (hunt → skill up → train → circle → new spells/gear).
+- **Experience acceptance:** feature availability and simulator reachability
+  are necessary, not sufficient. New players must understand their next step,
+  retain control of commands and automation, and trust operational status.
 
 **Status snapshot (2026-08):** circle-10 reachability for all 11 guilds is
 sim-verified against cumulative source band tables. The EXP, TDP, and rank-cap
@@ -203,7 +206,7 @@ The web client is the surface for automation. All scripting is **client-side**
 | **Ember theme** (4th: deep charcoal + forge-light, all tokens WCAG AA) | ✅ |
 | **WCAG AA contrast pass** on every theme's text/accent/muted/dim tokens | ✅ |
 | Font size & family controls | ✅ (size slider; mono/serif family; line spacing) |
-| **Quick font keys** (Ctrl/Cmd `=`/`-` step, `0` resets) | ✅ |
+| **Quick font keys** (Ctrl/Cmd+Alt `=`/`-` step, `0` resets; native browser zoom preserved) | ✅ |
 | **Channel muting** (Settings → Channels; render-time filter, automation unaffected) | ✅ |
 | **Timestamps toggle** (`[HH:MM]` prefixes on story lines) | ✅ |
 | **Automation edit-in-place** (macro/trigger row editors in the Scripts panel) | ✅ |
@@ -531,8 +534,172 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 - **Stage 11 — Cross-Guild Systems 🚧** — full DR skill set, mana types + cambrinth, spell-slot budgets with learn/forget, Nth-skill engine, and v1 of all five craft disciplines (incl. Enchanting `imbue`) live; deeper discipline trees pending (Pillar 12).
 - **Stage 12 — Guild Fidelity 🚧** — every guild has a live fidelity v1 (enchantes, devotion, wound-taking, prediction, risen, soul, companions/beseeches, khri, commodity pits, familiars); deeper per-guild trees pending (Pillars 13–22).
 - **Stage 13 — World & Systems Fidelity 🚧** — Riverhaven (with its own wilds), hunting ladder + specialized views, task quests, justice loop, and v1 craft disciplines live; provinces and the full crime set pending (Pillars 23–27).
+- **Stage 14 — Tooling & Ops ✅** — existing simulator, mapper, generated references, and single-world guard; reliability improvements are tracked separately below.
+- **Stage 15 — Code Health & Modularity ✅** — existing delegate, transport, token, and admin-module extraction pass; this is not a claim that all future modularity work is complete.
+- **Stage 16 — Trust & Control 🚧** — code fixes and targeted regressions implemented; explicit persisted tooling provenance remains pending.
+- **Stage 17 — Player Experience & Accessibility 🚧** — optional state-derived guidance, automation pause, keyboard fixes, and connection feedback implemented; deeper journey validation and accessibility certification remain pending.
+- **Stage 18 — Evidence-Backed Releases 🚧** — release profile, additive wire validation, and tested Sims discovery/tailing helpers implemented; broader contracts, benchmark receipts, and human validation remain pending.
 
 ## Next Up (prioritized backlog)
+
+**Delivery order (2026-10-03 audit):** Stage 16 → Stage 17 → Stage 18.
+Evidence tooling and targeted tests may proceed alongside the fixes. Keep the
+text-first identity, Node stdlib + `ws`, vanilla client, and zero new dependencies.
+Do not broaden this pass into a framework rewrite or speculative balance changes.
+The older content backlog below remains valid, but does not outrank trust and
+control defects. The original expansion was planning-only; implementation status
+is recorded below without treating human acceptance work as automatically done.
+
+**Implementation receipt (2026-10-04, audit delivery):**
+
+- Fresh verification: 952 Node tests passed, isolated corpus capture/replay
+  matched, and the real Ego browser passed 82 existing plus 15 October audit
+  checks. Syntax, inline-script syntax, data, reproducible generators, docs,
+  and diff whitespace checks passed. No full visual or screen-reader certification
+  is claimed. The mandatory release profile passed end-to-end using
+  `DR_VERIFY_BROWSER_DRIVER=ego npm run verify:release`; local log:
+  `/tmp/dragonrealms-release-20261004.log` (an ephemeral receipt).
+- Implemented: `ux-draft`, `ux-trigger-id`, `ops-gm-contract`,
+  `ops-inspector-identity`, `ops-polling`, `ops-telemetry`,
+  `core-persistence-shape`, and `ux-automation-control`.
+- Partial: deletion now labels every account's provenance unknown and no longer
+  guesses safety from names, but a persisted provenance model/migration is still
+  required. Optional hints derive from prompt `journey`/requirement snapshots;
+  rank-gap explanations are live, but complete first-session/human acceptance is
+  pending. Native zoom, Windows focus, and GM responsive layout are repaired;
+  real-device, screen-reader, contrast, and reduced-motion certification remain.
+- Partial: onboarding selection/entry failures show pending/retry feedback;
+  minimal additive server-message validation and extracted Sims reliability
+  helpers are tested. Full wire contracts, transcript redesign, and revision-linked
+  progression benchmarks are not declared complete.
+- Regression sources: `test/player-ux-*.test.mjs`,
+  `test/gm-ux-requests.test.mjs`, `test/sims-ux-reliability.test.mjs`,
+  `test/player-json.test.mjs`, `test/journey-hints.test.mjs`,
+  `test/automation-control.test.mjs`, `test/wire-message.test.mjs`, and
+  `scripts/lib/audit-client-checks.mjs`. Browser checks use disposable worlds;
+  no production deletion, service activation, or progression sim is performed.
+- Transcript storage retains existing semantics for now; the misleading settings
+  copy was corrected to explain that new muted lines are not stored or printed.
+  Search/export privacy decisions remain explicitly planned.
+
+### Stage 16 — Trust & Control
+
+Audit scope: three parallel reviews plus independent browser/isolated-data
+probes. The fresh baseline passed 919 tests and 82 client checks; those passes
+did not cover all findings below. Screenshot capture was unavailable, so this
+was not a complete visual or assistive-technology certification.
+
+- **ux-draft — Independent command dispatch.** Separate programmatic sends
+  from editable-input submission (`input.js`, compass, macros, timers, triggers).
+  Accept when a drafted message, caret/selection, and focus survive each action;
+  only explicit submission clears the draft, and offline failure preserves it.
+- **ux-trigger-id — Stable persisted trigger IDs.** Initialize IDs from saved
+  records and repair duplicates without losing triggers. Accept when reload,
+  import, add, edit, and remove target exactly one intended record; include the
+  reproduced `[1, 1]` reload case in regression coverage.
+- **ops-gm-contract — Shared method-aware GM requests.** Correct reload's GET
+  versus POST mismatch and deletion's overwritten Authorization header. Accept
+  when method/body/header merging is tested, authentication errors are visible,
+  failed mutations retain selections, and double submission is prevented.
+- **ops-delete-provenance — Evidence-based deletion safety.** Replace name-prefix
+  guesses with explicit tooling provenance; unknown provenance is not safe.
+  Accept when human names such as `simon`/`testament` are not classified as
+  disposable, previews identify exact targets, and protected/skipped results
+  remain visible. Define treatment of legacy accounts before migration.
+- **ops-inspector-identity — Selection-scoped snapshots and streams.** Cancel or
+  invalidate stale reads and close the old stream on every selection change.
+  Accept when rapid A→B and online→offline changes never mix a heading,
+  snapshot, or stream from different characters, including delayed responses.
+- **ops-polling — Bounded, serialized refreshes.** Prevent overlapping admin
+  polls; invalidate earlier credential/selection generations. Accept when slow
+  requests cannot overwrite newer data and timeout/retry/pause states are clear.
+- **ops-telemetry — Truthful Sims discovery and byte-safe tails.** Separate
+  loading/live/completed/stale/unavailable from verified empty results; retain
+  last-success timestamps. Track HTTP range offsets in bytes, not decoded string
+  length. Accept when discovery failures do not become “0 live,” and Unicode,
+  truncation, rotation, and partial range responses neither repeat nor lose text.
+- **core-persistence-shape — Validate stored JSON boundaries.** Normalize arrays
+  and objects with diagnostics and safe defaults. Accept when valid JSON with
+  the wrong shape (including achievements `{}`), null, malformed JSON, and legacy
+  records cannot crash normal player actions or silently erase valid data.
+
+**Exit gate:** each item has a focused failing-then-passing regression, applicable
+client/API integration coverage, and a reproducible receipt. No real account
+deletion, world reload, service startup, or deployment is implied by planning.
+
+### Stage 17 — Player Experience & Accessibility
+
+- **ux-first-session — Optional, persistent next-step guidance.** Help players
+  explore guilds, find a hall, join, obtain gear, try a safe encounter, understand
+  learning, and train/circle. Derive hints from actual state and command metadata;
+  allow dismissal and re-entry, do not force Barbarian or replace terminal play.
+  Accept when a newcomer can complete the journey without repository docs and
+  hints recover correctly after reconnect. Validate noncombat guild routes too.
+- **ux-progress — Explain requirement gaps and useful choices.** Distinguish
+  field EXP from ranks, show remaining circle requirements and relevant actions,
+  and explain training cost, roundtime, death recovery, and unavailable abilities.
+  Accept when observed learning is never presented as proof of target completion.
+- **ux-access — Preserve native zoom and keyboard focus.** Move terminal-font
+  shortcuts off browser zoom keys; retain Windows-menu focus after toggles;
+  support Escape and return focus to the opener. Audit labels, status announcements,
+  contrast, reduced motion, and touch targets across player, GM, admin, and Sims.
+  Accept with keyboard-only journeys, 200% browser zoom, 390px viewport checks,
+  long-content layouts, and a documented screen-reader/manual contrast pass.
+- **ux-automation-control — Visible, scoped automation controls.** Show active
+  scripts, timers, and triggers; distinguish script stop from pause-all automation.
+  Accept when pause-all prevents every automated send without losing definitions,
+  and logout/reconnect behavior is explicit and tested; resume is deliberate.
+- **ux-connection — Consistent pending/error/retry states.** Cover login,
+  character selection, allocation, entry, and reconnect. Accept when failed sends
+  cannot silently stall onboarding, drafts survive outages, and retries do not
+  duplicate creation or mutations. Distinguish read-only spectating clearly.
+- **ux-history — Separate transcript storage from display filters.** Evaluate a
+  bounded message store for search and export while preserving current automation
+  semantics. Define muted/gagged inclusion and privacy before implementation;
+  acceptance includes predictable retention, no unbounded memory, and no accidental
+  sensitive-message export. Treat this as a design decision, not a shipped defect.
+
+**Exit gate:** record task completion, confusion points, recovery behavior, and
+accessibility findings from actual playtests. No fabricated satisfaction score
+or simulator timing substitutes for human experience evidence.
+
+### Stage 18 — Evidence-Backed Releases & Maintainability
+
+- **quality-boundaries — Shared transport contracts.** Document discriminated
+  wire messages and GM request/response contracts; validate untrusted boundaries
+  with dependency-free helpers and compatibility fixtures. Avoid a monolithic
+  abstraction or a risky wholesale protocol rewrite.
+- **quality-sims-modules — Extract Sims responsibilities incrementally.** Move
+  discovery, byte-safe log tailing, telemetry interpretation, and polling into
+  testable modules, leaving rendering as presentation. Capture behavior before
+  extraction; preserve dashboard-visible logs/manifests and historical run links.
+- **quality-release-gate — Required client verification profile.** Keep fast
+  local checks, but require syntax/domain/security/API tests, reproducible docs,
+  corpus replay, client regression, and targeted failure-path checks for releases.
+  Missing prerequisites must fail or explicitly block certification, not silently
+  count as passed. Use disposable worlds; clean them up without enabling services.
+- **evidence-progression — Revision-linked benchmark receipts.** Save run ID,
+  timestamp, code revision/dirty state, guild/race, boost, target, time cap, training
+  policy, navigation model, result paths, completion/gap closure, deaths, and stalls.
+  Run bounded background jobs with durable logs and dashboard-visible manifests;
+  perform one launch check and review saved results on requested continuation.
+  Compare only matched runs; missing/stale telemetry remains unknown.
+- **evidence-roadmap — Traceable status and pacing claims.** Link stable feature
+  IDs to implementation and verification receipts before marking them done.
+  Reconcile historical timing tables against fresh matched receipts; document
+  simulator-policy changes instead of asserting unsupported balance conclusions.
+  Docs consistency is a structural check, not proof of feature completion.
+- **evidence-playtest — Human growth-loop acceptance.** Test new and returning
+  players, keyboard/mobile paths, and combat/noncombat guilds. Publish observed
+  navigation, first-action, training/circling, death/recovery, and economy friction.
+  Set pacing targets from this evidence before retuning mechanics; use matched
+  simulations to guard regressions, not to declare the game fun.
+
+**Exit gate:** dated release receipt identifies exactly what ran, what passed,
+what was skipped, and remaining limitations. No stage closes solely because
+feature counts, generated documentation, or synthetic circle-10 runs are green.
+
+### Existing content-depth backlog
 
 **P1 — growth-loop depth**
 - ~~Spell-slot-constrained learning + free magical feats at circle 2 (P12/P25)~~ ✅ live: tier-scaled budgets, per-tier costs, `learn`/`forget`, +2 feat at circle 2
@@ -555,6 +722,14 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 
 ## Tooling
 
+- `npm run verify` — syntax, domain/security/API tests, data and reproducible docs;
+  optional integration gates are explicitly reported as skipped, not passed.
+- `npm run verify:release` — requires isolated corpus replay and browser regression
+  as well as the baseline checks. Missing browser prerequisites fail the gate.
+  Use `DR_CHROMIUM_PATH` for the Chromium driver, or
+  `DR_VERIFY_BROWSER_DRIVER=ego npm run verify:release` for the supported Ego
+  driver. `npm run regression:ego` runs the browser checks alone. Both drivers
+  include October failure-path checks; worlds/profiles are isolated and cleaned up.
 - `node scripts/simulate-progression.mjs [guild]` — headless grind using the real
   combat/training/circle systems (trainers, TDP spending, foraging, hunting,
   hiding, potions, strongboxes). Validates that **every guild can reach circle
@@ -572,7 +747,17 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 - `npm test` — the complete headless domain, HTTP API, security, and static
   suites (`server/api.js`, enable the runtime API with `DR_ENABLE_API=1`).
 
-**Deterministic circle-10 simulation (cumulative band requirements):**
+### Historical progression snapshots — not current pacing guarantees
+
+The following two snapshots are retained for historical context. Their original
+run dates, code revisions, and fully matched configuration receipts are not
+recorded here; do not compare them as equivalent cohorts or use them as current
+acceptance targets. The current simulator prohibits TDP skill spending, which
+differs from the policy described in the second snapshot. Stage 18 will replace
+current-facing claims with revision-linked results; no fresh pacing run was
+performed for the 2026-10-03 UX audit.
+
+**Historical deterministic circle-10 simulation (cumulative band requirements):**
 
 | Guild | Hunts | Active min | Active hours |
 |---|---:|---:|---:|
@@ -588,18 +773,19 @@ passes (Pillars 13–22) will swap in any remaining DR nuance.
 | Trader | 1,974 | 2,024 | 33.7 |
 | Warrior Mage | 2,997 | 1,964 | 32.7 |
 
-All eleven runs reached circle 10 with zero deaths. These numbers validate
+The historical report states all eleven runs reached circle 10 with zero deaths. These numbers describe
 engine reachability, not human pacing: the simulator performs deterministic
 practice and does not model navigation, social play, experimentation, or idle
-time. The 15.6–75.6 hour spread is now explicit evidence for the live-play
-balance backlog, especially the Empath and Ranger curves.
+time. The reported 15.6–75.6 hour spread is a historical investigation lead,
+not a verified current balance result.
 
-**Simulated circle-1→10 pacing (post-balance simulator, all 11 guilds):**
+**Historical circle-1→10 pacing (reported post-balance simulator, all 11 guilds):**
 Bard 10.4h · Trader 10.6h · Paladin 11.6h · Thief 12.8h · Ranger 14.6h ·
 Moon Mage 16.7h · Necromancer 16.7h · Barbarian 20h · Empath 29.7h ·
 Cleric 40h · Warrior Mage 40.4h.
-The defensive-skill starvation that produced the old outliers (Cleric
-114h) was a simulator artifact — fixed by letting the sim spend its TDP
+The historical explanation attributed defensive-skill starvation and old outliers
+(Cleric 114h) to a simulator artifact, reportedly fixed by spending the sim's TDP
 pool on lagging parry/defending and looping guild training passes. The
-remaining spread (10–40h) reflects real DR tiering: deep casters climb
-slowest; stealth/hybrid guilds fastest.
+remaining spread (10–40h) was attributed to guild tiering. Neither that causal
+claim nor human pacing is established by the current audit; revalidate under
+documented, matched training policies before using it to guide balance.

@@ -99,6 +99,35 @@ test('active or uncertain processes and Puffer review states are protected', (t)
   assert.equal(report.protected.find((item) => item.runId === 'rejected-evidence').reason, 'promotion-rejected');
 });
 
+test('Python numeric completion timestamps are recognized as Unix seconds', (t) => {
+  const root = tempRoot(t);
+  addRun(root, 'puffer', 'python-completed', puffer('python-completed', { finished_at: Date.parse(OLD) / 1000 }));
+  addRun(root, 'puffer', 'invalid-number', puffer('invalid-number', { finished_at: -1 }));
+  const report = retentionReport(plan(root));
+  assert.deepEqual(report.selected.map((item) => item.runId), ['python-completed']);
+  assert.equal(report.protected.find((item) => item.runId === 'invalid-number').reason, 'missing-terminal-timestamp');
+});
+
+test('protected run dependencies are visible to planning and application', (t) => {
+  const root = tempRoot(t);
+  const parent = addRun(root, 'jev-player', 'parent-evidence', jev('parent-evidence'));
+  addRun(root, 'jev-player', 'active-child', jev('active-child', { status: 'playing', parentRun: 'parent-evidence' }));
+  const planned = plan(root);
+  assert.equal(planned.selected.length, 0);
+  assert.equal(planned.protected.find((item) => item.runId === 'parent-evidence').reason, 'referenced');
+  applyLiveRetention(planned);
+  assert.equal(existsSync(parent), true);
+});
+
+test('incomplete reference scans fail closed instead of deleting evidence', (t) => {
+  const root = tempRoot(t);
+  addRun(root, 'jev-player', 'old-evidence', jev('old-evidence'));
+  writeFileSync(join(root, 'large-history.jsonl'), ' '.repeat(10 * 1024 * 1024 + 1));
+  const report = retentionReport(plan(root));
+  assert.equal(report.selected.length, 0);
+  assert.equal(report.protected[0].reason, 'reference-scan-incomplete');
+});
+
 test('queue/report references protect a run and keepLast preserves recent terminal evidence', (t) => {
   const root = tempRoot(t);
   addRun(root, 'jev-player', 'referenced', jev('referenced'));

@@ -5,9 +5,11 @@ import { openPlayerView } from './playerview.js';
 
 /* ================= high scores ================= */
 const HS = { page: 1, perPage: 25, sort: 'circle' };
+let hsGeneration = 0;
 export async function loadHighScores() {
+  const generation = ++hsGeneration;
   const r = await gm(`highscores?page=${HS.page}&perPage=${HS.perPage}&sort=${HS.sort}`);
-  if (!r.ok || !r.d?.characters) return;
+  if (generation !== hsGeneration || !r.ok || !r.d?.characters) return;
   const { characters, total, page, perPage } = r.d;
   const pages = Math.max(1, Math.ceil(total / perPage));
   $('hs-page').textContent = `${page} / ${pages}`;
@@ -35,15 +37,25 @@ if ($('hs-sort')) $('hs-sort').onchange = () => { HS.sort = $('hs-sort').value; 
 /* ================= polling ================= */
 
 let hsLast = 0;
+let tickBusy = false, tickQueued = false;
 export async function tick(manual = false) {
-  if (S.gm === 'ok' && Date.now() - hsLast > 30000) { hsLast = Date.now(); loadHighScores().catch(() => {}); }
-
+  if (tickBusy) { tickQueued ||= manual === true; return; }
+  tickBusy = true;
+  try { await poll(manual); }
+  finally {
+    tickBusy = false;
+    if (tickQueued) { tickQueued = false; void tick(true); }
+  }
+}
+async function poll(manual) {
+  const generation = S.tokenGeneration;
   if (S.paused && !manual) return;
+  if (S.gm === 'ok' && Date.now() - hsLast > 30000) { hsLast = Date.now(); loadHighScores().catch(() => {}); }
 
   // public health — always available, also feeds latency + population history
   try {
     const t0 = performance.now();
-    const r = await fetch('/api/health', { cache: 'no-store' });
+    const r = await fetch('/api/health', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
     const h = await r.json();
     S.lat.push(Math.max(1, Math.round(performance.now() - t0)));
     trim(S.lat, 180);
@@ -53,9 +65,11 @@ export async function tick(manual = false) {
   } catch { S.up = false; }
 
   // GM side
+  if (generation !== S.tokenGeneration) return;
   if (!S.token) { S.gm = 'off'; }
   else {
     const [st, sm] = await Promise.all([gm('admin/status'), gm('summary')]);
+    if (generation !== S.tokenGeneration) return;
     if (st.code === 200 && st.ok) {
       const proc = st.d.proc;
       if (proc) {
@@ -69,7 +83,7 @@ export async function tick(manual = false) {
       S.status = st.d;
       S.statusAt = Date.now();
       S.gm = 'ok';
-      if (!S.world) loadWorld();
+      if (!S.world) void loadWorld();
     } else if (st.code === 401 || st.code === 403) {
       S.gm = 'locked';
       // Keep the stored token. A 401 here is usually a world restart or a
@@ -85,14 +99,20 @@ export async function tick(manual = false) {
   renderAll();
 }
 
+let worldBusy = false;
 export async function loadWorld() {
+  if (worldBusy) return;
+  worldBusy = true;
+  try {
   const [w, n] = await Promise.all([gm('world'), gm('npcs')]);
+  if (w.stale || n.stale) return;
   if (w.code === 200 && w.ok) S.world = w.d;
   if (n.code === 200 && n.ok) {
     S.npcNames = {};
     for (const x of n.d.npcs) S.npcNames[x.id] = x.name;
   }
   renderZones();
+  } finally { worldBusy = false; }
 }
 
 /* ================= render ================= */
@@ -120,7 +140,7 @@ export function renderAll() {
   gmBtn.style.borderColor = gmState[1];
   gmBtn.style.color = gmState[1];
   $('worldref').disabled = !(S.gm === 'ok');
-  $('reload').disabled = !(S.gm === 'ok');
+  $('reload').disabled = S.reloadPending || !(S.gm === 'ok');
 }
 
 // ONE banner answers "does anything need me?" — world down, bad token,
@@ -328,7 +348,7 @@ function renderRoster() {
       ${isSim ? '<a class="watch tab" href="/sims.html" title="run history & grades on the Sims page" style="text-decoration:none;font-size:10px;align-self:center;border:1px solid var(--line);border-radius:4px;padding:2px 7px;color:var(--dim)">SIMS</a>' : ''}
       ${p.inCombat ? '<span class="badge fight">\u2694 FIGHT</span>' : ''}
       <button class="watch" data-name="${esc(p.name)}" data-charid="${esc(p.charId || '')}" title="watch their live interface here">\u{1F441} Watch</button>
-      <button class="watch tab" data-name="${esc(p.name)}" data-charid="${esc(p.charId || '')}" title="open the full client in a new tab">\u2197</button>
+      <button class="watch tab" data-name="${esc(p.name)}" data-charid="${esc(p.charId || '')}" aria-label="Watch ${esc(p.name)} in a new tab" title="open the full client in a new tab">\u2197</button>
     </div>`;
   const simsEl = $('simsroster');
   const simsEmpty = $('simsempty');
@@ -429,6 +449,7 @@ function zoneDetailHtml(z) {
     + (quiet ? `\n<div class="note" style="margin-top:6px">+ ${quiet} unremarkable room${quiet === 1 ? '' : 's'}</div>` : '');
 }
 
+const zoneBusy = new Set();
 async function toggleZone(zEl) {
   const zid = zEl.dataset.z;
   if (S.expanded.has(zid)) {
@@ -436,11 +457,21 @@ async function toggleZone(zEl) {
   } else {
     S.expanded.add(zid);
     if (!S.zoneLive[zid]) {
+      if (zoneBusy.has(zid)) return;
+      zoneBusy.add(zid);
+      try {
       const z = S.world.zones.find((x) => x.id === zid);
-      const results = await Promise.all(z.rooms.map((r) => gm('room/' + encodeURIComponent(r.id))));
+      const world = S.world, generation = S.tokenGeneration;
+      const results = [];
+      for (const room of z.rooms) {
+        const result = await gm('room/' + encodeURIComponent(room.id));
+        if (generation !== S.tokenGeneration || world !== S.world || !S.expanded.has(zid)) return;
+        results.push(result);
+      }
       const map = new Map();
       results.forEach((res, i) => map.set(z.rooms[i].id, res.ok && res.d ? res.d : { creatures: [], players: [], floor: [] }));
       S.zoneLive[zid] = map;
+      } finally { zoneBusy.delete(zid); }
     }
   }
   renderZones();

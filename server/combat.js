@@ -13,6 +13,7 @@ import {
   say, sayRaw,
 } from './player.js';
 import { itemById } from '../data/items.js';
+import { combatEnemyView } from './combat-enemy.js';
 
 // How long an un-skinned creature corpse lingers before it decays and is
 // removed from the room (DR-authentic: bodies rot). Skinning removes the
@@ -101,7 +102,7 @@ export class Combat {
   constructor(id, player, enemies, opts = {}) {
     this.id = id;
     this.player = player;
-    this.enemies = enemies.map((e) => ({ range: 'melee', ...e }));
+    this.enemies = enemies.map(combatEnemyView);
     this.playerTimer = 0;
     this.berserk = false;
     this.backstabCooldown = 0;
@@ -327,7 +328,11 @@ say(t, text, 'combat');
   }
 
   killCreature(target) {
+    if (target.dead || this._ended) return;
     target.dead = true;
+    // Claim death before emitting rewards. Other combats immediately observe
+    // the world spawn as dead and cannot award a second corpse/loot/quest kill.
+    if (target.instance) this.game?.markCreatureKilled?.(target.instance);
     if (!this.player.corpses) this.player.corpses = [];
     // Stamp a decay time so un-skinned corpses rot away instead of piling up
     // in the room forever (DR-authentic: bodies decay). Skinning removes the
@@ -386,13 +391,6 @@ say(t, text, 'combat');
     }
     this.rewardExp(target.def);
     if (this.game && this.game.questKill) this.game.questKill(this.player, target.def.id);
-    // C1 fix: mark the live world spawn dead (respawn clocked) so kills
-    // deplete the room instead of leaving a permanently-rekillable phantom.
-    // Optional-chained: tests construct Combat without a Game reference.
-    if (this.game?.markCreatureKilled && target.instance) {
-      this.game.markCreatureKilled(target.instance);
-    }
-
     if (!this.aliveEnemies.length) this.end(true);
   }
 
@@ -1301,6 +1299,7 @@ say(t, text, 'combat');
   // --- Ticker ---
   tick() {
     if (this._ended) return;
+    if (!this.aliveEnemies.length) return this.end(false);
 
     if (this.backstabCooldown > 0) this.backstabCooldown -= 1;
     for (const k of Object.keys(this.maneuverCd)) if (this.maneuverCd[k] > 0) this.maneuverCd[k] -= 1;
@@ -1584,4 +1583,3 @@ export function pruneCorpses(p) {
   p.corpses = p.corpses.filter((c) => !c.decayedAt || c.decayedAt > now);
   if (p.corpses.length !== before) p.handsDirty = true;
 }
-

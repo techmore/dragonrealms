@@ -49,6 +49,22 @@ test('serves js files with correct mime', async () => {
   assert.match(String(res.calls[0][2]['Content-Type']), /^text\/javascript/);
 });
 
+test('only spectator client permits same-origin admin embedding', async () => {
+  for (const url of ['/?spectate=Auditwatch', '/index.html?spectate=Auditwatch']) {
+    const res = fakeRes();
+    handle(req(url), res);
+    await settle(res);
+    assert.equal(res.calls[0][2]['X-Frame-Options'], 'SAMEORIGIN');
+    assert.match(res.calls[0][2]['Content-Security-Policy'], /frame-ancestors 'self'/);
+  }
+  for (const url of ['/', '/admin.html?spectate=Auditwatch', '/gm.html']) {
+    const res = fakeRes();
+    handle(req(url), res);
+    await settle(res);
+    assert.equal(res.calls[0][2]['X-Frame-Options'], 'DENY');
+  }
+});
+
 test('pretty URL: extensionless path falls back to <path>.html', async () => {
   const res = fakeRes();
   handle(req('/admin'), res);
@@ -171,9 +187,19 @@ test('published logs and JSON reports remain readable with HEAD and range suppor
     assert.equal(head.status, 200);
     assert.equal(head.headers.get('content-length'), '13');
     assert.ok(head.headers.get('last-modified'));
+    assert.ok(head.headers.get('x-file-identity'));
     const tail = await fetch(url+'/run.log', { headers:{ Range:'bytes=6-' } });
     assert.equal(tail.status, 206);
     assert.equal(await tail.text(), 'second\n');
+    const identity = tail.headers.get('x-file-identity');
+    writeFileSync(join(root, 'run.log'), 'first\nsecond\nthird\n');
+    const append = await fetch(url+'/run.log', { headers: { Range: 'bytes=13-' } });
+    assert.equal(append.status, 206);
+    assert.equal(append.headers.get('x-file-identity'), identity);
+    assert.equal(await append.text(), 'third\n');
+    const stale = await fetch(url+'/run.log', { headers: { Range: 'bytes=13-', 'If-Range': 'Wed, 01 Jan 2020 00:00:00 GMT' } });
+    assert.equal(stale.status, 200);
+    assert.equal(await stale.text(), 'first\nsecond\nthird\n');
     const report = await fetch(url+'/report.json');
     assert.equal(report.status, 200);
     assert.deepEqual(await report.json(), { complete:true });

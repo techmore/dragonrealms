@@ -33,6 +33,12 @@ export const STAGES = [
     desc:"Progression simulator, skills doc builder, mapper agent walker, server ops (single-world guard + token publishing)." },
   { id:15, title:"Stage 15 — Code Health & Modularity", badge:"done",
     desc:"Refactor pass from the modularity audit: extract delegates out of the Game facade, unify transport/auth helpers, split admin console modules." },
+  { id:16, title:"Stage 16 — Trust & Control", badge:"partial",
+    desc:"2026-10-04: draft/trigger, GM contracts, inspector identity, polling, telemetry and persistence fixes implemented with regressions; explicit persisted tooling provenance remains pending." },
+  { id:17, title:"Stage 17 — Player Experience & Accessibility", badge:"partial",
+    desc:"State-derived guidance, rank gaps, native zoom/focus, GM responsiveness, automation pause and connection feedback implemented; full human journey/accessibility acceptance pending." },
+  { id:18, title:"Stage 18 — Evidence-Backed Releases", badge:"partial",
+    desc:"Release profile, additive message validation and Sims reliability helpers implemented; broader contracts, matched benchmark receipts and human playtests pending." },
 ];
 
 export const FEATURES = [
@@ -140,7 +146,7 @@ export const FEATURES = [
   { s:7, id:"f169", label:"Timestamps", detail:"live: optional [HH:MM] prefix on story lines, persisted", status:"done" },
   { s:7, id:"f170", label:"Automation edit-in-place", detail:"live: macro and trigger rows editable inline in the Scripts panel (rename/reword without delete+recreate)", status:"done" },
   { s:7, id:"f171", label:"Config export/import", detail:"live: one JSON blob of settings/macros/triggers/highlights/scripts/window layout; clipboard copy on export, validated import reloads", status:"done" },
-  { s:7, id:"f172", label:"Quick font keys", detail:"live: Ctrl/Cmd = / - step font size, Ctrl/Cmd 0 resets; persisted", status:"done" },
+  { s:7, id:"f172", label:"Quick font keys", detail:"live: Ctrl/Cmd+Alt = / - step terminal font size, Ctrl/Cmd+Alt 0 resets; persisted; native browser zoom preserved", status:"done" },
   { s:7, id:"f173", label:"Quest journal window", detail:"live: docked Journal fed by a quest push message on assign/progress/claim; kind badge, live description, ready-to-claim marker; hides when empty", status:"done" },
   { s:7, id:"f174", label:"Chargen stat cards", detail:"live: charcreate carries structured race/guild data; form renders stat-modifier chips per race and mana type per guild", status:"done" },
   { s:7, id:"f175", label:"Scrollback buffer cap", detail:"live: 500/2000/5000/unlimited; DOM never grows unbounded, trimmed search marks pruned", status:"done" },
@@ -252,4 +258,29 @@ export const FEATURES = [
   { s:13, id:"f212", label:"DR chargen: everyone starts in The Crossing", detail:"In DragonRealms you cannot pick your starting town — every new character is created in The Crossing. Remove town selection / special-case start rooms from chargen (including the ranger wilderness start), lock homeCity to crossing, and spawn all fresh characters at the Crossing town square. Guild halls are reached by walking, not by spawning inside them.", status:"todo" },
   { s:12, id:"f213", label:"Join your guild in game, not at chargen", detail:"DR has no guild selection at creation — characters start guildless and join in game. Remove guild pickers from chargen (client form + API), start characters guildless (no guild spells/abilities/tdptrain lists until joined), and add a 'join' interaction at each guild hall's leader NPC that assigns the guild. Sweep script-gen gains a join leg (walk to hall_* + join) before arming.", status:"todo" },
   { s:13, id:"f214", label:"dir <place> — in-town directions", detail:"'dir barb', 'dir bank', 'dir smith' prints turn-by-turn directions from the player's current room to known in-town points of interest (guild halls, bank, shops, healer, temple, fence) via BFS over the town room graph with a keyword→POI alias table. Refuses out-of-town destinations (wilds/dungeons) — DR townsfolk don't give hunting directions.", status:"todo" },
+  // 2026-10-03 audit backlog. Stable IDs match detailed acceptance in ROADMAP.md.
+  ...[
+    [16, "ux-draft", "Independent command dispatch", "Programmatic sends preserve the editable draft, caret, selection, and focus; offline failure does not erase input."],
+    [16, "ux-trigger-id", "Stable persisted trigger IDs", "Reload/import/add/edit/remove target one record; repair duplicate IDs without losing triggers."],
+    [16, "ops-gm-contract", "Shared method-aware GM requests", "Correct reload POST and deletion Authorization merging; visible failures, retained selection, and duplicate-submit protection."],
+    [16, "ops-delete-provenance", "Evidence-based deletion safety", "Explicit tooling provenance, exact previews, and visible protected/skipped targets; account-name prefixes are not proof of disposability."],
+    [16, "ops-inspector-identity", "Selection-scoped snapshots and streams", "Invalidate stale reads and close old streams on every selection; delayed responses never mix character identities."],
+    [16, "ops-polling", "Bounded serialized admin refreshes", "Prevent overlapping polls and stale credential-generation updates; clear timeout, retry, and pause states."],
+    [16, "ops-telemetry", "Truthful Sims discovery and byte-safe tails", "Distinguish stale/unavailable from verified empty; retain timestamps and use byte offsets with Unicode/rotation/range regression tests."],
+    [16, "core-persistence-shape", "Validate stored JSON boundaries", "Wrong-shaped, null, malformed, and legacy JSON cannot crash player actions or silently erase valid data."],
+    [17, "ux-first-session", "Optional persistent next-step guidance", "State-derived exploration, guild joining, equipment, safe first encounter, learning and circling; dismissible, reconnect-safe, includes noncombat routes."],
+    [17, "ux-progress", "Explain requirement gaps and useful choices", "Distinguish field EXP/ranks/completion and explain actions, costs, roundtime, recovery, and unavailable abilities."],
+    [17, "ux-access", "Native zoom and keyboard/mobile accessibility", "Preserve browser zoom and menu focus; verify keyboard journeys, 200% zoom, 390px layouts, labels, contrast, and screen-reader behavior."],
+    [17, "ux-automation-control", "Visible scoped automation controls", "Show scripts/timers/triggers; explicit pause-all prevents automated sends without losing definitions; deliberate resume and tested logout/reconnect."],
+    [17, "ux-connection", "Consistent connection pending/error/retry states", "No silent onboarding failures, lost drafts, or duplicated mutations; spectating remains visibly read-only."],
+    [17, "ux-history", "Separate transcript storage from display filters", "Evaluate bounded search/export storage; define muted/gagged inclusion, retention, automation semantics, and privacy before implementation."],
+    [18, "quality-boundaries", "Shared transport contracts", "Dependency-free wire/GM boundary validation and compatibility fixtures; incremental changes, no wholesale protocol rewrite."],
+    [18, "quality-sims-modules", "Extract tested Sims responsibilities", "Discovery, log tails, telemetry state, and polling become tested modules with preserved dashboard artifacts and historical links."],
+    [18, "quality-release-gate", "Required client release verification profile", "Require server/security/API, docs, corpus, browser and failure-path checks for releases; missing prerequisites block certification; disposable-world cleanup."],
+    [18, "evidence-progression", "Revision-linked matched benchmark receipts", "Durable bounded background runs record revision, config, completion/gaps, deaths/stalls and paths; missing/stale telemetry is unknown."],
+    [18, "evidence-roadmap", "Traceable status and historical pacing claims", "Stable feature IDs link implementation and receipts; reconcile historical timings under matched policies before claiming current balance."],
+    [18, "evidence-playtest", "Human growth-loop acceptance", "Record new/returning, keyboard/mobile, combat/noncombat journeys and economy/recovery friction; synthetic reachability is not proof of fun."],
+  ].map(([s, id, label, detail]) => ({ s, id, label, detail, status:
+    ['ux-draft', 'ux-trigger-id', 'ops-gm-contract', 'ops-inspector-identity', 'ops-polling', 'ops-telemetry', 'core-persistence-shape', 'ux-automation-control', 'quality-release-gate'].includes(id) ? 'done'
+      : ['ops-delete-provenance', 'ux-first-session', 'ux-progress', 'ux-access', 'ux-connection', 'quality-boundaries', 'quality-sims-modules', 'evidence-roadmap'].includes(id) ? 'partial' : 'todo' })),
 ];

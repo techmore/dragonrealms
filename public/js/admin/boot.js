@@ -64,7 +64,7 @@ function startMaster() {
 
 $('every').value = String(S.every);
 $('every').addEventListener('change', () => {
-  S.every = Number($('every').value);
+  S.every = Math.max(1000, Math.min(60000, Number($('every').value) || 5000));
   localStorage.setItem('dr_admin_every', String(S.every));
   startMaster();
 });
@@ -81,24 +81,33 @@ const tokenEl = $('gm-token');
 tokenEl.value = S.token;
 tokenEl.addEventListener('change', () => {
   S.token = tokenEl.value.trim();
+  S.tokenGeneration++;
   storeGmToken(S.token);
   S.gm = 'pending';
   S.cpu = null; S.cpuPct = null;
+  S.status = null; S.summary = null; S.statusAt = 0;
   S.world = null; S.zoneLive = {}; S.expanded.clear();
   renderAll();
   tick(true);
 });
 
 $('reload').addEventListener('click', async () => {
+  if (S.reloadPending) return;
   if (!confirm('Respawn all room creature spawners?\nEvery online player is persisted first.')) return;
-  const r = await gm('admin/reload');
+  S.reloadPending = true;
+  renderAll();
+  try {
+  const r = await gm('admin/reload', { method: 'POST' });
+  if (r.stale) return;
   toast(r.ok ? `World reloaded — ${r.d?.reloaded ?? '?'} rooms respawned.` : `Reload failed (HTTP ${r.code}).`);
   tick(true);
+  } finally { S.reloadPending = false; renderAll(); }
 });
 
 /* ---- scripts tab ---- */
 async function loadScripts() {
   const r = await gm('scripts');
+  if (r.stale) return;
   if (!r.ok || !r.d?.variants) {
     $('scriptsList').innerHTML = '<span class="note">no script data yet — run a benchmark first</span>';
     $('scriptsSum').textContent = '';
@@ -128,8 +137,7 @@ async function loadScripts() {
     $('openScriptsFolder').dataset.bound = '1';
     $('openScriptsFolder').addEventListener('click', () => {
       // Tell the server to open the scripts folder in Finder
-      fetch('/api/gm/scripts?open=1').catch(() => {});
-      toast('Opening scripts/ in Finder…');
+      gm('scripts?open=1').then((r) => { if (!r.stale) toast(r.ok ? 'Opening scripts/ in Finder…' : 'Could not open scripts folder.'); });
     });
   }
 }

@@ -9,6 +9,7 @@ import * as input from './input.js';
 import { gameState } from './state.js';
 import { mergeServerScripts, runScript, stopScript, resetScriptLibrary, receiveScriptResult } from './scripts.js';
 import { stopTimers } from './automation.js';
+import { setAutomationPaused } from './automation-control.js';
 import { setToken, setStatusOverride } from './net.js';
 import { hasStoredGmToken, storedGmToken, harvestGmTokenFromFragment } from './gm-token.js';
 
@@ -34,6 +35,7 @@ let spectatePending = false;
 let autoSpectateDismissed = false;
 
 export function resetSession(nextState = 'login') {
+  if (gameState.value === 'playing' || gameState.value === 'charcreate_playing') setAutomationPaused(true);
   stopScript({ silent: true });
   resetScriptLibrary();
   stopTimers();

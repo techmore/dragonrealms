@@ -33,10 +33,10 @@ export class CombatManager {
       range: initialRange(roomById(player.room)?.zone),
       dead: false,
       // The live world spawn this enemy represents (Game.enterRoom passes it).
-      // Combat death marks it dead in Game (respawn clocked, camp throttle
-      // armed); test/planned combats without an instance stay self-contained.
+      // Live health/death is shared; range, timers and debuffs remain per fight.
       instance: instances?.[i] || null,
-    }));
+    })).filter((enemy) => !enemy.instance || enemy.instance.alive);
+    if (!enemies.length) return { ok: false, error: 'There is nothing alive to fight.' };
     const combat = new Combat(`combat_${player.charId}_${Date.now()}`, player, enemies, {
       onEnd: (c, result) => this.end(player, c, result),
       game: this.game,

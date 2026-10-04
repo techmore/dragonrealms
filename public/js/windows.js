@@ -109,6 +109,10 @@ export function toggleCollapse(id) {
 export function renderWindowsMenu() {
   const menu = $('windows-menu');
   if (!menu) return;
+  const active = document.activeElement;
+  const rowId = menu.contains(active) ? active.closest('.wmenu-row')?.dataset.w : null;
+  const control = active?.classList.contains('wmenu-col') ? '.wmenu-col' : '.wmenu-vis';
+  const simsFocused = menu.contains(active) && active?.classList.contains('wmenu-sims');
   menu.innerHTML = `<a class="wmenu-sims" href="/sims.html" target="_blank" rel="opener">
     <span class="wmenu-sims-icon" aria-hidden="true">▦</span>
     <span><b>Sims</b><small>condensed EXP monitor</small></span>
@@ -120,6 +124,8 @@ export function renderWindowsMenu() {
       <button class="wmenu-col" data-col="${w.id}" title="Collapse/expand">${col ? '&#9656;' : '&#9662;'}</button>
     </label>`;
   }).join('');
+  if (rowId) menu.querySelector(`[data-w="${rowId}"] ${control}`)?.focus();
+  else if (simsFocused) menu.querySelector('.wmenu-sims')?.focus();
   menu.querySelectorAll('.wmenu-vis').forEach((cb) => {
     cb.addEventListener('change', () => {
       const row = cb.closest('.wmenu-row');
@@ -137,6 +143,15 @@ export function renderWindowsMenu() {
 }
 
 export function bindWindows() {
+  document.addEventListener('keydown', (e) => {
+    const menu = $('windows-menu');
+    if (e.key !== 'Escape' || !menu || menu.hidden) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    menu.hidden = true;
+    $('windows-btn').setAttribute('aria-expanded', 'false');
+    $('windows-btn').focus();
+  }, true);
   $('windows-btn').addEventListener('click', () => {
     const menu = $('windows-menu');
     menu.hidden = !menu.hidden;

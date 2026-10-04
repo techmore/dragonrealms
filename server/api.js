@@ -13,8 +13,12 @@ import { circleRequirements } from '../data/guilds.js';
 import { db } from './db.js';
 import { handleCommand } from './commands/index.js';
 import { bearerToken, headerToken, secretMatches } from './http-auth.js';
+import { consumeCommandBudget, COMMANDS_PER_SECOND } from './command-budget.js';
+import { registerRuntimeCleanup } from './runtime-resources.js';
 
-const COMMANDS_PER_SEC = 20;
+const COMMANDS_PER_SEC = COMMANDS_PER_SECOND;
+export const API_SESSION_IDLE_MS = 15 * 60 * 1000;
+export const API_MESSAGE_LIMIT = 512;
 const MAX_BODY = 16 * 1024;
 const API_VERSION = 1;
 
@@ -28,6 +32,13 @@ function sessionsFor(game) {
   if (!sessions) {
     sessions = new Map();
     apiSessionsByGame.set(game, sessions);
+    const timer = setInterval(() => reapApiSessions(game), 60_000);
+    timer.unref();
+    registerRuntimeCleanup(game, () => {
+      clearInterval(timer);
+      sessions.clear();
+      apiSessionsByGame.delete(game);
+    });
   }
   return sessions;
 }
@@ -82,12 +93,15 @@ function releasePlayer(game, s) {
   return game.removePlayer(p);
 }
 
-function sweepInvalidSessions(game, sessions, currentToken) {
+export function reapApiSessions(game, now = Date.now(), currentToken = null) {
+  const sessions = apiSessionsByGame.get(game);
+  if (!sessions) return;
   for (const [token, s] of sessions) {
     if (token === currentToken) continue;
-    if (validateSession(token)) continue;
-    releasePlayer(game, s);
-    sessions.delete(token);
+    try {
+      if (now - s.lastSeen < API_SESSION_IDLE_MS && validateSession(token)) continue;
+      try { releasePlayer(game, s); } finally { sessions.delete(token); }
+    } catch (error) { console.error('API session cleanup failed', error); }
   }
 }
 
@@ -95,9 +109,8 @@ function apiSession(req, game) {
   const token = bearerToken(req);
   if (!token) return null;
   const sessions = sessionsFor(game);
-  // API clients have no socket-close event. Opportunistically retire revoked
-  // or expired tokens so an abandoned driver cannot hold a character forever.
-  sweepInvalidSessions(game, sessions, token);
+  // Request-time checks complement the independent idle/expiry timer.
+  reapApiSessions(game, Date.now(), token);
   const v = validateSession(token);
   if (!v) {
     const stale = sessions.get(token);
@@ -110,6 +123,7 @@ function apiSession(req, game) {
     s = { token, accountId: v.accountId, username: v.username, player: null, cmdTimes: [] };
     sessions.set(token, s);
   }
+  s.lastSeen = Date.now();
   return s;
 }
 
@@ -122,9 +136,19 @@ function rateLimit(s) {
 }
 
 function virtualSocket() {
-  const sock = { readyState: 1, msgs: [] };
-  sock.send = (obj) => sock.msgs.push(typeof obj === 'string' ? JSON.parse(obj) : obj);
+  const sock = { readyState: 1, msgs: [], dropped: 0 };
+  sock.send = (obj) => {
+    if (sock.msgs.length >= API_MESSAGE_LIMIT) { sock.msgs.shift(); sock.dropped++; }
+    sock.msgs.push(typeof obj === 'string' ? JSON.parse(obj) : obj);
+  };
   return sock;
+}
+
+function drainMessages(sock) {
+  const result = { messages: sock.msgs, messagesDropped: sock.dropped };
+  sock.msgs = [];
+  sock.dropped = 0;
+  return result;
 }
 
 const rankExpTotals = [0];
@@ -268,9 +292,12 @@ export async function apiRequest(req, res, game, {
 
   switch (`${req.method} ${path}`) {
     case 'POST /api/logout': {
-      releasePlayer(game, s);
-      logoutSession(s.token);
-      sessionsFor(game).delete(s.token);
+      // A failed character save must not skip credential revocation.
+      try { releasePlayer(game, s); }
+      finally {
+        try { logoutSession(s.token); }
+        finally { sessionsFor(game).delete(s.token); }
+      }
       return json(res, 200, { ok: true });
     }
     case 'GET /api/characters': {
@@ -295,7 +322,7 @@ export async function apiRequest(req, res, game, {
       const entered = enterWorld(game, s, row.id);
       if (!entered.ok) return json(res, 409, entered);
       const p = entered.player;
-      return json(res, 200, { ok: true, messages: p.ws.msgs, state: apiState(game, p) });
+      return json(res, 200, { ok: true, ...drainMessages(p.ws), state: apiState(game, p) });
     }
     case 'POST /api/command': {
       if (!ownsPlayer(game, s)) {
@@ -303,17 +330,20 @@ export async function apiRequest(req, res, game, {
       }
       if (!rateLimit(s)) return json(res, 429, { ok: false, error: 'Rate limit exceeded (20 commands/sec).' });
       const p = s.player;
-      p.ws.msgs = [];
+      // Preserve pending asynchronous messages; the bounded inbox drains once
+      // with this response instead of silently dropping them before dispatch.
       // HTTP drivers are real player sessions too; enforce the same
       // roundtime policy as WebSocket input.
-      handleCommand(game, p, String(body.command || ''), 0, { applyRT: true });
-      return json(res, 200, { ok: true, messages: p.ws.msgs, state: apiState(game, p) });
+      handleCommand(game, p, String(body.command || ''), 0, {
+        applyRT: true, consumeCommand: () => consumeCommandBudget(s),
+      });
+      return json(res, 200, { ok: true, ...drainMessages(p.ws), state: apiState(game, p) });
     }
     case 'GET /api/state': {
       if (!ownsPlayer(game, s)) {
         return json(res, 200, { ok: false, error: 'No active character. POST /api/enter first.' });
       }
-      return json(res, 200, { ok: true, state: apiState(game, s.player) });
+      return json(res, 200, { ok: true, ...drainMessages(s.player.ws), state: apiState(game, s.player) });
     }
     case 'POST /api/debug': {
       // Test-only fixture endpoint. It requires both a game-account session

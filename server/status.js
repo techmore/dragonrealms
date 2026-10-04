@@ -105,6 +105,8 @@ export const status = {
       msg: `\n\x1b[36mHP: ${hp}/${p.maxHp}\x1b[0m  ${res}  ${stam}${rtTxt}  \x1b[35mCircle ${p.circle}\x1b[0m  ${p.silver} silvers ${inCombat}${raging}${hidden}${resting}${boost}${prep}${bleedTxt}\n> `,
       buffs,
       requirements: { circle: nextCircle, rows: requirementRows },
+      journey: { characterId: p.charId, guildId: p.guild?.id || null, circle: p.circle,
+        roomId: p.room, inCombat: Boolean(combat), hp, maxHp: p.maxHp },
     });
     // FE tracker (DR field-experience pane): push skills currently learning,
     // throttled to ~10s.

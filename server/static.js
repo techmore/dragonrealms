@@ -4,6 +4,7 @@ import { createReadStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { existsSync, statSync, realpathSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
+import { createHash } from 'node:crypto';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -18,7 +19,7 @@ const MIME = {
 // Applied to HTML, assets, API responses, and error responses. The project
 // still has authored inline scripts/styles, so those two directives retain
 // 'unsafe-inline' until the HTML is fully externalized; external script hosts
-// and framing remain denied. TLS/HSTS belongs at the public reverse proxy.
+// and cross-origin framing remain denied. TLS/HSTS belongs at the public reverse proxy.
 export const SECURITY_HEADERS = Object.freeze({
   'Content-Security-Policy': "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; worker-src 'self' blob:; manifest-src 'self'",
   'X-Content-Type-Options': 'nosniff',
@@ -41,7 +42,8 @@ export function createStaticHandler(publicDir) {
   const contained = (p) => p === ROOT || p.startsWith(ROOT + sep);
   return (req, res) => {
     try {
-      let path = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      let path = decodeURIComponent(url.pathname);
       if (path === '/') path = '/index.html';
       let filePath = resolve(ROOT, `.${path}`);
       // Pretty URLs: an extensionless miss falls back to <path>.html
@@ -68,12 +70,22 @@ export function createStaticHandler(publicDir) {
       // stale copy or the two views diverge. no-store forbids storing, so the
       // phone always re-fetches from local and the two views stay mirrored.
       const headers = secure({ 'Content-Type': type });
+      // Only the actual spectator client can be embedded by our admin page.
+      // Keep DENY on ordinary gameplay, GM/admin pages, APIs and errors.
+      if (filePath === resolve(ROOT, 'index.html') && url.searchParams.has('spectate')) {
+        headers['Content-Security-Policy'] = SECURITY_HEADERS['Content-Security-Policy']
+          .replace("frame-ancestors 'none'", "frame-ancestors 'self'");
+        headers['X-Frame-Options'] = 'SAMEORIGIN';
+      }
       if (type.startsWith('text/')) headers['Cache-Control'] = 'no-store';
       // Live logs' clients (sims.html) key liveness on Last-Modified — a log
       // that stopped appending is a dead run, not an active one.
       const stat = statSync(filePath);
       headers['Last-Modified'] = stat.mtime.toUTCString();
       headers['Accept-Ranges'] = 'bytes';
+      // Stable across appends, different for replacement files. An opaque
+      // identity lets log tailers detect rotation without exposing paths.
+      headers['X-File-Identity'] = createHash('sha256').update(`${stat.dev}:${stat.ino}:${stat.birthtimeMs}`).digest('hex').slice(0, 24);
       // HEAD answers from the stat alone — a full readFile of a multi-MB log
       // just to learn its size/mtime stalled the game tick for nothing.
       if (req.method === 'HEAD') {
@@ -87,7 +99,7 @@ export function createStaticHandler(publicDir) {
       // a 4 MB log appends cost bytes instead of a full re-download.
       // (Suffix form "bytes=-N" is not needed by any client; start-form is.)
       const range = /^bytes=(\d+)-$/.exec(req.headers.range || '');
-      if (range) {
+      if (range && (!req.headers['if-range'] || req.headers['if-range'] === headers['Last-Modified'])) {
         const start = Number(range[1]);
         if (start >= stat.size) {
           res.writeHead(416, secure({ 'Content-Type': type, 'Content-Range': `bytes */${stat.size}` }));

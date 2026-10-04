@@ -10,6 +10,7 @@
 // Uses DR_WS_URL (default ws://localhost:3000/ws). Replay exits non-zero on drift.
 import WebSocket from 'ws';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { normalizeCorpus } from './lib/corpus-normalize.mjs';
 
 const mode = process.argv[2] || 'capture';
 const inFile = process.argv[3] || '/tmp/dr-corpus.json';
@@ -65,19 +66,6 @@ async function runScript() {
   await sleep(1500);
 }
 
-function normalize(msgs) {
-  return msgs
-    .map((m) => {
-      if (typeof m.msg === 'string') {
-        m = { ...m, msg: m.msg.replace(/\s+/g, ' ') };
-      }
-      return JSON.stringify(m)
-        .replace(/[0-9a-f]{32,64}/g, 'TOKEN')
-        .replace(/\d+/g, 'N');
-    })
-    .join('\n');
-}
-
 ws.on('open', async () => {
   try {
     await waitFor('login_prompt');
@@ -98,8 +86,8 @@ ws.on('open', async () => {
     }
 
     const before = JSON.parse(readFileSync(inFile, 'utf8'));
-    const a = normalize(before.output).replaceAll(before.name, 'NAME');
-    const b = normalize(output).replaceAll(cname, 'NAME');
+    const a = normalizeCorpus(before.output).replaceAll(before.name, 'NAME');
+    const b = normalizeCorpus(output).replaceAll(cname, 'NAME');
     if (a === b) {
       console.log('CORPUS MATCH — behavior preserved');
       process.exit(0);

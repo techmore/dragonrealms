@@ -67,32 +67,32 @@
 
     <!-- ===================== SIM CHARACTERS ===================== -->
     <section>
-      <h2>Sim &amp; test characters
-        <span class="right sub">non-playing toons on bot/test accounts — safe to delete</span>
+      <h2>Characters
+        <span class="right sub">provenance unknown — verify ownership before deletion</span>
       </h2>
       <div class="controls">
         <label class="sub" for="filter">show</label>
         <select id="filter">
-          <option value="sim" selected>sims &amp; test accounts</option>
-          <option value="all">everyone</option>
+          <option value="all" selected>everyone (provenance unknown)</option>
         </select>
-        <input id="q" type="text" placeholder="filter by name…" autocomplete="off" spellcheck="false">
+        <input id="q" type="text" aria-label="Filter characters by name or account" placeholder="filter by name…" autocomplete="off" spellcheck="false">
         <button class="btn danger" id="del-selected">&#128465; Delete selected</button>
         <span style="flex:1"></span>
         <span id="selcount" class="sub"></span>
       </div>
-      <table class="tbl">
+      <div style="overflow-x:auto"><table class="tbl">
         <thead><tr>
           <th></th><th>Name</th><th>Account</th><th>Race</th><th>Guild</th><th>Circle</th><th>Silver</th><th>Created</th><th></th>
         </tr></thead>
         <tbody id="rows"><tr><td colspan="9" class="note">loading…</td></tr></tbody>
-      </table>
+      </table></div>
     </section>
   </main>
 
-  <div id="toast"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
 
-  <script>
+  <script type="module">
+    import { gmRequest } from './js/gm-request.js';
     'use strict';
     const $ = (id) => document.getElementById(id);
     const esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));
@@ -117,22 +117,15 @@
     }
 
     async function gm(path, opts = {}) {
-      const headers = Object.assign(
-        TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {},
-        opts.headers || {}
-      );
-      const r = await fetch('/api/gm/' + path, Object.assign({ cache: 'no-store', headers }, opts));
+      try {
+      const r = await gmRequest('/api/gm/' + path, TOKEN, opts);
       let d = null;
       try { d = await r.json(); } catch {}
       return { code: r.status, ok: !!r.ok && d?.ok !== false, d };
+      } catch { return { code: 0, ok: false, d: null }; }
     }
 
-    // Sims/test toons = characters whose account is not a real player account.
-    // Heuristic: account names used by the tooling (gm, admin_*, sweep/sim
-    // prefixes) — anything else is treated as a player.
-    const SIM_ACCOUNT_RE = /^(gm|admin_|ui_?audit|mapper|sim|sweep|test)/i;
-
-    function isSim(c) { return SIM_ACCOUNT_RE.test(c.username || ''); }
+    // The characters API supplies no trusted provenance field.
 
     function fmtAge(ts) {
       if (!ts) return '—';
@@ -158,14 +151,12 @@
     function visible() {
       const q = $('q').value.trim().toLowerCase();
       return chars.filter((c) =>
-        ($('filter').value === 'all' || isSim(c)) &&
         (!q || c.name.toLowerCase().includes(q) || (c.username || '').toLowerCase().includes(q)));
     }
 
     function render() {
       const list = visible();
-      const sims = chars.filter(isSim).length;
-      $('sum').textContent = `${chars.length} total · ${sims} sim/test`;
+      $('sum').textContent = `${chars.length} total · provenance unknown`;
       const kept = new Set(list.map((c) => c.id));
       for (const id of [...selected]) if (!kept.has(id)) selected.delete(id);
       $('selcount').textContent = selected.size ? `${selected.size} selected` : '';
@@ -175,8 +166,8 @@
       }
       $('rows').innerHTML = list.map((c) => `
         <tr>
-          <td><input type="checkbox" data-id="${c.id}" ${selected.has(c.id) ? 'checked' : ''}></td>
-          <td><b>${esc(c.name)}</b>${isSim(c) ? ' <span class="badge sim">SIM</span>' : ''}${c.username === 'gm' ? ' <span class="badge gm-acct">GM acct</span>' : ''}</td>
+          <td><input type="checkbox" aria-label="Select ${esc(c.name)}" data-id="${c.id}" ${selected.has(c.id) ? 'checked' : ''}></td>
+          <td><b>${esc(c.name)}</b></td>
           <td>${esc(c.username)}</td>
           <td>${esc(c.race)}</td>
           <td>${esc(c.guild)}</td>
@@ -199,17 +190,24 @@
     $('q').addEventListener('input', render);
 
     $('del-selected').addEventListener('click', async () => {
+      if ($('del-selected').disabled) return;
       if (!selected.size) { toast('Nothing selected.'); return; }
       const names = chars.filter((c) => selected.has(c.id)).map((c) => c.name);
       if (!confirm(`Delete ${names.length} character(s)?\n${names.slice(0, 12).join(', ')}${names.length > 12 ? '…' : ''}\n\nThis removes their skills, inventory, and progress. Cannot be undone.`)) return;
+      const ids = [...selected];
+      $('del-selected').disabled = true;
       const r = await gm('characters-delete', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ids: [...selected] }),
+        body: JSON.stringify({ ids }),
       });
       toast(r.ok ? `Deleted ${r.d?.deleted ?? '?'} character(s).` : `Delete failed (HTTP ${r.code}).`);
-      selected.clear();
-      load();
+      $('del-selected').disabled = false;
+      if (!r.ok) return;
+      const skipped = new Set(r.d?.skippedOnline || []);
+      for (const id of ids) if (!skipped.has(id)) selected.delete(id);
+      if (skipped.size) toast(`Deleted ${r.d?.deleted ?? '?'}; ${skipped.size} online character(s) retained.`);
+      await load();
     });
 
     load();
