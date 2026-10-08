@@ -19,6 +19,7 @@ const { Game } = await import('../server/game.js');
 const { handleCommand } = await import('../server/commands/index.js');
 const { circleRequirements, circleRequirementNeeds, trainableSkills } = await import('../data/guilds.js');
 const { CREATURES } = await import('../data/creatures.js');
+const { ROOMS } = await import('../data/world.js');
 
 const SIM_ARGS = process.argv.slice(2);
 const GUILD = SIM_ARGS.find((arg) => !arg.startsWith('--')) || 'warmage';
@@ -129,7 +130,7 @@ function sellLoot() {
   for (const room of ['bazaar', 'market_end']) {
     p.room = room;
     for (const inv of [...p.inventory]) {
-      if (['padded_cloth', 'short_sword', 'strongbox'].includes(inv.item.id)) continue;
+      if (['padded_cloth', 'short_sword', 'dagger', 'strongbox'].includes(inv.item.id)) continue;
       if (inv.item.type === 'consumable' && inv.item.restore) continue;
       const before = p.silver;
       handleCommand(game, p, `sell ${inv.item.id}`);
@@ -243,16 +244,106 @@ function gearUp() {
   }
 }
 
+function unmetFieldRequirement(skill) {
+  return !trainableSkills(p.guild).includes(skill)
+    && ((p.skills[skill] || {}).rank || 0) < (requirementNeeds().get(skill) || 0);
+}
+
+function practiceHunt(normal) {
+  if (!unmetFieldRequirement('lockpicking')) return normal;
+  // Select actual authored placements, not invented box spawns. Retain the
+  // normal circle ladder as the difficulty ceiling for this practice detour.
+  const ceiling = Math.max(...normal.ids.map(id => CREATURES[id].circle));
+  const targets = Object.values(CREATURES)
+    .filter(def => def.circle <= ceiling && def.loot?.includes('strongbox'))
+    .sort((a, b) => b.circle - a.circle || a.id.localeCompare(b.id));
+  for (const def of targets) {
+    const room = Object.values(ROOMS).find(room => room.spawns?.includes(def.id));
+    if (room) return { min: normal.min, room: room.id, ids: [def.id] };
+  }
+  return normal;
+}
+
+function prepareFirstAidPractice() {
+  if (!unmetFieldRequirement('first_aid') || p.equipment.hand?.id === 'dagger'
+      || p.inventory.some(entry => entry.item.id === 'dagger')) return;
+  // One owned practice weapon, acquired through normal stock/payment gates.
+  const room = p.room;
+  p.room = 'bazaar';
+  handleCommand(game, p, 'buy dagger');
+  p.room = room;
+}
+
+function practiceFirstAid() {
+  if (!unmetFieldRequirement('first_aid')) return;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const wound = (p.wounds || []).find(wound => !wound.resolved && !wound.tended);
+    if (!wound) break;
+    handleCommand(game, p, `tend ${wound.part}`);
+    ticks += Math.max(0, Math.ceil(((p.rtUntil || 0) - Date.now()) / 1000));
+  }
+  if (p.hp >= p.maxHp || p.hp <= 0) return;
+  let supply = p.inventory.find(entry => entry.item.type === 'consumable' && entry.item.restore);
+  if (!supply) {
+    const room = p.room;
+    p.room = 'bazaar';
+    handleCommand(game, p, 'buy salve');
+    p.room = room;
+    supply = p.inventory.find(entry => entry.item.type === 'consumable' && entry.item.restore);
+  }
+  if (supply) {
+    handleCommand(game, p, `use ${supply.item.id}`);
+    ticks += 3;
+  }
+}
+
+function beginDefensePractice() {
+  const skills = ['parry', 'defending'].filter(unmetFieldRequirement);
+  const firstAid = unmetFieldRequirement('first_aid')
+    && !(p.wounds || []).some(wound => !wound.resolved && !wound.tended);
+  if (!skills.length && !firstAid) return null;
+  const priorWeapon = p.equipment.hand?.id;
+  const priorStance = p.stance || 'balanced';
+  const damage = item => item?.dmg ? item.dmg.reduce((sum, value) => sum + value, 0) : Infinity;
+  const currentDamage = damage(p.equipment.hand);
+  const weaker = p.inventory.find(entry => entry.item.type === 'weapon'
+    && (!entry.item.req || entry.item.req <= p.circle) && damage(entry.item) < currentDamage);
+  if (weaker) handleCommand(game, p, `wield ${weaker.item.id}`);
+  // Balanced practice preserves ordinary wound rolls; guarded's flat damage
+  // reduction often prevents the solid hit required for a natural wound.
+  handleCommand(game, p, firstAid ? 'stance balanced' : 'stance guarded');
+  handleCommand(game, p, 'advance'); handleCommand(game, p, 'advance');
+  const hp = p.hp;
+  const pools = Object.fromEntries(skills.map(skill => [skill, p.expPools?.[skill] || 0]));
+  let restored = false;
+  return {
+    ready(tick) {
+      return tick >= 24 || p.hp <= p.maxHp * 0.35
+        || (firstAid ? (p.wounds || []).some(wound => !wound.resolved && !wound.tended)
+          : p.hp < hp || skills.some(skill => (p.expPools?.[skill] || 0) > pools[skill]));
+    },
+    restore() {
+      if (restored) return;
+      restored = true;
+      // Restore only a still-owned piece; death/corpse handling remains real.
+      if (priorWeapon && p.equipment.hand?.id !== priorWeapon
+          && p.inventory.some(entry => entry.item.id === priorWeapon)) handleCommand(game, p, `wield ${priorWeapon}`);
+      handleCommand(game, p, `stance ${priorStance}`);
+    },
+  };
+}
+
 let safety = 0;
 report(`=== Progression sim: ${p.guild.name} (${p.race.name}) -> circle ${TARGET}${BOOST > 1 ? ` [boost x${BOOST}]` : ''} ===`);
 while (p.circle < TARGET && safety++ < 30000) {
-  const hunt = huntFor(p.circle);
+  const hunt = practiceHunt(huntFor(p.circle));
   if (hunts % 1000 === 0) {
     const missing = circleRequirements(p.guild, p.skills, p.circle + 1).missing.slice(0, 3).join('; ');
     const targets = [...requirementNeeds()].map(([id, need]) => `${id} ${(p.skills[id] || {}).rank || 0}/${need}`).slice(0, 4).join(', ');
     report(`  ...hunt ${hunts}: circle ${p.circle}, hp ${p.hp}/${p.maxHp}, TDP ${p.tdp}, silver ${p.silver}, ticks ${Math.floor(ticks / 60)}m${missing ? `; next: ${missing}` : ''}${targets ? `; train: ${targets}` : ''}`);
   }
   gearUp();
+  prepareFirstAidPractice();
   // Breadth activities a real player does between fights.
   // Some high-circle combat zones are barren/urban rather than forageable.
   // Practice fieldcraft in the nearest true wilds before walking to the hunt.
@@ -272,6 +363,7 @@ while (p.circle < TARGET && safety++ < 30000) {
   const res = game.combat.start(p, [def]);
   if (!res.ok) { console.error('combat start failed'); break; }
   let combat = res.combat;
+  let defensePractice = beginDefensePractice();
   // A short fight can finish on its first tick, so attempt the learned form
   // before ticking. Keep real ability slots, Inner Fire costs and rewards.
   if (p.guild.id === 'barbarian' && p.abilities.includes('dragon') && p.innerFire >= 20) {
@@ -281,10 +373,13 @@ while (p.circle < TARGET && safety++ < 30000) {
   while (game.combat.getFor(p) && guard++ < 2000) {
     combat.tick();
     ticks += 1;
-    tryCast(combat, guard);
+    if (defensePractice?.ready(guard)) {
+      defensePractice.restore(); defensePractice = null;
+    }
+    if (!defensePractice) tryCast(combat, guard);
     // Maneuvers train Tactics (and the weapon skill) — a real adventurer
     // uses them; fire early so short fights still get one in.
-    if (guard === 2 || guard % 8 === 0) handleCommand(game, p, 'disarm');
+    if (!defensePractice && (guard === 2 || guard % 8 === 0)) handleCommand(game, p, 'disarm');
     if (p.guild.id === 'barbarian' && guard % 6 === 0) handleCommand(game, p, 'analyze flame');
     if (p.guild.id === 'barbarian' && guard === 3 && !combat.berserk) handleCommand(game, p, 'berserk');
     // Thieves weave khri every fight (concentration arts): feeds Stealth,
@@ -294,6 +389,7 @@ while (p.circle < TARGET && safety++ < 30000) {
       handleCommand(game, p, ['khri elusion', 'khri focus', 'khri sight'][guard % 3 === 0 ? 0 : guard % 3 - 1]);
     }
   }
+  defensePractice?.restore();
   hunts += 1;
   if (p.hp <= 0) {
     deaths += 1;
@@ -315,6 +411,7 @@ while (p.circle < TARGET && safety++ < 30000) {
   const box = p.inventory.find((i) => i.item.id === 'strongbox');
   if (box) handleCommand(game, p, 'pick strongbox');
   sellLoot();
+  practiceFirstAid();
   // Drink a potion when hurt to train first aid.
   if (p.hp < p.maxHp * 0.85) {
     const pot = p.inventory.find((i) => i.item.type === 'consumable' && i.item.restore);
