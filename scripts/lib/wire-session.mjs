@@ -1,8 +1,8 @@
 // Shared wire-level session for live test agents (extracted from
 // scripts/barb-run.mjs). Registers/logs in over HTTP, opens a WebSocket like
 // the web client, walks chargen, and exposes the message stream to a caller
-// via callbacks. No ?bot=1: these characters are ordinary players on every
-// status surface.
+// via callbacks. Agents self-identify with ?bot=1 by default; bot:false
+// uses an ordinary untagged session. This flag is a roster label, not a boost.
 //
 //   const s = new WireSession({ user, pass, char, race, guild });
 //   await s.connect({

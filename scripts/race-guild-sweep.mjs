@@ -1,3 +1,4 @@
+import { sweepLaunchPlan } from './lib/sweep-launch-plan.mjs';
 import { serializePublicExperiment } from './lib/public-experiment.mjs';
 import { barbarianActivity } from './lib/barbarian-activity.mjs';
 // Race × guild fidelity sweep: automated characters play through the REAL
@@ -21,7 +22,7 @@ import { barbarianActivity } from './lib/barbarian-activity.mjs';
 // tag-only variants (baseline knobs, label only).
 //
 // Per character:
-//   1. Real account + WS chargen entry (WireSession, no bot flag).
+//   1. HTTP account setup + real WS token login/chargen (bot roster tag).
 //   2. A generated script library saved to the ACCOUNT via scripts_put —
 //      hunt.dr / circle.dr / mega.dr for that guild (data/guild-scripts.js).
 //   3. The mega script runs via public/js/script-engine.js; a supervisor
@@ -265,11 +266,15 @@ const SPAWN_SPEC = flag('spawn', null);
 const RESUME_CHAR = String(flag('resume', '') || '').trim();
 const RESUME_DB = process.env.DR_DB_PATH
   || join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'store', 'dragonrealms.db');
-// Benchmarks default to one worker so time-to-circle remains a clean
-// script-pacing measurement. `--concurrency N` intentionally opts into a
+// Benchmarks default to three workers; request --concurrency 1 for a
+// controlled script-pacing measurement. `--concurrency N` intentionally opts into a
 // crowded-world trial: the MUD supports multiple WS sessions, but agents then
 // share creature spawns and the result measures resilience under load.
-const BENCH_CONCURRENCY = Math.max(1, Math.min(10, Number(flag('concurrency', 3)) || 3));
+const REQUESTED_CONCURRENCY = Number(flag('concurrency', 3));
+if (!Number.isSafeInteger(REQUESTED_CONCURRENCY) || REQUESTED_CONCURRENCY < 1) {
+  console.error('--concurrency must be a positive whole number'); process.exit(1);
+}
+const BENCH_CONCURRENCY = Math.min(10, REQUESTED_CONCURRENCY);
 // A benchmark compares script behavior, so its default character must be
 // stable too. Gor'Tog is the canonical physical barbarian in this project;
 // the broader race matrix remains available via --race-matrix or --races.
@@ -376,6 +381,11 @@ if (ARGS.includes('--all')) {
 }
 if (!Number.isFinite(MINUTES) || MINUTES <= 0) MINUTES = 10;
 if (!Number.isFinite(CIRCLE_TARGET)) CIRCLE_TARGET = 2;
+
+// Scheduled width describes launch batching, not observed peak connections.
+// Ad-hoc mode intentionally launches the full matrix regardless of this flag.
+const LAUNCH_PLAN = sweepLaunchPlan({ mode: MODE, requestedConcurrency: REQUESTED_CONCURRENCY, agents: wanted.length });
+const SCHEDULED_LAUNCH_WIDTH = LAUNCH_PLAN.scheduledLaunchWidth;
 
 // ---------------- per-character agent ----------------
 
@@ -2436,8 +2446,10 @@ class SweepAgent {
       // when these conditions match; future dashboards must not silently
       // pool different boosts, caps, targets, races or generated libraries.
       mode: MODE,
-      concurrency: BENCH_CONCURRENCY,
-      comparisonType: BENCH_CONCURRENCY > 1 ? 'crowded-world' : 'controlled',
+      concurrency: SCHEDULED_LAUNCH_WIDTH,
+      scheduledLaunchWidth: SCHEDULED_LAUNCH_WIDTH,
+      requestedConcurrency: LAUNCH_PLAN.requestedConcurrency,
+      comparisonType: SCHEDULED_LAUNCH_WIDTH > 1 ? 'crowded-world' : 'controlled',
       statPolicy: this.statPolicy,
       statAllocation: this.statAllocation,
       targetCircle: CIRCLE_TARGET,
@@ -2531,7 +2543,8 @@ class SweepAgent {
         targetCircle: CIRCLE_TARGET, boost: BOOST, minutesCap: MINUTES,
         mode: MODE, arena: summary.arena, species: summary.species,
         statPolicy: summary.statPolicy, statAllocation: summary.statAllocation,
-        concurrency: BENCH_CONCURRENCY,
+        concurrency: SCHEDULED_LAUNCH_WIDTH,
+        requestedConcurrency: LAUNCH_PLAN.requestedConcurrency,
         comparisonType: summary.comparisonType,
         variantConfig: summary.variantConfig, scriptHash: summary.scriptHash,
         scriptSchemaVersion: SCRIPT_SCHEMA_VERSION,
@@ -3141,8 +3154,10 @@ function writeExperimentState(status, currentIndex = -1, completedLegs = 0, acti
     worldPort: experimentWorldPort,
     minutesPerLeg: MINUTES, totalLegs: agents.length, completedLegs,
     expIntervalSeconds: EXP_INTERVAL_MS / 1000,
-    concurrency: BENCH_CONCURRENCY,
-    comparisonType: BENCH_CONCURRENCY > 1 ? 'crowded-world' : 'controlled',
+    concurrency: SCHEDULED_LAUNCH_WIDTH,
+    scheduledLaunchWidth: SCHEDULED_LAUNCH_WIDTH,
+    requestedConcurrency: LAUNCH_PLAN.requestedConcurrency,
+    comparisonType: SCHEDULED_LAUNCH_WIDTH > 1 ? 'crowded-world' : 'controlled',
     statPolicy: STAT_POLICY,
     currentLeg: current ? currentIndex + 1 : null,
     estimatedRemainingMinutes: status === 'complete' ? 0 : Math.max(0, plannedMinutes - elapsedMinutes),
@@ -3191,8 +3206,8 @@ if (MODE === 'spawn') {
   console.log(`SPAWNED ${a.guild},${a.race} -> ${a.char} | run-id ${RUN_ID} | log ${a.logPath} | ${MINUTES}m | boost x${BOOST}`);
 }
 
-// Benchmark runs are sequential by default so time-to-circle is a clean
-// script-pacing measurement. --concurrency N is supported and deliberately
+// Benchmark batch width follows --concurrency (default three); explicitly
+// request one worker for a controlled script-pacing measurement. --concurrency N is supported and deliberately
 // models a crowded world; compare those results only with other runs using
 // the same concurrency. Ad-hoc sweeps keep the historical parallel launch.
 async function launchAll() {

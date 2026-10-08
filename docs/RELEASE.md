@@ -38,6 +38,22 @@ exactly. Only the recorded generated actor identity and authentication token
 field are normalized; periodic mindstate frames are checked separately by the
 browser suite. Capture files omit session credentials.
 
+The ordinary-player journey check registers over WebSocket, enters guildless,
+walks to a hall and joins, then checks purchases, equipment, guild lessons and
+save/relogin. Its representative Trader leg exercises commerce. Run it from
+the extracted candidate with a new output directory:
+
+```sh
+node scripts/release-wire-journey.mjs --out-dir /tmp/dragonrealms-wire-journey --cap-seconds 120
+```
+
+The default owns a fresh temporary world and database for each guild, with
+the HTTP test API and agent boost disabled. This bounded functional check does not establish
+circle-2 completion or progression pacing. Engine progression uses staged
+travel, gear and recovery; policy clocks follow declared simulated time while
+background world timers remain stopped. Keep those results separate from
+ordinary wire cohorts.
+
 On macOS, verify the optional operator app from the extracted candidate with
 `bash scripts/build-admin-app.sh`. Generated binaries are separate artifacts;
 the source archive contains the Swift source and build script.
