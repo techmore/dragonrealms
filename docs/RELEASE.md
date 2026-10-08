@@ -32,7 +32,11 @@ world. The Ego browser driver requires the configured browser runtime; the
 default driver requires Chromium. Read the receipt and accompanying log: all
 checks must pass, none may be skipped, counts must be known, and the scoped
 source identity must remain stable. Capture/replay on the same source checks
-repeatability; it is not a comparison with an earlier release.
+repeatability; it is not a comparison with an earlier release. Gameplay numbers,
+including vitals, roundtime, circles, currencies and command amounts, are compared
+exactly. Only the recorded generated actor identity and authentication token
+field are normalized; periodic mindstate frames are checked separately by the
+browser suite. Capture files omit session credentials.
 
 On macOS, verify the optional operator app from the extracted candidate with
 `bash scripts/build-admin-app.sh`. Generated binaries are separate artifacts;

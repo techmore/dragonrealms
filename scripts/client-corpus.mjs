@@ -10,7 +10,7 @@
 // Uses DR_WS_URL (default ws://localhost:3000/ws). Replay exits non-zero on drift.
 import WebSocket from 'ws';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { normalizeCorpus } from './lib/corpus-normalize.mjs';
+import { normalizeCorpus, sanitizeCorpusMessages } from './lib/corpus-normalize.mjs';
 
 const mode = process.argv[2] || 'capture';
 const inFile = process.argv[3] || '/tmp/dr-corpus.json';
@@ -19,7 +19,8 @@ const cname = 'Corp' + Array.from({ length: 7 }, () => 'abcdefghijklmnopqrstuvwx
 
 // Deterministic commands only — combat, RNG rolls, and random-flavor output are
 // covered by the smoke suite and the client regression (scripts/client-regression.mjs).
-// Numbers and session tokens are normalized at diff time.
+// Gameplay numbers are compared exactly. Only recorded actor identity and
+// the authed session-token field are normalized; capture never stores that token.
 const SCRIPT = [
   ['look', 400], ['help', 300], ['inventory', 300], ['score', 300],
   ['skills', 300], ['exp', 300], ['spells', 300], ['tdp', 300],
@@ -79,15 +80,16 @@ ws.on('open', async () => {
     await waitFor('prompt');
     await runScript();
 
+    const identity = { name: cname, username: user, characterId: output.find((m) => m.t === 'prompt' && m.journey)?.journey.characterId };
     if (mode === 'capture') {
-      writeFileSync(inFile, JSON.stringify({ name: cname, output }, null, 1));
+      writeFileSync(inFile, JSON.stringify({ ...identity, output: sanitizeCorpusMessages(output) }, null, 1), { mode: 0o600 });
       console.log(`CAPTURED ${output.length} messages -> ${inFile}`);
       process.exit(0);
     }
 
     const before = JSON.parse(readFileSync(inFile, 'utf8'));
-    const a = normalizeCorpus(before.output).replaceAll(before.name, 'NAME');
-    const b = normalizeCorpus(output).replaceAll(cname, 'NAME');
+    const a = normalizeCorpus(before.output, before);
+    const b = normalizeCorpus(output, identity);
     if (a === b) {
       console.log('CORPUS MATCH — behavior preserved');
       process.exit(0);
