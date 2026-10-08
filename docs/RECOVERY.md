@@ -39,7 +39,7 @@ node scripts/verify-corpus.mjs
 DR_VERIFY_CORPUS=1 npm run verify
 ```
 
-The corpus runner starts separate fresh worlds for capture and replay and stops them afterward. No pre-existing server is required. A same-revision capture/replay checks repeatability; cross-revision behavior preservation requires retaining and replaying a deliberate baseline. The existing corpus normalizes numbers and tokens, so exact economic/stat values are checked in the domain tests rather than inferred from a corpus match.
+The corpus runner starts separate fresh worlds for capture and replay and stops them afterward. No pre-existing server is required. A same-revision capture/replay checks repeatability; cross-revision behavior preservation requires retaining and replaying a deliberate baseline. The current corpus compares gameplay numbers exactly and normalizes only recorded generated actor identity and authentication tokens. Periodic mindstate frames are excluded from replay and checked separately by the browser suite.
 
 The browser regression suite is optional and reported as skipped unless `DR_VERIFY_BROWSER=1` is set. Do not interpret the verification summary as a complete UI/accessibility or simulator certification.
 
