@@ -962,6 +962,7 @@
   <script src="/js/req-table.js"></script>
   <script type="module" src="/js/admin/agents.js"></script>
   <script type="module">
+    import { simulationWatchLink } from '/js/sim-watch.js';
     import { emptyTail, readTail, discoveryState, discoveryLabel } from '/js/sims-reliability.js';
     'use strict';
     // NOTE: agents.js is an ES module (deferred). Its export lands on
@@ -3680,18 +3681,11 @@
           if (liveChar) liveChars[name] = liveChar;
           const watch = card.el.querySelector('[data-role="watch"]');
           if (liveChar) {
-            // A sweep may be attached to an isolated world on another port.
-            // Use that world's endpoint and credential so Watch does not fall
-            // through to the main world's login screen.
-            const watchPort = Number(manifest?.worldPort) || Number(location.port || 3000);
-            const watchToken = manifest?.watchToken || TOKEN;
-            const watchOrigin = watchPort !== Number(location.port || 3000)
-              ? `${location.protocol}//${location.hostname}:${watchPort}` : '';
-            watch.href = watchOrigin + '/?spectate=' + encodeURIComponent(liveChar)
-              + (watchToken ? '#gm=' + encodeURIComponent(watchToken) : '');
-            watch.setAttribute('aria-disabled', 'false');
-            watch.title = watchToken ? `Watch ${liveChar}'s game stream in a new tab`
-              : 'GM token needed — open Sims from the Admin dashboard first';
+            const link = simulationWatchLink(liveChar, manifest, { origin: location.origin, operatorToken: TOKEN });
+            if (link.enabled) watch.href = link.href;
+            else watch.removeAttribute('href');
+            watch.setAttribute('aria-disabled', String(!link.enabled));
+            watch.title = link.title;
           }
           const lines = text.split('\n').filter(Boolean);
           liveLines[name] = { text, lines };

@@ -1,3 +1,4 @@
+import { serializePublicExperiment } from './lib/public-experiment.mjs';
 import { barbarianActivity } from './lib/barbarian-activity.mjs';
 // Race × guild fidelity sweep: automated characters play through the REAL
 // session stack, driven by DR-style scripts (the same engine the browser
@@ -3119,12 +3120,6 @@ const EXPERIMENT_PATH = join(LIVE_DIR, 'experiment-current.json');
 const EXPERIMENT_INDEX_PATH = join(LIVE_DIR, 'experiment-index.json');
 const experimentStartedAt = new Date().toISOString();
 const experimentWorldPort = Number(process.env.DR_PORT || process.env.PORT || 3000);
-const experimentWatchToken = (() => {
-  try {
-    const tokenPath = `/tmp/dr-world-token-${experimentWorldPort}.json`;
-    return JSON.parse(readFileSync(tokenPath, 'utf8')).token || null;
-  } catch { return null; }
-})();
 function writeExperimentState(status, currentIndex = -1, completedLegs = 0, activeIndexes = []) {
   // Benchmark AND resume legs both write manifests: the Sims page discovers
   // runs through experiment-index.json, and resume legs (the c2→c20 climb)
@@ -3144,7 +3139,6 @@ function writeExperimentState(status, currentIndex = -1, completedLegs = 0, acti
     resumeChar: wanted[0]?.resumeChar || null,
     targetCircle: CIRCLE_TARGET, boost: BOOST,
     worldPort: experimentWorldPort,
-    watchToken: experimentWatchToken,
     minutesPerLeg: MINUTES, totalLegs: agents.length, completedLegs,
     expIntervalSeconds: EXP_INTERVAL_MS / 1000,
     concurrency: BENCH_CONCURRENCY,
@@ -3159,7 +3153,7 @@ function writeExperimentState(status, currentIndex = -1, completedLegs = 0, acti
       status: i < completedLegs ? 'complete' : active.has(i) || i === currentIndex ? 'running' : 'queued',
     })),
   };
-  const encoded = JSON.stringify(body, null, 2);
+  const encoded = serializePublicExperiment(body);
   // Keep a per-invocation manifest so separate ports/DBs cannot overwrite
   // each other's experiment history. The legacy current pointer remains for
   // older clients; the Sims page prefers the indexed per-run manifests.

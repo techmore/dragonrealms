@@ -51,6 +51,13 @@ and allowed browser origins. Keep private configuration outside the source
 archive. Check the configured origin, authentication and read-only GM surfaces
 before opening the world to players.
 
+Before October 8, 2026, sweep experiment reports included a GM credential.
+The publisher now excludes credentials, and Watch ignores legacy report tokens.
+If a deployment pinned a credential used in those sweeps, replace it before
+reusing that deployment. Removing a field from local reports does not revoke
+copies already obtained elsewhere. Cross-world Watch links require the target
+world's own private sign-in and do not transfer the current world's credential.
+
 Back up an existing world using the [recovery procedure](RECOVERY.md) before an
 upgrade. Keep the prior source package and database snapshot. Restore into a
 new database path for a rollback; do not overwrite a running world's database.
