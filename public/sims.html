@@ -922,7 +922,7 @@
       <div style="margin-top:12px"><h3>Runs</h3>
         <table class="tbl" id="lab-runs"><thead><tr>
           <th>when</th><th>variant</th><th>char</th><th>grade</th><th>kills</th>
-          <th>circles</th><th>total ranks</th><th>firstEXP</th><th>+5</th><th>+10</th><th>+15</th><th>c1</th><th>min</th><th>verdict</th>
+          <th>circles</th><th>total ranks</th><th>firstEXP</th><th>+5</th><th>+10</th><th>+15</th><th>c1</th><th>min</th><th title="Activity health does not prove target completion or leveling pace">activity / stall</th>
         </tr></thead><tbody></tbody></table>
       </div>
     </section>
@@ -963,6 +963,7 @@
   <script type="module" src="/js/admin/agents.js"></script>
   <script type="module">
     import { simulationWatchLink } from '/js/sim-watch.js';
+    import { ACTIVITY_HEALTH_NOTE, activityHealthLabel, activityHealthCounts, circleProgressBadges } from '/js/sim-measurement.js';
     import { emptyTail, readTail, discoveryState, discoveryLabel } from '/js/sims-reliability.js';
     'use strict';
     // NOTE: agents.js is an ES module (deferred). Its export lands on
@@ -1781,16 +1782,14 @@
       if (!el) return;
       const rows = RUNS.filter((r) => r.variant && Number.isFinite(r.durationMs) && r.durationMs > 0);
       if (!rows.length) { el.innerHTML = '<div class="note">badges unlock after a completed benchmark run</div>'; return; }
-      const eligible = rows.filter((r) => !['stalled', 'wedged'].includes(r.stallVerdict));
-      const speed = eligible.filter((r) => r.timeToCircleMs != null).sort((a,b) => a.timeToCircleMs - b.timeToCircleMs)[0];
-      const volume = eligible.slice().sort((a,b) => (b.circle || 1) - (a.circle || 1) || (b.circles || 0) - (a.circles || 0))[0];
-      const efficiency = eligible.slice().sort((a,b) => ((b.circle || 1) / b.durationMs) - ((a.circle || 1) / a.durationMs))[0];
+      const { fastest, volume, efficiency, eligibleCount } = circleProgressBadges(rows);
       const fmt = (ms) => ms == null ? '—' : `${(ms / 60000).toFixed(1)}m`;
       const card = (icon, title, r, detail) => r ? `<div class="badge-card gold"><span class="badge-icon">${icon}</span><span class="badge-title">${title}</span><span class="badge-winner">${esc(r.variant)}</span><span class="badge-detail">${esc(r.guild || '?')} · ${esc(r.race || '?')} · ${detail}</span></div>` : '';
-      el.innerHTML = card('🛡', 'Fastest to target', speed, fmt(speed.timeToCircleMs))
-        + card('🏆', 'Most circles', volume, `circle ${volume.circle || 1}`)
-        + card('⚡', 'Best circles / minute', efficiency, `${(((efficiency.circle || 1) / efficiency.durationMs) * 60000).toFixed(2)} c/min`);
-      if (state) state.textContent = `${eligible.length}/${rows.length} eligible completed runs · build = guild × race × variant`;
+      el.innerHTML = card('🛡', 'Fastest to target', fastest?.row, fmt(fastest?.row.timeToCircleMs))
+        + card('🏆', 'Most circles gained', volume?.row, volume ? `+${volume.gain} circles` : '')
+        + card('⚡', 'Best circles gained / minute', efficiency?.row, efficiency ? `${(efficiency.gain / efficiency.row.durationMs * 60000).toFixed(2)} gained/min` : '')
+        + (!eligibleCount ? '<div class="note">No qualifying observed circle gains; zero or unknown gains earn no progress badge.</div>' : '');
+      if (state) state.textContent = `${eligibleCount}/${rows.length} completed runs with qualifying observed circle gains · build = guild × race × variant`;
     }
     function renderLeaderboard() {
       const el = $('lb-body');
@@ -1910,7 +1909,7 @@
               }).join('')}
             </div>
             <table class="tbl">
-              <thead><tr><th>char</th><th>ended</th><th>t15</th><th>kills</th><th>deaths</th><th>trains</th><th>refusals</th><th>shortfall</th><th>fidelity</th><th>verdict</th><th>rating</th></tr></thead>
+              <thead><tr><th>char</th><th>ended</th><th>t15</th><th>kills</th><th>deaths</th><th>trains</th><th>refusals</th><th>shortfall</th><th>fidelity</th><th title="Activity health does not prove target completion or leveling pace">activity / stall</th><th>rating</th></tr></thead>
               <tbody>${rv.runs.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).map((r) => {
                 const t15 = r.rankSplits?.find((s) => s.ranks === 15)?.ms;
                 return `
@@ -1922,7 +1921,7 @@
                   <td title="commands refused by the game — high counts mean the script is guessing">${r.refusals ?? '—'}</td>
                   <td title="total ranks still needed to reach next circle; only runs on the new gap-telemetry driver carry it">${r.shortfall ?? '<span class="sub" title="not recorded by this run\'s driver">n/a</span>'}</td>
                   <td>${esc(r.score || '—')}</td>
-                  <td class="verdict-${esc(r.stallVerdict || '')}">${esc(r.stallVerdict || '—')}</td>
+                  <td class="verdict-${esc(r.stallVerdict || '')}" title="${esc(ACTIVITY_HEALTH_NOTE)}">${esc(activityHealthLabel(r.stallVerdict))}</td>
                   <td>${rateBadgeHtml(r.rating)}</td>
                 </tr>`;
               }).join('')}</tbody>
@@ -2552,7 +2551,7 @@
         return `<div class="exp-model${live ? ' live' : ''}">
           <div class="exp-model-head"><span class="exp-model-name">${live ? '● ' : ''}${esc(v.name)}</span><span class="exp-model-meta">${esc(state)}</span></div>
           <div class="exp-model-facts"><span class="badge">${v.done}/${v.total} legs</span><span class="badge">${esc(manifest.comparisonType || 'benchmark')}</span><span class="badge">target c${esc(manifest.targetCircle ?? '?')}</span></div>
-          <div class="sub">${live ? `active: ${esc(workers)} · ${esc(manifest.minutesPerLeg ?? '?')}m cap` : `${v.queued} waiting · ${v.done} landed`}</div>
+          <div class="sub">${live ? `active: ${esc(workers)} · ${esc(manifest.minutesPerLeg ?? '?')}m cap` : `${v.queued} waiting · ${v.done} finished`}</div>
         </div>`;
       }).join('')}</div>`;
     }
@@ -3055,14 +3054,16 @@
       const who = $('lab-char').value;
       const chars = LAB.chars.filter((c) => !who || c.char === who);
       // summary cards
-      const done = LAB.runs.filter((r) => r.stallVerdict !== 'wedged');
+      const activityCounts = activityHealthCounts(LAB.runs);
       const cards = [
         ['runs', LAB.runs.length],
-        ['healthy', done.length],
-        ['wedges', LAB.runs.length - done.length],
+        ['activity healthy', activityCounts.healthy],
+        ['wedges', activityCounts.wedged],
+        ['activity unknown', activityCounts.unknown],
         ['total circles', LAB.runs.reduce((n, r) => n + (r.circlesUp || 0), 0)],
         ['best firstEXP', (() => { const v = Math.min(...LAB.runs.map((r) => r.firstExpSec).filter(Boolean)); return Number.isFinite(v) ? v + 's' : '—'; })()],
       ];
+      $('lab-summary').title = ACTIVITY_HEALTH_NOTE;
       $('lab-summary').innerHTML = cards.map(([k, v]) =>
         `<div class="stat"><div class="sub">${k}</div><b style="font-size:18px">${v}</b></div>`).join('');
       // charts: x = hour bucket (time), y per char
@@ -3087,7 +3088,7 @@
         <td>${fmtS(r.rankSplits?.find((s) => s.ranks === 10)?.ms != null ? Math.round(r.rankSplits.find((s) => s.ranks === 10).ms / 1000) : null)}</td>
         <td>${fmtS(r.rankSplits?.find((s) => s.ranks === 15)?.ms != null ? Math.round(r.rankSplits.find((s) => s.ranks === 15).ms / 1000) : null)}</td>
         <td>${r.timeToCircleMin ?? '—'}m</td><td>${r.durationMin ?? '—'}</td>
-        <td class="sub">${esc(r.stallVerdict || '')}</td></tr>`).join('')
+        <td class="sub" title="${esc(ACTIVITY_HEALTH_NOTE)}">${esc(activityHealthLabel(r.stallVerdict))}</td></tr>`).join('')
         || '<tr><td colspan="14" class="note">no runs recorded yet</td></tr>';
     }
     $('lab-refresh').addEventListener('click', loadLab);
