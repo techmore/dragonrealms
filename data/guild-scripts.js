@@ -199,6 +199,9 @@ export const GUILD_SCRIPTS = {
 
   warmage: {
     magic: true,
+    // Named Scholarship gates cannot be hall-trained; native library study
+    // supplies this mandatory field curriculum without changing variant knobs.
+    mandatoryStudy: ['scholarship', 'appraisal'],
     // Caster loop: prepare -> cast at target; mana-gated by the driver script
     // via iflt mana. Weapon swings fill mana-poor rounds.
     // KAIZEN (2026-08-28): dropped the literal `put wait` from the fight
@@ -212,8 +215,10 @@ export const GUILD_SCRIPTS = {
     // moonmage/necromancer/paladin too; ALL casters now omit it (2026-08-29)
     // so the prepare→cast loop is gated purely by the generator's per-step
     // `wait` plus the engine's RT-park.
-    fight: ['put prepare fire_shard', 'put cast %target'],
-    fallbackFight: ['put attack %target'],
+    // Scholarship/Appraisal come from library study; native trip supplies
+    // the third eligible lore lane (Tactics), before spells can kill the foe.
+    fight: ['put trip %target', 'put prepare fire_shard', 'put cast %target'],
+    fallbackFight: ['put trip %target', 'put attack %target'],
     preFight: [],
     signature: { cmd: 'prepare fire_shard', ok: /You begin preparing Fire Shard/i, probe: 'spell' },
     armVerb: 'wield',
@@ -227,10 +232,8 @@ export const GUILD_SCRIPTS = {
       survival: ['perception', 'athletics', 'first_aid', 'scouting', 'skinning', 'foraging'],
       // Lore Nth needs 3 countable members but only scholarship+appraisal
       // counted (elemental_lore/attunement are NOT in the lore Nth pool).
-      // +tactics as the third. FLAG: the hall teaches NONE of the lore pool,
-      // so all three need field verbs the baseline loop lacks (study at the
-      // library → scholarship/appraisal; maneuvers → tactics) — known gap
-      // for a future town-study/appraise errand.
+      // The hall teaches none of these lanes: the mandatory library detour
+      // supplies Scholarship/Appraisal, and native trip supplies Tactics.
       lore: ['elemental_lore', 'attunement', 'scholarship', 'appraisal', 'tactics'],
       // Magic Nth counts the common pool, NOT war/offensive/primary (none of
       // those are pool members — pushing them for an Nth-magic line wastes

@@ -100,7 +100,7 @@ const { RACES } = await import('../data/races.js');
 const { ROOMS } = await import('../data/world.js');
 const { creatureById } = await import('../data/creatures.js');
 const { GUILD_SCRIPTS, RACE_MATRIX, VARIANTS } = await import('../data/guild-scripts.js');
-const { nounOf, moves, buildHuntScript, buildWeaponRotationScript, buildSharedFightScript, buildCircleScript, buildMegaScript, reversePath, trainListFromMissing } = await import('./lib/script-gen.mjs');
+const { mandatoryStudyPlan, nounOf, moves, buildHuntScript, buildWeaponRotationScript, buildSharedFightScript, buildCircleScript, buildMegaScript, reversePath, trainListFromMissing } = await import('./lib/script-gen.mjs');
 // Fidelity-log verb allowlist, derived from the guild script definitions so a
 // new scripted verb is automatically traceable (the old hand-written regex
 // silently dropped `learn`, `tend`, and `trip` in turn — each looked like a
@@ -622,7 +622,8 @@ class SweepAgent {
   }
 
   studyErrandRoute(fromRoom) {
-    if (!this.loreMissingNow()) return {};
+    const mandatory = mandatoryStudyPlan(this.guild, { ...(this.session.vitals.skills || {}), ...(this.expRanks || {}) }, this.session.vitals.circle || 1);
+    if (!this.loreMissingNow() && !mandatory.length) return {};
     const studyPath = this.pureDiskPath(fromRoom, 'academy') || [];
     const studyToBazaar = this.pureDiskPath('academy', 'bazaar') || [];
     // Cap 44: the real disk walk hall_barbarian→academy→bazaar is 22+16=38
@@ -1182,7 +1183,7 @@ class SweepAgent {
         gemPath: s.bfsPath('bazaar', 'market_end', this.diskAdj()),
         gemBack: s.bfsPath('market_end', 'bazaar', this.diskAdj()),
         gemRoom: 'market_end',
-        ...((this.variant?.finishKit || this.variant?.gapCurriculum || this.variant?.gapActivity) ? this.studyErrandRoute('hall_' + this.guild) : {}),
+        ...((this.variant?.finishKit || this.variant?.gapCurriculum || this.variant?.gapActivity || GUILD_SCRIPTS[this.guild]?.mandatoryStudy?.length) ? this.studyErrandRoute('hall_' + this.guild) : {}),
         ...(this.variant?.finishKit ? this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()) : {}),
         ...(this.variant?.finishKit ? this.crierErrandRoute() : {}),
       },
@@ -1668,7 +1669,7 @@ class SweepAgent {
         gemPath: s.bfsPath('bazaar', 'market_end', this.diskAdj()),
         gemBack: s.bfsPath('market_end', 'bazaar', this.diskAdj()),
         gemRoom: 'market_end',
-        ...((this.variant?.finishKit || this.variant?.gapCurriculum || this.variant?.gapActivity) ? this.studyErrandRoute('hall_' + this.guild) : {}),
+        ...((this.variant?.finishKit || this.variant?.gapCurriculum || this.variant?.gapActivity || GUILD_SCRIPTS[this.guild]?.mandatoryStudy?.length) ? this.studyErrandRoute('hall_' + this.guild) : {}),
         ...(this.variant?.finishKit ? this.tdpSpendRoute('hall_' + this.guild, this.loreMissingNow()) : {}),
         ...(this.variant?.finishKit ? this.crierErrandRoute() : {}),
       },

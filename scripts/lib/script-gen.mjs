@@ -1264,6 +1264,22 @@ function trainListFromMissing(raw, guild, opts = {}) {
   return [...new Set(wanted)];
 }
 
+// Mandatory non-hall study lanes. Missing observations retain the safe
+// fresh-character plan; known satisfied ranks suppress the detour.
+export function mandatoryStudyPlan(guildId, ranks, circle = 1) {
+  const configured = GUILD_SCRIPTS[guildId]?.mandatoryStudy || [];
+  if (!configured.length) return [];
+  const shaped = Object.fromEntries(Object.entries(ranks || {}).map(([id, value]) =>
+    [id, { rank: Number(value?.rank ?? value) || 0 }]));
+  const needs = circleRequirementNeeds(GUILDS[guildId], shaped, circle + 1);
+  // Both library lanes must cover the lore breadth thresholds, not merely
+  // the lower named Scholarship gate (c2 named2 versus lore4/4/2).
+  const loreNeed = Math.max(0, ...needs.filter(row => row.set === 'lore').map(row => row.need));
+  return configured.map(skill => ({ skill, need: Math.max(loreNeed,
+    ...needs.filter(row => !row.set && row.skill === skill).map(row => row.need)) }))
+    .filter(row => (shaped[row.skill]?.rank || 0) < row.need);
+}
+
 // Candidate-only town curriculum. Null means ranks have not been observed:
 // do not substitute a broad default curriculum for unknown or closed gaps.
 export function gapTrainingPlan(guildId, ranks, circle = 1) {
@@ -1501,6 +1517,9 @@ function buildCircleScript({ cap, fromArena, errands }) {
     // visit cheap.
     curriculum = curriculum.slice(0, cap.hallTrainCap || 8);
   }
+  const mandatoryStudy = mandatoryStudyPlan(cap.guild, cap.requirementRanks, cap.circle || 1);
+  const mandatoryOnly = !cap.finishKit && !cap.gapCurriculum && mandatoryStudy.length > 0;
+  if (mandatoryOnly) cap.studySkills = mandatoryStudy.map(row => row.skill);
   for (const [index, skill] of curriculum.slice(0, 8).entries()) {
     if (cap.gapActivity) L.push(`  ife gap_train_${skill} 0 goto ACT_TRAIN_DONE_${index}`);
     L.push(`  put train ${skill}`);
@@ -1569,17 +1588,20 @@ function buildCircleScript({ cap, fromArena, errands }) {
   // comparison silently failed EVERY trip and kept the study detour dead).
   // When the study→bazaar continuation is unreachable the whole detour is
   // skipped (fall back to the plain hall→bazaar walk).
-  const studyGo = (cap.finishKit || cap.gapCurriculum) && cap.studySkills?.length && errands?.studyPath?.length
+  const studyGo = (cap.finishKit || cap.gapCurriculum || mandatoryOnly) && cap.studySkills?.length && errands?.studyPath?.length
     && errands.studyRoom && (cap.studyToBazaar = errands.studyToBazaar?.length ? errands.studyToBazaar : null);
   if (studyGo) {
     L.push(...moves(errands.studyPath));
     L.push(`  ifne room ${errands.studyRoom} goto STUDY_DONE`);
     if (cap.gapActivity) L.push('  ife gap_study 0 goto STUDY_DONE');
-    for (const _s of (cap.gapCurriculum ? cap.studySkills.slice(0, 1) : cap.studySkills)) {
-      // THREE reads per missing lore skill: one study banks ~6.4 exp (×boost),
-      // but rank 2→3 needs ~202 — a single read per trip never converts through
-      // the pool-drain lag (r9: appraisal pinned 2/3 across two trips). Three
-      // reads ≈ 3× the bank, still under 15s of RT inside the detour.
+    if (mandatoryOnly) {
+      for (const row of mandatoryStudy) L.push(`  iflt wsr_${row.skill} ${row.need} goto MANDATORY_STUDY`);
+      L.push('  goto STUDY_DONE', 'MANDATORY_STUDY:');
+    }
+    for (const _s of ((cap.gapCurriculum || mandatoryOnly) ? cap.studySkills.slice(0, 1) : cap.studySkills)) {
+      // Bounded three native reads: Academy study banks Scholarship
+      // 10+0.5/rank and Appraisal 6+0.2/Scholarship rank per read. These
+      // are field pools; rank conversion happens separately on pulses.
       L.push('  put study');
       L.push('  wait');
       L.push('  pause 1');
