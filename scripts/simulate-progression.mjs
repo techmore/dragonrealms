@@ -232,6 +232,17 @@ function tryCircle() {
   return p.circle >= TARGET;
 }
 
+function gearUp() {
+  // Each null tier keeps the previous choice for that slot. Equipping every
+  // eligible tier would repeatedly swap old/new pieces and retain duplicates.
+  for (const [field, slot, verb] of [['weapon', 'hand', 'wield'], ['armor', 'torso', 'wear'], ['shield', 'shield', 'wear']]) {
+    const choice = [...GEAR].reverse().find(tier => tier.min <= p.circle && tier[field]);
+    // Equipment holds the item itself; inventory entries alone wrap `.item`.
+    const item = p.equipment[slot];
+    if (choice && item?.id !== choice[field]) give(choice[field], `${verb} ${choice[field]}`);
+  }
+}
+
 let safety = 0;
 report(`=== Progression sim: ${p.guild.name} (${p.race.name}) -> circle ${TARGET}${BOOST > 1 ? ` [boost x${BOOST}]` : ''} ===`);
 while (p.circle < TARGET && safety++ < 30000) {
@@ -241,19 +252,16 @@ while (p.circle < TARGET && safety++ < 30000) {
     const targets = [...requirementNeeds()].map(([id, need]) => `${id} ${(p.skills[id] || {}).rank || 0}/${need}`).slice(0, 4).join(', ');
     report(`  ...hunt ${hunts}: circle ${p.circle}, hp ${p.hp}/${p.maxHp}, TDP ${p.tdp}, silver ${p.silver}, ticks ${Math.floor(ticks / 60)}m${missing ? `; next: ${missing}` : ''}${targets ? `; train: ${targets}` : ''}`);
   }
-  // Gear up
-  for (const g of GEAR) {
-    if (p.circle >= g.min) {
-      if (g.weapon && (!p.equipment.hand || p.equipment.hand.id !== g.weapon)) give(g.weapon, `wield ${g.weapon}`);
-      if (g.armor && (!p.equipment.torso || p.equipment.torso.id !== g.armor)) give(g.armor, `wear ${g.armor}`);
-      if (g.shield && (!p.equipment.shield || p.equipment.shield.id !== g.shield)) give(g.shield, `wear ${g.shield}`);
-    }
-  }
+  gearUp();
   // Breadth activities a real player does between fights.
   // Some high-circle combat zones are barren/urban rather than forageable.
   // Practice fieldcraft in the nearest true wilds before walking to the hunt.
   p.room = game.isWild(hunt.room) ? hunt.room : 'woods_1';
   handleCommand(game, p, 'hunt');
+  if (p.guild.id === 'ranger') {
+    handleCommand(game, p, 'track');
+    ticks += 4; // authored track roundtime
+  }
   handleCommand(game, p, 'forage');
   handleCommand(game, p, 'hide');
   handleCommand(game, p, 'perform');
