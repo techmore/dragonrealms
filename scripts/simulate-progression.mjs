@@ -8,6 +8,9 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
+import { installSimulationClock } from './lib/simulation-clock.mjs';
+import { clotTick } from '../server/wounds.js';
 
 const tmp = mkdtempSync(join(tmpdir(), 'dr-sim-'));
 process.env.DR_DB_PATH = join(tmp, 'sim.db');
@@ -102,7 +105,10 @@ let hunts = 0;
 let deaths = 0;
 let kills = 0;
 let silverEarned = 0;
-const startReal = Date.now();
+const clock = installSimulationClock(() => ticks);
+process.once('exit', clock.restore);
+try {
+const startReal = performance.now();
 const circleTimes = { 1: 0 };
 // Stall detector (engaged only when the target exceeds the default content
 // band): counts consecutive hunts with no circle advance, so a target above
@@ -116,8 +122,9 @@ const report = (msg) => console.log(msg);
 function restToFull() {
   // Rest = 2s per tick until full.
   let t = 0;
-  while ((p.hp < p.maxHp || (p.guild.magic && p.mana < p.maxMana)) && t < 40) { p.hp = Math.min(p.maxHp, p.hp + Math.floor(p.maxHp * 0.025)); if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * 0.04))); t++; gainSkillExp(p, "athletics", 2); }
-  ticks += t * 2;
+  while ((p.hp < p.maxHp || (p.guild.magic && p.mana < p.maxMana)) && t < 40) { p.hp = Math.min(p.maxHp, p.hp + Math.floor(p.maxHp * 0.025)); if (p.guild.magic) p.mana = Math.min(p.maxMana, p.mana + Math.max(2, Math.floor(p.maxMana * 0.04))); t++; ticks += 2; gainSkillExp(p, "athletics", 2); clotTick(p.wounds, false); }
+  clotTick(p.wounds, false);
+  p.wounds = (p.wounds || []).filter(wound => !wound.resolved);
 }
 
 function sellLoot() {
@@ -250,6 +257,18 @@ function unmetFieldRequirement(skill) {
 }
 
 function practiceHunt(normal) {
+  if (unmetFieldRequirement('first_aid')) {
+    // Keep this tier's authored difficulty, but avoid its weakest incidental
+    // target. Armor upgrades can make an old creature unable to open wounds.
+    const targets = normal.ids.map(id => CREATURES[id])
+      .sort((a, b) => Math.max(...b.weapon.dmg) - Math.max(...a.weapon.dmg)
+        || a.id.localeCompare(b.id));
+    for (const def of targets) {
+      const placements = Object.values(ROOMS).filter(room => room.spawns?.includes(def.id));
+      const room = placements.find(room => room.zone === ROOMS[normal.room]?.zone) || placements[0];
+      if (room) return { min: normal.min, room: room.id, ids: [def.id] };
+    }
+  }
   if (!unmetFieldRequirement('lockpicking')) return normal;
   // Select actual authored placements, not invented box spawns. Retain the
   // normal circle ladder as the difficulty ceiling for this practice detour.
@@ -440,7 +459,8 @@ report(`\n=== Results (${p.guild.name}) ===`);
 report(`Circle reached: ${p.circle} (target ${TARGET})`);
 const hours = Math.floor((ticks / 3600) * 10) / 10;
 report(`Simulated time: ${Math.floor(ticks / 60)} minutes (${hours} hours)`);
-report(`Real time: ${Math.round((Date.now() - startReal) / 1000)}s`);
+report(`Real time: ${Math.round((performance.now() - startReal) / 1000)}s`);
+report(`Engine model: staged travel/gear/recovery; policy clocks follow simulated elapsed time; background restock, mana and world timers remain stopped. Not real-wire pacing.`);
 report(`Experience boost: x${BOOST}`);
 report(`Hunts: ${hunts}, kills: ${kills}, deaths: ${deaths}`);
 report(`Silver earned: ${silverEarned}, on hand: ${p.silver}`);
@@ -462,3 +482,8 @@ report(`Final primary ranks: ${p.guild.primary.map((s) => `${s}=${(p.skills[s] |
 game.stop();
 closeDb();
 rmSync(tmp, { recursive: true, force: true });
+
+} finally {
+  clock.restore();
+  process.removeListener('exit', clock.restore);
+}
