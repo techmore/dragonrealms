@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "kind": "dragonrealms-verification",
+  "mode": "release",
+  "startedAt": "2026-10-08T00:40:12.293Z",
+  "finishedAt": "2026-10-08T00:42:20.416Z",
+  "durationMs": 128123,
+  "source": {
+    "before": {
+      "fingerprint": {
+        "available": true,
+        "algorithm": "sha256",
+        "digest": "2589bc11e5314170d5ecfb5d25529c4de8a351f0e20c1cfb1ce2e5108a01f1d7",
+        "fileCount": 506
+      },
+      "git": {
+        "available": true,
+        "head": "8c60d9d5433f5086b903173138247c3d97196bdb",
+        "dirty": true,
+        "trackedChanges": 39,
+        "untrackedEntries": 65
+      },
+      "scope": "Authored server/data/client/scripts/test source and explicitly listed package/documentation files; paths plus file bytes, excluding artifacts, runtime state and report destination"
+    },
+    "after": {
+      "fingerprint": {
+        "available": true,
+        "algorithm": "sha256",
+        "digest": "e478393063fb0b45aee020276daa03503f2075d0f81e84218ca4635b6b5323df",
+        "fileCount": 506
+      },
+      "git": {
+        "available": true,
+        "head": "8c60d9d5433f5086b903173138247c3d97196bdb",
+        "dirty": true,
+        "trackedChanges": 39,
+        "untrackedEntries": 65
+      },
+      "scope": "Authored server/data/client/scripts/test source and explicitly listed package/documentation files; paths plus file bytes, excluding artifacts, runtime state and report destination"
+    },
+    "stable": false
+  },
+  "checks": [
+    {
+      "id": "syntax-check",
+      "name": "syntax check",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:40:12.295Z",
+      "finishedAt": "2026-10-08T00:40:26.104Z",
+      "durationMs": 13809,
+      "counts": {
+        "files": 491
+      }
+    },
+    {
+      "id": "test-suite",
+      "name": "test suite",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:40:26.105Z",
+      "finishedAt": "2026-10-08T00:40:42.464Z",
+      "durationMs": 16359,
+      "counts": {
+        "testFiles": 190
+      }
+    },
+    {
+      "id": "data-integrity",
+      "name": "data integrity",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:40:42.464Z",
+      "finishedAt": "2026-10-08T00:40:42.509Z",
+      "durationMs": 45,
+      "counts": {
+        "skills": 83,
+        "guilds": 11,
+        "items": 118,
+        "creatures": 22,
+        "rares": 3,
+        "npcs": 31,
+        "rooms": 312,
+        "zones": 11,
+        "recipes": 3,
+        "mana": 11,
+        "circleTables": 11,
+        "forgeRecipes": 5,
+        "engineerRecipes": 2,
+        "outfitRecipes": 2,
+        "craftTechniques": 16,
+        "manaTypes": 6,
+        "spellTierRanks": 5,
+        "spellSlotCosts": 5,
+        "alchemyRecipes": 3,
+        "forgingRecipes": 5,
+        "engineeringRecipes": 2,
+        "outfittingRecipes": 2,
+        "alchemyTechniques": 4,
+        "forgingTechniques": 4,
+        "engineeringTechniques": 4,
+        "outfittingTechniques": 4,
+        "qualityLevels": 5,
+        "craftSlotSamples": 16,
+        "guildSpells": 40,
+        "magicalGuilds": 8,
+        "spellTierSamples": 9,
+        "spellSlotSamples": 66,
+        "manaCycleSamples": 36
+      }
+    },
+    {
+      "id": "command-contracts",
+      "name": "command contracts",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:40:42.509Z",
+      "finishedAt": "2026-10-08T00:40:42.574Z",
+      "durationMs": 65,
+      "counts": {
+        "registryCommands": 190,
+        "metadataCommands": 72,
+        "movementCommands": 21,
+        "guideEntries": 107,
+        "localGuideEntries": 4,
+        "guideAliases": 7,
+        "uncoveredCommands": 101
+      }
+    },
+    {
+      "id": "module-references",
+      "name": "module references",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:40:42.574Z",
+      "finishedAt": "2026-10-08T00:40:42.733Z",
+      "durationMs": 159,
+      "counts": {
+        "files": 279,
+        "references": 947,
+        "relativeReferences": 641,
+        "externalReferences": 306,
+        "skippedDynamicImports": 0
+      }
+    },
+    {
+      "id": "documentation-consistency",
+      "name": "documentation consistency",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:40:42.733Z",
+      "finishedAt": "2026-10-08T00:40:42.863Z",
+      "durationMs": 130
+    },
+    {
+      "id": "project-references",
+      "name": "project references",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:40:42.863Z",
+      "finishedAt": "2026-10-08T00:40:42.900Z",
+      "durationMs": 37,
+      "counts": {
+        "documents": 5,
+        "localLinks": 51,
+        "fragments": 0,
+        "nodeTargets": 26,
+        "skippedNodePatterns": 1
+      }
+    },
+    {
+      "id": "isolated-corpus-capture-and-replay",
+      "name": "isolated corpus capture and replay",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:40:42.900Z",
+      "finishedAt": "2026-10-08T00:41:27.776Z",
+      "durationMs": 44876
+    },
+    {
+      "id": "isolated-browser-regression",
+      "name": "isolated browser regression",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:41:27.776Z",
+      "finishedAt": "2026-10-08T00:42:20.067Z",
+      "durationMs": 52291
+    }
+  ],
+  "limitations": [
+    "Skipped checks remain unverified.",
+    "A Git commit identifies tracked history; dirty and untracked source is represented by the scoped file fingerprint.",
+    "The fingerprint excludes dependencies, runtime state, environment, generated artifacts outside its scope and external services.",
+    "Matching before/after fingerprints cannot detect edits made and reverted during a check.",
+    "Scoped source changed during verification; the checks cannot be attributed to a single stable source snapshot."
+  ],
+  "sourceChanged": true,
+  "summary": {
+    "passed": 9,
+    "failed": 0,
+    "skipped": 0
+  },
+  "selectedChecksPassed": true,
+  "allChecksVerified": true
+}

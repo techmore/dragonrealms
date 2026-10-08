@@ -11,6 +11,12 @@ import { itemById } from '../../data/items.js';
 import { setAlias, removeAlias, setRoundtime, setSleep, bankDeepSleepRexp, sayRaw } from '../player.js';
 import { pad, matchSkill, findNpcByName, findInventoryItem, broadcastRoom, gameTime } from './util.js';
 import { persistCorpseState } from '../corpses.js';
+import { formatCommandHelp } from '../command-help.js';
+import { formatQuestJournal } from '../quest-journal.js';
+import { formatWorldLocations } from '../world-reference.js';
+import { formatRoute } from '../route.js';
+import { formatQuestRoute } from '../quest-route.js';
+import { formatOrderRoute } from '../order-route.js';
 
 // Thief Passages: chalk-sign ways out of the Dark Knot (name -> destination).
 // The hub remembers every bolt-hole that leads in; each way out is named for
@@ -24,31 +30,31 @@ const HELP = `
 \x1b[1mDragon Realms — quick help\x1b[0m
   Movement:  n, s, e, w, ne, nw, se, sw, u, d  |  go north  |  look (l)
    Combat:    attack <creature>  |  target <creature>  |  cast [spell] [target]  |  retreat/flee  |  skin <creature>
-   Magic:     spells  |  slots  |  technique [learn <name>]  |  prepare <spell> [pct] (then "cast"; overchanneling risks backlash)  |  perceive  |  harness  |  charge/invoke/focus <cambrinth>
+   Magic:     spells  |  spellbook [query]  |  slots  |  technique [learn <name>]  |  prepare <spell> [pct] (then "cast"; overchanneling risks backlash)  |  perceive  |  harness  |  charge/invoke/focus <cambrinth>
    Powers:    berserk (Barbarian)  |  form/roar/meditate <ability>  |  whirlwind/stomp/choke/analyze (barbarian)  |  backstab (Thief)  |  khri <name> (Thief)
               smite (Paladin)  |  glyph <name> (Paladin, soul-fueled wards)  |  impede <creature> (Warrior Mage)  |  mend/touch/scar/link <player> (Empath)  |  predict + observe sky + telescope + moon gate <city> (Moon Mage)  |  summon familiar (Warrior Mage)  |  animate <corpse> + ritual <name> (Necromancer)
               enchante war|bravery|regen (Bard)  |  devotion (Cleric)  |  beseech wind|sun + companion (Ranger)  |  snipe/slip (Ranger)
   Abilities: abilities  (list barbarian arts)  |  learn <ability>  (at the barbarian hall)  |  ask <leader> about forgetting <ability>
-  Items:     get <item>  |  drop <item>  |  inventory (i)  |  wear/wield <item>  |  remove <item>  |  use <item>  |  repair <item>  (gear wears with use)
+  Items:     get <item>  |  drop <item>  |  inventory (i)  |  equipment [query]  (condition and repair quotes)  |  wear/wield <item>  |  remove <item>  |  use <item>  |  repair <item>  (gear wears with use)
   Death:     die in battle and you awaken at the temple — your gear lies with your corpse; search <corpse>, get <item> from corpse
   Shops:     list  |  buy <item> [qty]  |  sell <item> [qty]  |  deposit/withdraw <silvers>  |  vault/store/retrieve  |  pit  |  heal  |  auction offer/buy  (Auction Hall, north of the pit)
-  Training:  train <skill>  (pay silvers to advance guild skills)  |  train <stat> twice (Fane of Training, south of Temple Row)  |  circle
+  Training:  training [skills|stats] [query]  (inspect lesson plans and costs)  |  train <skill>  (pay silvers to advance guild skills)  |  train <stat> twice (Fane of Training, south of Temple Row)  |  circle
   Guilds:    join <guild>  (at a guild hall's leader: dir list guilds, walk there, swear your oath)
   TDPs:      tdp  |  raise <stat>  (INFO attributes only, at the Fane)
-  Quests:    quest  |  claim  |  deliver  |  ask <leader> task
+  Quests:    journal  (read quest progress)  |  quest  |  claim  |  deliver  |  ask <leader> task
   Stances:   stance aggressive | defensive | guarded | balanced  (costs stance points)
   PvP:       duel <player> [blood|blow|pain] [reason] | accept/decline <player> | surrender | assault <player> (OPEN targets only) | recall warrant | pvp stance open|guarded|closed  (duels wilds only)
   Wilds:     forage  |  hunt  |  track  |  ladder [undead|skins|boxes...]  |  hide  |  ambush <creature>  |  rest  (recover)
-  Travel:    dir <place> [steps]  (town directions: dir bank, dir list shops)  |  ferry  (Crossing docks <-> Riverhaven landing, 20 silvers)
+  Travel:    dir <place> [steps]  (town directions: dir bank, dir list shops)  |  where [room|creature|npc|item|guild] <name>  |  route <room-id|room name|quest|order> [steps]  |  ferry  (Crossing docks <-> Riverhaven landing, 20 silvers)
   Skills:    perform  |  appraise <item>  |  study  (temple library)
-   Crafting:  craft <recipe>  (Tilted Retort)  |  forge <recipe>  (Ember Forge)  |  shape <recipe>  (Ember Forge, Engineering)  |  tailor <recipe>  (Needle & Thread, off West Road)
+   Crafting:  recipes [discipline] [query]  (plans and material gaps)  |  craft <recipe>  (Tilted Retort)  |  forge <recipe>  (Ember Forge)  |  shape <recipe>  (Ember Forge, Engineering)  |  tailor <recipe>  (Needle & Thread, off West Road)
   Crime:     steal <npc>  (lift coin, town)  |  pick <strongbox>  |  plead guilty|innocent  (if jailed)
   Scripting: alias <name> <command>  |  use ";" to chain commands  (client: macro / timer)
   NPCs:      ask <npc> <topic>  (try "ask crier help")
-  Character: score  |  skills  |  exp  |  health  |  info  |  alloc <stat> <amount>  |  rexp  |  achievements  |  respec (Fane)
+  Character: score  |  skills  |  exp  |  progress [all]  |  health  |  info  |  alloc <stat> <amount>  |  rexp  |  achievements  |  respec (Fane)
   Party:     party <player>  (invite)  |  party join  |  party leave  |  party  (status)
   Social:    say <text>  |  emote <text>  |  shout <text>  |  who  |  time
-  Misc:      help  |  save  |  report <what happened>  |  quit
+  Misc:      help [command|category|search terms]  |  save  |  report <what happened>  |  quit
 `.trim();
 
 export const commands = {
@@ -56,6 +62,13 @@ export const commands = {
   l: look,
 
   quest(ctx) { quest(ctx); },
+  journal({ p, emit }) { emit(formatQuestJournal(p)); },
+  where({ rest, emit }) { emit(formatWorldLocations(rest)); },
+  route({ p, rest, emit }) {
+    const words = String(rest || '').trim().split(/\s+/);
+    const target = words[0].toLowerCase();
+    emit(target === 'quest' ? formatQuestRoute(p, words.slice(1).join(' ')) : target === 'order' ? formatOrderRoute(p, words.slice(1).join(' ')) : formatRoute(p.room, rest));
+  },
   claim(ctx) { claim(ctx); },
   deliver(ctx) { deliver(ctx); },
 
@@ -414,8 +427,8 @@ export const commands = {
   },
 
   help(ctx) {
-    const { say } = ctx;
-    say(`\n${HELP}`);
+    const { say, rest } = ctx;
+    say(rest?.trim() ? formatCommandHelp(rest) : `\n${HELP}`);
   },
 
   say(ctx) {
@@ -524,6 +537,14 @@ function appraise(ctx) {
 
 function quest(ctx) {
   const { game, p, arg1, say, emit } = ctx;
+  if (arg1 === 'abandon') {
+    if (!p.quest) return emit('You have no quest to abandon.');
+    const desc = game.questDescription(p);
+    p.quest = null;
+    game.persistPlayer(p);
+    game.pushQuest(p);
+    return emit(`You tell the task giver the work doesn't suit you. "${desc}" — struck from the ledger.`);
+  }
   if (!game.hasCrier(p) && !p.quest) {
     return emit('Ask the town crier for work — he stands in the town square.');
   }
@@ -542,16 +563,7 @@ function quest(ctx) {
     return;
   }
   if (p.quest.done) {
-    const res = game.questClaim(p);
-    emit(res.msg);
-    return;
-  }
-  if (arg1 === 'abandon') {
-    const desc = game.questDescription(p);
-    p.quest = null;
-    game.persistPlayer(p);
-    game.pushQuest(p);
-    return emit(`You tell the crier the work doesn't suit you. "${desc}" — struck from the ledger.`);
+    return emit(`\nQuest: ${game.questDescription(p)}\nType "claim" when you choose to collect your reward.`);
   }
   say(`\nQuest: ${game.questDescription(p)}`);
 }
@@ -584,8 +596,9 @@ function askResponse(game, p, npc, topic) {
     case 'guild': {
       const g = p.guild?.id === npc.guild ? p.guild : guildById(npc.guild);
       const next = p.circle + 1;
-      const req = circleRequirements(p.guild, p.skills, next);
       if (topic === 'circle') {
+        if (!p.guild || p.guild.id !== npc.guild) return '\nAsk your own guild leader about advancement after joining a guild.';
+        const req = circleRequirements(p.guild, p.skills, next);
         let msg = `\nTo circle to ${next}, you must have:\n  ${circleRequirementSummary(p.guild, next).join('\n  ')}`;
         if (req.ok) msg += `\nYou are ready — say "circle"!`;
         return msg;
@@ -594,11 +607,9 @@ function askResponse(game, p, npc, topic) {
         return `\n${npc.name} trains you in ${guildTrainedSkills(g).join(', ')}. Say "train <skill>" and pay in silvers.`;
       }
       if (topic === 'task') {
-        if (p.quest && p.quest.source === 'leader' && !p.quest.done) {
-          const def = creatureById(p.quest.creatureId);
-          return `\nFinish what you started: slay ${p.quest.count} more ${def.plural} and claim your reward.`;
-        }
-        if (p.quest && p.quest.done) return `\nYour task is done! Say "claim" for your reward.`;
+        if (p.quest) return `\n${p.quest.done ? 'Your task is done! Say "claim" for your reward.' : 'Finish what you started before taking another task.'}\n${game.questDescription(p)}`;
+        if (!p.guild) return '\nJoin a guild before requesting work from its leader.';
+        if (p.guild.id !== npc.guild) return '\nAsk your own guild leader for guild work.';
         const q = game.assignQuest(p, 'leader');
         const def = creatureById(q.creatureId);
         return `\n"${p.name}. The guild needs ${def.plural} thinned. Slay ${q.count} and I'll see you paid — and taught."`;
@@ -611,12 +622,8 @@ function askResponse(game, p, npc, topic) {
     }
     case 'info': {
       if (topic === 'quest') {
-        if (p.quest && p.quest.done) return `\nYour pest-control work is done! Say "claim" and I'll pay you.`;
-        if (p.quest) {
-          const def = creatureById(p.quest.creatureId);
-          return `\nSlay ${p.quest.count} more ${def.plural} and return to claim your reward.`;
-        }
-        return `\nI've got pest-control work, if you want it. Say "quest" and I'll mark your target.`;
+        if (p.quest) return `\n${game.questDescription(p)}${p.quest.done ? '\nSay "claim" when you choose to collect your reward.' : '\nFinish this task before requesting another assignment.'}`;
+        return `\nI've got town work, if you want it. Say "quest" and I'll mark your assignment.`;
       }
       if (topic === 'help') return `\nType "help" for a list of commands. Ask me about "areas", "hunting", "guilds", "skills", or "quest".`;
       if (topic === 'areas' || topic === 'hunting') {

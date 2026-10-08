@@ -1,6 +1,22 @@
 # Improvement implementation schedule
 
-Updated September 9, 2026. This is the execution order for the ongoing audit, implementation, simulator work, and end-user validation. Stages advance on evidence, not calendar deadlines. It is not a background scheduler.
+Updated October 7, 2026. This is the execution order for the ongoing audit, implementation, simulator work, and end-user validation. Stages advance on evidence, not calendar deadlines. It is not a background scheduler.
+
+## October continuation
+
+The September stage table below is a dated baseline. Current player discovery,
+quest coherence, transport recovery and verification tooling are documented in
+[the October receipt](PROJECT-EXPANSION-2026-10-07.md) and
+[project guide](README.md). Walking routes, live Journal inspection and passive
+progress guidance have passed isolated unit, wire and browser gates. Recipe
+planning, source-aware script diagnostics and saved verification receipts extend
+those module seams in the next batch.
+
+Simulator stage outcomes still require matched saved cohorts. These UI and
+unit checks do not establish pacing or completion rates, and no broader cohort
+is implied by this continuation.
+
+## September stage baseline
 
 | Order | Work | Completion check | Status |
 |---|---|---|---|

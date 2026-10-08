@@ -1,0 +1,237 @@
+{
+  "schemaVersion": 1,
+  "kind": "dragonrealms-verification",
+  "mode": "release",
+  "startedAt": "2026-10-08T11:37:56.417Z",
+  "finishedAt": "2026-10-08T11:40:42.720Z",
+  "durationMs": 166303,
+  "source": {
+    "before": {
+      "fingerprint": {
+        "available": true,
+        "algorithm": "sha256",
+        "digest": "2b5609a26dd8eadb5d98d732f85aad2bafffba6b7c40941a46e6ee689c42b800",
+        "fileCount": 521
+      },
+      "git": {
+        "available": true,
+        "head": "8c60d9d5433f5086b903173138247c3d97196bdb",
+        "dirty": true,
+        "trackedChanges": 41,
+        "untrackedEntries": 80
+      },
+      "scope": "Authored server/data/client/scripts/test source and explicitly listed package/documentation files; paths plus file bytes, excluding artifacts, runtime state and report destination"
+    },
+    "after": {
+      "fingerprint": {
+        "available": true,
+        "algorithm": "sha256",
+        "digest": "2b5609a26dd8eadb5d98d732f85aad2bafffba6b7c40941a46e6ee689c42b800",
+        "fileCount": 521
+      },
+      "git": {
+        "available": true,
+        "head": "8c60d9d5433f5086b903173138247c3d97196bdb",
+        "dirty": true,
+        "trackedChanges": 41,
+        "untrackedEntries": 80
+      },
+      "scope": "Authored server/data/client/scripts/test source and explicitly listed package/documentation files; paths plus file bytes, excluding artifacts, runtime state and report destination"
+    },
+    "stable": true
+  },
+  "checks": [
+    {
+      "id": "syntax-check",
+      "name": "syntax check",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T11:37:56.418Z",
+      "finishedAt": "2026-10-08T11:38:11.290Z",
+      "durationMs": 14872,
+      "counts": {
+        "files": 505
+      }
+    },
+    {
+      "id": "test-suite",
+      "name": "test suite",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T11:38:11.290Z",
+      "finishedAt": "2026-10-08T11:39:01.887Z",
+      "durationMs": 50597,
+      "counts": {
+        "testFiles": 196,
+        "tests": 1161,
+        "passed": 1161,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "todo": 0,
+        "suites": 0
+      },
+      "countEvidence": {
+        "known": true
+      }
+    },
+    {
+      "id": "data-integrity",
+      "name": "data integrity",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T11:39:01.887Z",
+      "finishedAt": "2026-10-08T11:39:01.935Z",
+      "durationMs": 48,
+      "counts": {
+        "skills": 83,
+        "guilds": 11,
+        "items": 118,
+        "creatures": 22,
+        "rares": 3,
+        "npcs": 31,
+        "rooms": 312,
+        "zones": 11,
+        "recipes": 3,
+        "mana": 11,
+        "circleTables": 11,
+        "forgeRecipes": 5,
+        "engineerRecipes": 2,
+        "outfitRecipes": 2,
+        "craftTechniques": 16,
+        "manaTypes": 6,
+        "spellTierRanks": 5,
+        "spellSlotCosts": 5,
+        "alchemyRecipes": 3,
+        "forgingRecipes": 5,
+        "engineeringRecipes": 2,
+        "outfittingRecipes": 2,
+        "alchemyTechniques": 4,
+        "forgingTechniques": 4,
+        "engineeringTechniques": 4,
+        "outfittingTechniques": 4,
+        "qualityLevels": 5,
+        "craftSlotSamples": 16,
+        "guildSpells": 40,
+        "magicalGuilds": 8,
+        "spellTierSamples": 9,
+        "spellSlotSamples": 66,
+        "manaCycleSamples": 36,
+        "weaponItems": 50,
+        "armorItems": 25,
+        "consumableItems": 10,
+        "cambrinthItems": 3,
+        "equippableItems": 76,
+        "circleGatedItems": 29
+      }
+    },
+    {
+      "id": "command-contracts",
+      "name": "command contracts",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T11:39:01.935Z",
+      "finishedAt": "2026-10-08T11:39:02.002Z",
+      "durationMs": 67,
+      "counts": {
+        "registryCommands": 192,
+        "metadataCommands": 74,
+        "movementCommands": 21,
+        "guideEntries": 109,
+        "localGuideEntries": 4,
+        "guideAliases": 7,
+        "uncoveredCommands": 101,
+        "panelSafeCanonicalCommands": 15,
+        "panelSafeResolvedCommands": 15
+      }
+    },
+    {
+      "id": "module-references",
+      "name": "module references",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T11:39:02.002Z",
+      "finishedAt": "2026-10-08T11:39:02.173Z",
+      "durationMs": 171,
+      "counts": {
+        "files": 287,
+        "references": 976,
+        "relativeReferences": 669,
+        "externalReferences": 307,
+        "skippedDynamicImports": 0
+      }
+    },
+    {
+      "id": "documentation-consistency",
+      "name": "documentation consistency",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T11:39:02.173Z",
+      "finishedAt": "2026-10-08T11:39:02.309Z",
+      "durationMs": 136
+    },
+    {
+      "id": "project-references",
+      "name": "project references",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T11:39:02.309Z",
+      "finishedAt": "2026-10-08T11:39:02.348Z",
+      "durationMs": 39,
+      "counts": {
+        "documents": 6,
+        "localLinks": 65,
+        "fragments": 0,
+        "nodeTargets": 26,
+        "skippedNodePatterns": 1
+      }
+    },
+    {
+      "id": "isolated-corpus-capture-and-replay",
+      "name": "isolated corpus capture and replay",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T11:39:02.348Z",
+      "finishedAt": "2026-10-08T11:39:47.217Z",
+      "durationMs": 44869,
+      "counts": {
+        "capturedMessages": 184,
+        "corpusMatches": 1
+      },
+      "countEvidence": {
+        "known": true
+      }
+    },
+    {
+      "id": "isolated-browser-regression",
+      "name": "isolated browser regression",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T11:39:47.217Z",
+      "finishedAt": "2026-10-08T11:40:42.325Z",
+      "durationMs": 55108,
+      "counts": {
+        "clientChecks": 157,
+        "auditClientChecks": 15,
+        "totalChecks": 172
+      },
+      "countEvidence": {
+        "known": true
+      }
+    }
+  ],
+  "limitations": [
+    "Skipped checks remain unverified.",
+    "A Git commit identifies tracked history; dirty and untracked source is represented by the scoped file fingerprint.",
+    "The fingerprint excludes dependencies, runtime state, environment, generated artifacts outside its scope and external services.",
+    "Matching before/after fingerprints cannot detect edits made and reverted during a check."
+  ],
+  "sourceChanged": false,
+  "summary": {
+    "passed": 9,
+    "failed": 0,
+    "skipped": 0
+  },
+  "selectedChecksPassed": true,
+  "allChecksVerified": true
+}

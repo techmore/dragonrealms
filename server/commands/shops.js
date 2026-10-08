@@ -1,5 +1,6 @@
 // Shop and service commands: market, bank, healer, trader caravans.
 import { skillRank, gainSkillExp, savePlayer } from '../player.js';
+import { formatRecipes } from '../recipe-reference.js';
 
 function persistOrRestore(p, before, message) {
   try { savePlayer(p); return true; }
@@ -7,6 +8,7 @@ function persistOrRestore(p, before, message) {
 }
 
 export const commands = {
+  recipes({ p, rest, emit }) { emit(formatRecipes(p, rest)); },
   list(ctx) {
     const { game, p, emit } = ctx;
     const res = game.listShop(p);

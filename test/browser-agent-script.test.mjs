@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAgentScript } from '../public/js/admin/agent-script.js';
+import { createAgentScript, agentScriptCompletion } from '../public/js/admin/agent-script.js';
 
 test('browser agent executes nested starter scripts and advances on wire prompts', () => {
   const sent = []; let completed = 0;
@@ -45,4 +45,29 @@ test('browser agents have independent script libraries and runners', () => {
   assert.equal(second.start('own'), false);
   assert.equal(first.start('own'), true);
   assert.deepEqual(sent, ['look']);
+});
+
+
+test('fatal nested script errors retain source context and classify the agent as failed', () => {
+  const sent = [], results = [];
+  const script = createAgentScript({ send: line => sent.push(line), onDone: result => results.push(result) });
+  script.setLibrary({ starter: '# parent\nputrun hunt\nput attack rat', hunt: '# child\nwaitforre [' });
+  script.start('starter');
+  script.feed({ t: 'prompt', msg: 'RT: 0' });
+  script.tick();
+  assert.equal(script.running, false);
+  assert.deepEqual(sent, []);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].reason, 'error');
+  assert.equal(results[0].diagnostic.script, 'hunt');
+  assert.equal(results[0].diagnostic.line, 2);
+  assert.equal(results[0].diagnostic.stack[0].script, 'starter');
+  const completion = agentScriptCompletion(results[0]);
+  assert.equal(completion.outcome, 'failed');
+  assert.match(completion.reason, /hunt:2/);
+  assert.match(completion.reason, /Called from starter:2/);
+});
+
+test('normal script completion retains the script-finished outcome', () => {
+  assert.deepEqual(agentScriptCompletion(), { outcome: 'script_finished', reason: 'starter script finished' });
 });

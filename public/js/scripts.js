@@ -11,10 +11,33 @@ import { send } from './net.js';
 import * as terminal from './terminal.js';
 import { gameState } from './state.js';
 import { createRunner } from './script-engine.js';
+import { scriptDiagnosticText } from './script-status.js';
 import { isAutomationPaused, onAutomationPause } from './automation-control.js';
 
 // ---- active runner registry (one at a time, like DR) ----
 let active = null;
+let lastRun = { phase: 'idle', name: null, state: null, diagnostic: null };
+const stateListeners = new Set();
+let lastPublished = '';
+export function scriptStatus() {
+  if (!active) return { ...lastRun };
+  const state = active.runner.state;
+  return { name: active.name, state, diagnostic: state.diagnostic,
+    phase: active.runner.running ? (state.mode ? 'waiting' : 'running') : state.outcome || 'completed' };
+}
+export function onScriptStateChange(listener) { stateListeners.add(listener); return () => stateListeners.delete(listener); }
+function notifyState() {
+  const snapshot = scriptStatus();
+  // Timer values are available for inspection but do not announce every tick.
+  const signature = JSON.stringify([snapshot.phase, snapshot.name, snapshot.state?.mode, snapshot.state?.location, snapshot.diagnostic, isAutomationPaused()]);
+  if (signature === lastPublished) return;
+  lastPublished = signature;
+  for (const listener of stateListeners) listener(snapshot);
+}
+function settleRunner() {
+  if (active && !active.runner.running) { lastRun = scriptStatus(); active = null; }
+  notifyState();
+}
 
 export function runScript(name, args = []) {
   if (isAutomationPaused()) {
@@ -25,14 +48,18 @@ export function runScript(name, args = []) {
     terminal.append('[script] Enter the world before running a script.', 'ch-error');
     return;
   }
-  if (active && !active.runner.running) active = null;
+  settleRunner();
   const src = readScript(name);
   if (!src) {
-    terminal.append(`[script] no script named "${name}"`, 'ch-error');
+    lastRun = { phase: 'error', name, state: null, diagnostic: { severity: 'error', phase: 'lookup', script: name, line: null, source: null, message: `No script named "${name}".`, stack: [] } };
+    terminal.append(scriptDiagnosticText(lastRun.diagnostic), 'ch-error');
+    notifyState();
     return;
   }
   if (active) { terminal.append(`[script] "${active.name}" is already running — stop it first (script stop)`, 'ch-error'); return; }
   const io = {
+    name,
+    onDiagnostic: diagnostic => { terminal.append(`[script] ${scriptDiagnosticText(diagnostic)}`, diagnostic.severity === 'error' ? 'ch-error' : 'ch-notice'); },
     send: (line) => send({ t: 'input', line }),
     say: (t) => terminal.append(t, 'ch-echo'),
     getScript: (name) => readScript(name),
@@ -40,15 +67,18 @@ export function runScript(name, args = []) {
   const runner = createRunner(src, args, io);
   active = { name, runner, vars: args };
   terminal.append(`[script] running "${name}"${args.length ? ' ' + args.join(' ') : ''}`, 'ch-notice');
+  notifyState();
   runner.start();
-  if (!runner.running) active = null;
+  settleRunner();
 }
 
 export function stopScript({ silent = false } = {}) {
   if (active) {
     active.runner.stop();
+    lastRun = scriptStatus();
     if (!silent) terminal.append(`[script] "${active.name}" stopped`, 'ch-notice');
     active = null;
+    notifyState();
   } else if (!silent) {
     terminal.append('[script] nothing is running', 'ch-error');
   }
@@ -56,13 +86,13 @@ export function stopScript({ silent = false } = {}) {
 
 export function isScriptRunning() { return Boolean(active?.runner.running); }
 export function activeScriptName() { return active?.runner.running ? active.name : null; }
-onAutomationPause((paused) => { if (paused) stopScript({ silent: true }); });
+onAutomationPause((paused) => { if (paused) stopScript({ silent: true }); notifyState(); });
 
 // Feed every incoming server line to the active runner.
 export function feedScripts(line, isPrompt = false) {
   if (isAutomationPaused()) return;
   if (active && active.runner.running) active.runner.feed(line, isPrompt);
-  if (active && !active.runner.running) active = null;
+  settleRunner();
 }
 
 // A 500ms heartbeat so `pause` timers resume even without server traffic.
@@ -125,6 +155,8 @@ const pending = new Map();
 export function onScriptsLibraryChange(fn) { scriptsDirtyNotify = fn; }
 export function scriptLibraryReady() { return libraryReady && gameState.value === 'playing' && !gameState.spectating; }
 export function resetScriptLibrary() {
+  lastRun = { phase: 'idle', name: null, state: null, diagnostic: null };
+  notifyState();
   characterScripts = Object.create(null);
   libraryReady = false;
   for (const { resolve, timer } of pending.values()) {

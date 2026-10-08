@@ -4,16 +4,19 @@ import { transferInventory } from './inventory-transfer.js';
 import { decodePersistentState, encodePersistentState } from './persistence-codec.js';
 import { decodePlayerJson, isRecord, stringList, optionalRecord } from './player-json.js';
 import { raceById } from '../data/races.js';
-import { guildById, spellsFor } from '../data/guilds.js';
+import { guildById } from '../data/guilds.js';
+import { heldSpellIds } from './spell-policy.js';
+import { finiteQuality, armorContribution } from './equipment-policy.js';
+export { conditionMult, qualityMult } from './equipment-policy.js';
+import { MAX_STAT, STAT_NAMES, RANK_CAP } from './training-policy.js';
+export { MAX_STAT, STAT_NAMES, RANK_CAP, statRaiseCost } from './training-policy.js';
 import { SKILLS, expToNextRank, pulseGroupFor, mentalStatBonus } from '../data/skills.js';
 import { itemById, itemWeight } from '../data/items.js';
 import { ROOMS } from '../data/world.js';
 
 export const BASE_STAT = 35;
 export const STAT_POOL = 30;
-export const MAX_STAT = 100;
 export const MAX_CHARS = 10;
-export const STAT_NAMES = ['str', 'con', 'ref', 'agi', 'cha', 'dis', 'wis', 'int'];
 
 export function validName(name) {
   const n = String(name || '').trim();
@@ -108,11 +111,6 @@ function persistentStateFor(p) {
 // quantity-row representation used by older databases and clients.
 export function isStackableItem(item) {
   return Boolean(item) && !item.slot;
-}
-
-function finiteQuality(value) {
-  const quality = Number(value);
-  return Number.isFinite(quality) && quality > 0 ? quality : null;
 }
 
 function finiteCondition(value) {
@@ -248,7 +246,7 @@ export function loadPlayer(charId) {
     // Learned-spell registry. Legacy characters (and new ones) derive their
     // circle curriculum on load; from there the slot economy governs grants.
     spellsKnown: row.guild && guildById(row.guild).magic
-      ? spellsFor(guildById(row.guild), row.circle).map((s) => s.id)
+      ? heldSpellIds(guildById(row.guild), row.circle, persisted.spellsForgotten)
       : [],
     spellsForgotten: Array.isArray(persisted.spellsForgotten) ? persisted.spellsForgotten : [],
     debt: Number.isFinite(persisted.debt) ? persisted.debt : 0,
@@ -651,7 +649,6 @@ export function roundtimeLeft(p) {
 // DR caps ranks flat at 1750 for every skill — circle requirements are
 // minimums, never ceilings ("nothing prevents a character from training
 // skills … in excess of circle requirements", Circle.md).
-export const RANK_CAP = 1750;
 
 export function applyExpToSkill(p, s, amount) {
   s.exp += Math.max(0, Math.floor(amount));
@@ -911,14 +908,6 @@ export function weaponOf(p) {
 
 // ---------------- Durability (wear and tear) ----------------
 // Gear works at reduced power below full condition; repair restores it.
-export function conditionMult(item) {
-  return item ? 0.6 + 0.4 * ((item.condition ?? 100) / 100) : 1;
-}
-
-export function qualityMult(item) {
-  return finiteQuality(item?.quality) || 1;
-}
-
 // A piece of equipped gear takes wear; it cannot fall below 20 ("well-worn").
 export function wearCondition(p, slot, chance) {
   const item = p.equipment[slot];
@@ -930,7 +919,7 @@ export function wearCondition(p, slot, chance) {
 export function totalArmor(p) {
   let total = 0;
   for (const item of Object.values(p.equipment)) {
-    if (item.type === 'armor') total += Math.floor(item.armor * conditionMult(item) * qualityMult(item));
+    if (item.type === 'armor') total += armorContribution(item);
   }
   return total;
 }
@@ -964,9 +953,4 @@ export function stancePoints(p) {
 // on), plus a bonus equal to the circle just attained.
 export function tdpAwardFor(circle) {
   return (circle >= 10 ? 100 : 50) + circle;
-}
-
-// TDP cost to raise a stat by one point.
-export function statRaiseCost(current) {
-  return Math.max(10, Math.floor(current * 0.6));
 }

@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "kind": "dragonrealms-verification",
+  "mode": "release",
+  "startedAt": "2026-10-08T00:18:53.800Z",
+  "finishedAt": "2026-10-08T00:21:02.518Z",
+  "durationMs": 128718,
+  "source": {
+    "before": {
+      "fingerprint": {
+        "available": true,
+        "algorithm": "sha256",
+        "digest": "dc9cab0348288424da1649c78845a4bdcd89bc076738845eca7aece75742aa61",
+        "fileCount": 502
+      },
+      "git": {
+        "available": true,
+        "head": "8c60d9d5433f5086b903173138247c3d97196bdb",
+        "dirty": true,
+        "trackedChanges": 38,
+        "untrackedEntries": 61
+      },
+      "scope": "Authored server/data/client/scripts/test source and explicitly listed package/documentation files; paths plus file bytes, excluding artifacts, runtime state and report destination"
+    },
+    "after": {
+      "fingerprint": {
+        "available": true,
+        "algorithm": "sha256",
+        "digest": "dc9cab0348288424da1649c78845a4bdcd89bc076738845eca7aece75742aa61",
+        "fileCount": 502
+      },
+      "git": {
+        "available": true,
+        "head": "8c60d9d5433f5086b903173138247c3d97196bdb",
+        "dirty": true,
+        "trackedChanges": 38,
+        "untrackedEntries": 61
+      },
+      "scope": "Authored server/data/client/scripts/test source and explicitly listed package/documentation files; paths plus file bytes, excluding artifacts, runtime state and report destination"
+    },
+    "stable": true
+  },
+  "checks": [
+    {
+      "id": "syntax-check",
+      "name": "syntax check",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:18:53.801Z",
+      "finishedAt": "2026-10-08T00:19:08.751Z",
+      "durationMs": 14950,
+      "counts": {
+        "files": 487
+      }
+    },
+    {
+      "id": "test-suite",
+      "name": "test suite",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:19:08.751Z",
+      "finishedAt": "2026-10-08T00:19:32.511Z",
+      "durationMs": 23760,
+      "counts": {
+        "testFiles": 188
+      }
+    },
+    {
+      "id": "data-integrity",
+      "name": "data integrity",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:19:32.511Z",
+      "finishedAt": "2026-10-08T00:19:32.557Z",
+      "durationMs": 46,
+      "counts": {
+        "skills": 83,
+        "guilds": 11,
+        "items": 118,
+        "creatures": 22,
+        "rares": 3,
+        "npcs": 31,
+        "rooms": 312,
+        "zones": 11,
+        "recipes": 3,
+        "mana": 11,
+        "circleTables": 11,
+        "forgeRecipes": 5,
+        "engineerRecipes": 2,
+        "outfitRecipes": 2,
+        "craftTechniques": 16,
+        "alchemyRecipes": 3,
+        "forgingRecipes": 5,
+        "engineeringRecipes": 2,
+        "outfittingRecipes": 2,
+        "alchemyTechniques": 4,
+        "forgingTechniques": 4,
+        "engineeringTechniques": 4,
+        "outfittingTechniques": 4,
+        "qualityLevels": 5,
+        "craftSlotSamples": 16
+      }
+    },
+    {
+      "id": "command-contracts",
+      "name": "command contracts",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:19:32.557Z",
+      "finishedAt": "2026-10-08T00:19:32.621Z",
+      "durationMs": 64,
+      "counts": {
+        "registryCommands": 189,
+        "metadataCommands": 70,
+        "movementCommands": 21,
+        "guideEntries": 106,
+        "localGuideEntries": 4,
+        "guideAliases": 7,
+        "uncoveredCommands": 101
+      }
+    },
+    {
+      "id": "module-references",
+      "name": "module references",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:19:32.621Z",
+      "finishedAt": "2026-10-08T00:19:32.779Z",
+      "durationMs": 158,
+      "counts": {
+        "files": 277,
+        "references": 942,
+        "relativeReferences": 636,
+        "externalReferences": 306,
+        "skippedDynamicImports": 0
+      }
+    },
+    {
+      "id": "documentation-consistency",
+      "name": "documentation consistency",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:19:32.779Z",
+      "finishedAt": "2026-10-08T00:19:32.906Z",
+      "durationMs": 127
+    },
+    {
+      "id": "project-references",
+      "name": "project references",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:19:32.906Z",
+      "finishedAt": "2026-10-08T00:19:32.943Z",
+      "durationMs": 37,
+      "counts": {
+        "documents": 5,
+        "localLinks": 49,
+        "fragments": 0,
+        "nodeTargets": 26,
+        "skippedNodePatterns": 1
+      }
+    },
+    {
+      "id": "isolated-corpus-capture-and-replay",
+      "name": "isolated corpus capture and replay",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:19:32.943Z",
+      "finishedAt": "2026-10-08T00:20:17.921Z",
+      "durationMs": 44978
+    },
+    {
+      "id": "isolated-browser-regression",
+      "name": "isolated browser regression",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-08T00:20:17.921Z",
+      "finishedAt": "2026-10-08T00:21:02.099Z",
+      "durationMs": 44178
+    }
+  ],
+  "limitations": [
+    "Skipped checks remain unverified.",
+    "A Git commit identifies tracked history; dirty and untracked source is represented by the scoped file fingerprint.",
+    "The fingerprint excludes dependencies, runtime state, environment, generated artifacts outside its scope and external services.",
+    "Matching before/after fingerprints cannot detect edits made and reverted during a check."
+  ],
+  "sourceChanged": false,
+  "summary": {
+    "passed": 9,
+    "failed": 0,
+    "skipped": 0
+  },
+  "selectedChecksPassed": true,
+  "allChecksVerified": true
+}

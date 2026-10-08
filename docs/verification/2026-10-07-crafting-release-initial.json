@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "kind": "dragonrealms-verification",
+  "mode": "release",
+  "startedAt": "2026-10-07T23:41:05.996Z",
+  "finishedAt": "2026-10-07T23:43:04.829Z",
+  "durationMs": 118833,
+  "source": {
+    "before": {
+      "fingerprint": {
+        "available": true,
+        "algorithm": "sha256",
+        "digest": "e1d225147923aa3753a9e62d2b8332720cf127ab39b597a63f22bc3955cf4c4c",
+        "fileCount": 493
+      },
+      "git": {
+        "available": true,
+        "head": "8c60d9d5433f5086b903173138247c3d97196bdb",
+        "dirty": true,
+        "trackedChanges": 31,
+        "untrackedEntries": 51
+      },
+      "scope": "Authored server/data/client/scripts/test source and explicitly listed package/documentation files; paths plus file bytes, excluding artifacts, runtime state and report destination"
+    },
+    "after": {
+      "fingerprint": {
+        "available": true,
+        "algorithm": "sha256",
+        "digest": "e1d225147923aa3753a9e62d2b8332720cf127ab39b597a63f22bc3955cf4c4c",
+        "fileCount": 493
+      },
+      "git": {
+        "available": true,
+        "head": "8c60d9d5433f5086b903173138247c3d97196bdb",
+        "dirty": true,
+        "trackedChanges": 31,
+        "untrackedEntries": 51
+      },
+      "scope": "Authored server/data/client/scripts/test source and explicitly listed package/documentation files; paths plus file bytes, excluding artifacts, runtime state and report destination"
+    },
+    "stable": true
+  },
+  "checks": [
+    {
+      "id": "syntax-check",
+      "name": "syntax check",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-07T23:41:05.998Z",
+      "finishedAt": "2026-10-07T23:41:20.002Z",
+      "durationMs": 14004,
+      "counts": {
+        "files": 479
+      }
+    },
+    {
+      "id": "test-suite",
+      "name": "test suite",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-07T23:41:20.003Z",
+      "finishedAt": "2026-10-07T23:41:36.550Z",
+      "durationMs": 16547,
+      "counts": {
+        "testFiles": 184
+      }
+    },
+    {
+      "id": "data-integrity",
+      "name": "data integrity",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-07T23:41:36.550Z",
+      "finishedAt": "2026-10-07T23:41:36.597Z",
+      "durationMs": 47,
+      "counts": {
+        "skills": 83,
+        "guilds": 11,
+        "items": 118,
+        "creatures": 22,
+        "rares": 3,
+        "npcs": 31,
+        "rooms": 312,
+        "zones": 11,
+        "recipes": 3,
+        "mana": 11,
+        "circleTables": 11
+      }
+    },
+    {
+      "id": "command-contracts",
+      "name": "command contracts",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-07T23:41:36.597Z",
+      "finishedAt": "2026-10-07T23:41:36.666Z",
+      "durationMs": 69,
+      "counts": {
+        "registryCommands": 188,
+        "metadataCommands": 69,
+        "movementCommands": 21,
+        "guideEntries": 104,
+        "localGuideEntries": 4,
+        "guideAliases": 7,
+        "uncoveredCommands": 102
+      }
+    },
+    {
+      "id": "module-references",
+      "name": "module references",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-07T23:41:36.666Z",
+      "finishedAt": "2026-10-07T23:41:36.830Z",
+      "durationMs": 164,
+      "counts": {
+        "files": 273,
+        "references": 925,
+        "relativeReferences": 619,
+        "externalReferences": 306,
+        "skippedDynamicImports": 0
+      }
+    },
+    {
+      "id": "documentation-consistency",
+      "name": "documentation consistency",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-07T23:41:36.830Z",
+      "finishedAt": "2026-10-07T23:41:36.968Z",
+      "durationMs": 138
+    },
+    {
+      "id": "project-references",
+      "name": "project references",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-07T23:41:36.968Z",
+      "finishedAt": "2026-10-07T23:41:37.007Z",
+      "durationMs": 39,
+      "counts": {
+        "documents": 5,
+        "localLinks": 46,
+        "fragments": 0,
+        "nodeTargets": 26,
+        "skippedNodePatterns": 1
+      }
+    },
+    {
+      "id": "isolated-corpus-capture-and-replay",
+      "name": "isolated corpus capture and replay",
+      "selected": true,
+      "status": "pass",
+      "startedAt": "2026-10-07T23:41:37.007Z",
+      "finishedAt": "2026-10-07T23:42:21.966Z",
+      "durationMs": 44959
+    },
+    {
+      "id": "isolated-browser-regression",
+      "name": "isolated browser regression",
+      "selected": true,
+      "status": "fail",
+      "startedAt": "2026-10-07T23:42:21.966Z",
+      "finishedAt": "2026-10-07T23:43:04.410Z",
+      "durationMs": 42444,
+      "failure": {
+        "exitCode": 1,
+        "diagnostics": "See the verification process log; error text and child output are excluded from this receipt."
+      }
+    }
+  ],
+  "limitations": [
+    "Skipped checks remain unverified.",
+    "A Git commit identifies tracked history; dirty and untracked source is represented by the scoped file fingerprint.",
+    "The fingerprint excludes dependencies, runtime state, environment, generated artifacts outside its scope and external services.",
+    "Matching before/after fingerprints cannot detect edits made and reverted during a check."
+  ],
+  "sourceChanged": false,
+  "summary": {
+    "passed": 8,
+    "failed": 1,
+    "skipped": 0
+  },
+  "selectedChecksPassed": false,
+  "allChecksVerified": false
+}

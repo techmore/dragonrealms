@@ -6,6 +6,7 @@ import { handleAutomation } from './automation.js';
 import { settings, saveSettings, applySettings } from './settings.js';
 import { gameState } from './state.js';
 import { routeTypedCommand } from './welcome.js';
+import { transcriptSearchQuery } from './search-routing.js';
 
 const cmdInput = $('cmd');
 const dpad = $('dpad');
@@ -93,8 +94,15 @@ export function handleLocalCommand(line) {
     return;
   }
 
-  if (parts[0].toLowerCase() === 'search' && parts[1]) {
-    searchWith(parts.slice(1).join(' '));
+  const transcriptQuery = transcriptSearchQuery(line);
+  if (transcriptQuery !== null) {
+    searchWith(transcriptQuery);
+    return;
+  }
+
+  // Local reference is available even before entering the world.
+  if (parts[0].toLowerCase() === 'commands') {
+    import('./panels.js').then((p) => p.openPanel('commands', false, parts.slice(1).join(' ')));
     return;
   }
 
@@ -145,14 +153,14 @@ export function handleLocalCommand(line) {
 // ---------------- Tab completion ----------------
 const COMMANDS = [
   'n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw', 'u', 'd',
-  'go', 'look', 'l', 'attack', 'cast', 'retreat', 'skin', 'disarm', 'trip', 'bash',
-  'stance', 'spells', 'berserk', 'backstab', 'get', 'drop', 'inventory', 'i',
-  'wear', 'wield', 'remove', 'use', 'list', 'buy', 'sell', 'deposit', 'withdraw',
-  'train', 'circle', 'tdp', 'raise', 'tdptrain', 'quest', 'claim', 'craft',
+  'go', 'look', 'l', 'where', 'route', 'attack', 'cast', 'retreat', 'skin', 'disarm', 'trip', 'bash',
+  'stance', 'spells', 'spellbook', 'slots', 'berserk', 'backstab', 'get', 'drop', 'inventory', 'i',
+  'wear', 'wield', 'remove', 'equipment', 'use', 'list', 'buy', 'sell', 'deposit', 'withdraw',
+  'train', 'training', 'circle', 'progress', 'tdp', 'raise', 'tdptrain', 'quest', 'journal', 'claim', 'craft', 'recipes', 'orders',
   'alias', 'macro', 'timer', 'trigger', 'macros', 'timers', 'triggers',
   'ask', 'score', 'skills', 'exp', 'info', 'health', 'alloc', 'say', 'emote', 'shout', 'who', 'time',
-  'help', 'save', 'quit', 'rest', 'forage', 'hunt', 'track', 'steal', 'pick',
-  'perform', 'appraise', 'duel', 'accept', 'decline', 'script', 'scripts', 'keys',
+  'help', 'commands', 'save', 'quit', 'rest', 'forage', 'hunt', 'track', 'steal', 'pick',
+  'perform', 'appraise', 'duel', 'accept', 'decline', 'script', 'scripts', 'keys', 'search', 'find',
 ];
 const CONTEXT_ARGS = {
   alloc: STATS, raise: STATS,

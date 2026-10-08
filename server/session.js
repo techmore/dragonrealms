@@ -251,7 +251,7 @@ export function route(session, msg) {
       if (typeof msg.requestId !== 'string' || msg.requestId.length > 80) return;
       const p = session.player;
       const result = session.state === 'playing' && p && session.game.players.get(p.charId) === p
-        ? readPanel(session.game, p, msg.panel)
+        ? readPanel(session.game, p, msg.panel, msg.query)
         : { ok: false, error: 'Enter the world to view this character panel.' };
       session.send({ t: 'panel_response', requestId: msg.requestId, ...result });
       break;
@@ -445,6 +445,7 @@ function restoreAfterSpectate(session) {
     session.game.look(session.player);
     session.player.handsDirty = true;
     session.game.status(session.player);
+    session.game.pushQuest(session.player);
     session.send({ t: 'scripts', scripts: session.player.scripts || {} });
   } else if (session.state === 'charcreate_playing' && session.player) {
     sendChargenMenu(session);

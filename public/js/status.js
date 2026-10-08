@@ -3,6 +3,7 @@ import { $, stripAnsi, escapeHtml as esc } from './util.js';
 import { settings, stripEffective, saveSettings } from './settings.js';
 import { buildCompassRose } from './compass.js';
 import { revealWindow, clearWindowSeen, applyWindow } from './windows.js';
+import { questView } from './quest-view.js';
 
 let lastRoom = { name: null, exits: [] };
 let promptState = null;
@@ -344,6 +345,8 @@ export function hideHands() {
 }
 
 export function markDisconnected() {
+  currentQuestView = undefined;
+  notifyQuestChange();
   promptState = null;
   if (rtTimer) clearInterval(rtTimer);
   rtTimer = null;
@@ -783,45 +786,67 @@ export function renderRoomContents(contents) {
   // Give the "You also see" line DR flavor (amber like gem drops are caught by highlights elsewhere).
 }
 
-// Quest journal (DR task window): the active crier/guild task, live.
-export function renderQuest(msg) {
-  const row = $('quest-row');
-  if (!row) return;
-  const q = msg && msg.quest;
-  row.innerHTML = '';
-  if (!q) {
-    const empty = document.createElement('div');
-    empty.className = 'quest-empty';
-    empty.textContent = 'No task. Ask the crier or your guild leader for work.';
-    row.appendChild(empty);
-    clearWindowSeen('quest-widget');
+// Quest rendering is passive: counts never imply DONE or trigger a reward.
+let currentQuestView;
+const questListeners = [];
+export function onQuestChange(listener) { questListeners.push(listener); }
+function notifyQuestChange() { for (const listener of questListeners) listener(); }
+
+function appendQuestView(row, view) {
+  row.replaceChildren();
+  const add = (className, value, tag = 'div') => {
+    const element = document.createElement(tag);
+    element.className = className;
+    element.textContent = value;
+    row.appendChild(element);
+    return element;
+  };
+  if (view === undefined || view === null || view.unavailable) {
+    add('quest-empty', view === null ? 'No task. Ask the crier or your guild leader for work.'
+      : 'Task details unavailable. Wait for the next live snapshot.');
     return;
   }
-  revealWindow('quest-widget');
-  const kindLabels = { kill: 'Pest control', deliver: 'Delivery', recover: 'Recovery', skin: 'Harvest' };
-  const head = document.createElement('div');
-  head.className = 'quest-head';
+  const head = add('quest-head', '');
   const kind = document.createElement('span');
-  kind.className = 'quest-kind';
-  kind.textContent = kindLabels[q.kind] || q.kind;
-  head.appendChild(kind);
-  if (q.source === 'leader') {
-    const src = document.createElement('span');
-    src.className = 'quest-src';
-    src.textContent = 'guild task';
-    head.appendChild(src);
+  kind.className = 'quest-kind'; kind.textContent = view.label;
+  const source = document.createElement('span');
+  source.className = 'quest-src'; source.textContent = view.source;
+  head.append(kind, source);
+  add(view.complete ? 'quest-status quest-done' : 'quest-status', view.complete ? 'Complete · reward unclaimed' : 'In progress');
+  add('quest-desc', view.objective);
+  if (view.destinationText) add('quest-destination', `${view.atDestination ? 'At destination: ' : 'Destination: '}${view.destinationText}`);
+  if (view.progress) {
+    const progress = document.createElement('progress');
+    progress.className = 'quest-progress';
+    progress.max = view.progress.total;
+    progress.value = view.progress.current;
+    progress.setAttribute('aria-label', `${view.label} progress`);
+    progress.setAttribute('aria-valuetext', view.counterText);
+    progress.textContent = view.counterText;
+    row.appendChild(progress);
   }
-  if (q.done) {
-    const done = document.createElement('span');
-    done.className = 'quest-done';
-    done.textContent = '\u2713 ready to claim';
-    head.appendChild(done);
+  add('quest-counter', view.counterText);
+  add('quest-next', view.next);
+}
+
+export function renderQuestInspection(body) {
+  body.classList.add('quest-inspection');
+  appendQuestView(body, currentQuestView);
+  const note = document.createElement('p');
+  note.className = 'quest-inspection-note';
+  note.textContent = 'Read-only live snapshot. Inspecting does not assign work, deliver parcels or claim rewards.';
+  body.appendChild(note);
+}
+
+export function renderQuest(msg) {
+  currentQuestView = msg && Object.hasOwn(msg, 'quest') ? questView(msg.quest) : undefined;
+  const row = $('quest-row');
+  if (row) {
+    appendQuestView(row, currentQuestView);
+    if (currentQuestView && !currentQuestView.unavailable) revealWindow('quest-widget');
+    else clearWindowSeen('quest-widget');
   }
-  row.appendChild(head);
-  const desc = document.createElement('div');
-  desc.className = 'quest-desc';
-  desc.textContent = q.desc || '';
-  row.appendChild(desc);
+  notifyQuestChange();
 }
 
 // FE tracker (DR field-experience pane): skills currently learning.

@@ -5,6 +5,7 @@ import { guildTitle, circleRequirements } from '../data/guilds.js';
 import { SKILLS, mindstate } from '../data/skills.js';
 import { roundtimeLeft, weaponOf, poolCap, sayRaw } from './player.js';
 import { BLEED_LEVELS } from './wounds.js';
+import { guildDirectionCommand } from './progression.js';
 const BLEED_NAMES = Object.fromEntries(BLEED_LEVELS.map((b) => [b.level, b.name]));
 
 export const status = {
@@ -106,7 +107,9 @@ export const status = {
       buffs,
       requirements: { circle: nextCircle, rows: requirementRows },
       journey: { characterId: p.charId, guildId: p.guild?.id || null, circle: p.circle,
-        roomId: p.room, inCombat: Boolean(combat), hp, maxHp: p.maxHp },
+        roomId: p.room, inCombat: Boolean(combat), hp, maxHp: p.maxHp,
+        guildDirections: guildDirectionCommand(p),
+        ...(p.guild?.id === 'paladin' ? { soul: p.soul ?? 50 } : {}) },
     });
     // FE tracker (DR field-experience pane): push skills currently learning,
     // throttled to ~10s.

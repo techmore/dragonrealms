@@ -119,6 +119,21 @@ function openClient() {
 const isErrorContaining = (text) => (msg) => msg.t === 'error' && msg.msg.includes(text);
 const isNoticeContaining = (text) => (msg) => msg.t === 'notice' && msg.msg.includes(text);
 
+test('watching starts with the target quest and clears stale objectives when it has none', async () => {
+  const gm = await openClient();
+  try {
+    target.quest = { kind: 'kill', source: 'leader', count: 2, total: 4, done: false, creatureId: 'rat' };
+    gm.send({ t: 'spectate', name: target.name, gmToken: process.env.DR_GM_TOKEN });
+    const snapshot = await gm.waitFor(msg => msg.t === 'quest');
+    assert.deepEqual(snapshot.quest.counter, { current: 2, total: 4, remaining: 2, unit: 'creatures' });
+    await gm.waitFor(isNoticeContaining(`watching ${target.name}`));
+    target.quest = null;
+    gm.send({ t: 'spectate', name: target.name });
+    assert.equal((await gm.waitFor(msg => msg.t === 'quest')).quest, null);
+    await gm.waitFor(isNoticeContaining(`watching ${target.name}`));
+  } finally { target.quest = null; await gm.close(); }
+});
+
 test('player and world streams require the dedicated GM credential', async () => {
   const anonymous = await openClient();
   anonymous.send({ t: 'spectate', name: target.name });
@@ -261,12 +276,69 @@ test('panel requests are correlated, read-only, and do not expand aliases', asyn
   await client.close();
 });
 
+test('planning panels inspect the owning character without learning, training, casting or alias expansion', async () => {
+  const account = await registerAccount('magicreader', 'magic-reader-password');
+  const id = createCharacter(account.accountId, { name: 'Magicreader', race: 'human', guild: 'warmage' });
+  const login = await loginAccount('magicreader', 'magic-reader-password');
+  const client = await openClient();
+  client.send({ t: 'token', token: login.token });
+  await client.waitFor((msg) => msg.t === 'authed');
+  client.send({ t: 'charselect', id });
+  await client.waitFor((msg) => msg.t === 'enter');
+  const p = game.players.get(id);
+  p.aliases.spellbook = 'forget fireball';
+  p.aliases.slots = 'prepare fireball';
+  p.aliases.training = 'train str; raise str';
+  p.aliases.equipment = 'remove leather; repair leather';
+  p.trainPending = 'wis';
+  p.rtUntil = Date.now() + 60_000;
+  const state = (player) => JSON.stringify({
+    room: player.room, spellsKnown: player.spellsKnown, spellsForgotten: player.spellsForgotten,
+    prepared: player.prepared, mana: player.mana, heldMana: player.heldMana,
+    skills: player.skills, silver: player.silver, stats: player.stats, tdp: player.tdp,
+    trainPending: player.trainPending, circle: player.circle,
+    inventory: player.inventory, equipment: player.equipment,
+  });
+  const before = state(p);
+  const persisted = state(loadPlayer(id));
+  for (const panel of ['spells', 'spellbook', 'slots', 'progress', 'training', 'inventory', 'equipment']) {
+    const requestId = `magic-${panel}`;
+    client.send({ t: 'panel_request', requestId, panel });
+    const response = await client.waitFor((msg) => msg.t === 'panel_response' && msg.requestId === requestId);
+    assert.equal(response.ok, true);
+    assert.ok(response.lines.length > 0);
+    assert.equal(state(p), before);
+  }
+  let querySequence = 0;
+  const inspectQuery = async (panel, query) => {
+    const requestId = `magic-query-${++querySequence}`;
+    client.send({ t: 'panel_request', requestId, panel, query });
+    return client.waitFor((msg) => msg.t === 'panel_response' && msg.requestId === requestId);
+  };
+  const exact = await inspectQuery('spellbook', '  fire_shard  ');
+  assert.equal(exact.ok, true);
+  assert.match(exact.lines.join('\n'), /Fire Shard \[fire_shard\]/);
+  assert.doesNotMatch(exact.lines.join('\n'), /\[fire_ball\]/);
+  const chained = await inspectQuery('spellbook', 'fire_shard; forget fire_shard');
+  assert.equal(chained.ok, true);
+  assert.match(chained.lines.join('\n'), /No spells match/);
+  assert.equal((await inspectQuery('spellbook', 'x'.repeat(120))).ok, true);
+  for (const query of [null, 1, {}, 'x'.repeat(121)]) {
+    assert.equal((await inspectQuery('spellbook', query)).ok, false);
+  }
+  assert.equal((await inspectQuery('slots', 'fire_shard')).ok, false);
+  assert.equal(state(p), before);
+  assert.equal(state(loadPlayer(id)), persisted);
+  await client.close();
+});
+
 test('leaving live watch restores login, creation, allocation, playing and selection screens', async () => {
   const client = await openClient();
   await client.waitFor((msg) => msg.t === 'login_prompt');
   async function watchAndReturn(state, type) {
     client.send({ t: 'spectate', name: target.name, gmToken: process.env.DR_GM_TOKEN });
     await client.waitFor((msg) => msg.t === 'room' && msg.roomId === target.room);
+    await client.waitFor((msg) => msg.t === 'quest');
     assert.equal(watcherCount(target), 1);
     client.send({ t: 'unspectate' });
     const restored = await client.waitFor((msg) => msg.t === 'session_restore');
@@ -290,11 +362,14 @@ test('leaving live watch restores login, creation, allocation, playing and selec
   await client.waitFor((msg) => msg.t === 'enter');
   await client.waitFor((msg) => msg.t === 'room');
   const own = [...game.players.values()].find((p) => p.name === 'Restorewatcher');
+  own.quest = { kind: 'skin', source: 'crier', count: 4, skinned: 2, done: false };
   const corpses = own.corpses;
   const entered = await watchAndReturn('playing', 'enter');
   assert.equal(entered.resumed, true);
   const room = await client.waitFor((msg) => msg.t === 'room');
   assert.equal(room.roomId, own.room);
+  const ownQuest = await client.waitFor(msg => msg.t === 'quest' && msg.quest?.kind === 'skin');
+  assert.deepEqual(ownQuest.quest.counter, { current: 2, total: 4, remaining: 2, unit: 'hides' });
   assert.equal(own.corpses, corpses, 'return does not re-enter/reset the player');
   client.send({ t: 'token', token: authed.token });
   await client.waitFor((msg) => msg.t === 'authed');

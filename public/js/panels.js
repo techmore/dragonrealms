@@ -1,28 +1,45 @@
 // Right dock: room/target/chat panes, info panels (inventory/score/skills/
-// spells/exp/info), scripts panel.
+// spells/exp/info/progress), scripts and command reference panels.
 import { $, escapeHtml } from './util.js';
-import { send } from './net.js';
+import { send, connectionState, onServerMessage, onDisconnect } from './net.js';
+import { craftingAvailable, craftingTab } from './crafting-panel.js';
+import { inventoryTab, nextInventoryTab, INVENTORY_TABS } from './inventory-panel.js';
+import { progressTab, nextProgressTab, PROGRESS_TABS } from './progress-panel.js';
+import { spellTab, nextSpellTab, SPELL_TABS, spellbookQuery, spellPanelRequest } from './spell-panel.js';
 import { ansiToHtml } from './terminal.js';
 import { pressEnter, isPlaying, focusInput } from './input.js';
 import { settings, isMobile } from './settings.js';
 import { macros, timers, triggers, onScriptsChange, removeScript, saveMacros, saveTriggers, renderMacros } from './automation.js';
-import { listScripts, readScript, browserScripts, ownsScript, scriptLibraryReady, saveScript, runScript, stopScript, isScriptRunning, deleteScript, onScriptsLibraryChange } from './scripts.js';
+import { listScripts, readScript, browserScripts, ownsScript, scriptLibraryReady, saveScript, runScript, stopScript, isScriptRunning, deleteScript, onScriptsLibraryChange, scriptStatus, onScriptStateChange } from './scripts.js';
 import { revealWindow, setWindowVisible, isWindowVisible, clearWindowSeen } from './windows.js';
 import { gameState } from './state.js';
 import { CONFIG_KEYS, parseConfig, restoreConfig } from './config.js';
 import { isAutomationPaused, setAutomationPaused } from './automation-control.js';
+import { renderCommandGuide } from './command-guide.js';
+import { scriptStatusText, scriptDiagnosticText } from './script-status.js';
+import { renderQuestInspection, onQuestChange } from './status.js';
 
 const PANELS = {
   inv: { title: 'INVENTORY', cmd: 'inventory' },
   score: { title: 'SCORE', cmd: 'score' },
   exp: { title: 'EXPERIENCE', cmd: 'exp' },
+  progress: { title: 'PROGRESS', cmd: 'progress' },
+  journal: { title: 'JOURNAL', cmd: 'journal' },
+  crafting: { title: 'CRAFTING', cmd: null },
   info: { title: 'INFO', cmd: 'info' },
   skills: { title: 'SKILLS', cmd: 'skills' },
   spells: { title: 'SPELLS', cmd: 'spells' },
   scripts: { title: 'SCRIPTS', cmd: null },
+  commands: { title: 'COMMAND REFERENCE', cmd: null },
 };
 
 let activePanel = null;
+let activeCraftingTab = 'recipes';
+let activeSpellTab = 'spells';
+let activeProgressTab = 'progress';
+let activeInventoryTab = 'inventory';
+let spellbookFilter = '';
+let spellbookDraft = '';
 const newScriptDraft = () => ({ kind: 'macro', name: '', body: '', editing: false, dirty: false, pending: false, message: '' });
 let scriptDraft = newScriptDraft();
 let requestSequence = 0;
@@ -59,7 +76,7 @@ export function appendChat(msg) {
   row.scrollTop = row.scrollHeight;
 }
 
-export function openPanel(key, sendCmd = true) {
+export function openPanel(key, sendCmd = true, query) {
   const panel = PANELS[key];
   if (!panel) return;
   cancelRequest();
@@ -69,11 +86,37 @@ export function openPanel(key, sendCmd = true) {
   if (isMobile()) document.body.classList.add('dock-open');
   $('panel-wrap').hidden = false;
   $('panel-title').textContent = panel.title;
+  $('panel-refresh').disabled = false;
   const body = $('panel-body');
+  body.classList.remove('quest-inspection');
   syncToolbar();
   if (isMobile()) requestAnimationFrame(() => $('panel-close').focus());
+  if (key === 'commands') {
+    renderCommandGuide(body, query);
+    return;
+  }
+  if (key === 'inv') {
+    renderInventoryPanel();
+    return;
+  }
+  if (key === 'progress') {
+    renderProgressPanel();
+    return;
+  }
+  if (key === 'spells') {
+    renderSpellsPanel();
+    return;
+  }
+  if (key === 'crafting') {
+    renderCraftingPanel();
+    return;
+  }
   if (panel.cmd === null) {
     renderScriptsPanel();
+    return;
+  }
+  if (key === 'journal' && gameState.spectating) {
+    renderQuestInspection(body);
     return;
   }
   if (!isPlaying() || gameState.spectating) {
@@ -99,11 +142,274 @@ export function openPanel(key, sendCmd = true) {
   }
 }
 
+
+function canInspectPassivePanel() {
+  return craftingAvailable(gameState, connectionState().phase, protocolSupported);
+}
+
+function renderCraftingPanel(request = true) {
+  const body = $('panel-body');
+  const available = canInspectPassivePanel();
+  body.innerHTML = '<div class="crafting-tabs" role="tablist" aria-label="Crafting information">'
+    + ['recipes', 'orders'].map(key => `<button type="button" role="tab" id="crafting-tab-${key}" aria-controls="crafting-content" aria-selected="${key === activeCraftingTab}" tabindex="${key === activeCraftingTab ? 0 : -1}">${key === 'recipes' ? 'Recipes' : 'Work order'}</button>`).join('')
+    + '</div><div id="crafting-content" class="crafting-content" role="tabpanel" aria-labelledby="crafting-tab-' + activeCraftingTab + '" tabindex="0" aria-live="polite"></div>';
+  const content = $('crafting-content');
+  $('panel-refresh').disabled = !available;
+  for (const tab of body.querySelectorAll('[role="tab"]')) {
+    tab.addEventListener('click', () => selectCraftingTab(tab.id.slice('crafting-tab-'.length)));
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 'recipes' : event.key === 'End' ? 'orders' : activeCraftingTab === 'recipes' ? 'orders' : 'recipes';
+      selectCraftingTab(next);
+      $('crafting-tab-' + next).focus();
+    });
+  }
+  if (!available) {
+    content.textContent = gameState.spectating || connectionState().phase === 'read-only'
+      ? 'Watching is read-only. Crafting requests are disabled.'
+      : connectionState().phase !== 'connected' ? 'Reconnect to inspect crafting.'
+      : gameState.value !== 'playing' || gameState.inChargen ? 'Enter the world to inspect crafting.'
+      : 'This server does not support passive crafting inspection (panels-v1).';
+    return;
+  }
+  if (!request) return;
+  content.textContent = 'Loading ' + (activeCraftingTab === 'recipes' ? 'recipes' : 'work order') + '…';
+  content.setAttribute('aria-busy', 'true');
+  pendingRequest = `panel-${++requestSequence}`;
+  requestTimer = setTimeout(() => {
+    cancelRequest();
+    content.removeAttribute('aria-busy');
+    content.textContent = 'No response received. Use Refresh to try again.';
+  }, 5000);
+  if (!send({ t: 'panel_request', requestId: pendingRequest, panel: activeCraftingTab })) {
+    cancelRequest();
+    content.removeAttribute('aria-busy');
+    content.textContent = 'Connection lost. Reconnect to refresh crafting.';
+  }
+}
+
+function selectCraftingTab(key) {
+  const keepFocus = Boolean(document.activeElement?.closest('.crafting-tabs'));
+  cancelRequest();
+  activeCraftingTab = craftingTab(key);
+  renderCraftingPanel();
+  if (keepFocus) $('crafting-tab-' + activeCraftingTab).focus();
+}
+
+function renderProgressPanel(request = true) {
+  const body = $('panel-body');
+  const available = canInspectPassivePanel();
+  body.innerHTML = '<div class="crafting-tabs progress-tabs" role="tablist" aria-label="Progress information">'
+    + PROGRESS_TABS.map(key => `<button type="button" role="tab" id="progress-tab-${key}" aria-controls="progress-content" aria-selected="${key === activeProgressTab}" tabindex="${key === activeProgressTab ? 0 : -1}">${key === 'progress' ? 'Requirements' : 'Training'}</button>`).join('')
+    + '</div><div id="progress-content" class="crafting-content progress-content" role="tabpanel" aria-labelledby="progress-tab-' + activeProgressTab + '" tabindex="0" aria-live="polite"></div>';
+  const content = $('progress-content');
+  $('panel-refresh').disabled = !available;
+  for (const tab of body.querySelectorAll('[role="tab"]')) {
+    tab.addEventListener('click', () => selectProgressTab(tab.id.slice('progress-tab-'.length)));
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = nextProgressTab(activeProgressTab, event.key);
+      selectProgressTab(next);
+      $('progress-tab-' + next).focus();
+    });
+  }
+  if (!available) {
+    content.textContent = gameState.spectating || connectionState().phase === 'read-only'
+      ? 'Watching is read-only. Progress requests are disabled.'
+      : connectionState().phase !== 'connected' ? 'Reconnect to inspect progress.'
+      : gameState.value !== 'playing' || gameState.inChargen ? 'Enter the world to inspect progress.'
+      : 'This server does not support passive progress inspection (panels-v1).';
+    return;
+  }
+  if (!request) return;
+  content.textContent = 'Loading ' + (activeProgressTab === 'progress' ? 'requirements' : 'training plan') + '…';
+  content.setAttribute('aria-busy', 'true');
+  pendingRequest = `panel-${++requestSequence}`;
+  requestTimer = setTimeout(() => {
+    cancelRequest();
+    content.removeAttribute('aria-busy');
+    content.textContent = 'No response received. Use Refresh to try again.';
+  }, 5000);
+  if (!send({ t: 'panel_request', requestId: pendingRequest, panel: activeProgressTab })) {
+    cancelRequest();
+    content.removeAttribute('aria-busy');
+    content.textContent = 'Connection lost. Reconnect to refresh progress.';
+  }
+}
+
+function selectProgressTab(key) {
+  const keepFocus = Boolean(document.activeElement?.closest('.progress-tabs'));
+  cancelRequest();
+  activeProgressTab = progressTab(key);
+  renderProgressPanel();
+  if (keepFocus) $('progress-tab-' + activeProgressTab).focus();
+}
+
+function renderInventoryPanel(request = true) {
+  const body = $('panel-body');
+  const available = canInspectPassivePanel();
+  body.innerHTML = '<div class="crafting-tabs inventory-tabs" role="tablist" aria-label="Inventory information">'
+    + INVENTORY_TABS.map(key => `<button type="button" role="tab" id="inventory-tab-${key}" aria-controls="inventory-content" aria-selected="${key === activeInventoryTab}" tabindex="${key === activeInventoryTab ? 0 : -1}">${key === 'inventory' ? 'Inventory' : 'Equipment'}</button>`).join('')
+    + '</div><div id="inventory-content" class="crafting-content inventory-content" role="tabpanel" aria-labelledby="inventory-tab-' + activeInventoryTab + '" tabindex="0" aria-live="polite"></div>';
+  const content = $('inventory-content');
+  $('panel-refresh').disabled = !available;
+  for (const tab of body.querySelectorAll('[role="tab"]')) {
+    tab.addEventListener('click', () => selectInventoryTab(tab.id.slice('inventory-tab-'.length)));
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = nextInventoryTab(activeInventoryTab, event.key);
+      selectInventoryTab(next);
+      $('inventory-tab-' + next).focus();
+    });
+  }
+  if (!available) {
+    content.textContent = gameState.spectating || connectionState().phase === 'read-only'
+      ? 'Watching is read-only. Inventory requests are disabled.'
+      : connectionState().phase !== 'connected' ? 'Reconnect to inspect inventory.'
+      : gameState.value !== 'playing' || gameState.inChargen ? 'Enter the world to inspect inventory.'
+      : 'This server does not support passive inventory inspection (panels-v1).';
+    return;
+  }
+  if (!request) return;
+  content.textContent = 'Loading ' + (activeInventoryTab === 'inventory' ? 'inventory' : 'equipment') + '…';
+  content.setAttribute('aria-busy', 'true');
+  pendingRequest = `panel-${++requestSequence}`;
+  requestTimer = setTimeout(() => {
+    cancelRequest();
+    content.removeAttribute('aria-busy');
+    content.textContent = 'No response received. Use Refresh to try again.';
+  }, 5000);
+  if (!send({ t: 'panel_request', requestId: pendingRequest, panel: activeInventoryTab })) {
+    cancelRequest();
+    content.removeAttribute('aria-busy');
+    content.textContent = 'Connection lost. Reconnect to refresh inventory.';
+  }
+}
+
+function selectInventoryTab(key) {
+  const keepFocus = Boolean(document.activeElement?.closest('.inventory-tabs'));
+  cancelRequest();
+  activeInventoryTab = inventoryTab(key);
+  renderInventoryPanel();
+  if (keepFocus) $('inventory-tab-' + activeInventoryTab).focus();
+}
+
+function renderSpellsPanel(request = true) {
+  const body = $('panel-body');
+  const available = canInspectPassivePanel();
+  body.innerHTML = '<div class="crafting-tabs spells-tabs" role="tablist" aria-label="Spell information">'
+    + SPELL_TABS.map(key => `<button type="button" role="tab" id="spells-tab-${key}" aria-controls="spells-content" aria-selected="${key === activeSpellTab}" tabindex="${key === activeSpellTab ? 0 : -1}">${key === 'spells' ? 'Spells' : key === 'spellbook' ? 'Spellbook' : 'Slots'}</button>`).join('')
+    + '</div><div id="spells-content" class="crafting-content spells-content" role="tabpanel" aria-labelledby="spells-tab-' + activeSpellTab + '" tabindex="0" aria-live="polite"></div>';
+  const content = $('spells-content');
+  if (activeSpellTab === 'spellbook') {
+    const form = document.createElement('form');
+    form.className = 'spellbook-search';
+    form.innerHTML = '<label for="spellbook-query">Search spellbook</label><div class="spellbook-search-controls"><input id="spellbook-query" type="search" maxlength="120" autocomplete="off" spellcheck="false" aria-controls="spells-content"><button type="submit" id="spellbook-search">Search</button><button type="button" id="spellbook-clear">Clear</button></div>';
+    body.insertBefore(form, content);
+    const input = $('spellbook-query');
+    input.value = spellbookDraft;
+    for (const control of form.querySelectorAll('input,button')) control.disabled = !available;
+    input.addEventListener('input', () => { spellbookDraft = input.value; });
+    const submit = clear => {
+      if (!canInspectPassivePanel()) return;
+      spellbookFilter = clear ? '' : spellbookQuery(input.value);
+      spellbookDraft = spellbookFilter;
+      cancelRequest();
+      renderSpellsPanel();
+      $('spellbook-query').focus();
+    };
+    form.addEventListener('submit', event => { event.preventDefault(); submit(false); });
+    $('spellbook-clear').addEventListener('click', () => submit(true));
+  }
+  $('panel-refresh').disabled = !available;
+  for (const tab of body.querySelectorAll('[role="tab"]')) {
+    tab.addEventListener('click', () => selectSpellTab(tab.id.slice('spells-tab-'.length)));
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = nextSpellTab(activeSpellTab, event.key);
+      selectSpellTab(next);
+      $('spells-tab-' + next).focus();
+    });
+  }
+  if (!available) {
+    content.textContent = gameState.spectating || connectionState().phase === 'read-only'
+      ? 'Watching is read-only. Spell requests are disabled.'
+      : connectionState().phase !== 'connected' ? 'Reconnect to inspect spells.'
+      : gameState.value !== 'playing' || gameState.inChargen ? 'Enter the world to inspect spells.'
+      : 'This server does not support passive spell inspection (panels-v1).';
+    return;
+  }
+  if (!request) return;
+  content.textContent = 'Loading ' + activeSpellTab + '…';
+  content.setAttribute('aria-busy', 'true');
+  pendingRequest = `panel-${++requestSequence}`;
+  requestTimer = setTimeout(() => {
+    cancelRequest();
+    content.removeAttribute('aria-busy');
+    content.textContent = 'No response received. Use Refresh to try again.';
+  }, 5000);
+  if (!send(spellPanelRequest(activeSpellTab, pendingRequest, spellbookFilter))) {
+    cancelRequest();
+    content.removeAttribute('aria-busy');
+    content.textContent = 'Connection lost. Reconnect to refresh spells.';
+  }
+}
+
+function selectSpellTab(key) {
+  const keepFocus = Boolean(document.activeElement?.closest('.spells-tabs'));
+  cancelRequest();
+  activeSpellTab = spellTab(key);
+  renderSpellsPanel();
+  if (keepFocus) $('spells-tab-' + activeSpellTab).focus();
+}
+
+onDisconnect(() => {
+  if (activePanel === 'crafting') { cancelRequest(); renderCraftingPanel(false); }
+  if (activePanel === 'spells') { cancelRequest(); renderSpellsPanel(false); }
+  if (activePanel === 'progress') { cancelRequest(); renderProgressPanel(false); }
+  if (activePanel === 'inv') { cancelRequest(); renderInventoryPanel(false); }
+});
+onServerMessage(() => queueMicrotask(() => {
+  if (activePanel === 'crafting' && !canInspectPassivePanel()) { cancelRequest(); renderCraftingPanel(false); }
+  if (activePanel === 'spells' && !canInspectPassivePanel()) { cancelRequest(); renderSpellsPanel(false); }
+  if (activePanel === 'progress' && !canInspectPassivePanel()) { cancelRequest(); renderProgressPanel(false); }
+  if (activePanel === 'inv' && !canInspectPassivePanel()) { cancelRequest(); renderInventoryPanel(false); }
+}));
+
 export function receivePanel(msg) {
   if (!pendingRequest || msg.requestId !== pendingRequest) return;
+  if (activePanel === 'crafting' && !canInspectPassivePanel()) {
+    cancelRequest();
+    renderCraftingPanel(false);
+    return;
+  }
+  if (activePanel === 'spells' && !canInspectPassivePanel()) {
+    cancelRequest();
+    renderSpellsPanel(false);
+    return;
+  }
+  if (activePanel === 'progress' && !canInspectPassivePanel()) {
+    cancelRequest();
+    renderProgressPanel(false);
+    return;
+  }
+  if (activePanel === 'inv' && !canInspectPassivePanel()) {
+    cancelRequest();
+    renderInventoryPanel(false);
+    return;
+  }
   cancelRequest();
-  const body = $('panel-body');
+  const body = activePanel === 'crafting' ? $('crafting-content') : activePanel === 'spells' ? $('spells-content') : activePanel === 'progress' ? $('progress-content') : activePanel === 'inv' ? $('inventory-content') : $('panel-body');
+  if (activePanel === 'journal' && gameState.spectating) {
+    renderQuestInspection(body);
+    return;
+  }
   body.textContent = '';
+  body.removeAttribute('aria-busy');
   for (const line of msg.ok ? (msg.lines || []) : [msg.error || 'Could not load this panel.']) {
     const div = document.createElement('div');
     div.className = 'block' + (msg.ok ? ' ch-msg' : ' ch-error');
@@ -125,6 +431,8 @@ export function closePanel(returnFocus = true) {
 }
 
 export function resetPanels() {
+  spellbookFilter = '';
+  spellbookDraft = '';
   scriptDraft = newScriptDraft();
   closePanel(false);
   $('panel-body').textContent = '';
@@ -182,6 +490,27 @@ export function syncDock() {
   syncToolbar();
 }
 
+function updateRunnerStatus() {
+  if (activePanel !== 'scripts') return;
+  const snapshot = scriptStatus();
+  const status = $('script-run-status');
+  if (status) {
+    const text = scriptStatusText(snapshot, isAutomationPaused());
+    if (status.textContent !== text) status.textContent = text;
+  }
+  const diagnostic = $('script-run-diagnostic');
+  if (diagnostic) {
+    diagnostic.hidden = !snapshot.diagnostic;
+    diagnostic.setAttribute('role', snapshot.diagnostic?.severity === 'error' ? 'alert' : 'status');
+    diagnostic.setAttribute('aria-live', snapshot.diagnostic?.severity === 'error' ? 'assertive' : 'polite');
+    const text = scriptDiagnosticText(snapshot.diagnostic);
+    if (diagnostic.textContent !== text) diagnostic.textContent = text;
+  }
+  const summary = $('automation-summary');
+  if (summary) summary.textContent = `${isAutomationPaused() ? 'Automation paused' : 'Automation enabled'} · ${isScriptRunning() ? 'DR script running' : 'no DR script running'} · ${timers.length} timers · ${triggers.length} triggers`;
+}
+onScriptStateChange(updateRunnerStatus);
+
 function renderScriptsPanel() {
   const body = $('panel-body');
   const focused = body.contains(document.activeElement) ? document.activeElement : null;
@@ -220,6 +549,8 @@ function renderScriptsPanel() {
     <p id="script-feedback" role="status" aria-live="polite"></p>
   </div>`;
   html += `<div class="script-block">
+    <p id="script-run-status" role="status" aria-live="polite"></p>
+    <pre id="script-run-diagnostic" role="alert" aria-live="assertive" hidden style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
     <div class="script-kind">DR SCRIPTS <button id="scripts-stop" class="dock-btn">stop</button></div>
     <div class="script-rows">${listScripts().map((n) => `<div class="script-name-row"><span class="script-kind">SCRIPT</span><span class="script-text">.${escapeHtml(n)}</span><button data-run="${escapeHtml(n)}">run</button><button data-edit-script="${escapeHtml(n)}">${ownsScript(n) ? 'edit' : 'copy'}</button>${ownsScript(n) ? `<button data-del-script="${escapeHtml(n)}" title="Delete from this character">\u2715</button>` : ''}</div>`).join('')}</div>
   </div>`;
@@ -234,6 +565,7 @@ function renderScriptsPanel() {
     </div>
   </div>`;
   body.innerHTML = html;
+  updateRunnerStatus();
   body.querySelectorAll('[data-remove]').forEach((btn) => {
     btn.addEventListener('click', () => removeScript(btn.dataset.remove));
   });
@@ -430,10 +762,21 @@ $('btn-chat').addEventListener('click', () => {
 $('btn-inv').addEventListener('click', () => openPanel('inv'));
 $('btn-score').addEventListener('click', () => openPanel('score'));
 $('btn-exp').addEventListener('click', () => openPanel('exp'));
+$('btn-progress').addEventListener('click', () => openPanel('progress'));
+$('btn-crafting').addEventListener('click', () => openPanel('crafting'));
+$('btn-journal').addEventListener('click', () => openPanel('journal'));
+$('quest-inspect').addEventListener('click', () => openPanel('journal'));
+onQuestChange(() => {
+  if (activePanel === 'journal' && gameState.spectating) {
+    cancelRequest();
+    renderQuestInspection($('panel-body'));
+  }
+});
 $('btn-info').addEventListener('click', () => openPanel('info'));
 $('btn-skills').addEventListener('click', () => openPanel('skills'));
 $('btn-spells').addEventListener('click', () => openPanel('spells'));
 $('btn-scripts').addEventListener('click', () => openPanel('scripts', false));
+$('btn-commands').addEventListener('click', () => openPanel('commands', false));
 $('panel-close').addEventListener('click', closePanel);
 $('dock-close').addEventListener('click', closeDock);
 $('panel-refresh').addEventListener('click', () => {

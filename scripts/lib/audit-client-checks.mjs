@@ -75,14 +75,41 @@ export async function runAuditClientChecks({ cdp, url, gmToken, log = console.lo
   await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   check('GM mobile layout exposes both columns without clipping', await evaluate(`(()=>{const s=document.querySelector('#gm-app section').getBoundingClientRect();return s.right<=innerWidth+1&&s.left>=0&&getComputedStyle(document.body).overflowY!=='hidden';})()`));
   await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-  const fault = await cdp('Page.addScriptToEvaluateOnNewDocument', { source: `(()=>{const originalFetch=window.fetch;window.fetch=(url,opts)=>['/live/index.json','/live/index-meta.json'].some(path=>String(url).endsWith(path))?Promise.reject(new Error('audit discovery fault')):originalFetch(url,opts);})();` });
+  const fault = await cdp('Page.addScriptToEvaluateOnNewDocument', { source: `(()=>{window.__auditDiscoveryFault=true;const originalFetch=window.fetch;window.fetch=(url,opts)=>['/live/index.json','/live/index-meta.json'].some(path=>String(url).endsWith(path))?Promise.reject(new Error('audit discovery fault')):originalFetch(url,opts);})();` });
   await navigate('/sims.html');
   await wait(`document.getElementById('discovery-state').textContent.includes('unavailable')`);
   check('discovery failure remains unavailable, not zero live', await evaluate(`document.getElementById('discovery-state').textContent.includes('unavailable')&&!document.getElementById('discovery-state').textContent.includes('0 live')`));
   await cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: fault.identifier });
   await cdp('Page.reload', {});
-  await wait(`document.getElementById('discovery-state').textContent.includes('last success:')&&!document.getElementById('discovery-state').textContent.includes('never')`);
-  check('Sims discovery recovers after network failure', true);
+  await wait(`!!document.getElementById('discovery-state')&&!window.__auditDiscoveryFault`);
+  const discoveryStatus = await evaluate(`Promise.all(['/live/index.json','/live/index-meta.json'].map(path=>fetch(path,{cache:'no-store'}).then(response=>response.status)))`);
+  if (discoveryStatus.every(status => status === 404)) {
+    // Source releases intentionally omit historical public/live files. Missing
+    // discovery is unknown; it must never be presented as confirmed zero.
+    await wait(`document.getElementById('discovery-state').textContent.includes('unavailable')`);
+    check('fresh installation without discovery history stays honestly unavailable', await evaluate(`document.getElementById('discovery-state').textContent.includes('last success: never')&&!document.getElementById('discovery-state').textContent.includes('0 live')`));
+  } else {
+    await wait(`document.getElementById('discovery-state').textContent.includes('last success:')&&!document.getElementById('discovery-state').textContent.includes('never')`);
+    check('published discovery remains readable after the injected network fault', true);
+  }
+  // Own only these two browser responses. An explicitly empty successful
+  // index proves recovery without writing history or fabricating telemetry.
+  const emptyDiscovery = await cdp('Page.addScriptToEvaluateOnNewDocument', { source: `(()=>{
+    const originalFetch=window.fetch;window.__auditEmptyDiscoveryFixture=true;window.__auditDiscoveryOriginalFetch=originalFetch;
+    window.fetch=(url,opts)=>{
+      const path=new URL(String(url),location.href).pathname;
+      const data=path==='/live/index.json'?[]:path==='/live/index-meta.json'?{generatedAt:Date.now(),logs:[]}:null;
+      return data===null?originalFetch(url,opts):Promise.resolve(new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}}));
+    };
+  })();` });
+  try {
+    await cdp('Page.reload', {});
+    await wait(`window.__auditEmptyDiscoveryFixture&&document.getElementById('discovery-state').textContent.includes('0 live now')&&!document.getElementById('discovery-state').textContent.includes('never')`);
+    check('Sims discovery recovers with an owned empty successful index fixture', await evaluate(`document.getElementById('discovery-state').textContent.includes('last success:')&&!document.getElementById('discovery-state').textContent.includes('unavailable')`));
+  } finally {
+    await cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: emptyDiscovery.identifier });
+    await evaluate(`if(window.__auditDiscoveryOriginalFetch){window.fetch=window.__auditDiscoveryOriginalFetch;delete window.__auditDiscoveryOriginalFetch;delete window.__auditEmptyDiscoveryFixture;}true`);
+  }
   log(`ALL ${count} AUDIT CLIENT CHECKS PASSED`);
   return count;
 }

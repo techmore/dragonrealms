@@ -6,6 +6,7 @@ import { roomById } from '../data/world.js';
 import { creatureById } from '../data/creatures.js';
 import { SKILLS } from '../data/skills.js';
 import { gainSkillExp, unlockAchievement, say, sayRaw } from './player.js';
+import { questSnapshot } from './quest-objectives.js';
 
 const TRINKETS = {
   locket: { name: 'a silver locket', item: 'locket', desc: 'a silver locket' },
@@ -48,6 +49,9 @@ export const quests = {
   },
 
   assignQuest(game, p, source = 'crier') {
+    // The single active assignment survives requests from another task giver.
+    // Replacement requires the existing explicit abandon or claim path.
+    if (p.quest) return p.quest;
     let kind = 'kill';
     if (source !== 'leader') {
       const roll = Math.random();
@@ -57,6 +61,7 @@ export const quests = {
     if (kind === 'kill') {
       q.creatureId = this.questCreatureFor(p);
       q.count = Math.min(3 + p.circle, 8);
+      q.total = q.count;
     } else if (kind === 'deliver') {
       const target = pick(DELIVERY);
       q.target = target;
@@ -77,14 +82,7 @@ export const quests = {
 
   // Serializable quest state for the client's Journal window.
   questSummary(p) {
-    if (!p.quest) return null;
-    const q = p.quest;
-    return {
-      kind: q.kind,
-      source: q.source,
-      done: Boolean(q.done),
-      desc: this.questDescription(p),
-    };
+    return questSnapshot(p);
   },
 
   pushQuest(p) {
@@ -93,21 +91,7 @@ export const quests = {
   },
 
   questDescription(p) {
-    const q = p.quest;
-    if (!q) return '';
-    if (q.kind === 'kill') {
-      const def = creatureById(q.creatureId);
-      return `Slay ${q.count} more ${def.plural}.`;
-    }
-    if (q.kind === 'deliver') {
-      return `Carry ${q.target.parcel} to ${q.target.name} at ${roomById(q.target.room).name}. Say "deliver" when you arrive.`;
-    }
-    if (q.kind === 'recover') {
-      return q.found
-        ? `Recover ${q.trinket.name} — it is yours, bring it to the crier.`
-        : `Find ${q.trinket.name}; it was lost to the ${creatureById(q.creatureId || 'great_rat').plural} of the wilds.`;
-    }
-    return `Skin ${q.count} more creatures and bring the hides to the crier.`;
+    return questSnapshot(p)?.desc || '';
   },
 
   // A kill advances kill quests and may surface recover quest trinkets.
@@ -121,7 +105,7 @@ export const quests = {
         q.done = true;
         gainSkillExp(p, 'perception', 10);
         gainSkillExp(p, 'fitness', 10);
-say(p, `\n\x1b[1mQuest complete!\x1b[0m Return to the town crier and say "claim" to collect your reward.`);
+say(p, `\n\x1b[1mQuest complete!\x1b[0m Return to ${questSnapshot(p).returnTo} and say "claim" to collect your reward.`);
       }
       game.persistPlayer(p);
       this.pushQuest(p);
@@ -132,7 +116,7 @@ say(p, `\n\x1b[1mQuest complete!\x1b[0m Return to the town crier and say "claim"
         q.found = true;
         q.done = true;
         gainSkillExp(p, 'perception', 8);
-say(p, `\nYou pry the filth from the remains — there it is: ${q.trinket.name}! (Return to the crier and say "claim".)`);
+say(p, `\nYou pry the filth from the remains — there it is: ${q.trinket?.name || 'the missing trinket'}! (Return to the crier and say "claim".)`);
         game.persistPlayer(p);
         this.pushQuest(p);
       }
@@ -159,15 +143,19 @@ say(p, `The crier's work is underway — ${q.count - q.skinned} more creature(s)
   questDeliver(game, p) {
     const q = p.quest;
     if (!q || q.done || q.kind !== 'deliver') return { ok: false, msg: 'You are not carrying anything to deliver.' };
-    if (q.target.room !== p.room) {
-      return { ok: false, msg: `You still carry ${q.target.parcel}. It belongs to ${q.target.name} at ${roomById(q.target.room).name}.` };
+    const destination = roomById(q.target?.room);
+    if (!destination) return { ok: false, msg: 'Your delivery destination is unavailable in the ledger. Ask the crier to review the assignment, or use "quest abandon" to set it aside.' };
+    const recipient = q.target.name || 'the recipient';
+    const parcel = q.target.parcel || 'the assigned parcel';
+    if (destination.id !== p.room) {
+      return { ok: false, msg: `You still carry ${parcel}. It belongs to ${recipient} at ${destination.name}.` };
     }
     q.done = true;
     gainSkillExp(p, 'appraisal', 10);
     gainSkillExp(p, 'athletics', 8);
     game.persistPlayer(p);
     this.pushQuest(p);
-    return { ok: true, msg: `\n${q.target.name} takes ${q.target.parcel} with a nod of thanks. "The crier will settle your pay." Return to the town square and say "claim".` };
+    return { ok: true, msg: `\n${recipient} takes ${parcel} with a nod of thanks. "The crier will settle your pay." Return to the town square and say "claim".` };
   },
 
   questClaim(game, p) {
@@ -176,6 +164,7 @@ say(p, `The crier's work is underway — ${q.count - q.skinned} more creature(s)
       return { ok: false, msg: `Your quest is not finished. ${this.questDescription(p)}` };
     }
     const q = p.quest;
+    const beforeClaim = { silver: p.silver, quest: p.quest, expPools: structuredClone(p.expPools) };
     const def = q.creatureId ? creatureById(q.creatureId) : null;
     let silver = 40 + (def ? def.circle * 35 : 30);
     let skillExp = '';
@@ -190,7 +179,13 @@ say(p, `The crier's work is underway — ${q.count - q.skinned} more creature(s)
     const fromLeader = q.source === 'leader' && Boolean(guildSkill);
     if (fromLeader && SKILLS[guildSkill]) gainSkillExp(p, guildSkill, 20);
     p.quest = null;
-    game.persistPlayer(p);
+    try { game.persistPlayer(p); }
+    catch (error) {
+      p.silver = beforeClaim.silver;
+      p.quest = beforeClaim.quest;
+      p.expPools = beforeClaim.expPools;
+      throw error;
+    }
     this.pushQuest(p);
     unlockAchievement(p, 'first_quest');
     if (fromLeader) {

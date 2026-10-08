@@ -36,6 +36,7 @@ import { join, basename, dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { openSweepsDb, insertSweep } from './lib/sweeps-db.mjs';
 import { classifyStall, verdictLabel } from './lib/stall-detect.mjs';
+import { sweepRunnerCompletion } from './lib/sweep-runner-completion.mjs';
 import { pad, median, fmtMin, fmtMs } from './lib/report-utils.mjs';
 import { refreshLiveIndex } from './lib/live-index.mjs';
 import { circleRequirements, circleRequirementNeeds, circleRequirementCandidates } from '../data/guilds.js';
@@ -1229,6 +1230,11 @@ class SweepAgent {
     if (name.endsWith('mega')) this.lastSendAt = Date.now();
     const s = this.session;
     this.runner = createRunner(src, [], {
+      name,
+      onDone: sweepRunnerCompletion(name, reason => {
+        this.appendLog(`[script-error] ${reason}`);
+        void this.finish(reason);
+      }),
       roomNow: () => s.vitals.room,
       send: async (line) => {
         const bucket = /^(n|s|e|w|ne|nw|se|sw|up|down|d|out)$/.test(line) ? 'moves'
@@ -1515,6 +1521,7 @@ class SweepAgent {
     };
     const body = dirs.map((d) => 'move ' + d).join('\n') + '\nput look\nwait';
     this.runner = createRunner(body, [], {
+      name: '<escape>',
       roomNow: () => s.vitals.room,
       send: async (line) => {
         trackMove(s, line);
@@ -1527,7 +1534,10 @@ class SweepAgent {
       },
       onRefusedMove: (dir) => trackRefusedMove(s, dir),
       say: () => {},
-      onDone: done,
+      onDone: sweepRunnerCompletion('<escape>', reason => {
+        this.appendLog(`[script-error] ${reason}`);
+        void this.finish(reason);
+      }, done),
     });
     this.runner.start();
   }
@@ -1845,6 +1855,7 @@ class SweepAgent {
     }
 
     try { this.runner?.feed('', false); } catch {}
+    if (this.done) return; // feed may have reported a fatal interpreter error
     this.session.injectState(this.runner);
     // Armor-wear retry (server truth): the hands snapshot says whether the
     // wear LANDED. PERIODIC, not one-shot — a single retry was not enough:

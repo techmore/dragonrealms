@@ -1,5 +1,13 @@
 // Each browser sim owns a real DR interpreter and a complete script snapshot.
 import { createRunner } from '../script-engine.js';
+import { scriptDiagnosticText } from '../script-status.js';
+
+// Preserve fatal interpreter outcomes in the browser agent's durable status.
+export function agentScriptCompletion(result) {
+  return result?.reason === 'error'
+    ? { outcome: 'failed', reason: 'starter script failed: ' + (scriptDiagnosticText(result.diagnostic) || 'interpreter error') }
+    : { outcome: 'script_finished', reason: 'starter script finished' };
+}
 export function createAgentScript(io) {
   let scripts = Object.create(null);
   let runner = null;
@@ -12,7 +20,7 @@ export function createAgentScript(io) {
       runner?.stop();
       runner = null;
       if (!Object.hasOwn(scripts, name)) return false;
-      runner = createRunner(scripts[name], [], { ...io, getScript: n => Object.hasOwn(scripts, n) ? scripts[n] : null });
+      runner = createRunner(scripts[name], [], { ...io, name, getScript: n => Object.hasOwn(scripts, n) ? scripts[n] : null });
       runner.start();
       return true;
     },

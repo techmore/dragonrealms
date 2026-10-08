@@ -6,14 +6,13 @@ import { SKILLS } from '../../data/skills.js';
 import { manaTypeFor, manaCycle, roomManaLevel, manaDescriptor, safeOverchannelPct, backfireChance } from '../../data/mana.js';
 import { gainSkillExp, skillRank, removeItem, addItem, unlockAchievement, setRoundtime, say as sayPlayer } from '../player.js';
 import { db } from '../db.js';
+import { formatSpellbook } from '../spell-reference.js';
+import { isSpellHeld, heldSpells, heldSpellIds, forgottenSpellIds } from '../spell-policy.js';
 
 // A spell is castable when your guild's curriculum reaches it and you have
 // not forgotten it. The slot budget is enforced where spells are granted
 // (circle-up and learn), so direct circle changes stay in sync automatically.
-function knownSpell(p, spell) {
-  if (spell.minCircle > p.circle) return false;
-  return !Array.isArray(p.spellsForgotten) || !p.spellsForgotten.includes(spell.id);
-}
+const knownSpell = isSpellHeld;
 import { findInventoryItem } from './util.js';
 
 // Bard enchante engine, shared by `enchant` and `segue` as a direct function
@@ -56,6 +55,7 @@ function doEnchant(ctx) {
 }
 
 export const commands = {
+  spellbook({ p, rest, emit }) { emit(formatSpellbook(p, rest)); },
   prepare(ctx) {
     const { p, arg1, arg2, emit } = ctx;
     const guild = p.guild;
@@ -221,9 +221,8 @@ export const commands = {
     const { p, say } = ctx;
     const guild = p.guild;
     if (!guild || !guild.magic) return say(p.guild ? 'Your guild forswears magic.' : 'You have no guild — join one at its hall to learn magic.');
-    const isKnown = (s) => Array.isArray(p.spellsKnown) && p.spellsKnown.includes(s.id);
-    const known = (guild.spells || []).filter(isKnown);
-    const pending = (guild.spells || []).filter((s) => s.minCircle <= p.circle && !isKnown(s));
+    const known = heldSpells(p);
+    const pending = (guild.spells || []).filter((s) => s.minCircle <= p.circle && !isSpellHeld(p, s));
     const later = (guild.spells || []).filter((s) => s.minCircle > p.circle);
     let msg = known.length
       ? 'Spells you hold:\n' + known.map((s) => `  ${s.name} — ${s.mana} mana (${s.desc})`).join('\n')
@@ -243,9 +242,9 @@ export const commands = {
     if (!guild || !guild.magic) return emit('Your guild forswears magic.');
     const spell = spellById(guild, arg1);
     if (!spell || !knownSpell(p, spell)) return emit('You do not hold that spell.');
-    p.spellsKnown = (p.spellsKnown || []).filter((id) => id !== spell.id);
-    p.spellsForgotten = Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [];
+    p.spellsForgotten = forgottenSpellIds(p.spellsForgotten);
     if (!p.spellsForgotten.includes(spell.id)) p.spellsForgotten.push(spell.id);
+    p.spellsKnown = heldSpellIds(guild, p.circle, p.spellsForgotten);
     game.persistPlayer(p);
     const freed = spellSlotCost(spell);
     emit(`You let ${spell.name} fade from memory (${spellSlotsUsed(guild, p.circle, p.spellsForgotten)}/${spellSlotsTotal(guild, p.circle)} spell slots, ${freed} freed). Your hall will teach it again whenever you ask.`);

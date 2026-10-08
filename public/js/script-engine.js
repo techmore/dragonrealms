@@ -3,15 +3,21 @@
 
 export function parseScript(text) {
   const labels = {};
-  const lines = [];
-  String(text || '').split(/\r?\n/).forEach((raw) => {
+  const lines = [], sourceLines = [], sourceText = [], diagnostics = [];
+  const labelLines = {};
+  String(text || '').split(/\r?\n/).forEach((raw, index) => {
     const line = raw.trim();
     if (!line || line.startsWith('#')) return;
     const labelMatch = /^([A-Za-z_][A-Za-z0-9_]*):$/.exec(line);
-    if (labelMatch) { labels[labelMatch[1].toLowerCase()] = lines.length; return; }
-    lines.push(line);
+    if (labelMatch) {
+      const label = labelMatch[1].toLowerCase();
+      if (Object.hasOwn(labelLines, label)) diagnostics.push({ severity: 'warning', phase: 'parse',
+        line: index + 1, source: raw, message: `Duplicate label ${label}; the definition on line ${index + 1} replaces line ${labelLines[label]}.` });
+      labels[label] = lines.length; labelLines[label] = index + 1; return;
+    }
+    lines.push(line); sourceLines.push(index + 1); sourceText.push(raw);
   });
-  return { labels, lines };
+  return { labels, lines, sourceLines, sourceText, diagnostics };
 }
 
 export function createRunner(src, args = [], io = {}) {
@@ -25,9 +31,13 @@ export function createRunner(src, args = [], io = {}) {
   const onDone = io.onDone;
   const frames = [parseScript(src)];
   frames[0].pc = 0;
+  frames[0].name = io.name || '<script>';
+  let lastLocation = null;
   const cur = () => frames[frames.length - 1];
   const s = {
     done: false,
+    outcome: null,
+    diagnostic: null,
     mode: null,          // 'prompt' | 'room' | 'text' | 'match' | 'timer'
     waitText: null,
     waitRe: null,
@@ -45,6 +55,26 @@ export function createRunner(src, args = [], io = {}) {
   const say = io.say || (() => {});
   const out = (line) => { s.lastOutLine = line; io.send?.(line); };
   const sub = (line) => String(line).replace(/%(\w+)/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
+
+  function location(frame, index = Math.max(0, frame.pc - 1)) {
+    return { script: frame.name, line: frame.sourceLines[index] ?? null, source: frame.sourceText[index] ?? null };
+  }
+  function diagnostic(message, severity = 'warning', details = {}) {
+    const here = cur() ? location(cur()) : lastLocation || { script: io.name || '<script>', line: null, source: null };
+    const value = { ...here, message, severity, phase: 'runtime', stack: frames.map(frame => location(frame)), ...details };
+    s.diagnostic = value;
+    if (io.onDiagnostic) { try { io.onDiagnostic(value); } catch {} }
+    else { try { say(`[script] ${value.script}${value.line ? ':' + value.line : ''}: ${message}`); } catch {} }
+    return value;
+  }
+  function parsedWarnings(frame) {
+    for (const warning of frame.diagnostics) diagnostic(warning.message, 'warning', { ...warning, script: frame.name });
+  }
+  function fail(error) {
+    const value = diagnostic(error instanceof Error ? error.message : String(error), 'error');
+    s.done = true; s.outcome = 'error'; s.matches = []; s.pendingRtLine = null; s.retryLine = null;
+    try { onDone?.({ reason: 'error', diagnostic: value }); } catch {}
+  }
 
   function execOne(line) {
     const cmd = line.split(/\s+/)[0].toLowerCase();
@@ -91,13 +121,13 @@ export function createRunner(src, args = [], io = {}) {
       case 'match': {
         const sp = rest.split(/\s+/);
         const label = sp.shift().toLowerCase();
-        s.matches.push({ label, text: sp.join(' ').toLowerCase(), re: null });
+        s.matches.push({ label, text: sp.join(' ').toLowerCase(), re: null, location: location(cur()) });
         return true;
       }
       case 'matchre': {
         const sp = rest.split(/\s+/);
         const label = sp.shift().toLowerCase();
-        s.matches.push({ label, text: null, re: new RegExp(sp.join(' ').replace(/^\/(.*)\/$/, '$1'), 'i') });
+        s.matches.push({ label, text: null, re: new RegExp(sp.join(' ').replace(/^\/(.*)\/$/, '$1'), 'i'), location: location(cur()) });
         return true;
       }
       case 'matchwait': {
@@ -118,7 +148,7 @@ export function createRunner(src, args = [], io = {}) {
       case 'goto': {
         const target = rest.toLowerCase();
         if (cur().labels[target] !== undefined) cur().pc = cur().labels[target];
-        else say(`[script] no such label: ${rest}`);
+        else diagnostic(`no such label: ${rest}`);
         return true;
       }
       case 'putrun': {
@@ -131,17 +161,19 @@ export function createRunner(src, args = [], io = {}) {
             ? part.slice(1, -1) : part) || [];
         const name = parts.shift();
         const body = getScript(name);
-        if (body == null) { say(`[script] no script named "${name}"`); return true; }
+        if (body == null) { diagnostic(`no script named "${name}"`); return true; }
         const parsed = parseScript(body);
         parsed.pc = 0;
         parts.forEach((v, i) => { vars[i + 1] = v; });
-        if (frames.length >= 8) { say('[script] putrun depth limit reached'); return true; }
+        if (frames.length >= 8) { diagnostic('putrun depth limit reached'); return true; }
+        parsed.name = name;
         frames.push(parsed);
+        parsedWarnings(parsed);
         return true;
       }
       case 'exit': {
         frames.pop();
-        if (!frames.length) { s.done = true; try { onDone?.(); } catch {} return false; } // top-level exit
+        if (!frames.length) { s.done = true; s.outcome = 'completed'; try { onDone?.(); } catch {} return false; } // top-level exit
         return true; // resume the caller at its next line
       }
       case 'setvariable': {
@@ -174,7 +206,7 @@ export function createRunner(src, args = [], io = {}) {
           const name = sp[li];
           const target = name ? cur().labels[String(name).toLowerCase()] : undefined;
           if (target !== undefined) cur().pc = target;
-          else say(`[script] no such label: ${name}`);
+          else diagnostic(`no such label: ${name}`);
         }
         return true;
       }
@@ -204,7 +236,7 @@ export function createRunner(src, args = [], io = {}) {
           const name = sp[3];
           const target = name ? cur().labels[String(name).toLowerCase()] : undefined;
           if (target !== undefined) { cur().pc = target; return true; }
-          say(`[script] no such label: ${name}`);
+          diagnostic(`no such label: ${name}`);
         }
         return true;
       }
@@ -229,7 +261,7 @@ export function createRunner(src, args = [], io = {}) {
           }
           return true;
         }
-        say(`[script] unknown command: ${cmd}`);
+        diagnostic(`unknown command: ${cmd}`);
         return true;
     }
   }
@@ -247,10 +279,12 @@ export function createRunner(src, args = [], io = {}) {
       // After a hard movement failure, skip the rest of the move chain so
       // the script lands on its reaction logic (scan/fight/retreat).
       if (s.skipMoves && /^move\s/i.test(line)) { f.pc += 1; continue; }
+      lastLocation = location(f, f.pc);
       f.pc += 1;
-      if (!execOne(line)) return;
+      try { if (!execOne(line)) return; }
+      catch (error) { fail(error); return; }
     }
-    s.done = true;
+    s.done = true; s.outcome = 'completed';
     try { onDone?.(); } catch {}
   }
 
@@ -429,6 +463,7 @@ export function createRunner(src, args = [], io = {}) {
         s.matchDeadline = null;
         const f = cur();
         if (f.labels[hit.label] !== undefined) f.pc = f.labels[hit.label];
+        else diagnostic(`no such label: ${hit.label}`, 'warning', hit.location || {});
         advance();
         return;
       }
@@ -598,9 +633,13 @@ export function createRunner(src, args = [], io = {}) {
   }
 
   return {
-    start() { advance(); return this; },
-    feed,
-    stop() { s.done = true; s.matches = []; },
+    start() { if (!s.done) { parsedWarnings(frames[0]); advance(); } return this; },
+    feed(text, isPrompt = false) {
+      // Deferred roundtime sends and movement callbacks execute outside advance.
+      // Contain their unexpected IO failures at the public heartbeat boundary.
+      try { feed(text, isPrompt); } catch (error) { fail(error); }
+    },
+    stop() { s.done = true; s.outcome = 'stopped'; s.matches = []; },
     get running() { return !s.done; },
     get depth() { return frames.length; },
     // Supervisor override for a named script variable (DR `setvariable` from
@@ -613,9 +652,10 @@ export function createRunner(src, args = [], io = {}) {
     // Diagnostics for supervisors: why is this script sitting still?
     get state() {
       const f = cur();
-      if (!f) return { mode: 'done', depth: 0, pc: -1, pendingMatches: 0,
+      if (!f) return { mode: 'done', outcome: s.outcome, diagnostic: s.diagnostic, location: lastLocation, depth: 0, pc: -1, pendingMatches: 0,
         rtUntil: s.rtUntil, pendingRtLine: s.pendingRtLine };
-      return { mode: s.mode, depth: frames.length - 1, pc: f.pc,
+      return { mode: s.mode, outcome: s.outcome, diagnostic: s.diagnostic, location: location(f), depth: frames.length - 1, pc: f.pc,
+        timerRemainingMs: s.mode === 'timer' ? Math.max(0, s.timerAt - Date.now()) : null,
         previousLine: f.lines[f.pc - 1] ?? null,
         nextLine: f.lines[f.pc] ?? null,
         matchDeadlineMs: s.matchDeadline == null ? null : s.matchDeadline - Date.now(),

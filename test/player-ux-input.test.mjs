@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { transcriptSearchQuery } from '../public/js/search-routing.js';
 
 function harness(sendResult = true) {
   const listeners = {};
@@ -12,18 +13,18 @@ function harness(sendResult = true) {
   const active = {};
   const document = { activeElement: active, addEventListener: (key, fn) => { listeners[`document:${key}`] = fn; } };
   const elements = { cmd, dpad: { querySelectorAll: () => [] }, completion: { textContent: '' } };
-  const sent = [], output = [];
+  const sent = [], output = [], searches = [];
   const context = vm.createContext({ document, $: (id) => elements[id],
     send: (msg) => { sent.push(msg); return sendResult; }, append: (...args) => output.push(args),
     handleAutomation: (line) => line.startsWith('macro '),
     settings: { font: 14 }, saveSettings() {}, applySettings() {},
     gameState: { value: 'playing' }, routeTypedCommand: () => false,
-    searchWith() {}, endScroll() {}, clearTimeout() {}, setInterval() {},
+    transcriptSearchQuery, searchWith: query => searches.push(query), endScroll() {}, clearTimeout() {}, setInterval() {},
     navigator: {}, window: { addEventListener() {} } });
   const source = readFileSync(new URL('../public/js/input.js', import.meta.url), 'utf8')
     .replace(/^import .*;\n/gm, '').replace(/export /g, '');
   vm.runInContext(source, context);
-  return { context, cmd, document, active, listeners, sent, output };
+  return { context, cmd, document, active, listeners, sent, output, searches };
 }
 
 test('programmatic commands dispatch independently of draft, selection and focus', () => {
@@ -34,6 +35,19 @@ test('programmatic commands dispatch independently of draft, selection and focus
   assert.equal(h.cmd.selectionStart, 3);
   assert.equal(h.cmd.selectionEnd, 7);
   assert.equal(h.document.activeElement, h.active);
+});
+
+test('input routing sends corpse inspection and keeps explicit transcript search local', () => {
+  const h = harness();
+  h.context.pressEnter('search corpse');
+  assert.equal(h.sent.length, 1);
+  assert.equal(h.sent[0].line, 'search corpse');
+  assert.equal(h.searches.length, 0);
+  h.context.pressEnter('find corpse');
+  h.context.pressEnter('search bank');
+  assert.equal(h.sent.length, 1);
+  assert.deepEqual(h.searches, ['corpse', 'bank']);
+  assert.equal(h.cmd.value, 'unfinished draft');
 });
 
 test('failed typed sends preserve exact draft and selection across protocol states', () => {

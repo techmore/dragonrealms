@@ -2,9 +2,9 @@
 // command modules don't chain imports (combat -> magic -> items ->
 // character): each verb lives here with its own dependencies, and the
 // per-module registries import from this one file.
-import { craftAffinity, knownCraftTechs } from '../crafting-policy.js';
+import { craftAffinity, knownCraftTechs, craftStationVerbs as stationVerbs } from '../crafting-policy.js';
+import { forgottenSpellIds, heldSpellIds } from '../spell-policy.js';
 import { roomById } from '../../data/world.js';
-import { npcById } from '../../data/npcs.js';
 import {
   spellById, spellSlotCost, spellSlotsTotal, spellSlotsUsed,
 } from '../../data/guilds.js';
@@ -37,12 +37,7 @@ const ORDER_VERBS = {
   enchant: { npc: 'the artificer' },
 };
 
-export function stationVerbs(p) {
-  if (p.room === 'forge') return ['forge'];
-  if (p.room === 'tailor_shop') return ['tailor'];
-  const room = roomById(p.room);
-  return (room && (room.npcs || []).some((id) => npcById(id)?.role === 'craft')) ? ['craft'] : [];
-}
+export { stationVerbs };
 
 // Spell learning for magic guilds, routed from combat.js's `learn` verb
 // (barbarians keep it for abilities). Teaches a circle-reached spell at the
@@ -62,7 +57,7 @@ export function learnSpell(ctx) {
     return emit('You must stand in your own guild hall to learn spells.');
   }
   if (spell.minCircle > p.circle) return emit(`Your masters will not teach ${spell.name} until circle ${spell.minCircle}.`);
-  const forgotten = Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [];
+  const forgotten = forgottenSpellIds(p.spellsForgotten);
   if (!forgotten.includes(spell.id)) return emit(`You already hold ${spell.name}.`);
   const total = spellSlotsTotal(guild, p.circle);
   const used = spellSlotsUsed(guild, p.circle, forgotten);
@@ -71,7 +66,7 @@ export function learnSpell(ctx) {
     return emit(`No room in your mind: ${spell.name} needs ${cost} slots, you have ${total - used} free. Forget a spell first ("forget <spell>").`);
   }
   p.spellsForgotten = forgotten.filter((id) => id !== spell.id);
-  if (!p.spellsKnown.includes(spell.id)) p.spellsKnown.push(spell.id);
+  p.spellsKnown = heldSpellIds(guild, p.circle, p.spellsForgotten);
   game.persistPlayer(p);
   emit(`Your masters walk you through the forms. \x1b[1m${spell.name}\x1b[0m is yours (${used + cost}/${total} spell slots).`);
 }

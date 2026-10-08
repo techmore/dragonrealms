@@ -388,3 +388,15 @@ A short post-fix isolated barbarian probe traversed the square → bazaar → ea
 User authorized reconciliation and commits of outstanding work. Core source is committed as `fa3cabc`, simulator repairs as `fc319c3`. The first combined gate passed syntax/data/docs/corpus/browser but exposed the existing random justice test: several profitable thefts could precede arrest, invalidating its assumption that the remaining purse must be below the original 100. The test now fixes theft/coin/arrest rolls and asserts the exact 79-silver remainder. Full rerun: 481/481 passed. This was a test correction, not a change to arrest mechanics. A staged-file whitespace check also removed one trailing blank line from crafting-policy.
 
 See `INTEGRATION-CLOSEOUT-2026-09-09.md` for clean committed-source evidence and remaining Barbarian work. The accumulation of untracked implementation files is closed by these commits; broad progression/accessibility/content claims remain scoped to their actual evidence.
+
+
+## Player discovery and verification continuation — October 7
+
+The October expansion adds contextual command discovery, progression and quest
+inspection, authored-world whereabouts, walking routes and resilient connection
+controls. Further work adds recipe readiness, quest destination routing,
+source-aware script diagnostics and saved verification receipts. Current scope
+and dated verification are recorded in [the October receipt](PROJECT-EXPANSION-2026-10-07.md).
+The [project guide](README.md) and [architecture map](ARCHITECTURE.md) organize
+module ownership and checks. Historical counts above remain dated; these
+continuations do not establish new simulator pacing outcomes.

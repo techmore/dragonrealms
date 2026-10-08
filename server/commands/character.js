@@ -1,6 +1,6 @@
 // Character commands: stats, skills, TDPs, training, circling, khri, slots.
-import { guildById, circleRequirements, circleRequirementSummary, guildTrainedSkills, trainableSkills, spellsFor, guildTitle, capstoneFor, spellSlotCost, spellSlotsTotal, spellSlotsUsed, guildMagicTier } from '../../data/guilds.js';
-import { SKILLS, CATEGORIES, totalRanks, expToNextRank, mindstate, skillTier } from '../../data/skills.js';
+import { guildById, circleRequirements, circleRequirementSummary, guildTrainedSkills, trainableSkills, guildTitle, capstoneFor, spellSlotCost, spellSlotsTotal, spellSlotsUsed, guildMagicTier } from '../../data/guilds.js';
+import { SKILLS, CATEGORIES, totalRanks, mindstate, skillTier } from '../../data/skills.js';
 import { manaTypeFor } from '../../data/mana.js';
 import { roomById } from '../../data/world.js';
 import { db } from '../db.js';
@@ -18,6 +18,10 @@ import { bleedInfo } from '../wounds.js';
 // Which guild's hall am I standing in (guildless hints for train/circle)?
 import { hallGuildAt } from './join.js';
 import { GUILDS } from '../../data/guilds.js';
+import { formatProgression } from '../progression.js';
+import { circleSpellPlan } from '../spell-policy.js';
+import { formatTraining } from '../training-reference.js';
+import { skillLessonCost, skillLessonExp } from '../training-policy.js';
 
 export const commands = {
   score(ctx) { showScore(ctx); },
@@ -27,6 +31,12 @@ export const commands = {
 
   exp(ctx) { showExp(ctx); },
   experience: showExp,
+  progress(ctx) {
+    const { p, rest, emit } = ctx;
+    if (rest && rest.toLowerCase() !== 'all') return emit('Usage: progress [all] — requirements and practice choices for your next circle.');
+    emit(formatProgression(p, { all: rest?.toLowerCase() === 'all' }));
+  },
+  training({ p, rest, emit }) { emit(formatTraining(p, rest)); },
   info: showScore,
   health(ctx) { showHealth(ctx); },
 
@@ -134,10 +144,10 @@ export const commands = {
       return emit(`${trainer.name} does not teach that skill. Your guild trains: ${trainableSkills(p.guild).join(', ')}.`);
     }
     const rank = skillRank(p, skillId);
-    const cost = 40 + rank * 20;
+    const cost = skillLessonCost(rank);
     if (p.silver < cost) return emit(`Training ${SKILLS[skillId].name} costs ${cost} silvers, and you have ${p.silver}. Go hunt!`);
     p.silver -= cost;
-    applyExpToSkill(p, p.skills[skillId], Math.floor(expToNextRank(rank) * 0.4));
+    applyExpToSkill(p, p.skills[skillId], skillLessonExp(rank));
     emit(`${trainer.name} drills you in ${SKILLS[skillId].name}. You make progress toward rank ${skillRank(p, skillId) + 1} (${cost} silvers).`);
   },
 
@@ -321,6 +331,7 @@ function circleUp(ctx) {
     return emit(`You are not yet ready to circle to ${target}. Missing:\n  ${req.missing.join('\n  ')}`);
   }
   const oldMax = p.maxHp;
+  const oldCircle = p.circle;
   p.circle = target;
   recalcDerived(p);
   p.hp = Math.min(p.hp + (p.maxHp - oldMax), p.maxHp);
@@ -332,19 +343,11 @@ function circleUp(ctx) {
   // Spell-slot economy: curriculum spells auto-grant while they fit the
   // budget; otherwise they wait as learnable at the hall ("learn <spell>").
   if (p.guild.magic) {
-    const forgotten = Array.isArray(p.spellsForgotten) ? p.spellsForgotten : [];
-    for (const s of p.guild.spells || []) {
-      if (s.minCircle > target || forgotten.includes(s.id)) continue;
-      const used = spellSlotsUsed(p.guild, target, forgotten) + spellSlotCost(s);
-      if (used <= spellSlotsTotal(p.guild, target)) {
-        msg += `\n\n\x1b[1m${s.name}\x1b[0m is now yours ("slots" shows your budget).`;
-      } else {
-        if (!Array.isArray(p.spellsForgotten)) p.spellsForgotten = [];
-        p.spellsForgotten.push(s.id);
-        msg += `\n\nYour spell slots are full — ${s.name} awaits at your guild hall ("learn ${s.name.toLowerCase()}").`;
-      }
-    }
-    p.spellsKnown = spellsFor(p.guild, target).filter((s) => !p.spellsForgotten.includes(s.id)).map((s) => s.id);
+    const plan = circleSpellPlan(p.guild, oldCircle, target, p.spellsForgotten);
+    p.spellsForgotten = plan.forgotten;
+    p.spellsKnown = plan.held;
+    for (const spell of plan.granted) msg += `\n\n\x1b[1m${spell.name}\x1b[0m is now yours ("slots" shows your budget).`;
+    for (const spell of plan.rejected) msg += `\n\nYour spell slots are full — ${spell.name} awaits at your guild hall ("learn ${spell.id}").`;
   }
   if (target >= 10) {
     const cap = capstoneFor(p.guild);

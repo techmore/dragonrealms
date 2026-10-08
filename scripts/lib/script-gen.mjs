@@ -1368,6 +1368,10 @@ function emitCrierStop(errands, L) {
     L.push('  put quest abandon');
     L.push('  wait');
   }
+  // Explicit reward collection: QUEST now reviews completed work without
+  // claiming it. An unfinished task refuses CLAIM and remains intact.
+  L.push('  put claim');
+  L.push('  wait');
   L.push('  put quest');
   L.push('  wait');
   // Trace beacon: the allowlist now shows quest sends, but this marks the

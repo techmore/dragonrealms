@@ -1,0 +1,22 @@
+/* Local command reference uses the same dock on desktop and mobile. */
+.command-guide { display: grid; gap: 8px; }
+.command-guide label { color: var(--muted); font-size: 12px; }
+.command-guide input, .command-guide select {
+  width: 100%; min-width: 0; box-sizing: border-box; padding: 8px;
+  background: var(--bg); color: var(--text); border: 1px solid var(--line-strong); border-radius: 4px;
+  font: inherit;
+}
+.command-guide-hint, .command-guide-count, .command-guide-feedback { margin: 0; font-size: 12px; }
+.command-guide-hint, .command-guide-count { color: var(--muted); }
+.command-guide-feedback:empty { display: none; }
+.command-guide-results { display: grid; gap: 10px; }
+.command-guide-card { border: 1px solid var(--line-strong); border-radius: 4px; padding: 10px; }
+.command-guide-card h3 { margin: 0 0 4px; font-size: 13px; overflow-wrap: anywhere; }
+.command-guide-card small { color: var(--muted); }
+.command-guide-card p { margin: 8px 0; line-height: 1.5; }
+.command-guide-card button {
+  background: transparent; color: var(--text); border: 1px solid var(--line-strong);
+  padding: 6px 10px; border-radius: 4px; cursor: pointer; font: inherit;
+}
+.command-guide-card button:disabled { opacity: .5; cursor: default; }
+.command-guide :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }

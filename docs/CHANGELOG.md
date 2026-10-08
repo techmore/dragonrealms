@@ -2,6 +2,69 @@
 
 All notable changes, newest first. Generated from the project history.
 
+## 2026-10-08
+
+- Added passive equipment inspection and Inventory/Equipment tabs, with condition,
+  quality, armor contributions and repair quotes from shared production policy.
+- Expanded authored item-field validation and started a dated October 8 receipt.
+
+## 2026-10-07
+
+- Added passive skill/stat training plans and Requirements/Training tabs in
+  Progress; shared lesson pricing keeps plans aligned with purchases.
+- Strengthened command audits with metadata schema and passive panel contracts.
+
+- Corrected circle spell grants to charge new spells once and preserve prior
+  holdings; aligned spell lists and loaded rosters with casting rules.
+- Added passive Spellbook search and actual aggregate counts to verification receipts.
+
+- Added passive spellbook planning and keyboard-accessible Spells/Spellbook/Slots
+  tabs, with explicit circle, slot and soft mastery guidance.
+- Extended content validation to spell curricula and sampled magic rules.
+
+- Added passive work-order inspection, eligible-station routing and a Crafting
+  dock with Recipes/Work order tabs.
+- Extended content checks across all four crafting recipe catalogs, techniques,
+  quality levels and sampled slot rules.
+
+- Added quest destination routing, passive recipe planning, source-aware script
+  diagnostics and opt-in machine-readable verification receipts.
+
+- Added passive walking routes and explicit room search with reusable room IDs.
+- Improved connection recovery with an accurate retry countdown and Retry now
+  control; command drafts survive disconnects.
+- Added a read-only command contract audit to standard verification.
+
+- Unified quest objectives for wire snapshots, NPC reminders, Journal and quest
+  inspection. Preserved active tasks, corrected harvest counts and kept unknown
+  legacy totals explicit. Rewards now require explicit `claim`.
+- Enhanced the live Journal with accessible progress, passive inspection,
+  spectator snapshots, stale-state guards and destination information.
+- Added `where` for hunting grounds, NPC services, guilds and item sellers.
+- Added lexical module auditing to standard verification and an
+  [architecture map](ARCHITECTURE.md). See [the continuation receipt](PROJECT-EXPANSION-2026-10-07.md).
+
+## 2026-10-06
+
+- Continued the expansion with contextual server help, a Progress dock,
+  Paladin-aware next-step guidance, a passive quest journal and automatic active
+  project-reference checks in the standard verification command.
+- Corrected corpse-search routing, added explicit local `find` search, and
+  directed Riverhaven progression to the shared guild row. The command catalog
+  now contains 101 entries.
+- Added `progress [all]`: next-circle requirements, rank gaps, concrete practice
+  choices, guild lesson costs and held EXP. Paladin soul readiness is included.
+- Added the client Commands dock: 97 searchable categorized entries, alias
+  lookup and command preparation with draft preservation and spectator guards.
+- Refactored content auditing into a pure validator with structured JSON
+  diagnostics, malformed-definition checks and explicit navigation validation.
+- Added `npm run doctor`: read-only runtime, launch-configuration and database
+  path preflight, with JSON output and no world database opening.
+- Added [the project guide](README.md) to organize module ownership, verification,
+  operations, simulation evidence and historical documentation.
+- Verification details and limits are recorded in
+  [the October expansion receipt](PROJECT-EXPANSION-2026-10-06.md).
+
 ## 2026-08-12
 
 ### Docs & tooling

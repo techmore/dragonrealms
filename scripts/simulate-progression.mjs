@@ -87,6 +87,14 @@ const give = (itemId, cmd) => { addItem(p, itemId, 1); handleCommand(game, p, cm
 
 give('short_sword', 'wield short_sword');
 give('padded_cloth', 'wear padded_cloth');
+// Supernatural ranks are field-only for Barbarians. Bare berserk trains
+// Inner Fire, while learned forms use the actual supernatural reward path.
+if (p.guild.id === 'barbarian') {
+  const beforeHall = p.room;
+  p.room = 'hall_barbarian';
+  handleCommand(game, p, 'learn dragon');
+  p.room = beforeHall;
+}
 
 let ticks = 0;
 let hunts = 0;
@@ -256,6 +264,11 @@ while (p.circle < TARGET && safety++ < 30000) {
   const res = game.combat.start(p, [def]);
   if (!res.ok) { console.error('combat start failed'); break; }
   let combat = res.combat;
+  // A short fight can finish on its first tick, so attempt the learned form
+  // before ticking. Keep real ability slots, Inner Fire costs and rewards.
+  if (p.guild.id === 'barbarian' && p.abilities.includes('dragon') && p.innerFire >= 20) {
+    handleCommand(game, p, 'form dragon');
+  }
   let guard = 0;
   while (game.combat.getFor(p) && guard++ < 2000) {
     combat.tick();

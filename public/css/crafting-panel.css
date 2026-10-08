@@ -1,0 +1,12 @@
+.crafting-tabs { display: flex; gap: .4rem; margin-bottom: .75rem; }
+.crafting-tabs button { flex: 1; min-height: 44px; padding: .5rem; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 4px; }
+.crafting-tabs [aria-selected="true"] { color: var(--gold, #dbb66b); background: #ffffff0d; }
+.crafting-tabs button:focus-visible, .crafting-content:focus-visible { outline: 2px solid var(--gold, #dbb66b); outline-offset: 2px; }
+.crafting-content { overflow-wrap: anywhere; min-height: 5rem; }
+
+.spellbook-search { margin-bottom: .75rem; }
+.spellbook-search label { display: block; margin-bottom: .35rem; }
+.spellbook-search-controls { display: flex; flex-wrap: wrap; gap: .4rem; }
+.spellbook-search input { flex: 1 1 8rem; min-width: 0; max-width: 100%; padding: .5rem; min-height: 44px; color: inherit; background: #ffffff0d; border: 1px solid currentColor; border-radius: 4px; }
+.spellbook-search button { min-height: 44px; padding: .5rem; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 4px; }
+.spellbook-search :focus-visible { outline: 2px solid var(--gold, #dbb66b); outline-offset: 2px; }

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { createConnection, connectionLabel } from '../public/js/connection.js';
 import { nativeWatchFrames } from '../public/js/puffer-native-frames.js';
 
 test('native watch adapts observed text to the real client handlers, no privileged messages', () => {
@@ -23,17 +24,19 @@ test('native watch never connects or sends; ordinary client transport still work
   const source = fs.readFileSync(new URL('../public/js/net.js', import.meta.url),'utf8')
     .replace(/^import .*;\n/gm,'').replace(/^export /gm,'');
   for (const search of ['?pufferWatch=latest','?pufferWatch=invalid','']) {
-    let opened = 0, sent = 0;
+    let opened = 0, sent = 0, lastSocket;
     class Socket {
       static OPEN = 1; static CONNECTING = 0;
       readyState = 1;
-      constructor() { opened++; }
+      constructor() { opened++; lastSocket = this; }
       send() { sent++; }
     }
-    const ctx = vm.createContext({URLSearchParams,location:{search,protocol:'http:',host:'localhost:3000'},
+    const ctx = vm.createContext({createConnection,connectionLabel,URLSearchParams,location:{search,protocol:'http:',host:'localhost:3000'},
       localStorage:{getItem:()=>null},WebSocket:Socket,$:()=>null,clearTimeout(){},setTimeout(){}});
     vm.runInContext(source, ctx);
-    vm.runInContext('connect(); send({t:"input",line:"look"});',ctx);
+    vm.runInContext('connect();',ctx);
+    lastSocket?.onopen();
+    vm.runInContext('send({t:"input",line:"look"});',ctx);
     assert.equal(opened, search ? 0 : 1);
     assert.equal(sent, search ? 0 : 1);
   }

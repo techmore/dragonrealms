@@ -5,6 +5,7 @@
 import { weaponOf } from './player.js';
 import { DIR_NAMES as DIRS } from './util.js';
 import { roomById, ZONES } from '../data/world.js';
+import { questSnapshot } from './quest-objectives.js';
 
 const watchers = new Map(); // charId -> Set<session>
 const worldWatchers = new Set(); // sessions watching the entire world feed
@@ -60,6 +61,7 @@ export function subscribe(session, playerName) {
     const msg = `\n[[${room.name}, ${zone.name}]]\n${room.desc}${exits.length ? `\n${indoor ? 'Obvious exits' : 'Obvious paths'}: ${exits.join(', ')}.` : ''}`;
     session.send({ t: 'room', msg, exits, roomId: target.room });
   }
+  session.send({ t: 'quest', quest: questSnapshot(target) });
   session.send({ t: 'notice', msg: `You are now watching ${target.name} — a ${target.race.name} ${target.guild ? target.guild.name : 'guildless'}, circle ${target.circle}.` });
   return { ok: true, msg: `You are now watching ${target.name} — a ${target.race.name} ${target.guild ? target.guild.name : 'guildless'}, circle ${target.circle}.` };
 }

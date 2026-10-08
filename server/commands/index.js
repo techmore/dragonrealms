@@ -47,12 +47,17 @@ export function commandContract(name) {
 
 // Invoke only known read-only views, bypassing player aliases and chaining.
 // Their output is returned as one response, never captured from live traffic.
-export function readPanel(game, p, cmd) {
+export function readPanel(game, p, cmd, query) {
   const meta = COMMAND_REGISTRY_METADATA.get(cmd);
   if (!meta?.panelSafe) return { ok: false, error: 'Unknown character panel.' };
+  if (query !== undefined && (cmd !== 'spellbook' || typeof query !== 'string' || query.length > 120)) {
+    return { ok: false, error: 'Only spellbook accepts a search query (up to 120 characters).' };
+  }
+  const rest = query?.trim() || '';
+  const args = [cmd, ...rest.split(/\s+/).filter(Boolean)];
   const lines = [];
   const say = (text) => lines.push(String(text));
-  REGISTRY[cmd]({ game, p, cmd, args: [cmd], rest: '', arg1: undefined, arg2: undefined, say, emit: say });
+  REGISTRY[cmd]({ game, p, cmd, args, rest, arg1: args[1], arg2: args[2], say, emit: say });
   return { ok: true, lines };
 }
 

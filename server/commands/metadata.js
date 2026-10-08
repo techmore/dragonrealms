@@ -115,7 +115,14 @@ definitions.disarm = {
 definitions.tend.aliases = ['bandage'];
 definitions.appraise.aliases = ['appr'];
 definitions.flee.rt.exempt = 'desperateFlee';
-for (const command of ['inventory', 'score', 'info', 'skills', 'exp', 'spells']) {
+definitions.route = { mutates: [], rt: { gate: false } };
+definitions.recipes = { mutates: [], rt: { gate: false }, panelSafe: true };
+definitions.orders = { mutates: [], rt: { gate: false }, panelSafe: true };
+definitions.spellbook = { mutates: [], rt: { gate: false }, panelSafe: true };
+definitions.slots = { mutates: [], rt: { gate: false }, panelSafe: true };
+definitions.training = { mutates: [], rt: { gate: false }, panelSafe: true };
+definitions.equipment = { mutates: [], rt: { gate: false }, panelSafe: true };
+for (const command of ['inventory', 'score', 'info', 'skills', 'exp', 'spells', 'progress', 'help', 'journal']) {
   definitions[command] = { panelSafe: true };
 }
 

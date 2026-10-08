@@ -1,0 +1,9 @@
+.connection-controls { display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex-shrink: 0; }
+#connection-countdown { color: var(--muted); font-size: 10px; white-space: nowrap; }
+#connection-retry { padding: 5px 7px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--panel); color: var(--amber); font: inherit; font-size: 11px; cursor: pointer; }
+#connection-retry:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+@media (max-width: 700px) {
+  .connection-controls { gap: 3px; max-width: 100%; }
+  .connection-controls #conn-status { margin-left: 0; font-size: 8px; letter-spacing: .3px; }
+  #connection-retry { min-height: 30px; font-size: 10px; }
+}

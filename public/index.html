@@ -6,21 +6,33 @@
   <title>Dragon Realms — Crossing Terminal</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/experimental.css">
+  <link rel="stylesheet" href="/css/command-guide.css">
+  <link rel="stylesheet" href="/css/quest-journal.css">
+  <link rel="stylesheet" href="/css/connection.css">
+  <link rel="stylesheet" href="/css/crafting-panel.css">
 </head>
 <body>
   <header id="topbar">
     <span class="brand"><span class="brand-mark">&#128009;</span> DRAGON REALMS</span>
     <span class="topbar-right">
-      <span id="conn-status" class="conn-off" role="status" aria-live="polite">disconnected</span>
+      <span class="connection-controls">
+        <span id="conn-status" class="conn-off" role="status" aria-live="polite">disconnected</span>
+        <span id="connection-countdown" role="timer" aria-live="off" hidden></span>
+        <button id="connection-retry" type="button" aria-label="Retry connection now" hidden>Retry now</button>
+      </span>
       <nav id="toolbar" aria-label="Tools">
         <button id="btn-exits" class="tool" title="Room and exits" aria-controls="dock" aria-expanded="false">Exits</button>
         <button id="btn-chat" class="tool" title="Conversations (local chat)" aria-controls="chat-container" aria-expanded="false">Chat</button>
+        <button id="btn-journal" class="tool" title="Inspect active task without assigning work or claiming rewards">Journal</button>
+        <button id="btn-crafting" class="tool" title="Inspect recipes and current work order">Crafting</button>
+        <button id="btn-progress" class="tool" title="Circle requirements and practice choices">Progress</button>
         <button id="btn-exp" class="tool" title="Experience">Exp</button>
         <button id="btn-info" class="tool" title="Vital statistics (info)">Info</button>
         <button id="btn-inv" class="tool" title="Inventory">Inventory</button>
         <button id="btn-score" class="tool" title="Score">Score</button>
         <button id="btn-skills" class="tool" title="Skills">Skills</button>
         <button id="btn-spells" class="tool" title="Spells">Spells</button>
+        <button id="btn-commands" class="tool" title="Search commands, syntax and examples">Commands</button>
         <button id="btn-scripts" class="tool" title="Macros, timers, triggers, DR scripts">Scripts</button>
         <button id="automation-control" class="tool" aria-pressed="false" hidden>Automation idle</button>
         <button id="journey-toggle" class="tool" aria-controls="journey-guide" aria-expanded="false" hidden>Next step</button>
@@ -214,7 +226,7 @@
         </div>
       </section>
       <section class="dwin" data-window="quest-widget" id="quest-container" aria-label="Quest journal">
-        <div class="dwin-head rail-kicker">JOURNAL<button class="dwin-collapse" data-collapse="quest-widget" title="Collapse journal" aria-label="Collapse journal" aria-expanded="true">&#9660;</button></div>
+        <div class="dwin-head rail-kicker">JOURNAL<button id="quest-inspect" class="quest-inspect" type="button" title="Inspect journal without assigning work or claiming rewards" aria-controls="panel-wrap">Inspect</button><button class="dwin-collapse" data-collapse="quest-widget" title="Collapse journal" aria-label="Collapse journal" aria-expanded="true">&#9660;</button></div>
         <div class="dwin-body" id="quest-widget">
           <div id="quest-row"></div>
         </div>

@@ -1,7 +1,8 @@
 // Item commands: inventory, gear, consumables, corpses, crime, crafting.
 import { roomById } from '../../data/world.js';
 import { db } from '../db.js';
-import { craftAffinity, knownCraftTechs } from '../crafting-policy.js';
+import { craftAffinity, knownCraftTechs, craftOrderMultiplier } from '../crafting-policy.js';
+import { WORK_ORDER_CATALOGS as ORDER_VERBS, workOrderSnapshot, formatWorkOrder } from '../work-order.js';
 import { finishCraft, claimWorkOrder } from '../crafting.js';
 import { transferInventory } from '../inventory-transfer.js';
 import { ITEMS, itemById } from '../../data/items.js';
@@ -16,14 +17,10 @@ import {
 } from '../player.js';
 import { pad, findInventoryItem, findSlotByItem, findNpcByName } from './util.js';
 import { loadWord, stationVerbs } from './verbs.js';
+import { repairCost } from '../equipment-policy.js';
+import { formatEquipment } from '../equipment-reference.js';
 
 // ---- Work orders (P26): craft NPCs post piecework; quality matters. ----
-const ORDER_VERBS = {
-  forge: { npc: 'Bram', skill: 'forging', recipes: FORGE_RECIPES },
-  shape: { npc: 'Bram', skill: 'engineering', recipes: ENGINEER_RECIPES },
-  tailor: { npc: 'Mara', skill: 'outfitting', recipes: OUTFIT_RECIPES },
-  craft: { npc: 'Fennel', skill: 'alchemy', recipes: RECIPES },
-};
 function qualityNameFor(mult) {
   return (QUALITY_LADDER.find((q) => Math.abs(q.mult - mult) < 0.001) || {}).name || 'serviceable';
 }
@@ -53,16 +50,6 @@ function craftQualityBonus(p, skill) {
   return bonus;
 }
 
-// Work-order pay multiplier from learned order-effect techniques.
-function craftOrderMultiplier(p, skill) {
-  let mult = 1;
-  for (const id of knownCraftTechs(p, skill)) {
-    const t = CRAFT_TECHNIQUES[id];
-    if (t && t.effect.kind === 'order') mult += t.effect.mag;
-  }
-  return mult;
-}
-
 function craftBrewBonus(p) {
   let bonus = 0;
   for (const id of knownCraftTechs(p, 'alchemy')) {
@@ -74,6 +61,7 @@ function craftBrewBonus(p) {
 
 export const commands = {
   inventory(ctx) { showInventory(ctx); },
+  equipment({ p, rest, emit }) { emit(formatEquipment(p, rest)); },
   inv: showInventory,
   i: showInventory,
 
@@ -150,8 +138,7 @@ export const commands = {
     const item = p.equipment[slot];
     const cond = item.condition ?? 100;
     if (cond >= 100) return emit(`${item.name} is in perfect condition — nothing to mend.`);
-    const missing = 100 - cond;
-    const cost = Math.max(5, Math.floor(missing * item.value / 100 * 2));
+    const cost = repairCost(item);
     if (p.silver < cost) return emit(`Repairing ${item.name} costs ${cost} silvers; you have ${p.silver}.`);
     const snapshot = {
       silver: p.silver,
@@ -232,9 +219,11 @@ export const commands = {
 
   // Work orders (P26): take piecework from the craft NPC at this station,
   // fill it with a qualifying craft, claim the pay.
+  orders({ p, emit }) { emit(formatWorkOrder(p)); },
   order(ctx) {
     const { game, p, arg1, arg2, emit } = ctx;
     const sub = (arg1 || '').toLowerCase();
+    if (p.workOrder && sub !== 'claim' && sub !== 'abandon') return emit(formatWorkOrder(p));
     const verbs = stationVerbs(p);
     if (!verbs.length) return emit('No craft station here. Work orders post at the Ember Forge, the Needle & Thread, and the Tilted Retort.');
 
@@ -250,11 +239,11 @@ export const commands = {
     if (sub === 'claim') {
       const o = p.workOrder;
       if (!o) return emit('You carry no work order.');
+      const snapshot = workOrderSnapshot(p);
+      if (!snapshot.supported) return emit(`That historical order cannot be claimed: ${snapshot.issues.join(' ')} Use "orders" to inspect the ledger.`);
       if (!verbs.includes(o.verb)) return emit(`That order posts at ${o.npc}'s station.`);
       if (!o.done) {
-        const def = ORDER_VERBS[o.verb].recipes[o.recipeId];
-        const need = o.qualMult ? `${o.qualName} or better` : 'any serviceable batch';
-        return emit(`Not yet filled: ${def ? def.name : o.recipeId}, ${need}. ${o.pay} silvers on delivery.`);
+        return emit(`Not yet filled. ${formatWorkOrder(p)}`);
       }
       const pay = Math.round(o.pay * craftOrderMultiplier(p, ORDER_VERBS[o.verb].skill));
       claimWorkOrder(p, pay);
@@ -263,13 +252,6 @@ export const commands = {
     }
 
     // Take an order (or show the active one).
-    const o = p.workOrder;
-    if (o) {
-      const def = ORDER_VERBS[o.verb].recipes[o.recipeId];
-      if (o.done) return emit(`Filled and waiting: ${def ? def.name : o.recipeId} for ${o.npc} — "order claim" at their station (${o.pay} silvers).`);
-      const need = o.qualMult ? `${o.qualName} or better` : 'any serviceable batch';
-      return emit(`Active order: ${def ? def.name : o.recipeId} (${need}) for ${o.npc} — ${o.pay} silvers on delivery. "order abandon" to drop it.`);
-    }
     // Build candidates across this station's verbs, reachable within +4 skill.
     const candidates = [];
     for (const verb of verbs) {

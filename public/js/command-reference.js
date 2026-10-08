@@ -1,0 +1,136 @@
+// Curated examples for discovery; server handlers remain the command authority.
+// Keep these descriptions in our own words and validate verbs against the registry.
+export const COMMAND_CATEGORIES = Object.freeze([
+  'Exploration', 'Combat', 'Character', 'Equipment', 'Economy', 'Crafting', 'Magic', 'Guild powers', 'Social', 'Client',
+]);
+const entries = [
+  ['Exploration', 'look', 'look [target]', 'Read the room or inspect a creature, item, or person.', ['l']],
+  ['Exploration', 'go', 'go <direction>', 'Follow a visible exit. Directions include n, s, e, w, ne, nw, se, sw, u and d.'],
+  ['Exploration', 'dir', 'dir <place> [steps]', 'Request town directions. Try dir bank or dir list guilds.'],
+  ['Exploration', 'where', 'where [room|creature|npc|item|guild] <name>', 'Find room IDs, known hunting grounds, services, guild leaders or merchants. Locations do not guarantee creatures or stock.'],
+  ['Exploration', 'route', 'route <room-id|room name|quest|order> [steps]', 'Show the shortest ordinary walking route, including in the wilds. Route quest guides deliveries or completed tasks back to their giver; route order finds an eligible claim station. Defaults to 8 steps; accepts up to 20. Special travel is not planned.'],
+  ['Exploration', 'ferry', 'ferry', 'Travel between Crossing and Riverhaven from the docks; passage costs silvers.'],
+  ['Exploration', 'forage', 'forage', 'Search the wilds for useful materials and practice outdoorsmanship.'],
+  ['Exploration', 'hunt', 'hunt', 'Find nearby hunting opportunities in the wilds.'],
+  ['Exploration', 'track', 'track', 'Read creature tracks in the wilds.'],
+  ['Exploration', 'ladder', 'ladder [undead|skins|boxes]', 'Find hunting recommendations for your current skills.'],
+  ['Exploration', 'journal', 'journal', 'Review active quest objectives without assigning work or claiming rewards.'],
+  ['Exploration', 'quest', 'quest [abandon]', 'Check a crier quest or abandon the current assignment.'],
+  ['Exploration', 'deliver', 'deliver', 'Hand over a quest delivery at its destination.'],
+  ['Exploration', 'claim', 'claim', 'Collect a completed quest reward.'],
+  ['Exploration', 'ask', 'ask <npc> <topic>', 'Learn from NPCs. Try ask crier help or ask <leader> task.'],
+  ['Combat', 'assess', 'assess', 'Inspect combat opponents and their distance.'],
+  ['Combat', 'target', 'target <creature>', 'Choose the opponent you intend to fight.'],
+  ['Combat', 'advance', 'advance', 'Close the distance from missile through pole to melee range.'],
+  ['Combat', 'attack', 'attack [creature]', 'Strike with your weapon; range, stamina and roundtime matter.'],
+  ['Combat', 'retreat', 'retreat', 'Try to open distance from your opponents.'],
+  ['Combat', 'flee', 'flee', 'Try to escape the fight.'],
+  ['Combat', 'stance', 'stance <aggressive|defensive|guarded|balanced>', 'Change your balance between attack and defense.'],
+  ['Combat', 'hide', 'hide', 'Attempt to conceal yourself using stealth.'],
+  ['Combat', 'ambush', 'ambush <creature>', 'Attack from hiding.'],
+  ['Combat', 'skin', 'skin <creature>', 'Harvest a slain creature when its remains can be skinned.'],
+  ['Combat', 'rest', 'rest', 'Rest to recover; choose a safe place before stopping.'],
+  ['Combat', 'stand', 'stand', 'Rise and stop resting.'],
+  ['Character', 'score', 'score', 'Review your character and attributes.', ['stats', 'info']],
+  ['Character', 'health', 'health', 'Check wounds and health.'],
+  ['Character', 'skills', 'skills', 'Inspect your skill ranks.'],
+  ['Character', 'exp', 'exp', 'Check learning pools and experience.', ['experience']],
+  ['Character', 'effects', 'effects', 'List active effects and their remaining duration.'],
+  ['Character', 'progress', 'progress [all]', 'See all circle requirements, advancement gaps, and practice choices; progress all expands the full list of practice choices.'],
+  ['Character', 'circle', 'circle', 'Check advancement requirements or advance at your guild leader.'],
+  ['Character', 'train', 'train <skill|stat>', 'Pay for a guild skill lesson; stat training at the Fane requires typing the command twice.'],
+  ['Character', 'training', 'training [skills|stats] [query]', 'Plan guild lessons and stat raises without spending anything. See current ranks, exact costs, affordability, experience progress, trainer rooms and the Fane. Narrow by exact ID or name.'],
+  ['Character', 'tdp', 'tdp', 'See training points available for attributes.'],
+  ['Character', 'raise', 'raise <stat>', 'Spend training points on an attribute at the Fane.'],
+  ['Character', 'join', 'join <guild>', 'Take a guild oath at its hall in front of the leader.'],
+  ['Character', 'achievements', 'achievements', 'Review earned accomplishments.'],
+  ['Equipment', 'inventory', 'inventory', 'List the items you carry.', ['i']],
+  ['Equipment', 'equipment', 'equipment [query]', 'Inspect equipped slots, condition, quality, maker, base weapon damage, effective armor and repair costs without changing gear. Search exact item IDs, names or slots.'],
+  ['Equipment', 'search', 'search [corpse]', 'Search your remains for lost possessions. Explicit corpse searches reach the world; use find <text> to search the transcript.'],
+  ['Equipment', 'get', 'get <item> [from corpse]', 'Pick up an item, including equipment left on a corpse.'],
+  ['Equipment', 'drop', 'drop <item>', 'Leave a carried item in the room.'],
+  ['Equipment', 'wear', 'wear <item>', 'Equip armor or clothing.'],
+  ['Equipment', 'wield', 'wield <item>', 'Ready a weapon.'],
+  ['Equipment', 'remove', 'remove <item>', 'Take off equipped gear.'],
+  ['Equipment', 'use', 'use <item>', 'Use an item you carry.'],
+  ['Equipment', 'repair', 'repair <item>', 'Repair worn equipment when the required facilities are available.'],
+  ['Equipment', 'appraise', 'appraise <item|creature>', 'Evaluate an item or creature and practice appraisal.', ['appr']],
+  ['Economy', 'list', 'list', 'Browse the stock at a shop.'],
+  ['Economy', 'buy', 'buy <item> [quantity]', 'Purchase goods from the current shop.'],
+  ['Economy', 'sell', 'sell <item> [quantity]', 'Sell suitable goods at a shop.'],
+  ['Economy', 'deposit', 'deposit <silvers>', 'Deposit coins at the bank.'],
+  ['Economy', 'withdraw', 'withdraw <silvers>', 'Withdraw coins from your bank balance.'],
+  ['Economy', 'vault', 'vault', 'Inspect stored possessions at the vault.'],
+  ['Economy', 'store', 'store <item>', 'Put an item in your vault.'],
+  ['Economy', 'retrieve', 'retrieve <item>', 'Take an item out of your vault.'],
+  ['Economy', 'pit', 'pit', 'Inspect commodity trading at a pit.'],
+  ['Economy', 'heal', 'heal', 'Seek paid treatment from a healer.'],
+  ['Crafting', 'craft', 'craft [recipe]', 'Inspect or make alchemy recipes at the Tilted Retort.'],
+  ['Crafting', 'recipes', 'recipes [alchemy|forging|engineering|outfitting] [query]', 'Browse recipe IDs, ingredients, stations, rank requirements and current readiness without crafting or spending materials.'],
+  ['Crafting', 'orders', 'orders', 'Read your current work order, quality target, claim stations and current payout anywhere without requesting or claiming work.'],
+  ['Crafting', 'order', 'order [claim|abandon]', 'Request piecework at a crafting station, inspect an existing assignment, explicitly collect completed pay or abandon work.'],
+  ['Crafting', 'forge', 'forge [recipe]', 'Inspect or make metalwork at the Ember Forge.'],
+  ['Crafting', 'shape', 'shape [recipe]', 'Practice engineering at the Ember Forge.'],
+  ['Crafting', 'tailor', 'tailor [recipe]', 'Practice outfitting at Needle & Thread.'],
+  ['Crafting', 'technique', 'technique [learn <name>]', 'Inspect techniques; lessons depend on your guild and current crafting station.'],
+  ['Magic', 'spells', 'spells', 'List spells available to your guild and circle.'],
+  ['Magic', 'spellbook', 'spellbook [query]', 'Plan spells using circle, forgotten status, slots, base mana, learning halls and soft mastery rank references without casting or learning.'],
+  ['Magic', 'slots', 'slots', 'Check your spell slot budget.'],
+  ['Magic', 'prepare', 'prepare <spell> [percent]', 'Prepare a spell before casting; excessive overchanneling can cause backlash.'],
+  ['Magic', 'cast', 'cast [spell] [target]', 'Cast a known spell or release your prepared spell.'],
+  ['Magic', 'perceive', 'perceive', 'Sense local mana and practice attunement.'],
+  ['Magic', 'harness', 'harness', 'Gather mana for spellcasting.'],
+  ['Magic', 'charge', 'charge <cambrinth>', 'Store mana in a cambrinth item.'],
+  ['Magic', 'invoke', 'invoke <cambrinth>', 'Draw on mana stored in cambrinth.'],
+  ['Magic', 'focus', 'focus <cambrinth>', 'Inspect the magical properties of cambrinth.'],
+  ['Guild powers', 'abilities', 'abilities', 'Barbarian: review your arts and ability progression.', ['ability']],
+  ['Guild powers', 'learn', 'learn <ability>', 'Learn a guild ability where its teacher is available.'],
+  ['Guild powers', 'berserk', 'berserk [ability]', 'Barbarian: call on a learned berserk.'],
+  ['Guild powers', 'form', 'form [ability]', 'Barbarian: inspect or adopt a learned combat form.'],
+  ['Guild powers', 'roar', 'roar [ability]', 'Barbarian: inspect or unleash a learned roar.'],
+  ['Guild powers', 'meditate', 'meditate [ability]', 'Barbarian: inspect or use a learned meditation.'],
+  ['Guild powers', 'khri', 'khri <name>', 'Thief: focus a learned khri.'],
+  ['Guild powers', 'backstab', 'backstab <creature>', 'Thief: strike from concealment.'],
+  ['Guild powers', 'glyph', 'glyph [name]', 'Paladin: inspect or trace soul-fueled glyphs.'],
+  ['Guild powers', 'mend', 'mend <player>', 'Empath: help mend another adventurer.'],
+  ['Guild powers', 'predict', 'predict', 'Moon Mage: attempt a prediction.'],
+  ['Guild powers', 'summon', 'summon <familiar|weapon>', 'Warrior Mage: summon a familiar or weapon where requirements allow.'],
+  ['Guild powers', 'ritual', 'ritual [name]', 'Necromancer: inspect or perform a ritual.'],
+  ['Guild powers', 'enchante', 'enchante <war|bravery|regen>', 'Bard: sustain a song with mana.'],
+  ['Guild powers', 'devotion', 'devotion', 'Cleric: inspect your religious devotion.'],
+  ['Guild powers', 'beseech', 'beseech <wind|sun>', 'Ranger: call on a wilderness blessing.'],
+  ['Social', 'say', 'say <text>', 'Speak to people in the room.'],
+  ['Social', 'emote', 'emote <text>', 'Describe an action to the room.'],
+  ['Social', 'shout', 'shout <text>', 'Call out to nearby adventurers.'],
+  ['Social', 'who', 'who', 'See adventurers currently online.'],
+  ['Social', 'party', 'party [player|join|leave]', 'Inspect your party, invite someone, accept an invitation, or leave.'],
+  ['Social', 'duel', 'duel <player> [blood|blow|pain]', 'Challenge an adventurer to a duel; combat rules and location restrictions apply.'],
+  ['Social', 'report', 'report <what happened>', 'Record a game problem for review.'],
+  ['Social', 'alias', 'alias [<name> <command>]', 'Show or set a command shortcut; arguments $1 through $9 are supported.'],
+  ['Social', 'unalias', 'unalias <name>', 'Remove a saved command shortcut.'],
+  ['Social', 'help', 'help [command|category|search terms]', 'Read the quick command overview or find contextual help for a command, category, or topic.'],
+  ['Client', 'commands', 'commands [search terms]', 'Open this searchable command reference locally.'],
+  ['Client', 'keys', 'keys', 'Show keyboard shortcuts.'],
+  ['Client', 'script', 'script <name> [arguments]', 'Run a saved DR script; script list lists scripts and script stop halts execution.'],
+  ['Client', 'find', 'find [text]', 'Search the terminal transcript locally, including the word corpse. Legacy search <text> also works for non-corpse terms.'],
+];
+export const COMMAND_REFERENCE = Object.freeze(entries.map(([category, verb, syntax, description, aliases = []]) =>
+  Object.freeze({ category, verb, syntax, description, aliases: Object.freeze(aliases), local: category === 'Client' })));
+
+export function searchCommands(query = '', category = '') {
+  const terms = String(query).trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return COMMAND_REFERENCE.filter(entry => (!category || entry.category === category)
+    && terms.every(term => `${entry.verb} ${entry.syntax} ${entry.description} ${entry.category} ${entry.aliases.join(' ')}`.toLowerCase().includes(term)))
+    .sort((a, b) => {
+      const exact = entry => entry.verb === String(query).trim().toLowerCase() || entry.aliases.includes(String(query).trim().toLowerCase());
+      return Number(exact(b)) - Number(exact(a));
+    });
+}
+
+// Prepare only the verb so syntax placeholders never become executable input.
+// Preserve a player's draft, including whitespace, rather than replacing it.
+export function referenceDraft(current, entry, available) {
+  if (!available) return { ok: false, message: 'Enter the world to prepare commands. Spectators can browse the reference.' };
+  if (current.trim()) return { ok: false, message: 'Your command draft is still in the input. Send or clear it before preparing another command.' };
+  return { ok: true, value: entry.verb, message: `Prepared ${entry.verb}. Add any arguments, then press Enter when ready.` };
+}

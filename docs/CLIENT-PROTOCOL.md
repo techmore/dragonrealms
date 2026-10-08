@@ -22,7 +22,10 @@ types. The server remains authoritative for character ownership.
 - Reconnect retries back off from one second to a maximum of 30 seconds.
   Successful authentication/entry resets the retry count. A reconnected
   ordinary session returns to character selection; it does not restart a
-  previous script automatically.
+  previous script automatically. The browser shows explicit connection phases
+  and a deadline-based countdown. Retry now cancels the scheduled retry and
+  starts one immediate attempt; stale socket callbacks are ignored. Drafts and
+  selection remain in the input, and commands are never queued for replay.
 
 ## New-character journey
 
@@ -38,6 +41,15 @@ creation through low-level wire/API callers remains supported for existing
 test and simulation fixtures; guildless browser creation is not a wire-level
 restriction. The Temple arrival is the intended product flow, not an
 independently verified claim about historical DragonRealms onboarding.
+
+## Next-step snapshots
+
+Prompts include an additive `journey` object with character/guild IDs, circle,
+room, combat state and HP. `guildDirections` supplies a passive DIR command;
+Riverhaven uses its shared guild row (`dir guilds`). Paladin snapshots also
+include `soul`, so rank completion alone does not imply advancement eligibility.
+Missing or malformed snapshots remain unknown. The client hides next-step
+actions for spectators and rechecks session state before dispatching an action.
 
 ## Read-only character panels
 
@@ -60,10 +72,23 @@ Failure:
 ```
 
 `requestId` is a string of at most 80 characters. The allowed panels are
-`inventory`, `score`, `info`, `skills`, `exp`, and `spells`. The server requires
+`inventory`, `equipment`, `score`, `info`, `skills`, `exp`, `spells`, `spellbook`, `slots`,
+`progress`, `training`, `help`, `journal`, `recipes`, and `orders`. The server requires
 an active playing session that owns its character. It invokes these read-only
 views directly: player aliases, command chaining, and arbitrary verbs are
 never evaluated through this route. Requests use the ordinary input rate limit.
+
+Only `spellbook` accepts an optional `query` string, limited to 120 characters
+before trimming. For example:
+
+```json
+{"t":"panel_request","requestId":"spells-2","panel":"spellbook","query":"fire shard"}
+```
+
+The handler receives the trimmed query as plain search text. Semicolons and
+other command-like text are not executed. A non-string or oversized query, or
+any query supplied to another panel, produces a correlated error response.
+Omitting the query retains the existing unfiltered inspection behavior.
 
 The response is complete; no timing window or end-marker inference is needed.
 The client accepts only the currently pending request ID. Opening another
@@ -75,6 +100,32 @@ With an older server that does not advertise `panels-v1`, the client issues
 the ordinary read command and tells the player its response appears in the
 story. It does not restore timing-based capture. Restarting onto the updated
 server enables the new panel responses; no database migration is required.
+
+The Inventory, Crafting, Spells and Progress tabbed docks require `panels-v1` and a connected,
+active playing session. They show an unavailable state on older servers,
+during character creation, or while watching. Their tabs never fall back to
+ordinary command dispatch. Tab changes cancel pending requests; stale replies
+cannot replace the selected view.
+
+## Quest snapshots and Journal
+
+`quest` messages retain `quest: null` for no task and the existing `kind`,
+`source`, `done` and `desc` fields for active work. Additive fields include
+`state`, `objective`, `counter`, `destination` and `returnTo`. A counter has
+`current`, `total`, `remaining` and `unit`; unknown legacy totals/current values
+are null. Kill count tracks remaining enemies; harvest count tracks the total
+goal and skinned count tracks completion. Only `done` determines reward readiness.
+
+Delivery destinations include room ID/name, recipient, parcel and
+`atDestination`. Inspect/Refresh use the passive `journal` panel for the player's
+own character. Spectators inspect their latest watched snapshot locally without
+issuing player commands. Watch subscription publishes the target's current quest
+or null; returning to play republishes the owning character's quest. A delayed
+own-character panel response cannot overwrite a watched snapshot.
+
+`quest` reviews completed work without claiming it; `claim` collects the reward.
+NPC reminders preserve existing assignments, and `quest abandon` explicitly
+clears work without assigning another task.
 
 ## Leaving live watch
 

@@ -15,6 +15,29 @@ Open `http://localhost:3000` in a browser. You'll be greeted with a terminal;
 `register <user> <pass>` to make an account, create a character, and enter the
 Crossing.
 
+Use `npm run doctor` to check Node, dependencies, launch settings and database
+path access before starting. It does not open the world database or start a
+server. `npm run doctor -- --json` returns a structured report.
+
+Start with the [project guide](docs/README.md) for module ownership, development
+workflows, operations, simulator evidence and the documentation index.
+In game, `progress` explains your next circle's requirements and training
+options. The client's **Commands** guide supports searching and preparing
+commands in the input for review before sending.
+Use `help <command or topic>` for contextual help, the **Progress** dock for
+advancement guidance, and `journal` to review your active quest without
+assigning work or claiming its reward. `npm run check:project` validates active
+documentation links and explicit Node entry points in npm scripts.
+The live Journal now shows objectives and progress, with passive inspection.
+Use `where creature rat`, `where npc healer` or `where item potion_heal` to find
+known haunts and services. Completed work is reviewed with `quest`; collect its
+reward explicitly with `claim`. See the [architecture map](docs/ARCHITECTURE.md)
+and run `npm run audit:modules` to inspect module links and dependency groups.
+Use `where room <name>` to find room IDs and `route <room-id> [steps]` for
+walking directions. The connection indicator includes a Retry now control and
+preserves drafts through disconnects. `npm run audit:commands` checks the guide
+against command declarations without loading the world.
+
 `npm test` runs the headless suites (auth, chargen, combat, circling, death,
 economy, magic — see `test/`). `node scripts/client-corpus.mjs replay
 <captured.json>` diffs a scripted session against the server build, and
@@ -207,16 +230,16 @@ Combat:    attack <creature> | target <creature> | cast [spell] [target] | retre
 Maneuvers: disarm <target> | trip <target> | bash <target>  (shield required)
 PvP:       duel <player> [blood|blow|pain] | accept/decline <player> | surrender | pvp stance open|guarded|closed  (wilds only)
 Stances:   stance aggressive | defensive | guarded | balanced
-Magic:     spells | slots | prepare <spell> [pct] | cast | perceive | harness | charge/invoke/focus <cambrinth>
+Magic:     spells | spellbook [query] | slots | prepare <spell> [pct] | cast | perceive | harness | charge/invoke/focus <cambrinth>
 Powers:    berserk | abilities | learn <ability> | form/roar/meditate <ability> | whirlwind | stomp | choke | analyze (Barbarian)
            backstab (Thief) | khri <name> (Thief) | smite (Paladin) | beseech wind|sun (Ranger) | mend <player> (Empath)
            predict (Moon Mage) | summon familiar / familiar / dismiss familiar (Warrior Mage)
            animate <corpse> / risen (Necromancer) | enchante war|bravery|regen / enchant off (Bard) | devotion (Cleric)
 Companions: companion | call | release (Ranger)  |  pray (soul, Paladin)
-Items:     get/drop <item> | get <item> from corpse | inventory | wear/wield <item> | remove <item> | use/eat/drink <item> | search <corpse>
+Items:     get/drop <item> | get <item> from corpse | inventory | equipment [query] | wear/wield <item> | remove <item> | use/eat/drink <item> | search <corpse>
 Death:     die -> temple; gear stays on your corpse (search <corpse>, get <item> from corpse)
 Shops:     list | buy <item> [qty] | sell <item> [qty] | deposit/withdraw <silvers> | pit (commodities) | heal
-Training:  train <skill> (silvers, at your guild hall) | train <stat> twice (Fane of Training) | circle
+Training:  training [skills|stats] [query] (plans) | train <skill> (silvers, at your guild hall) | train <stat> twice (Fane of Training) | circle
 TDPs:      tdp | raise <stat> | train <stat> twice at the Fane
 Quests:    quest | claim | ask <leader> task
 Crafting:  craft <recipe> (Tilted Retort) | forge <recipe> (Ember Forge)

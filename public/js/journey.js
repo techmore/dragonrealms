@@ -1,5 +1,6 @@
 import { $ } from './util.js';
 import { journeyHint } from './journey-hints.js';
+import { gameState } from './state.js';
 let current = null;
 let runner = () => {};
 const key = id => `dr_journey_hidden_${id}`;
@@ -20,7 +21,7 @@ export function initJourney(dispatch) {
   });
 }
 export function updateJourney(journey, requirements, available) {
-  current = available && journeyHint(journey, requirements) ? { journey, requirements } : null;
+  current = available && !gameState.spectating && journeyHint(journey, requirements) ? { journey, requirements } : null;
   render();
 }
 function render() {
@@ -43,7 +44,10 @@ function render() {
   for (const command of hint.commands) {
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'tool'; button.textContent = command;
-    button.addEventListener('click', () => runner(command));
+    button.addEventListener('click', () => {
+      if (gameState.spectating || gameState.inChargen || gameState.value !== 'playing') return;
+      runner(command);
+    });
     commands.appendChild(button);
     if (focused === command) button.focus();
   }

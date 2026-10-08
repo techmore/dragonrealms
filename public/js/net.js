@@ -1,16 +1,26 @@
 // WebSocket transport. Message routing happens in main.js via onServerMessage.
 import { $ } from './util.js';
-import { isServerMessage } from './wire-message.js';
+import { createConnection, connectionLabel } from './connection.js';
 
-let ws = null;
 // Puffer observation pages never connect or send, including indirect UI actions.
 const pufferReadOnly = new URLSearchParams(location.search).has('pufferWatch');
 let token = null;
 try { localStorage.removeItem('dr_token'); token = sessionStorage.getItem('dr_token') || null; } catch {}
-let reconnectTimer = null;
-let reconnectAttempts = 0;
 const messageListeners = [];
 const disconnectListeners = [];
+let statusOverride = null;
+const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const connection = createConnection({
+  url: `${protocol}//${location.host}/ws`, readOnly: pufferReadOnly,
+  socketFactory: url => new WebSocket(url), getToken: () => token,
+  onMessage: message => { for (const listener of messageListeners) listener(message); },
+  onDisconnect: () => { for (const listener of disconnectListeners) listener(); },
+  onState: state => {
+    // Session labels belong to the live connection that produced them.
+    if (state.phase !== 'connected' && state.phase !== 'read-only') statusOverride = null;
+    renderConnection(state);
+  },
+});
 
 export function onServerMessage(fn) { messageListeners.push(fn); }
 export function onDisconnect(fn) { disconnectListeners.push(fn); }
@@ -25,61 +35,36 @@ export function setToken(t) {
   } catch {}
 }
 
-export function connect() {
-  if (pufferReadOnly) return;
-  if (ws && [WebSocket.CONNECTING, WebSocket.OPEN].includes(ws.readyState)) return;
-  clearTimeout(reconnectTimer);
-  setStatus(false);
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const socket = new WebSocket(`${proto}//${location.host}/ws`);
-  ws = socket;
-  socket.onopen = () => {
-    setStatus(true);
-    if (token) send({ t: 'token', token });
-  };
-  socket.onclose = () => {
-    if (ws !== socket) return;
-    setStatus(false);
-    for (const fn of disconnectListeners) fn();
-    const delay = Math.min(30000, 1000 * 2 ** Math.min(reconnectAttempts++, 5));
-    setStatusOverride(`disconnected · retrying in ${delay / 1000}s`, 'conn-off');
-    reconnectTimer = setTimeout(connect, delay);
-  };
-  socket.onerror = () => socket.close();
-  socket.onmessage = (ev) => {
-    if (ws !== socket) return;
-    let msg;
-    try { msg = JSON.parse(ev.data); } catch { return; }
-    if (!isServerMessage(msg)) return;
-    if (msg.t === 'authed' || msg.t === 'enter') reconnectAttempts = 0;
-    for (const fn of messageListeners) fn(msg);
-  };
-}
+export const connect = () => connection.connect();
+export const send = message => connection.send(message);
+export const retryNow = () => connection.retryNow();
+export const connectionState = () => connection.state();
 
-export function send(obj) {
-  if (pufferReadOnly) return false;
-  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
-  try { ws.send(JSON.stringify(obj)); return true; }
-  catch { return false; } // readyState can race a transport close
-}
-
-// Override the connection chip with a session-level meaning (e.g. "watching
-// X", "watch failed"). Pass null to return to the raw connected/disconnected.
+// Session meaning (playing, watching, sign-in) applies only to a live transport.
 export function setStatusOverride(text, cls) {
-  const el = $('conn-status');
-  if (!el) return;
-  if (text == null) {
-    el.textContent = ws && ws.readyState === WebSocket.OPEN ? 'connected' : 'disconnected';
-    el.className = ws && ws.readyState === WebSocket.OPEN ? 'conn-on' : 'conn-off';
-  } else {
-    el.textContent = text;
-    el.className = cls || 'conn-off';
+  statusOverride = text == null ? null : { text, cls: cls || 'conn-off' };
+  renderConnection(connection.state());
+}
+
+function renderConnection(state) {
+  const element = $('conn-status');
+  const override = ['connected', 'read-only'].includes(state.phase) ? statusOverride : null;
+  if (element) {
+    const text = override ? override.text : state.phase === 'retrying' ? 'disconnected' : connectionLabel(state);
+    if (element.textContent !== text) element.textContent = text;
+    element.className = override ? override.cls : state.phase === 'connected' ? 'conn-on' : 'conn-off';
+    element.dataset.connectionState = state.phase;
+  }
+  const countdown = $('connection-countdown');
+  if (countdown) {
+    countdown.hidden = state.phase !== 'retrying';
+    countdown.textContent = state.phase === 'retrying' ? `Retry in ${state.retrySeconds}s` : '';
+  }
+  const retry = $('connection-retry');
+  if (retry) {
+    retry.hidden = pufferReadOnly || !['idle', 'retrying'].includes(state.phase);
+    retry.disabled = retry.hidden;
   }
 }
-
-function setStatus(on) {
-  const el = $('conn-status');
-  if (!el) return;
-  el.textContent = on ? 'connected' : 'disconnected';
-  el.className = on ? 'conn-on' : 'conn-off';
-}
+$('connection-retry')?.addEventListener('click', retryNow);
+renderConnection(connection.state());

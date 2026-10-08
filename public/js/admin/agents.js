@@ -4,7 +4,7 @@
 // Used by /sims.html (launch form + rerun). Renders into #agstate/#agroster/
 // #aglog on whatever page hosts it; render.js polling is optional.
 import { agentHealth } from './agent-health.js';
-import { createAgentScript } from './agent-script.js';
+import { createAgentScript, agentScriptCompletion } from './agent-script.js';
 import { AG_RACES, AG_GUILDS, AG_STATUS_LABELS, validateAgentConfig } from './agent-config.js';
 import { $, esc, trim, S, cssVar, fmtDur, toast, gm } from './core.js';
 import { storedGmToken } from '../gm-token.js';
@@ -170,7 +170,10 @@ export function launchAgent(input) {
     send: line => { agent.lastScriptCommandAt = Date.now(); agSend(agent, { t: 'input', line }); },
     say: text => agLog(agent, text),
     roomNow: () => agent.v.room,
-    onDone: () => stopAgent(agent, 'starter script finished', 'script_finished'),
+    onDone: result => {
+      const completion = agentScriptCompletion(result);
+      stopAgent(agent, completion.reason, completion.outcome);
+    },
   });
   agent.startTimer = setTimeout(() => stopAgent(agent, 'startup timed out', 'failed'), 15000);
   armDeadline(agent);
