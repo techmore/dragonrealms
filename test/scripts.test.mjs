@@ -363,8 +363,10 @@ test('ifgt branches on a greater-than comparison of live vars', () => {
   r.start();
   assert.deepEqual(out, [], 'blocked before prompt');
   // Inject feeds mirror %vars (pcount) but never prose-match (they'd false-fire
-  // absence detectors — cblb). 'wait' resolves on the prompt-shaped inject.
+  // absence detectors — cblb). Only a real prompt resolves the wait.
   feed(r, 'HP: 50/50  Circle 1  [PLAYERS:2]', 'inject'); // 2 other players
+  assert.deepEqual(out, [], 'state mirror leaves prompt wait intact');
+  feed(r, 'HP: 50/50  Circle 1', 'prompt');
   assert.deepEqual(out, ['relocate'], 'occupied -> relocate branch');
   const out2 = [];
   const empty = createRunner(src, [], { send: (l) => out2.push(l) });
@@ -380,6 +382,8 @@ test('[PLAYERS:n] prompt token mirrors into %pcount', () => {
     { send: (l) => out.push(l), say: (t) => say.push(t) });
   r.start();
   feed(r, 'HP: 50/50  Circle 1  [PLAYERS:3]', 'inject');
+  assert.deepEqual(say, []);
+  feed(r, 'HP: 50/50  Circle 1', 'prompt');
   assert.deepEqual(say, ['PC=3']);
   // A room with nobody present emits no token; pcount stays undefined and
   // the arena-picking ladder treats that as "empty" (safe to hunt).

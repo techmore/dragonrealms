@@ -290,11 +290,12 @@ export function createRunner(src, args = [], io = {}) {
 
   function feed(text, isPrompt = false) {
     if (s.done) return;
+    const realPrompt = isPrompt === true || isPrompt === 'prompt';
     // Prompts carry live game state: mirror it into %vars so scripts can
     // branch on HP / mana / circle / roundtime ("iflt hp 35 goto FLEE",
     // "iflt mana 10 goto WAITMANA"). 'inject' = sim heartbeat refresh:
     // mirrors %vars but must NOT re-arm roundtime (its RT count is stale).
-    if ((isPrompt === true || isPrompt === 'prompt' || isPrompt === 'inject') && typeof text === 'string') {
+    if ((realPrompt || isPrompt === 'inject') && typeof text === 'string') {
       const plain = text.replace(/\x1b\[\d+m/g, '');
       const hp = /HP:\s*(\d+)\s*\/\s*(\d+)/.exec(plain);
       if (hp) { vars.hp = hp[1]; vars.maxhp = hp[2]; }
@@ -320,7 +321,7 @@ export function createRunner(src, args = [], io = {}) {
         // roundtime; an UNCHANGED count is a new roundtime too when the old
         // deadline already passed (attack and skin both charge RT:3 — the
         // second one must arm, not read as an echo of the first).
-        if (n === 0) {
+        if (n === 0 && isPrompt !== 'inject') {
           s.lastRtSeen = null;
           // If a verb is parked on roundtime (pendingRtLine set), DO NOT clear
           // rtUntil to "now" on an RT:0 prompt. A stale RT:0 can arrive right
@@ -330,7 +331,7 @@ export function createRunner(src, args = [], io = {}) {
           // ("You must wait N seconds") — so a signature ability like
           // `roar everilds_rage` / `cast` silently never lands (fidelity 0/2).
           // Keep the floor so its timer fires at the true boundary instead.
-          if (!s.pendingRtLine) s.rtUntil = Math.min(s.rtUntil, Date.now());
+          if (!s.pendingRtLine && s.retryLine == null) s.rtUntil = Math.min(s.rtUntil, Date.now());
         } else if (isPrompt !== 'inject'
           && (s.lastRtSeen !== n || Date.now() >= s.rtUntil)) {
           s.lastRtSeen = n;
@@ -431,7 +432,10 @@ export function createRunner(src, args = [], io = {}) {
         // boundary. Re-send the last line we sent through out(); retryOnce
         // guards against a verb that can NEVER apply (refuse → retry →
         // refuse → give up and continue).
-        if (!s.pendingRtLine && s.mode !== 'room' && s.retryOnce !== true) {
+        // An authored pause owns its timer, not the preceding command's
+        // response. A refusal may belong to a supervisor action; mirror RT
+        // without replacing that pause or replaying an accepted command.
+        if (!s.pendingRtLine && s.mode !== 'room' && s.mode !== 'timer' && s.retryOnce !== true) {
           s.retryOnce = true;
           s.retryLine = s.lastOutLine;
           s.retryMode = s.mode;
@@ -441,13 +445,13 @@ export function createRunner(src, args = [], io = {}) {
         }
       }
     }
-    if (s.mode === 'prompt' && isPrompt) { s.mode = null; advance(); return; }
+    if (s.mode === 'prompt' && realPrompt) { s.mode = null; advance(); return; }
     // INJECT-SWALLOW BUG (fresh-proof run cblb): heartbeat injects are prompt-
     // shaped state mirrors with NO room prose — but they still hit the matcher,
     // so any ABSENCE detector (TG_*: "noun is not in this text") fires instantly
     // and declares the target gone before the real room message ever lands.
-    // 0 kills in a 45-minute fresh leg. 'wait'-parked scripts already resolved
-    // above; everything else must not prose-match an inject.
+    // 0 kills in a 45-minute fresh leg. State mirrors never satisfy prompt
+    // waits or prose matches; actual prompts and ordinary heartbeats do that.
     if (isPrompt === 'inject') return;
     if (s.matches.length && text && typeof text === 'string') {
       const hit = s.matches.find((m) =>
@@ -585,7 +589,7 @@ export function createRunner(src, args = [], io = {}) {
       advance();
       return;
     }
-    if (s.mode === 'prompt' && isPrompt) { s.mode = null; advance(); return; }
+    if (s.mode === 'prompt' && realPrompt) { s.mode = null; advance(); return; }
     if (s.mode === 'room' && isPrompt === 'room') {
       // Room-change gate (see 'move' dispatch): with io.roomNow, a room event
       // only resolves the pending move when the room actually CHANGED since
@@ -599,6 +603,13 @@ export function createRunner(src, args = [], io = {}) {
       if (hit) { s.mode = null; advance(); return; }
     }
     if (s.mode === 'timer' && Date.now() >= s.timerAt) {
+      // A later real prompt can renew RT after this deferred send's timer
+      // was armed. Recheck its current deadline without delaying authored
+      // pauses, which have no pending/retry command owned by this timer.
+      if ((s.pendingRtLine || s.retryLine != null) && Date.now() < s.rtUntil) {
+        s.timerAt = s.rtUntil + (s.pendingRtLine ? 100 : 0);
+        return;
+      }
       // WAIT-parked verb: roundtime has cleared, apply it now. The script
       // stays on this line (pc unchanged) — the next `wait`/matchwait in the
       // script handles the verb's response as usual.
