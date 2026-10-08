@@ -70,7 +70,10 @@ test('phase restart inherits a received prompt only as a non-RT heartbeat',()=>{
       library:{main:'wait\nput exp\nexit'},entry:'main',send:line=>sent.push(line)});
     host.start();host.pump();assert.deepEqual(sent,[]);
     clock.advance(999);host.pump();assert.deepEqual(sent,[]);
-    clock.advance(1);host.pump();assert.deepEqual(sent,['exp']);
+    clock.advance(1);host.pump();assert.deepEqual(sent,[], 'state mirror does not satisfy a prompt wait');
+    assert.equal(host.state.interpreter.rtUntil,0);
+    host.feed('HP: 100/100  RT: 0  Circle 1  22 silvers','prompt');
+    host.pump();assert.deepEqual(sent,['exp'], 'fresh real prompt satisfies the wait');
     assert.equal(host.state.interpreter.rtUntil,0);
     assert.equal(host.state.cycle_finished,true);
   } finally {clock.close();}

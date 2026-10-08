@@ -481,13 +481,14 @@ function look(ctx) {
     const dir = DIR_ALIASES[arg1.toLowerCase()];
     if (dir) {
       const res = game.lookDirection(p, dir);
-      emit(res.msg);
+      return emit(res.msg);
     } else {
       lookAt(game, p, arg1, ctx.say);
     }
   } else {
     game.look(p);
   }
+  game.status(p);
 }
 
 function standUp(ctx) {

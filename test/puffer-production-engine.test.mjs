@@ -5,14 +5,16 @@ import {productionLibrary} from '../puffer_adapter/script_baseline.mjs';
 import {scriptController} from '../puffer_adapter/script_controller.mjs';
 import {virtualClock} from '../puffer_adapter/virtual_clock.mjs';
 
-test('received prompt heartbeat releases waits after room arrival without inventing state',()=>{
+test('received prompt heartbeat mirrors state after room arrival without satisfying a new prompt wait',()=>{
   const clock=virtualClock();let host;const sent=[];
   try {
     host=scriptController({isolated:true,library:{main:'put status\nwait\nmove n\nwait\nput look\n'},entry:'main',
       commandCap:10,simulatedSecondsCap:30,roomNow:()=>null,
       send:line=>{sent.push(line);if(line==='status')host.feed('\x1b[32mHP: 10/10  Stamina: 10/10\x1b[0m','prompt');if(line==='n')host.feed('New room','room');}});
     host.start();host.pump();assert.deepEqual(sent,['status','n']);
-    clock.advance(1000);host.pump();assert.deepEqual(sent,['status','n','look']);
+    clock.advance(1000);host.pump();assert.deepEqual(sent,['status','n']);
+    host.feed('HP: 10/10  Stamina: 10/10','prompt');host.pump();
+    assert.deepEqual(sent,['status','n','look']);
   } finally {host?.stop();clock.close();}
 });
 
