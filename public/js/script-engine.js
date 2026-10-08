@@ -51,9 +51,23 @@ export function createRunner(src, args = [], io = {}) {
     pendingRtLine: null, // verb parked by WAIT semantics, applies at rtUntil
     lastOutLine: null,   // last verb line sent — BLIND RT refusal re-applies it
     retryOnce: false,    // blind-refusal retry budget (one re-apply per refusal)
+    lookAwaitingPrompt: false, // explicit look has a native trailing prompt
+    lookContinuation: false, // typed look prose resolved a match/text wait
   };
   const say = io.say || (() => {});
-  const out = (line) => { s.lastOutLine = line; io.send?.(line); };
+  const out = (line) => {
+    s.lastOutLine = line;
+    if (/^look(?:\s|$)/i.test(line.trim())) s.lookAwaitingPrompt = true;
+    io.send?.(line);
+  };
+  function deferLookContinuation(type) {
+    // Only typed native look prose declares the response shape. Legacy callers
+    // feeding boolean/plain text retain immediate match/waitfor semantics.
+    if (!s.lookAwaitingPrompt || !['room', 'msg'].includes(type)) return false;
+    s.lookContinuation = true; s.mode = 'prompt';
+    return true;
+  }
+  const clearLookResponse = () => { s.lookAwaitingPrompt = false; s.lookContinuation = false; };
   const sub = (line) => String(line).replace(/%(\w+)/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
 
   function location(frame, index = Math.max(0, frame.pc - 1)) {
@@ -72,6 +86,7 @@ export function createRunner(src, args = [], io = {}) {
   }
   function fail(error) {
     const value = diagnostic(error instanceof Error ? error.message : String(error), 'error');
+    clearLookResponse();
     s.done = true; s.outcome = 'error'; s.matches = []; s.pendingRtLine = null; s.retryLine = null;
     try { onDone?.({ reason: 'error', diagnostic: value }); } catch {}
   }
@@ -173,7 +188,7 @@ export function createRunner(src, args = [], io = {}) {
       }
       case 'exit': {
         frames.pop();
-        if (!frames.length) { s.done = true; s.outcome = 'completed'; try { onDone?.(); } catch {} return false; } // top-level exit
+        if (!frames.length) { clearLookResponse(); s.done = true; s.outcome = 'completed'; try { onDone?.(); } catch {} return false; } // top-level exit
         return true; // resume the caller at its next line
       }
       case 'setvariable': {
@@ -284,6 +299,7 @@ export function createRunner(src, args = [], io = {}) {
       try { if (!execOne(line)) return; }
       catch (error) { fail(error); return; }
     }
+    clearLookResponse();
     s.done = true; s.outcome = 'completed';
     try { onDone?.(); } catch {}
   }
@@ -296,7 +312,7 @@ export function createRunner(src, args = [], io = {}) {
     // "iflt mana 10 goto WAITMANA"). 'inject' = sim heartbeat refresh:
     // mirrors %vars but must NOT re-arm roundtime (its RT count is stale).
     if ((realPrompt || isPrompt === 'inject') && typeof text === 'string') {
-      const plain = text.replace(/\x1b\[\d+m/g, '');
+      const plain = text;
       const hp = /HP:\s*(\d+)\s*\/\s*(\d+)/.exec(plain);
       if (hp) { vars.hp = hp[1]; vars.maxhp = hp[2]; }
       const mana = /Mana:\s*(\d+)\s*\/\s*(\d+)/.exec(plain);
@@ -387,7 +403,7 @@ export function createRunner(src, args = [], io = {}) {
     if (typeof text === 'string') {
       const wsrankRe = /\[WSRANK:([a-z_]+):(\d+)\]/g;
       let wm;
-      while ((wm = wsrankRe.exec(text.replace(/\x1b\[\d+m/g, '')))) vars[`wsr_${wm[1]}`] = wm[2];
+      while ((wm = wsrankRe.exec(text))) vars[`wsr_${wm[1]}`] = wm[2];
     }
     // TDP balance surfaces in command OUTPUT (training refusals state the
     // exact balance, `tdp` prints it, spends confirm the cost) rather than
@@ -404,6 +420,11 @@ export function createRunner(src, args = [], io = {}) {
           if (spent && vars.tdp !== undefined) vars.tdp = String(Math.max(0, Number(vars.tdp) - Number(spent[1])));
         }
       }
+    }
+    if (realPrompt && s.lookAwaitingPrompt) {
+      const resume = s.lookContinuation;
+      clearLookResponse();
+      if (resume) { s.mode = null; advance(); return; }
     }
     // Roundtime refusals arm WAIT semantics: "You must wait N seconds" is
     // the server telling us exactly when the verb can apply. If a script
@@ -435,7 +456,7 @@ export function createRunner(src, args = [], io = {}) {
         // An authored pause owns its timer, not the preceding command's
         // response. A refusal may belong to a supervisor action; mirror RT
         // without replacing that pause or replaying an accepted command.
-        if (!s.pendingRtLine && s.mode !== 'room' && s.mode !== 'timer' && s.retryOnce !== true) {
+        if (!s.pendingRtLine && s.mode !== 'room' && s.mode !== 'timer' && !s.lookContinuation && s.retryOnce !== true) {
           s.retryOnce = true;
           s.retryLine = s.lastOutLine;
           s.retryMode = s.mode;
@@ -468,7 +489,7 @@ export function createRunner(src, args = [], io = {}) {
         const f = cur();
         if (f.labels[hit.label] !== undefined) f.pc = f.labels[hit.label];
         else diagnostic(`no such label: ${hit.label}`, 'warning', hit.location || {});
-        advance();
+        if (!deferLookContinuation(isPrompt)) advance();
         return;
       }
     }
@@ -600,7 +621,7 @@ export function createRunner(src, args = [], io = {}) {
     }
     if (s.mode === 'text' && text) {
       const hit = s.waitRe ? s.waitRe.test(text) : (s.waitText && text.toLowerCase().includes(s.waitText));
-      if (hit) { s.mode = null; advance(); return; }
+      if (hit) { s.mode = null; if (!deferLookContinuation(isPrompt)) advance(); return; }
     }
     if (s.mode === 'timer' && Date.now() >= s.timerAt) {
       // A later real prompt can renew RT after this deferred send's timer
@@ -648,9 +669,12 @@ export function createRunner(src, args = [], io = {}) {
     feed(text, isPrompt = false) {
       // Deferred roundtime sends and movement callbacks execute outside advance.
       // Contain their unexpected IO failures at the public heartbeat boundary.
-      try { feed(text, isPrompt); } catch (error) { fail(error); }
+      // All native callers match visible prose, whether the transport retained
+      // ANSI SGR or already stripped it. Keep the pure engine DOM-independent.
+      const visible = typeof text === 'string' ? text.replace(/\x1b\[[0-9;]*m/g, '') : text;
+      try { feed(visible, isPrompt); } catch (error) { fail(error); }
     },
-    stop() { s.done = true; s.outcome = 'stopped'; s.matches = []; },
+    stop() { clearLookResponse(); s.done = true; s.outcome = 'stopped'; s.matches = []; },
     get running() { return !s.done; },
     get depth() { return frames.length; },
     // Supervisor override for a named script variable (DR `setvariable` from
