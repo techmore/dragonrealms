@@ -661,7 +661,8 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [], questTarget = 
     // exp sheet and can force a hall trip as soon as the gate is met.
     L.push('  if_2 goto SCAN_NOEXP');
     L.push('  setvariable 2 1');
-    L.push('  wait');
+    // No command is outstanding here: movement completed on its room
+    // response. Send the probe before waiting for its bounded response.
     L.push('  put exp');
     L.push('  matchwait 5');
     L.push('  goto SCAN_LOOK');
@@ -706,9 +707,9 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [], questTarget = 
       const key = sp.replace(/\W/g, '_');
       const noun = nounOf(sp);
       L.push(`FIGHT_${key}:`);
-      L.push('  put look');
-      L.push(`  matchre TG_${key} ^(?![\\s\\S]*${noun} is here)`);
+      L.push(`  matchre TG_${key} ^(?=\\s*\\[\\[)(?![\\s\\S]*${noun} is here)`);
       L.push(`  matchre FN_${key} ${noun} is here`);
+      L.push('  put look');
       L.push('  matchwait 4');
       // TG (target GONE) = the kill moment for this species: skin the corpse
       // before returning to SCAN. The old body fired skin mid-sequence while
@@ -741,10 +742,11 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [], questTarget = 
     // any line matched the first rat-free line ('Obvious paths: ...') and
     // declared the target gone even while it stood in front of us — the
     // never-fight wedge. Anchor ^ at string start with [\s\S]* so the
-    // detector only fires when the noun is absent from the WHOLE message.
-    L.push('  put look');
-    L.push(`  matchre TG_${key} ^(?![\\s\\S]*${noun} is here)`);
+    // detector only fires when the noun is absent from the WHOLE room
+    // message. Register before look; its trailing prompt is not a room.
+    L.push(`  matchre TG_${key} ^(?=\\s*\\[\\[)(?![\\s\\S]*${noun} is here)`);
     L.push(`  matchre FN_${key} ${noun} is here`);
+    L.push('  put look');
     L.push('  matchwait 4');
     L.push(`TG_${key}:`);
     L.push('  goto SCAN');
