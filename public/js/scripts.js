@@ -45,7 +45,9 @@ export function runScript(name, args = []) {
     return;
   }
   if (gameState.value !== 'playing' || gameState.spectating) {
-    terminal.append('[script] Enter the world before running a script.', 'ch-error');
+    terminal.append(gameState.spectating
+      ? '[script] Watch mode is read-only. Use "unspectate" before running a script.'
+      : '[script] Enter the world before running a script.', 'ch-error');
     return;
   }
   settleRunner();

@@ -1,0 +1,1222 @@
+# barbarhunt — weapon loop for SwBar-base-iiii-tebw
+START:
+  put look
+  wait
+ARMCHECK:
+  matchre ARMED_NOW Worn:[\s\S]*(club|sword|axe|staff|dagger|mace|blade|bow|sling|hammer)
+  matchre GETCLUB carrying:[\s\S]*club
+  matchre GETWEAPON carrying:
+  put inventory
+  matchwait 6
+GETCLUB:
+  put wield club
+  wait
+  goto ARMED
+ARMED_NOW:
+  setvariable armed 1
+  ifge silver 112 goto GETWEAPON
+  goto ARMED
+GETWEAPON:
+  ife room bazaar goto BUY_HERE
+  move e
+  move e
+  move e
+  move e
+  move e
+  move e
+  ifne room bazaar goto BUY_SKIP
+  goto BUY_HERE
+BUY_SKIP:
+  goto ARMED_FROM_BAZAAR
+BUY_HERE:
+ARMOR_FIRST:
+  matchre KIT_WEAPONS Worn:[\s\S]*padded cloth armor
+  put inventory
+  matchwait 2
+  iflt silver 40 KIT_WEAPONS
+  put buy padded cloth armor
+  wait
+  put wear padded cloth armor
+  wait
+KIT_WEAPONS:
+BUY_DAGGER:
+  matchre BUY_SKIP_DAGGER Worn:[\s\S]*dagger|carrying:[\s\S]*dagger
+  put inventory
+  matchwait 2
+  iflt silver 25 goto BUY_SKIP_DAGGER
+  put buy dagger
+  wait
+BUY_SKIP_DAGGER:
+BUY_SLING:
+  matchre BUY_SKIP_SLING Worn:[\s\S]*sling|carrying:[\s\S]*sling
+  put inventory
+  matchwait 2
+  iflt silver 20 goto BUY_SKIP_SLING
+  put buy sling
+  wait
+BUY_SKIP_SLING:
+BUY_CLUB:
+  matchre BUY_SKIP_CLUB Worn:[\s\S]*club|carrying:[\s\S]*club
+  put inventory
+  matchwait 2
+  iflt silver 112 goto BUY_SKIP_CLUB
+  put buy club
+  wait
+BUY_SKIP_CLUB:
+PLAN_DONE:
+  ife armed 1 goto BUY_ARMOR
+  put remove club
+  put wield dagger
+  wait
+  goto BUY_ARMOR
+BUY:
+  matchre WIELD You buy|You pay|hands you
+  matchre ARMED do not sell|already have|no such|do not have|out of stock|no shopkeeper
+  matchre BROKE cannot afford
+BUY_ARMOR:
+  matchre PADDED_DONE Worn:[\s\S]*padded cloth armor
+  put inventory
+  matchwait 4
+  put buy padded cloth armor
+  wait
+  put wear padded cloth armor
+  wait
+PADDED_DONE:
+  ifge silver 120 BUY_HELM
+  goto ARMED_FROM_BAZAAR
+BUY_HELM:
+  matchre ARMED_FROM_BAZAAR already have|Worn:[\s\S]*helm
+  put buy iron helm
+  wait
+  put wear iron helm
+  wait
+  goto ARMED_FROM_BAZAAR
+BROKE:
+  put withdraw 100
+  wait
+  matchre BUY You withdraw
+  matchre ARMED does not hold|no banker|nothing
+  matchwait 20
+  goto ARMED
+WIELD:
+  put wield club
+  wait
+  goto ARMED_HERE
+ARMED:
+  ifne room square goto ARMED_ANYWHERE
+  move nw
+  move nw
+  move nw
+  move n
+  move n
+  move n
+  move n
+  move d
+  goto PICK_ROOM_0
+ARMED_FROM_BAZAAR:
+  ifne room bazaar goto ARMED_ANYWHERE
+  move w
+  move w
+  move w
+  move w
+  move w
+  move w
+  move nw
+  move nw
+  move nw
+  move n
+  move n
+  move n
+  move n
+  move d
+  goto PICK_ROOM_0
+ARMED_HERE:
+  ifne room bazaar goto ARMED_ANYWHERE
+  move w
+  move w
+  move w
+  move w
+  move w
+  move w
+  move nw
+  move nw
+  move nw
+  move n
+  move n
+  move n
+  move n
+  move d
+  goto PICK_ROOM_0
+ARMED_ANYWHERE:
+  goto PICK_ROOM_0
+PICK_ROOM_0:
+  ifne room sewers_1 goto PICK_ROOM_1
+  put look
+  matchwait 4
+  ifgt pcount 0 goto RETURN_TO_HUB_0
+PICK_ROOM_1:
+  ifne room sewers_1 goto PICK_ROOM_2
+  move n
+  put look
+  matchwait 4
+  ifgt pcount 0 goto RETURN_TO_HUB_1
+PICK_ROOM_2:
+  ifne room sewers_1 goto PICK_ROOM_3
+  move n
+  move n
+  put look
+  matchwait 4
+  ifgt pcount 0 goto RETURN_TO_HUB_2
+PICK_ROOM_3:
+  ifne room sewers_1 goto PICK_ROOM_4
+  move n
+  move n
+  move d
+  put look
+  matchwait 4
+  ifgt pcount 0 goto RETURN_TO_HUB_3
+PICK_ROOM_4:
+  ifne room sewers_1 goto PICK_ROOM_5
+  move up
+  move s
+  move s
+  move s
+  move s
+  move e
+  move e
+  move e
+  move n
+  move n
+  move n
+  move n
+  move w
+  move n
+  move n
+  put look
+  matchwait 4
+  ifgt pcount 0 goto RETURN_TO_HUB_4
+PICK_ROOM_5:
+  ifne room sewers_1 goto PICK_ROOM_6
+  move up
+  move s
+  move s
+  move s
+  move s
+  move e
+  move e
+  move e
+  move n
+  move n
+  move n
+  move n
+  move w
+  move n
+  move n
+  move ne
+  put look
+  matchwait 4
+  ifgt pcount 0 goto RETURN_TO_HUB_5
+PICK_ROOM_6:
+  ifne room sewers_1 goto PICK_ROOM_7
+  move up
+  move s
+  move s
+  move s
+  move s
+  move se
+  move se
+  move se
+  move s
+  move s
+  move s
+  move s
+  move s
+  move s
+  move s
+  move s
+  move s
+  move e
+  move e
+  move e
+  move s
+  move s
+  move s
+  move se
+  move e
+  move sw
+  put look
+  matchwait 4
+  ifgt pcount 0 goto RETURN_TO_HUB_6
+PICK_ROOM_7:
+  ifne room sewers_1 goto PICK_ROOM_DONE
+  move up
+  move s
+  move s
+  move s
+  move s
+  move se
+  move se
+  move se
+  move s
+  move s
+  move s
+  move s
+  move s
+  move s
+  move s
+  move s
+  move s
+  move e
+  move e
+  move e
+  move s
+  move s
+  move s
+  move se
+  move e
+  move e
+  move n
+  put look
+  matchwait 4
+PICK_ROOM_DONE:
+  ifgt pcount 0 goto OCCUPIED_PATROL
+  ifne room sewers_1 goto REANCHOR
+  goto SCAN
+REANCHOR:
+  ifne room bazaar goto SCAN
+  move w
+  move w
+  move w
+  move w
+  move w
+  move w
+  move nw
+  move nw
+  move nw
+  move n
+  move n
+  move n
+  move n
+  move d
+  goto PICK_ROOM_0
+SCAN:
+  pause 2
+  iflt hp 40 goto REST
+  if_2 goto SCAN_NOEXP
+  setvariable 2 1
+  put exp
+  matchwait 5
+  goto SCAN_LOOK
+SCAN_NOEXP:
+  setvariable 2
+SCAN_LOOK:
+  matchre FIGHT_rat sewer rat is here
+  matchre FIGHT_silverfish silverfish is here
+  matchre FIGHT_kobold kobold is here
+  matchre FIGHT_great_rat great rat is here
+  matchre FIGHT_marsh_hog marsh hog is here
+  matchre FIGHT_reed_stalker reed stalker is here
+  matchre FIGHT_mud_crab mud crab is here
+  matchre FIGHT_goblin goblin is here
+  matchre WANDER \[\[
+  put look
+  matchwait 8
+FIGHT_rat:
+  matchre TG_rat ^(?=\s*\[\[)(?![\s\S]*sewer rat is here)
+  matchre FN_rat sewer rat is here
+  put look
+  matchwait 4
+TG_rat:
+  goto SCAN
+FN_rat:
+  put attack sewer rat
+  wait
+  put roar everilds_rage
+  wait
+  put analyze
+  wait
+  put trip sewer rat
+  wait
+  put skin sewer rat
+  wait
+  if_6 goto POSTHUNT_rat
+  setvariable 6 1
+  pause 5
+  put forage
+  wait
+  goto POSTVERB_rat
+POSTHUNT_rat:
+  setvariable 6
+  put hunt
+  wait
+POSTVERB_rat:
+  iflt bleed 1 goto NOTEND_rat
+TEND_rat:
+  put tend
+  wait
+  put tend
+  wait
+NOTEND_rat:
+  put look
+  matchre SD_rat sewer rat is here
+  matchwait 3
+  pause 5
+  put forage
+  wait
+  goto SCAN
+SD_rat:
+  wait
+  pause 5
+  put forage
+  wait
+  ife wsp small_edged goto ROT_S0_rat
+  ife wsp slings goto ROT_S1_rat
+  ife wsp blunt goto ROT_S2_rat
+ROT_S0_rat:
+  iflt wsr_slings 12 goto ROT_S0_TO_1_rat
+  iflt wsr_blunt 12 goto ROT_S0_TO_2_rat
+  goto ROT_END_rat
+ROT_S0_TO_1_rat:
+  put remove dagger
+  put wield sling
+  wait
+  goto ROT_END_rat
+ROT_S0_TO_2_rat:
+  put remove dagger
+  put wield club
+  wait
+  goto ROT_END_rat
+ROT_S1_rat:
+  iflt wsr_blunt 12 goto ROT_S1_TO_2_rat
+  iflt wsr_small_edged 12 goto ROT_S1_TO_0_rat
+  goto ROT_END_rat
+ROT_S1_TO_2_rat:
+  put remove sling
+  put wield club
+  wait
+  goto ROT_END_rat
+ROT_S1_TO_0_rat:
+  put remove sling
+  put wield dagger
+  wait
+  goto ROT_END_rat
+ROT_S2_rat:
+  iflt wsr_small_edged 12 goto ROT_S2_TO_0_rat
+  iflt wsr_slings 12 goto ROT_S2_TO_1_rat
+  goto ROT_END_rat
+ROT_S2_TO_0_rat:
+  put remove club
+  put wield dagger
+  wait
+  goto ROT_END_rat
+ROT_S2_TO_1_rat:
+  put remove club
+  put wield sling
+  wait
+  goto ROT_END_rat
+ROT_END_rat:
+  wait
+  put exp
+  wait
+  iflt hp 40 goto REST
+  goto FIGHT_rat
+FIGHT_silverfish:
+  matchre TG_silverfish ^(?=\s*\[\[)(?![\s\S]*silverfish is here)
+  matchre FN_silverfish silverfish is here
+  put look
+  matchwait 4
+TG_silverfish:
+  goto SCAN
+FN_silverfish:
+  put attack silverfish
+  wait
+  put roar everilds_rage
+  wait
+  put analyze
+  wait
+  put trip silverfish
+  wait
+  put skin silverfish
+  wait
+  if_6 goto POSTHUNT_silverfish
+  setvariable 6 1
+  pause 5
+  put forage
+  wait
+  goto POSTVERB_silverfish
+POSTHUNT_silverfish:
+  setvariable 6
+  put hunt
+  wait
+POSTVERB_silverfish:
+  iflt bleed 1 goto NOTEND_silverfish
+TEND_silverfish:
+  put tend
+  wait
+  put tend
+  wait
+NOTEND_silverfish:
+  put look
+  matchre SD_silverfish silverfish is here
+  matchwait 3
+  pause 5
+  put forage
+  wait
+  goto SCAN
+SD_silverfish:
+  wait
+  pause 5
+  put forage
+  wait
+  ife wsp small_edged goto ROT_S0_silverfish
+  ife wsp slings goto ROT_S1_silverfish
+  ife wsp blunt goto ROT_S2_silverfish
+ROT_S0_silverfish:
+  iflt wsr_slings 12 goto ROT_S0_TO_1_silverfish
+  iflt wsr_blunt 12 goto ROT_S0_TO_2_silverfish
+  goto ROT_END_silverfish
+ROT_S0_TO_1_silverfish:
+  put remove dagger
+  put wield sling
+  wait
+  goto ROT_END_silverfish
+ROT_S0_TO_2_silverfish:
+  put remove dagger
+  put wield club
+  wait
+  goto ROT_END_silverfish
+ROT_S1_silverfish:
+  iflt wsr_blunt 12 goto ROT_S1_TO_2_silverfish
+  iflt wsr_small_edged 12 goto ROT_S1_TO_0_silverfish
+  goto ROT_END_silverfish
+ROT_S1_TO_2_silverfish:
+  put remove sling
+  put wield club
+  wait
+  goto ROT_END_silverfish
+ROT_S1_TO_0_silverfish:
+  put remove sling
+  put wield dagger
+  wait
+  goto ROT_END_silverfish
+ROT_S2_silverfish:
+  iflt wsr_small_edged 12 goto ROT_S2_TO_0_silverfish
+  iflt wsr_slings 12 goto ROT_S2_TO_1_silverfish
+  goto ROT_END_silverfish
+ROT_S2_TO_0_silverfish:
+  put remove club
+  put wield dagger
+  wait
+  goto ROT_END_silverfish
+ROT_S2_TO_1_silverfish:
+  put remove club
+  put wield sling
+  wait
+  goto ROT_END_silverfish
+ROT_END_silverfish:
+  wait
+  put exp
+  wait
+  iflt hp 40 goto REST
+  goto FIGHT_silverfish
+FIGHT_kobold:
+  matchre TG_kobold ^(?=\s*\[\[)(?![\s\S]*kobold is here)
+  matchre FN_kobold kobold is here
+  put look
+  matchwait 4
+TG_kobold:
+  goto SCAN
+FN_kobold:
+  put attack kobold
+  wait
+  put roar everilds_rage
+  wait
+  put analyze
+  wait
+  put trip kobold
+  wait
+  put skin kobold
+  wait
+  if_6 goto POSTHUNT_kobold
+  setvariable 6 1
+  pause 5
+  put forage
+  wait
+  goto POSTVERB_kobold
+POSTHUNT_kobold:
+  setvariable 6
+  put hunt
+  wait
+POSTVERB_kobold:
+  iflt bleed 1 goto NOTEND_kobold
+TEND_kobold:
+  put tend
+  wait
+  put tend
+  wait
+NOTEND_kobold:
+  put look
+  matchre SD_kobold kobold is here
+  matchwait 3
+  pause 5
+  put forage
+  wait
+  goto SCAN
+SD_kobold:
+  wait
+  pause 5
+  put forage
+  wait
+  ife wsp small_edged goto ROT_S0_kobold
+  ife wsp slings goto ROT_S1_kobold
+  ife wsp blunt goto ROT_S2_kobold
+ROT_S0_kobold:
+  iflt wsr_slings 12 goto ROT_S0_TO_1_kobold
+  iflt wsr_blunt 12 goto ROT_S0_TO_2_kobold
+  goto ROT_END_kobold
+ROT_S0_TO_1_kobold:
+  put remove dagger
+  put wield sling
+  wait
+  goto ROT_END_kobold
+ROT_S0_TO_2_kobold:
+  put remove dagger
+  put wield club
+  wait
+  goto ROT_END_kobold
+ROT_S1_kobold:
+  iflt wsr_blunt 12 goto ROT_S1_TO_2_kobold
+  iflt wsr_small_edged 12 goto ROT_S1_TO_0_kobold
+  goto ROT_END_kobold
+ROT_S1_TO_2_kobold:
+  put remove sling
+  put wield club
+  wait
+  goto ROT_END_kobold
+ROT_S1_TO_0_kobold:
+  put remove sling
+  put wield dagger
+  wait
+  goto ROT_END_kobold
+ROT_S2_kobold:
+  iflt wsr_small_edged 12 goto ROT_S2_TO_0_kobold
+  iflt wsr_slings 12 goto ROT_S2_TO_1_kobold
+  goto ROT_END_kobold
+ROT_S2_TO_0_kobold:
+  put remove club
+  put wield dagger
+  wait
+  goto ROT_END_kobold
+ROT_S2_TO_1_kobold:
+  put remove club
+  put wield sling
+  wait
+  goto ROT_END_kobold
+ROT_END_kobold:
+  wait
+  put exp
+  wait
+  iflt hp 40 goto REST
+  goto FIGHT_kobold
+FIGHT_great_rat:
+  matchre TG_great_rat ^(?=\s*\[\[)(?![\s\S]*great rat is here)
+  matchre FN_great_rat great rat is here
+  put look
+  matchwait 4
+TG_great_rat:
+  goto SCAN
+FN_great_rat:
+  put attack great rat
+  wait
+  put roar everilds_rage
+  wait
+  put analyze
+  wait
+  put trip great rat
+  wait
+  put skin great rat
+  wait
+  if_6 goto POSTHUNT_great_rat
+  setvariable 6 1
+  pause 5
+  put forage
+  wait
+  goto POSTVERB_great_rat
+POSTHUNT_great_rat:
+  setvariable 6
+  put hunt
+  wait
+POSTVERB_great_rat:
+  iflt bleed 1 goto NOTEND_great_rat
+TEND_great_rat:
+  put tend
+  wait
+  put tend
+  wait
+NOTEND_great_rat:
+  put look
+  matchre SD_great_rat great rat is here
+  matchwait 3
+  pause 5
+  put forage
+  wait
+  goto SCAN
+SD_great_rat:
+  wait
+  pause 5
+  put forage
+  wait
+  ife wsp small_edged goto ROT_S0_great_rat
+  ife wsp slings goto ROT_S1_great_rat
+  ife wsp blunt goto ROT_S2_great_rat
+ROT_S0_great_rat:
+  iflt wsr_slings 12 goto ROT_S0_TO_1_great_rat
+  iflt wsr_blunt 12 goto ROT_S0_TO_2_great_rat
+  goto ROT_END_great_rat
+ROT_S0_TO_1_great_rat:
+  put remove dagger
+  put wield sling
+  wait
+  goto ROT_END_great_rat
+ROT_S0_TO_2_great_rat:
+  put remove dagger
+  put wield club
+  wait
+  goto ROT_END_great_rat
+ROT_S1_great_rat:
+  iflt wsr_blunt 12 goto ROT_S1_TO_2_great_rat
+  iflt wsr_small_edged 12 goto ROT_S1_TO_0_great_rat
+  goto ROT_END_great_rat
+ROT_S1_TO_2_great_rat:
+  put remove sling
+  put wield club
+  wait
+  goto ROT_END_great_rat
+ROT_S1_TO_0_great_rat:
+  put remove sling
+  put wield dagger
+  wait
+  goto ROT_END_great_rat
+ROT_S2_great_rat:
+  iflt wsr_small_edged 12 goto ROT_S2_TO_0_great_rat
+  iflt wsr_slings 12 goto ROT_S2_TO_1_great_rat
+  goto ROT_END_great_rat
+ROT_S2_TO_0_great_rat:
+  put remove club
+  put wield dagger
+  wait
+  goto ROT_END_great_rat
+ROT_S2_TO_1_great_rat:
+  put remove club
+  put wield sling
+  wait
+  goto ROT_END_great_rat
+ROT_END_great_rat:
+  wait
+  put exp
+  wait
+  iflt hp 40 goto REST
+  goto FIGHT_great_rat
+FIGHT_marsh_hog:
+  matchre TG_marsh_hog ^(?=\s*\[\[)(?![\s\S]*marsh hog is here)
+  matchre FN_marsh_hog marsh hog is here
+  put look
+  matchwait 4
+TG_marsh_hog:
+  goto SCAN
+FN_marsh_hog:
+  put attack marsh hog
+  wait
+  put roar everilds_rage
+  wait
+  put analyze
+  wait
+  put trip marsh hog
+  wait
+  put skin marsh hog
+  wait
+  if_6 goto POSTHUNT_marsh_hog
+  setvariable 6 1
+  pause 5
+  put forage
+  wait
+  goto POSTVERB_marsh_hog
+POSTHUNT_marsh_hog:
+  setvariable 6
+  put hunt
+  wait
+POSTVERB_marsh_hog:
+  iflt bleed 1 goto NOTEND_marsh_hog
+TEND_marsh_hog:
+  put tend
+  wait
+  put tend
+  wait
+NOTEND_marsh_hog:
+  put look
+  matchre SD_marsh_hog marsh hog is here
+  matchwait 3
+  pause 5
+  put forage
+  wait
+  goto SCAN
+SD_marsh_hog:
+  wait
+  pause 5
+  put forage
+  wait
+  ife wsp small_edged goto ROT_S0_marsh_hog
+  ife wsp slings goto ROT_S1_marsh_hog
+  ife wsp blunt goto ROT_S2_marsh_hog
+ROT_S0_marsh_hog:
+  iflt wsr_slings 12 goto ROT_S0_TO_1_marsh_hog
+  iflt wsr_blunt 12 goto ROT_S0_TO_2_marsh_hog
+  goto ROT_END_marsh_hog
+ROT_S0_TO_1_marsh_hog:
+  put remove dagger
+  put wield sling
+  wait
+  goto ROT_END_marsh_hog
+ROT_S0_TO_2_marsh_hog:
+  put remove dagger
+  put wield club
+  wait
+  goto ROT_END_marsh_hog
+ROT_S1_marsh_hog:
+  iflt wsr_blunt 12 goto ROT_S1_TO_2_marsh_hog
+  iflt wsr_small_edged 12 goto ROT_S1_TO_0_marsh_hog
+  goto ROT_END_marsh_hog
+ROT_S1_TO_2_marsh_hog:
+  put remove sling
+  put wield club
+  wait
+  goto ROT_END_marsh_hog
+ROT_S1_TO_0_marsh_hog:
+  put remove sling
+  put wield dagger
+  wait
+  goto ROT_END_marsh_hog
+ROT_S2_marsh_hog:
+  iflt wsr_small_edged 12 goto ROT_S2_TO_0_marsh_hog
+  iflt wsr_slings 12 goto ROT_S2_TO_1_marsh_hog
+  goto ROT_END_marsh_hog
+ROT_S2_TO_0_marsh_hog:
+  put remove club
+  put wield dagger
+  wait
+  goto ROT_END_marsh_hog
+ROT_S2_TO_1_marsh_hog:
+  put remove club
+  put wield sling
+  wait
+  goto ROT_END_marsh_hog
+ROT_END_marsh_hog:
+  wait
+  put exp
+  wait
+  iflt hp 40 goto REST
+  goto FIGHT_marsh_hog
+FIGHT_reed_stalker:
+  matchre TG_reed_stalker ^(?=\s*\[\[)(?![\s\S]*reed stalker is here)
+  matchre FN_reed_stalker reed stalker is here
+  put look
+  matchwait 4
+TG_reed_stalker:
+  goto SCAN
+FN_reed_stalker:
+  put attack reed stalker
+  wait
+  put roar everilds_rage
+  wait
+  put analyze
+  wait
+  put trip reed stalker
+  wait
+  put skin reed stalker
+  wait
+  if_6 goto POSTHUNT_reed_stalker
+  setvariable 6 1
+  pause 5
+  put forage
+  wait
+  goto POSTVERB_reed_stalker
+POSTHUNT_reed_stalker:
+  setvariable 6
+  put hunt
+  wait
+POSTVERB_reed_stalker:
+  iflt bleed 1 goto NOTEND_reed_stalker
+TEND_reed_stalker:
+  put tend
+  wait
+  put tend
+  wait
+NOTEND_reed_stalker:
+  put look
+  matchre SD_reed_stalker reed stalker is here
+  matchwait 3
+  pause 5
+  put forage
+  wait
+  goto SCAN
+SD_reed_stalker:
+  wait
+  pause 5
+  put forage
+  wait
+  ife wsp small_edged goto ROT_S0_reed_stalker
+  ife wsp slings goto ROT_S1_reed_stalker
+  ife wsp blunt goto ROT_S2_reed_stalker
+ROT_S0_reed_stalker:
+  iflt wsr_slings 12 goto ROT_S0_TO_1_reed_stalker
+  iflt wsr_blunt 12 goto ROT_S0_TO_2_reed_stalker
+  goto ROT_END_reed_stalker
+ROT_S0_TO_1_reed_stalker:
+  put remove dagger
+  put wield sling
+  wait
+  goto ROT_END_reed_stalker
+ROT_S0_TO_2_reed_stalker:
+  put remove dagger
+  put wield club
+  wait
+  goto ROT_END_reed_stalker
+ROT_S1_reed_stalker:
+  iflt wsr_blunt 12 goto ROT_S1_TO_2_reed_stalker
+  iflt wsr_small_edged 12 goto ROT_S1_TO_0_reed_stalker
+  goto ROT_END_reed_stalker
+ROT_S1_TO_2_reed_stalker:
+  put remove sling
+  put wield club
+  wait
+  goto ROT_END_reed_stalker
+ROT_S1_TO_0_reed_stalker:
+  put remove sling
+  put wield dagger
+  wait
+  goto ROT_END_reed_stalker
+ROT_S2_reed_stalker:
+  iflt wsr_small_edged 12 goto ROT_S2_TO_0_reed_stalker
+  iflt wsr_slings 12 goto ROT_S2_TO_1_reed_stalker
+  goto ROT_END_reed_stalker
+ROT_S2_TO_0_reed_stalker:
+  put remove club
+  put wield dagger
+  wait
+  goto ROT_END_reed_stalker
+ROT_S2_TO_1_reed_stalker:
+  put remove club
+  put wield sling
+  wait
+  goto ROT_END_reed_stalker
+ROT_END_reed_stalker:
+  wait
+  put exp
+  wait
+  iflt hp 40 goto REST
+  goto FIGHT_reed_stalker
+FIGHT_mud_crab:
+  matchre TG_mud_crab ^(?=\s*\[\[)(?![\s\S]*mud crab is here)
+  matchre FN_mud_crab mud crab is here
+  put look
+  matchwait 4
+TG_mud_crab:
+  goto SCAN
+FN_mud_crab:
+  put attack mud crab
+  wait
+  put roar everilds_rage
+  wait
+  put analyze
+  wait
+  put trip mud crab
+  wait
+  put skin mud crab
+  wait
+  if_6 goto POSTHUNT_mud_crab
+  setvariable 6 1
+  pause 5
+  put forage
+  wait
+  goto POSTVERB_mud_crab
+POSTHUNT_mud_crab:
+  setvariable 6
+  put hunt
+  wait
+POSTVERB_mud_crab:
+  iflt bleed 1 goto NOTEND_mud_crab
+TEND_mud_crab:
+  put tend
+  wait
+  put tend
+  wait
+NOTEND_mud_crab:
+  put look
+  matchre SD_mud_crab mud crab is here
+  matchwait 3
+  pause 5
+  put forage
+  wait
+  goto SCAN
+SD_mud_crab:
+  wait
+  pause 5
+  put forage
+  wait
+  ife wsp small_edged goto ROT_S0_mud_crab
+  ife wsp slings goto ROT_S1_mud_crab
+  ife wsp blunt goto ROT_S2_mud_crab
+ROT_S0_mud_crab:
+  iflt wsr_slings 12 goto ROT_S0_TO_1_mud_crab
+  iflt wsr_blunt 12 goto ROT_S0_TO_2_mud_crab
+  goto ROT_END_mud_crab
+ROT_S0_TO_1_mud_crab:
+  put remove dagger
+  put wield sling
+  wait
+  goto ROT_END_mud_crab
+ROT_S0_TO_2_mud_crab:
+  put remove dagger
+  put wield club
+  wait
+  goto ROT_END_mud_crab
+ROT_S1_mud_crab:
+  iflt wsr_blunt 12 goto ROT_S1_TO_2_mud_crab
+  iflt wsr_small_edged 12 goto ROT_S1_TO_0_mud_crab
+  goto ROT_END_mud_crab
+ROT_S1_TO_2_mud_crab:
+  put remove sling
+  put wield club
+  wait
+  goto ROT_END_mud_crab
+ROT_S1_TO_0_mud_crab:
+  put remove sling
+  put wield dagger
+  wait
+  goto ROT_END_mud_crab
+ROT_S2_mud_crab:
+  iflt wsr_small_edged 12 goto ROT_S2_TO_0_mud_crab
+  iflt wsr_slings 12 goto ROT_S2_TO_1_mud_crab
+  goto ROT_END_mud_crab
+ROT_S2_TO_0_mud_crab:
+  put remove club
+  put wield dagger
+  wait
+  goto ROT_END_mud_crab
+ROT_S2_TO_1_mud_crab:
+  put remove club
+  put wield sling
+  wait
+  goto ROT_END_mud_crab
+ROT_END_mud_crab:
+  wait
+  put exp
+  wait
+  iflt hp 40 goto REST
+  goto FIGHT_mud_crab
+FIGHT_goblin:
+  matchre TG_goblin ^(?=\s*\[\[)(?![\s\S]*goblin is here)
+  matchre FN_goblin goblin is here
+  put look
+  matchwait 4
+TG_goblin:
+  goto SCAN
+FN_goblin:
+  put attack goblin
+  wait
+  put roar everilds_rage
+  wait
+  put analyze
+  wait
+  put trip goblin
+  wait
+  put skin goblin
+  wait
+  if_6 goto POSTHUNT_goblin
+  setvariable 6 1
+  pause 5
+  put forage
+  wait
+  goto POSTVERB_goblin
+POSTHUNT_goblin:
+  setvariable 6
+  put hunt
+  wait
+POSTVERB_goblin:
+  iflt bleed 1 goto NOTEND_goblin
+TEND_goblin:
+  put tend
+  wait
+  put tend
+  wait
+NOTEND_goblin:
+  put look
+  matchre SD_goblin goblin is here
+  matchwait 3
+  pause 5
+  put forage
+  wait
+  goto SCAN
+SD_goblin:
+  wait
+  pause 5
+  put forage
+  wait
+  ife wsp small_edged goto ROT_S0_goblin
+  ife wsp slings goto ROT_S1_goblin
+  ife wsp blunt goto ROT_S2_goblin
+ROT_S0_goblin:
+  iflt wsr_slings 12 goto ROT_S0_TO_1_goblin
+  iflt wsr_blunt 12 goto ROT_S0_TO_2_goblin
+  goto ROT_END_goblin
+ROT_S0_TO_1_goblin:
+  put remove dagger
+  put wield sling
+  wait
+  goto ROT_END_goblin
+ROT_S0_TO_2_goblin:
+  put remove dagger
+  put wield club
+  wait
+  goto ROT_END_goblin
+ROT_S1_goblin:
+  iflt wsr_blunt 12 goto ROT_S1_TO_2_goblin
+  iflt wsr_small_edged 12 goto ROT_S1_TO_0_goblin
+  goto ROT_END_goblin
+ROT_S1_TO_2_goblin:
+  put remove sling
+  put wield club
+  wait
+  goto ROT_END_goblin
+ROT_S1_TO_0_goblin:
+  put remove sling
+  put wield dagger
+  wait
+  goto ROT_END_goblin
+ROT_S2_goblin:
+  iflt wsr_small_edged 12 goto ROT_S2_TO_0_goblin
+  iflt wsr_slings 12 goto ROT_S2_TO_1_goblin
+  goto ROT_END_goblin
+ROT_S2_TO_0_goblin:
+  put remove club
+  put wield dagger
+  wait
+  goto ROT_END_goblin
+ROT_S2_TO_1_goblin:
+  put remove club
+  put wield sling
+  wait
+  goto ROT_END_goblin
+ROT_END_goblin:
+  wait
+  put exp
+  wait
+  iflt hp 40 goto REST
+  goto FIGHT_goblin
+WEAKSWING:
+  put attack sewer rat
+  wait
+  pause 3
+  goto SCAN
+OCCUPIED_PATROL:
+  pause 2
+  goto PICK_ROOM_0
+WANDER:
+  pause 5
+  put forage
+  wait
+  pause 4
+  goto SCAN
+REST:
+  echo -- licking wounds --
+  ifge combat 1 goto SCAN
+  put rest
+RESTWAIT:
+  pause 3
+  ifge combat 1 goto SCAN
+  iflt hp 85 goto RESTWAIT
+  put stand
+  wait
+  goto SCAN
+SHED_GEMS:
+  put drop garnet 20
+  wait
+  setvariable sheddone 1
+  goto SCAN
+RETURN_TO_HUB_0:
+  goto PICK_ROOM_1
+RETURN_TO_HUB_1:
+  move s
+  goto PICK_ROOM_2
+RETURN_TO_HUB_2:
+  move s
+  move s
+  goto PICK_ROOM_3
+RETURN_TO_HUB_3:
+  move d
+  move s
+  move s
+  goto PICK_ROOM_4
+RETURN_TO_HUB_4:
+  move s
+  move s
+  move e
+  move s
+  move s
+  move s
+  move s
+  move w
+  move w
+  move w
+  move n
+  move n
+  move n
+  move n
+  move down
+  goto PICK_ROOM_5
+RETURN_TO_HUB_5:
+  move sw
+  move s
+  move s
+  move e
+  move s
+  move s
+  move s
+  move s
+  move w
+  move w
+  move w
+  move n
+  move n
+  move n
+  move n
+  move down
+  goto PICK_ROOM_6
+RETURN_TO_HUB_6:
+  move ne
+  move w
+  move nw
+  move n
+  move n
+  move n
+  move w
+  move w
+  move w
+  move n
+  move n
+  move n
+  move n
+  move n
+  move n
+  move n
+  move n
+  move n
+  move nw
+  move nw
+  move nw
+  move n
+  move n
+  move n
+  move n
+  move down
+  goto PICK_ROOM_7

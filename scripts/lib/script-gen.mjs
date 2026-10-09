@@ -12,6 +12,33 @@ const nounOf = (spawnId) => (creatureById(spawnId)?.name || spawnId).replace(/^(
 
 function moves(path) { return path.map((e) => `  move ${e.dir}`); }
 
+// Broad room ladders repeat species-local labels. Keep their exact control
+// flow within the saved-script limit without changing commands or regexes.
+function compactScriptLabels(source, limit = 16000) {
+  if (source.length <= limit) return source;
+  const labels = new Map();
+  for (const raw of source.split('\n')) {
+    const match = /^([A-Za-z_][A-Za-z0-9_]*):$/.exec(raw.trim());
+    if (match && !labels.has(match[1])) labels.set(match[1], `L${labels.size}`);
+  }
+  const rename = name => labels.get(name) || name;
+  return source.split('\n').map(raw => {
+    const line = raw.trim();
+    const label = /^([A-Za-z_][A-Za-z0-9_]*):$/.exec(line);
+    if (label) return `${rename(label[1])}:`;
+    if (/^(match|matchre)\s/.test(line))
+      return line.replace(/^(match|matchre)(\s+)(\S+)/, (_, verb, space, target) => `${verb}${space}${rename(target)}`);
+    if (/^goto\s/.test(line)) return line.replace(/^(goto\s+)(\S+)$/, (_, prefix, target) => prefix + rename(target));
+    if (/^(iflt|ifge|ifgt)\s/.test(line))
+      return line.replace(/^((?:iflt|ifge|ifgt)\s+\S+\s+\S+\s+(?:goto\s+)?)(\S+)$/, (_, prefix, target) => prefix + rename(target));
+    if (/^(ife|ifne)\s/.test(line))
+      return line.replace(/^((?:ife|ifne)\s+\S+\s+\S+\s+goto\s+)(\S+)$/, (_, prefix, target) => prefix + rename(target));
+    if (/^if_\d+\s/.test(line))
+      return line.replace(/^(if_\d+\s+(?:goto\s+)?)(\S+)$/, (_, prefix, target) => prefix + rename(target));
+    return line;
+  }).join('\n');
+}
+
 function weaponKitFor(cap, plan) {
   // Every member must be stocked in the shared bazaar. Throwing knives are
   // an item but are not sold by any bazaar shop; using them here produced a
@@ -42,7 +69,7 @@ function weaponKitFor(cap, plan) {
 
 // Keep the high-cardinality weapon decision tree out of hunt.dr. A hunt script
 // has one fight block per species/candidate room, so inlining this tree can
-// exceed the server's 8,000-character saved-script limit before it ever runs.
+// exceed the server's 16,000-character saved-script limit before it ever runs.
 function buildWeaponRotationScript(cap) {
   const plan = GUILD_SCRIPTS[cap.guild]?.weaponPlan;
   if (!plan?.weapons?.length || !cap.closeNth) return 'exit';
@@ -1206,7 +1233,7 @@ function buildHuntScript({ cap, arena, hallPath, candidates = [], questTarget = 
     src = src.replace(/\n  ife wsp [\s\S]*?(?=\n  put exp)/g,
       `\n  putrun ${cap.scriptBase}rotate`);
   }
-  return src;
+  return compactScriptLabels(src);
 }
 
 // circle.dr: walk to the hall, try to circle, train the guild curriculum with
@@ -1488,8 +1515,13 @@ function buildCircleScript({ cap, fromArena, errands }) {
   // a circle blocker is trainable by the guild, spend silver on that skill at
   // the hall; non-guild blockers must continue to grow organically in the
   // field.
+  // TDP is a native message-only response, so it cannot own a prompt wait.
+  // Register before sending and bound silence; paid lessons still wait for
+  // their own real prompts below.
+  L.push('  match TRAIN_TDP_DONE Training Points');
   L.push('  put tdp');
-  L.push('  wait');
+  L.push('  matchwait 5');
+  L.push('TRAIN_TDP_DONE:');
   L.push('  pause 1');
   // TEACHABLE FILTER (cap.finishKit): the trainer only teaches guild
   // primary/secondary(+guild skill). Every non-teachable line in the
@@ -1875,4 +1907,4 @@ function reversePath(path) {
   return [...path].reverse().map((e) => ({ dir: OPPOSITE[e.dir] || e.dir }));
 }
 
-export { nounOf, moves, buildHuntScript, buildOccupancyLadder, buildWeaponRotationScript, buildSharedFightScript, buildCircleScript, buildMegaScript, reversePath, OPPOSITE, trainListFromMissing };
+export { nounOf, moves, compactScriptLabels, buildHuntScript, buildOccupancyLadder, buildWeaponRotationScript, buildSharedFightScript, buildCircleScript, buildMegaScript, reversePath, OPPOSITE, trainListFromMissing };

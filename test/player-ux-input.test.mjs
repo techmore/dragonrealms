@@ -37,6 +37,21 @@ test('programmatic commands dispatch independently of draft, selection and focus
   assert.equal(h.document.activeElement, h.active);
 });
 
+test('read-only watch blocks gameplay and authentication before login or chargen routing', () => {
+  for (const value of ['login', 'playing', 'charcreate', 'charcreate_playing']) {
+    const h = harness();
+    Object.assign(h.context.gameState, { value, spectating: true, inChargen: true });
+    h.context.pressEnter('north');
+    h.context.pressEnter('login user secret');
+    assert.equal(h.sent.length, 0);
+    assert.ok(h.output.some(([text]) => text.includes('Watch mode is read-only')));
+    assert.equal(h.output.some(([text]) => text.includes('secret')), false);
+    assert.equal(h.cmd.value, 'unfinished draft');
+    assert.equal(h.cmd.selectionStart, 3);
+    assert.equal(h.cmd.selectionEnd, 7);
+  }
+});
+
 test('input routing sends corpse inspection and keeps explicit transcript search local', () => {
   const h = harness();
   h.context.pressEnter('search corpse');

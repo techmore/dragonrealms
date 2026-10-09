@@ -1063,6 +1063,14 @@ body[data-theme="ember"] #terminal b { color: #f5ead6; }
 }
 
 #panel-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+/* Desktop widgets remain expanded by preference, but cannot squeeze an
+   actively selected inspection down to an unreadable strip. The outer dock
+   scrolls when Room/Journal plus this minimum exceed the available height. */
+@media (min-width: 821px) {
+  body.panel-open #panel-wrap { min-height: min(320px, 50dvh); flex-shrink: 0; }
+  body.panel-open #panel-head { flex-shrink: 0; }
+  body.panel-open .panel-body { min-height: 0; }
+}
 #panel-head {
   display: flex;
   align-items: center;
@@ -1743,7 +1751,7 @@ body.in-combat #inputbar { border-top-color: color-mix(in srgb, var(--red) 65%, 
   #btn-chat { order: 1; }
   #settings-btn { order: 2; }
   #btn-exp, #btn-info, #btn-inv, #btn-score, #btn-skills, #btn-spells, #btn-scripts { order: 3; }
-  #btn-windows { order: 4; }
+  #btn-windows { order: -1; flex-shrink: 0; }
 
   #app { flex-direction: column; width: 100%; }
   #leftrail {

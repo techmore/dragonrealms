@@ -1007,6 +1007,9 @@ class SweepAgent {
         }
       },
       onFatal: (reason) => this.finish(reason),
+      onOther: (m) => {
+        if (m.t === 'script_result') this.appendLog(`[script-save] ${m.requestId || 'unnamed upload'} ${m.ok ? 'confirmed' : `rejected: ${m.error || 'unknown reason'}`}`);
+      },
       onReconnect: (n) => this.appendLog(`[reconnect] attempt ${n}`),
       // CLAIM-AWARE TRIP TRIGGER (the last fresh-c2 coin flip): the journal
       // push arrives the instant a quest completes. A done-but-unclaimed
@@ -1208,10 +1211,10 @@ class SweepAgent {
       species: [...new Set(ROOMS[arena.id]?.spawns || [])].map(nounOf),
     };
     for (const [name, body] of Object.entries(this.libraryPending || this.library || {})) {
-      s.sendObj({ t: 'scripts_put', name, body });
+      s.sendObj({ t: 'scripts_put', name, body, requestId: `save:${name}` });
       await sleep(250);
     }
-    this.appendLog(`library saved: ${Object.keys(this.libraryPending || {}).join(', ')} (${huntSrc.split('\n').length} hunt lines)`);
+    this.appendLog(`library upload requested: ${Object.keys(this.libraryPending || {}).join(', ')} (${huntSrc.split('\n').length} hunt lines); native script-save results confirm persistence`);
     const weaponKit = this.variant?.edgedKit
       ? 'dagger, broadsword, greatsword, hunting bow'
       : this.variant?.shieldKit
@@ -1219,7 +1222,7 @@ class SweepAgent {
         : 'adaptive guild kit';
     this.weaponPolicy = `${this.variant?.weaponAware ? 'Nth-aware' : 'standard'} · ${weaponKit}`;
     this.appendLog(`[weapon-policy] ${this.weaponPolicy}`);
-    this.recordMilestone('scripts_ready', 'generated hunt, circle, and mega scripts uploaded');
+    this.recordMilestone('scripts_ready', 'generated local hunt, circle, and mega scripts ready; server uploads requested');
     if (process.env.SWEEP_DUMP) this.appendLog('--- hunt.dr ---\n' + huntSrc);
     log(`[${this.guild}/${this.race}] arena ${ROOMS[arena.id].name} — species: ${[...new Set(ROOMS[arena.id].spawns)].map(nounOf).join(', ')}`);
     await sleep(600);
@@ -1677,7 +1680,7 @@ class SweepAgent {
     if (cap.sharedFight) this.library[this.scriptBase + 'fight'] = buildSharedFightScript(cap);
     if (this.variant?.closeNth) this.library[this.scriptBase + 'rotate'] = buildWeaponRotationScript(cap);
     for (const [name, body] of Object.entries(this.library)) {
-      s.sendObj({ t: 'scripts_put', name, body });
+      s.sendObj({ t: 'scripts_put', name, body, requestId: `save:${name}` });
     }
   }
 

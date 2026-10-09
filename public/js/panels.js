@@ -91,6 +91,13 @@ export function openPanel(key, sendCmd = true, query) {
   body.classList.remove('quest-inspection');
   syncToolbar();
   if (isMobile()) requestAnimationFrame(() => $('panel-close').focus());
+  else requestAnimationFrame(() => {
+    // Reveal the bounded active panel inside the outer dock without changing
+    // focus, command/editor drafts, or any persisted widget preferences.
+    if (activePanel === key && !$('panel-wrap').hidden && !isMobile()) {
+      $('panel-wrap').scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+  });
   if (key === 'commands') {
     renderCommandGuide(body, query);
     return;

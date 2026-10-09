@@ -112,6 +112,11 @@ export function handleLocalCommand(line) {
     return;
   }
 
+  if (gameState.spectating) {
+    append('Watch mode is read-only. Use "unspectate" to return.', 'ch-notice');
+    return;
+  }
+
   if (gameState.inChargen && gameState.value === 'charcreate') {
     if (routeTypedCommand(line)) return;
     return send({ t: 'input', line });

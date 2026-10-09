@@ -14,8 +14,9 @@
     @media (max-width: 760px) {
       #gm-app { grid-template-columns: minmax(0, 1fr) !important; padding: 8px; }
       #topbar { height: auto; flex-wrap: wrap; gap: 8px; padding: 8px; }
-      .topbar-right { flex-wrap: wrap; }
-      .gm-room, .gm-ch, .gm-pip, .tool { min-height: 36px; }
+      #topbar .brand { flex: 1 1 100%; height: auto; white-space: normal; flex-wrap: wrap; min-width: 0; }
+      .topbar-right { display: flex; flex: 1 1 100%; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+      button.gm-room, .gm-ch, .gm-pip, .tool { min-height: 36px; }
     }
     #gm-app { display: grid; grid-template-columns: 340px 1fr; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
     #gm-app h2 { color: var(--amber); margin: 0 0 8px; font-size: 16px; }
@@ -24,11 +25,11 @@
     .gm-zone { margin-bottom: 8px; }
     .gm-zone-name { color: var(--amber); font-weight: bold; margin-bottom: 4px; }
     .gm-rooms { display: flex; flex-wrap: wrap; gap: 4px; }
-    .gm-room, .gm-ch, .gm-pip {
+    button.gm-room, .gm-ch, .gm-pip {
       background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 5px;
       padding: 3px 7px; font-size: 11px; cursor: pointer;
     }
-    .gm-room:hover, .gm-ch:hover, .gm-pip:hover { background: var(--amber); color: #1a1505; }
+    button.gm-room:hover, .gm-ch:hover, .gm-pip:hover { background: var(--amber); color: #1a1505; }
     .gm-t { color: var(--amber); font-weight: bold; }
     .gm-desc { font-size: 12px; margin: 4px 0; }
     .gm-meta { font-size: 11px; color: var(--text); margin: 2px 0; }

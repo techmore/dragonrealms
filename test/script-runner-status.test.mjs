@@ -18,6 +18,14 @@ function harness() {
   vm.runInContext(source, context);
   return { context, output, sent, heartbeat: () => heartbeat(), pause: value => { paused = value; pauseListener(value); } };
 }
+test('watch mode explains its script guard even when the underlying state is login', () => {
+  const h = harness();
+  Object.assign(h.context.gameState, { value: 'login', spectating: true });
+  h.context.runScript('demo');
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.context.isScriptRunning(), false);
+  assert.match(h.output.at(-1)[0], /Watch mode is read-only/);
+});
 test('fatal errors clear the active registry and persist their source details until an explicit new run', () => {
   const h = harness();
   h.context.mergeServerScripts({ broken: '# header\nwaitforre [', good: 'pause 30' });
