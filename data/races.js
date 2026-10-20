@@ -67,7 +67,7 @@ export const RACES = {
 export const raceList = Object.values(RACES);
 
 export function raceById(id) {
-  return RACES[id] || null;
+  return typeof id === 'string' && Object.hasOwn(RACES, id) ? RACES[id] : null;
 }
 
 // Derived combat attributes from stats.

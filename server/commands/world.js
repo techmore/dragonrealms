@@ -465,7 +465,7 @@ export const commands = {
 function look(ctx) {
   const { game, p, arg1, emit } = ctx;
   if (arg1 && arg1 !== 'around' && arg1 !== 'at') {
-    const dir = DIR_ALIASES[arg1.toLowerCase()];
+    const dir = Object.hasOwn(DIR_ALIASES, arg1.toLowerCase()) ? DIR_ALIASES[arg1.toLowerCase()] : null;
     if (dir) {
       const res = game.lookDirection(p, dir);
       emit(res.msg);

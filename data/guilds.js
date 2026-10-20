@@ -177,7 +177,7 @@ export const GUILDS = {
 export const guildList = Object.values(GUILDS);
 
 export function guildById(id) {
-  return GUILDS[id] || null;
+  return typeof id === 'string' && Object.hasOwn(GUILDS, id) ? GUILDS[id] : null;
 }
 
 // All skills a guild trains (primary + secondary), used for display.

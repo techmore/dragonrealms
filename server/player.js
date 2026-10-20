@@ -742,7 +742,7 @@ export function setAlias(p, name, command) {
 
 export function removeAlias(p, name) {
   const n = String(name || '').toLowerCase();
-  if (!p.aliases[n]) return { ok: false, error: 'No such alias.' };
+  if (!Object.hasOwn(p.aliases || {}, n)) return { ok: false, error: 'No such alias.' };
   db.prepare('DELETE FROM aliases WHERE character_id=? AND name=?').run(p.charId, n);
   delete p.aliases[n];
   return { ok: true };

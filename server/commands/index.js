@@ -65,6 +65,13 @@ import { setRoundtime, roundtimeLeft, netBurden, say as sendLine } from '../play
 // direct engine tests and the simulator remain unaffected.
 export const RT_BLOCK = roundtimeCommands(COMMAND_REGISTRY_METADATA);
 
+// Direction lookup keyed by raw typed text: only own keys are directions
+// ("__proto__" must not resolve to Object.prototype and be handed to move()).
+function dirAlias(word) {
+  const key = typeof word === 'string' ? word.toLowerCase() : '';
+  return key && Object.hasOwn(DIR_ALIASES, key) ? DIR_ALIASES[key] : null;
+}
+
 export function handleCommand(game, p, input, depth = 0, opts = {}) {
   const budget = opts.executionBudget || { remaining: MAX_COMMANDS_PER_INPUT, nodes: 64, notified: false };
   opts = { ...opts, executionBudget: budget };
@@ -91,7 +98,11 @@ export function handleCommand(game, p, input, depth = 0, opts = {}) {
 
   // Alias expansion.
   const first = line.split(/\s+/)[0].toLowerCase();
-  if (first !== 'alias' && first !== 'unalias' && p.aliases && p.aliases[first]) {
+  // Own-property check: "__proto__" or "constructor" typed as a verb must not
+  // resolve through the aliases object's prototype chain (it returned
+  // Object.prototype / a function, and `.replace` below threw).
+  if (first !== 'alias' && first !== 'unalias' && p.aliases
+      && Object.hasOwn(p.aliases, first) && typeof p.aliases[first] === 'string') {
     const rest = line.slice(first.length).trim();
     const restParts = rest.split(/\s+/).filter(Boolean);
     let cmd = p.aliases[first];
@@ -122,13 +133,13 @@ export function handleCommand(game, p, input, depth = 0, opts = {}) {
   // weight before their legs will carry them (DR encumbrance).
   if (cmd === 'go') {
     if (netBurden(p) >= 6) return emit('You are overloaded! Drop, bundle, or sell something before you can walk.');
-    const dir = DIR_ALIASES[arg1 && arg1.toLowerCase()];
+    const dir = dirAlias(arg1);
     if (!dir) return emit('Go where? Try a direction (n, s, e, w, u, d).');
     const res = game.move(p, dir);
     if (!res.ok) emit(res.msg);
     return;
   }
-  const dir = DIR_ALIASES[cmd];
+  const dir = dirAlias(cmd);
   if (dir) {
     if (netBurden(p) >= 6) return emit('You are overloaded! Drop, bundle, or sell something before you can walk.');
     const res = game.move(p, dir);

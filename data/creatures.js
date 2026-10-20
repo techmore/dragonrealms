@@ -269,5 +269,5 @@ export const RARES = {
 };
 
 export function creatureById(id) {
-  return CREATURES[id] || null;
+  return typeof id === 'string' && Object.hasOwn(CREATURES, id) ? CREATURES[id] : null;
 }

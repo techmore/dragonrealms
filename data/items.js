@@ -164,7 +164,7 @@ export function itemWeight(item) {
 }
 
 export function itemById(id) {
-  return ITEMS[id] || null;
+  return typeof id === 'string' && Object.hasOwn(ITEMS, id) ? ITEMS[id] : null;
 }
 
 // Damage string for a weapon, e.g. "6-13".

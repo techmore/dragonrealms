@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # engines: >=22.5.0 (node:sqlite). 22 is the floor, 24 the current LTS.
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      - name: Syntax check (server, data, client modules, scripts)
+        # No bundler or transpiler: every file ships as-is, so a parse error
+        # anywhere is a runtime error for the player. `node --check` parses
+        # each ES module without executing it.
+        run: |
+          set -euo pipefail
+          files=$(git ls-files 'server/*.js' 'server/**/*.js' 'data/*.js' 'public/js/*.js' 'public/js/**/*.js' 'scripts/*.mjs' 'scripts/**/*.mjs' 'test/*.mjs')
+          echo "$files" | wc -l | xargs printf 'checking %s files\n'
+          echo "$files" | xargs -n 50 node --check
+
+      - name: Test
+        run: npm test
+        env:
+          # The suites create throwaway SQLite databases under TMPDIR.
+          TMPDIR: ${{ runner.temp }}
