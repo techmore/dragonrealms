@@ -12,7 +12,11 @@ import { circleRequirements, guildById } from '../data/guilds.js';
 
 // Integration contract only: the activity curriculum belongs to engine_circle.
 // The earned-circle regression uses a fixed scripted rotation, not a neural policy.
-test('circle activity subprocess uses real learning and an isolated fresh world', { timeout: 30000 }, async t => {
+// The suite drives two full seed-42 Circle 2 runs (~1000 engine steps). That
+// takes ~15s on a warm developer machine but ~29s on a GitHub-hosted Node 22
+// runner, so a 30s budget killed the engine mid-run. Each request keeps its
+// own 8s response timeout below, so a hung engine still fails fast.
+test('circle activity subprocess uses real learning and an isolated fresh world', { timeout: 120000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), 'dr-circle-contract-'));
   const parentPath = join(directory, 'parent.db');
   const parent = new DatabaseSync(parentPath);
