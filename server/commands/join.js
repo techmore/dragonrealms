@@ -18,7 +18,7 @@ export function hallGuildAt(roomId) {
   const room = roomById(roomId);
   if (!room) return null;
   const m = /^(?:rh_)?hall_([a-z]+)$/.exec(room.id);
-  if (m && GUILDS[m[1]]) return m[1];
+  if (m && Object.hasOwn(GUILDS, m[1])) return m[1];
   return null;
 }
 

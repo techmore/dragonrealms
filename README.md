@@ -1,5 +1,7 @@
 # Dragon Realms
 
+[![CI](https://github.com/techmore/dragonrealms/actions/workflows/ci.yml/badge.svg)](https://github.com/techmore/dragonrealms/actions/workflows/ci.yml)
+
 A clean-room, text-based MUD inspired by *The Crossing*. Hunt creatures in the
 Old Sewers and Wilds, grow your skills through use, advance **circles** at your
 guild hall, and find your place among eleven guilds.
@@ -16,7 +18,8 @@ Open `http://localhost:3000` in a browser. You'll be greeted with a terminal;
 Crossing.
 
 `npm test` runs the headless suites (auth, chargen, combat, circling, death,
-economy, magic — see `test/`). `node scripts/client-corpus.mjs replay
+economy, magic, wire-protocol fuzzing — see `test/`); CI runs the same suite
+plus a syntax check of every shipped module on Node 22 and 24. `node scripts/client-corpus.mjs replay
 <captured.json>` diffs a scripted session against the server build, and
 `node scripts/client-regression.mjs` drives the web client in headless
 Chromium.

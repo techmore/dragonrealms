@@ -453,7 +453,7 @@ export const SKILLS = {
 export const skillList = Object.values(SKILLS);
 
 export function skillById(id) {
-  return SKILLS[id] || null;
+  return typeof id === 'string' && Object.hasOwn(SKILLS, id) ? SKILLS[id] : null;
 }
 
 // The pure rank/exp/mindstate/tier math lives in data/skill-math.js so the
